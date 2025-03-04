@@ -1,0 +1,18 @@
+{
+  "extends": "./node_modules/eslint-config-velis/tsconfig.json",
+  "compilerOptions": {
+    "resolveJsonModule": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "~/*": ["./node_modules/*"],
+    },
+    "types": ["vitest/globals"],
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "dist",
+    "coverage",
+    "node_modules"
+  ]
+}

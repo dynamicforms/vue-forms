@@ -1,0 +1,67 @@
+{
+  "name": "@dynamicforms/vue-forms",
+  "private": false,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Data entry forms for vue - logic (no controls here)",
+  "author": "Jure Erznožnik",
+  "files": [
+    "dist/*"
+  ],
+  "main": "dist/dynamicforms-vue-forms.umd.cjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "require": "./dist/dynamicforms-vue-forms.umd.cjs",
+      "import": "./dist/dynamicforms-vue-forms.js"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "test": "vitest run --coverage",
+    "lint": "eslint src && vue-tsc --noEmit"
+  },
+  "keywords": [
+    "vue",
+    "dynamicforms",
+    "velis",
+    "forms",
+    "data entry"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:velis74/dynamicforms-vue-forms.git"
+  },
+  "issues": "https://github.com/velis74/dynamicforms-vue-forms/issues",
+  "peerDependencies": {
+    "lodash": "^4.17.16",
+    "vue": "^3.4"
+  },
+  "devDependencies": {
+    "@types/lodash": "^4.17.16",
+    "@vitejs/plugin-vue": "^5",
+    "@vitest/coverage-v8": "^3",
+    "@vue/test-utils": "^2.2.4",
+    "@vue/tsconfig": "^0.7.0",
+    "eslint-config-velis": "^1.1.16",
+    "jsdom": "^26.0.0",
+    "typescript": "^5",
+    "vite": "^5",
+    "vite-plugin-dts": "^4",
+    "vite-plugin-eslint": "^1.8.1",
+    "vitest": "^3",
+    "vue-tsc": "^2"
+  },
+  "eslintConfig": {
+    "extends": [
+      "velis"
+    ],
+    "ignorePatterns": [
+      "dist/*",
+      "coverage/*",
+      "node_modules/*",
+      "vite.config.ts"
+    ]
+  }
+}
