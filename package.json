@@ -67,6 +67,7 @@
       "dist/*",
       "coverage/*",
       "node_modules/*",
+      "docs/*",
       "vite.config.ts"
     ]
   }

@@ -76,8 +76,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
-import { Group, Field, ValueChangedAction, EnabledChangedAction } from '../../src'; //from '@dynamicforms/vue-forms'
+import { Group, Field, ValueChangedAction } from '../../src'; //from '@dynamicforms/vue-forms'
 
 // Create a form group with fields
 const personForm = new Group({

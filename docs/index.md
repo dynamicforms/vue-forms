@@ -48,7 +48,6 @@ field states and see how the form output changes:
 Here's a simple example of how to create and use a form with fields and groups:
 
 ```typescript
-import { reactive } from 'vue';
 import { Field, Group, ValueChangedAction } from '@dynamicforms/vue-forms';
 
 // Create a form with fields

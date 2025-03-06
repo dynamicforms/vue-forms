@@ -1,10 +1,10 @@
 import type DisplayMode from './display-mode';
 import { type ValidationError } from './validation-error';
 
-export interface IField {
-  value: any;
-  fullValue: any;
-  originalValue: any;
+export interface IField<T = any> {
+  value: T;
+  fullValue: T;
+  originalValue: T;
   valid: boolean;
   errors: ValidationError[];
   enabled: boolean;
@@ -13,10 +13,10 @@ export interface IField {
   parent?: any; // Group when member of a Group, parent will specify that group
   fieldName?: string; // when member of a Group, fieldName specifies the name of this field
 
-  clone(overrides?: Partial<IField>): IField;
+  clone(overrides?: Partial<IField<T>>): IField<T>;
   // events
-  registerAction(action: IFieldAction): this;
-  triggerAction<T extends IFieldAction>(actionClass: abstract new (...args: any[]) => T, ...params: any[]): any;
+  registerAction(action: IFieldAction<T>): this;
+  triggerAction<T2 extends IFieldAction<T>>(actionClass: abstract new (...args: any[]) => T2, ...params: any[]): any;
 
   // API
   validate(): void;
@@ -25,7 +25,7 @@ export interface IField {
 
 export class AbortEventHandlingException extends Error {}
 
-export type FieldActionExecute = (field: IField, ...params: any[]) => Promise<any>;
-export interface IFieldAction {
-  execute(field: IField, supr: FieldActionExecute, ...params: any[]): any;
+export type FieldActionExecute<T = any> = (field: IField<T>, ...params: any[]) => Promise<any>;
+export interface IFieldAction<T = any> {
+  execute(field: IField<T>, supr: FieldActionExecute<T>, ...params: any[]): any;
 }

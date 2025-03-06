@@ -16,13 +16,13 @@ import { type Group } from './group';
 import { ValidationError } from './validation-error';
 
 // eslint-disable-next-line import/prefer-default-export
-export abstract class FieldBase implements IField {
-  abstract get value(): any;
-  abstract set value(newValue: any);
+export abstract class FieldBase<T = any> implements IField<T> {
+  abstract get value(): T;
+  abstract set value(newValue: T);
 
-  abstract clone(overrides?: Partial<IField>): IField;
+  abstract clone(overrides?: Partial<IField<T>>): IField<T>;
 
-  originalValue: any; // contains original field value as was provided at creation
+  declare originalValue: T; // contains original field value as was provided at creation
 
   valid: boolean = true; // is current value valid as per FE and BE validators?
 
@@ -91,13 +91,13 @@ export abstract class FieldBase implements IField {
     return reactive(this);
   }
 
-  registerAction(action: IFieldAction): this {
+  registerAction(action: IFieldAction<T>): this {
     this.actions.register(action as FieldActionBase);
     return this;
   }
 
-  triggerAction<T extends IFieldAction>(
-    actionClass: new (...args: any[]) => T,
+  triggerAction<T2 extends IFieldAction<T>>(
+    actionClass: new (...args: any[]) => T2,
     ...params: any[]
   ): any {
     return this.actions.trigger(actionClass as any, this, ...params);

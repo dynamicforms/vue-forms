@@ -25,6 +25,9 @@ const personForm = new Group({
   active: new Field({ value: true })
 });
 
+// Create a reactive reference for form output
+const formOutput = personForm.reactiveValue;
+
 // Function to toggle field enabled state
 const toggleField = (fieldName) => {
   const field = personForm.fields[fieldName];
@@ -33,9 +36,9 @@ const toggleField = (fieldName) => {
   }
 };
 
-// Register a value changed action to display updated values
+// Register a value changed action to update form output display
 personForm.registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
-  console.log('Form data changed:', newValue);
+  console.log('form value has changed');
   return supr(field, newValue, oldValue);
 }));
 ```

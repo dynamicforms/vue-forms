@@ -3,10 +3,10 @@ import { FieldBase } from './field-base';
 import { IField } from './field.interface';
 
 // eslint-disable-next-line import/prefer-default-export
-export class Field extends FieldBase {
-  private _value: any = undefined;
+export class Field<T = any> extends FieldBase {
+  private _value: T = undefined!;
 
-  constructor(params?: Partial<IField>) {
+  constructor(params?: Partial<IField<T>>) {
     super();
     if (params) {
       const { value: paramValue, ...otherParams } = params;
@@ -18,7 +18,7 @@ export class Field extends FieldBase {
 
   get value() { return this._value; }
 
-  set value(newValue: any) {
+  set value(newValue: T) {
     if (!this.enabled) return; // a disabled field does not allow changing value
     const oldValue = this._value;
     this._value = newValue;
@@ -27,8 +27,8 @@ export class Field extends FieldBase {
     this.validate();
   }
 
-  clone(overrides?: Partial<IField>): Field {
-    return new Field({
+  clone(overrides?: Partial<IField<T>>): Field<T> {
+    return new Field<T>({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
       errors: [...(overrides?.errors ?? this.errors)],
@@ -38,7 +38,7 @@ export class Field extends FieldBase {
   }
 }
 
-export type NullableField = Field | null;
+export type NullableField<T = any> = Field<T> | null;
 
 export const EmptyField = new Field({ value: 'EmptyField' })
   .registerAction(new ValueChangedAction(
