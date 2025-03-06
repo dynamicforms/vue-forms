@@ -1,0 +1,21 @@
+{
+  "name": "@dynamicforms/vue-forms-docs",
+  "version": "1.0.0",
+  "description": "Documentation for @dynamicforms/vue-forms",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "docs:dev": "vitepress dev",
+    "docs:build": "vitepress build",
+    "docs:preview": "vitepress preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.19",
+    "vuetify": "^3.7.15"
+  },
+  "devDependencies": {
+    "@mdi/font": "^7.4.47",
+    "sass": "^1.85.1",
+    "vitepress": "^1.6.3"
+  }
+}

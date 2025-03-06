@@ -4,6 +4,7 @@
     "coverage",
     "dist",
     "node_modules",
+    "docs",
     "./**/*.spec.*"
   ],
   "compilerOptions": {

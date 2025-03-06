@@ -1,4 +1,5 @@
 import { isEmpty, isEqual } from 'lodash';
+import { ComputedRef, computed } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { Field } from './field';
@@ -11,6 +12,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
   private readonly _fields: T;
 
   private _value: Record<string, any> | null = null;
+
+  public readonly reactiveValue: ComputedRef<Record<string, any> | null>;
 
   private suppressNotifyValueChanged: boolean = false;
 
@@ -37,6 +40,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     }
 
     if (this.originalValue === undefined) this.originalValue = this.value;
+
+    this.reactiveValue = computed(() => this.value);
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
   }
 
