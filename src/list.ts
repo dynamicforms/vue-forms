@@ -1,4 +1,4 @@
-import { isEmpty, isEqual } from 'lodash';
+import { isEmpty, isEqual } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction, ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';

@@ -1,7 +1,7 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Data entry forms for vue - logic (no controls here)",
   "author": "Jure Erznožnik",
@@ -41,11 +41,11 @@
   },
   "issues": "https://github.com/velis74/dynamicforms-vue-forms/issues",
   "peerDependencies": {
-    "lodash": "^4.17.16",
+    "lodash-es": "^4.17.12",
     "vue": "^3.4"
   },
   "devDependencies": {
-    "@types/lodash": "^4.17.16",
+    "@types/lodash-es": "^4.17.12",
     "@vitejs/plugin-vue": "^5",
     "@vitest/coverage-v8": "^3",
     "@vue/test-utils": "^2.2.4",

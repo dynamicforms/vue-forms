@@ -1,4 +1,4 @@
-import { isEmpty, isEqual } from 'lodash';
+import { isEmpty, isEqual } from 'lodash-es';
 import { ComputedRef, computed } from 'vue';
 
 import { ValueChangedAction } from './actions';

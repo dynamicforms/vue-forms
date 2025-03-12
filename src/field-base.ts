@@ -1,4 +1,4 @@
-import { isBoolean, isEqual } from 'lodash';
+import { isBoolean, isEqual } from 'lodash-es';
 import { reactive } from 'vue';
 
 import {

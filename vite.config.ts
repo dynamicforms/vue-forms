@@ -44,7 +44,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        'lodash',
+        'lodash-es',
         'vue',
       ],
       output: {

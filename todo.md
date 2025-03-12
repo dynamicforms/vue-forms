@@ -1,5 +1,5 @@
 immediate todo list
 
-- demo app
-- typescript support for Field value
 - full documentation
+- demo app with more examples
+- more coverage in unit tests
