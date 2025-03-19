@@ -1,4 +1,4 @@
-export * from './display-mode';
+export { default as DisplayMode } from './display-mode';
 export * from './validation-error';
 
 export * from './actions';
