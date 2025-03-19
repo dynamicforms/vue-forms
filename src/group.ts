@@ -1,5 +1,4 @@
 import { isEmpty, isEqual } from 'lodash-es';
-import { ComputedRef, computed } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { Field } from './field';
@@ -13,8 +12,6 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
   private _value: Record<string, any> | null = null;
 
-  public readonly reactiveValue: ComputedRef<Record<string, any> | null>;
-
   private suppressNotifyValueChanged: boolean = false;
 
   constructor(fields: T, params?: Partial<IField>) {
@@ -25,11 +22,10 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     Object.entries(fields).forEach(([name, field]) => {
       Object.defineProperty(field, 'parent', { get: () => this, configurable: false, enumerable: false });
       Object.defineProperty(field, 'fieldName', { get: () => name, configurable: false, enumerable: false });
-      const reactiveField = field.reactive;
       Object.defineProperty(
         this._fields,
         name,
-        { get() { return reactiveField; }, configurable: false, enumerable: true },
+        { get() { return field; }, configurable: false, enumerable: true },
       );
     });
 
@@ -41,12 +37,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
     if (this.originalValue === undefined) this.originalValue = this.value;
 
-    this.reactiveValue = computed(() => this.value);
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
-  }
-
-  get reactive() {
-    return this;
   }
 
   private static isValidFields(flds: unknown): flds is Record<string, FieldBase> {
@@ -67,7 +58,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
       data == null ?
         { } :
         Object.fromEntries(
-          Object.entries(data).map(([key, value]) => [key, new Field({ value })]),
+          Object.entries(data).map(([key, value]) => [key, Field.create({ value })]),
         ),
     );
   }

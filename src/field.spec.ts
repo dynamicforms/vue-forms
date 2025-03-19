@@ -2,14 +2,14 @@ import { vi } from 'vitest';
 
 import { ValidationErrorText } from './validation-error';
 
-import * as Form from '.';
+import Form from '.';
 
 import DisplayMode from '@/display-mode';
 
 describe('Field', () => {
   it('trigger onValueChanged on value change', () => {
     const onValueChanged = vi.fn();
-    const field = new Form.Field({ enabled: true })
+    const field = Form.Field.create({ enabled: true })
       .registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
@@ -19,7 +19,7 @@ describe('Field', () => {
 
   it('does not trigger onValueChanged, when the field is read only', () => {
     const onValueChanged = vi.fn();
-    const field = new Form.Field({ enabled: false })
+    const field = Form.Field.create({ enabled: false })
       .registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
@@ -28,7 +28,7 @@ describe('Field', () => {
   });
 
   it('sets originalValue', () => {
-    const field = new Form.Field({
+    const field = Form.Field.create({
       value: 'test',
       originalValue: 'original',
     });
@@ -39,7 +39,7 @@ describe('Field', () => {
   });
 
   it('check isChanged behaviour', () => {
-    const field = new Form.Field({
+    const field = Form.Field.create({
       value: 'test',
       originalValue: 'original',
     });
@@ -52,7 +52,7 @@ describe('Field', () => {
 
   it('triggers validation on value change', () => {
     const onValidChanged = vi.fn();
-    const field = new Form.Field({ enabled: true })
+    const field = Form.Field.create({ enabled: true })
       .registerAction(new Form.ValidChangedAction(onValidChanged));
 
     field.errors = [new ValidationErrorText('Napaka')];
@@ -69,7 +69,7 @@ describe('Field', () => {
     //  actually uses the result of the event handler.
     //  when it returns null, expected result is what was requested in the setVisibility call
     const onVisibilityChanging = vi.fn().mockResolvedValue(changingReturnValue);
-    const field = new Form.Field()
+    const field = Form.Field.create()
       .registerAction(new Form.VisibilityChangingAction(onVisibilityChanging));
 
     await field.setVisibility(DisplayMode.HIDDEN);
@@ -86,7 +86,7 @@ describe('Field', () => {
     //  actually uses the result of the event handler.
     //  when it returns null, expected result is what was requested in the setEnabled call
     const onEnabledChanging = vi.fn().mockResolvedValue(changingReturnValue);
-    const field = new Form.Field()
+    const field = Form.Field.create()
       .registerAction(new Form.EnabledChangingAction(onEnabledChanging));
 
     await field.setEnabled(false);

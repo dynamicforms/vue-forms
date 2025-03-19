@@ -32,9 +32,9 @@ describe('List', () => {
 
   it('initializes with template groups', () => {
     const template = new Group({
-      name: new Field({ value: '' }),
-      age: new Field({ value: 0 }),
-      active: new Field({ value: true }),
+      name: Field.create({ value: '' }),
+      age: Field.create({ value: 0 }),
+      active: Field.create({ value: true }),
     });
 
     const list = new List(template, {
@@ -188,8 +188,8 @@ describe('List', () => {
 
   it('clones list correctly', () => {
     const template = new Group({
-      name: new Field(),
-      age: new Field(),
+      name: Field.create(),
+      age: Field.create(),
     });
 
     const list = new List(template, {
@@ -240,8 +240,8 @@ describe('List', () => {
 
   it('creates items using the template', () => {
     const template = new Group({
-      name: new Field({ value: 'Default Name' }),
-      age: new Field({ value: 18 }),
+      name: Field.create({ value: 'Default Name' }),
+      age: Field.create({ value: 18 }),
     });
 
     const list = new List(template);

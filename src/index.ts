@@ -1,9 +1,5 @@
-export * from './actions';
-export * from './action';
-export * from './field';
-export * from './field.interface';
-export * from './group';
-export * from './list';
+import * as Form from './index-individual';
 
-// TODO: check what happens when nested ListSerializer raises ValidationException on row 5 of POSTed table.
-//  how does that error come to FE and does it specify error position precisely
+export * from './index-individual';
+
+export default Form;

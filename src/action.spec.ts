@@ -2,7 +2,7 @@ import { Action } from './action';
 
 describe('Action', () => {
   it('correctly manages value, label and icon', () => {
-    const action = new Action({ value: { label: 'Action', icon: 'plus' } });
+    const action = Action.create({ value: { label: 'Action', icon: 'plus' } });
 
     expect(action.value).toEqual({ label: 'Action', icon: 'plus' });
     expect(action.label).toBe('Action');
@@ -20,7 +20,7 @@ describe('Action', () => {
   });
 
   it('prevents changes when disabled', () => {
-    const action = new Action({
+    const action = Action.create({
       value: { label: 'Action', icon: 'plus' },
       enabled: false,
     });

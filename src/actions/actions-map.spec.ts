@@ -22,14 +22,14 @@ describe('Form actions', () => {
       return supr(field, newValue, oldValue);
     });
 
-    const field = new Field({ value: 'začetno' })
+    const field = Field.create({ value: 'začetno' })
       .registerAction(new ValueChangedAction(valueAction1))
       .registerAction(new ValueChangedAction(valueAction2))
       .registerAction(new VisibilityChangedAction(visibilityAction));
 
     const form = new Group({
       polje1: field,
-      polje2: new Field({ value: 'drugo polje' }),
+      polje2: Field.create({ value: 'drugo polje' }),
     });
 
     // Sprožimo ValueChangedAction
@@ -57,7 +57,7 @@ describe('Form actions', () => {
       // Ne kličemo supr, prekinemo verigo
     });
 
-    const field = new Field({ value: 'začetno' })
+    const field = Field.create({ value: 'začetno' })
       .registerAction(new ValueChangedAction(valueAction1))
       .registerAction(new ValueChangedAction(valueAction2));
 

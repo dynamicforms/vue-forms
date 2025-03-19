@@ -1,3 +1,5 @@
+import { reactive, Reactive } from 'vue';
+
 import { ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
 import { IField } from './field.interface';
@@ -6,7 +8,7 @@ import { IField } from './field.interface';
 export class Field<T = any> extends FieldBase {
   private _value: T = undefined!;
 
-  constructor(params?: Partial<IField<T>>) {
+  protected constructor(params?: Partial<IField<T>>) {
     super();
     if (params) {
       const { value: paramValue, ...otherParams } = params;
@@ -14,6 +16,10 @@ export class Field<T = any> extends FieldBase {
       this._value = paramValue ?? this.originalValue;
       if (this.originalValue === undefined) this.originalValue = this._value;
     }
+  }
+
+  static create<T = any>(params?: Partial<IField<T>>): Reactive<Field<T>> {
+    return reactive(new Field(params));
   }
 
   get value() { return this._value; }
@@ -27,8 +33,8 @@ export class Field<T = any> extends FieldBase {
     this.validate();
   }
 
-  clone(overrides?: Partial<IField<T>>): Field<T> {
-    return new Field<T>({
+  clone(overrides?: Partial<IField<T>>): Reactive<Field<T>> {
+    return Field.create<T>({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
       errors: [...(overrides?.errors ?? this.errors)],
@@ -40,7 +46,7 @@ export class Field<T = any> extends FieldBase {
 
 export type NullableField<T = any> = Field<T> | null;
 
-export const EmptyField = new Field({ value: 'EmptyField' })
+export const EmptyField = Field.create({ value: 'EmptyField' })
   .registerAction(new ValueChangedAction(
     async () => {
       console.warn('Working with EmptyField! This should not happen');

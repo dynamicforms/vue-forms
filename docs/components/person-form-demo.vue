@@ -80,10 +80,10 @@ import { Group, Field, ValueChangedAction } from '../../src'; //from '@dynamicfo
 
 // Create a form group with fields
 const personForm = new Group({
-  firstName: new Field({ value: 'John' }),
-  lastName: new Field({ value: 'Doe' }),
-  age: new Field({ value: 30 }),
-  active: new Field({ value: true })
+  firstName: Field.create({ value: 'John' }),
+  lastName: Field.create({ value: 'Doe' }),
+  age: Field.create({ value: 30 }),
+  active: Field.create({ value: true })
 });
 
 // Create a reactive reference for form output

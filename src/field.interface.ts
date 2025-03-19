@@ -1,8 +1,11 @@
+import { ComputedRef } from 'vue';
+
 import type DisplayMode from './display-mode';
 import { type ValidationError } from './validation-error';
 
 export interface IField<T = any> {
   value: T;
+  reactiveValue: ComputedRef<T>;
   fullValue: T;
   originalValue: T;
   valid: boolean;

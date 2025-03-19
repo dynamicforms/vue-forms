@@ -1,4 +1,4 @@
-import { reactive } from 'vue';
+import { reactive, Reactive } from 'vue';
 
 import { ExecuteAction, ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
@@ -17,7 +17,7 @@ function isValEmpty(val: ActionValue, defaultIfTrue: ActionValue): ActionValue {
 export class Action extends FieldBase {
   private readonly _value: ActionValue;
 
-  constructor(params?: Partial<IField>) {
+  protected constructor(params?: Partial<IField<ActionValue>>) {
     super();
     if (params) {
       const { value: paramValue, originalValue, ...otherParams } = params;
@@ -29,6 +29,10 @@ export class Action extends FieldBase {
     } else {
       this._value = reactive({ label: undefined, icon: undefined });
     }
+  }
+
+  static create(params?: Partial<IField<ActionValue>>): Reactive<Action> {
+    return reactive(new Action(params));
   }
 
   get value(): ActionValue { return this._value; }
@@ -59,7 +63,7 @@ export class Action extends FieldBase {
     this.value = { label: newValue, icon: this.value.icon };
   }
 
-  clone(overrides?: Partial<IField>): Action {
+  clone(overrides?: Partial<IField>): Reactive<Action> {
     return new Action({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),

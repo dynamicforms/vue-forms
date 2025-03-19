@@ -1,5 +1,5 @@
 import { isBoolean, isEqual } from 'lodash-es';
-import { reactive } from 'vue';
+import { computed } from 'vue';
 
 import {
   ActionsMap,
@@ -19,6 +19,7 @@ import { ValidationError } from './validation-error';
 export abstract class FieldBase<T = any> implements IField<T> {
   abstract get value(): T;
   abstract set value(newValue: T);
+  public readonly reactiveValue = computed(() => this.value);
 
   abstract clone(overrides?: Partial<IField<T>>): IField<T>;
 
@@ -85,10 +86,6 @@ export abstract class FieldBase<T = any> implements IField<T> {
 
   get isChanged() : boolean {
     return !isEqual(this.value, this.originalValue);
-  }
-
-  get reactive(): IField {
-    return reactive(this);
   }
 
   registerAction(action: IFieldAction<T>): this {

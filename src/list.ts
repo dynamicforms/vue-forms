@@ -29,10 +29,6 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     // if (Object.keys(this._fields).length) console.log('formGroup created', this, Error().stack);
   }
 
-  get reactive() {
-    return this;
-  }
-
   private processSetValueItem(item: any) : Group<T> {
     let res: Group<T>;
     // If item is already a Group, use it

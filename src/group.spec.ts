@@ -7,9 +7,9 @@ import { Group } from './group';
 describe('Group', () => {
   it('correctly serializes values', () => {
     const group = new Group({
-      field1: new Field({ value: 'test1' }),
-      field2: new Field({ value: 'test2', enabled: false }),
-      field3: new Field({ value: 'test3' }),
+      field1: Field.create({ value: 'test1' }),
+      field2: Field.create({ value: 'test2', enabled: false }),
+      field3: Field.create({ value: 'test3' }),
     });
 
     expect(group.value).toEqual({ field1: 'test1', field3: 'test3' });
@@ -17,8 +17,8 @@ describe('Group', () => {
   });
 
   it('correctly deserialises values', () => {
-    const field1 = new Field();
-    const field2 = new Field();
+    const field1 = Field.create();
+    const field2 = Field.create();
 
     const group = new Group({ field1, field2 });
 
@@ -31,8 +31,8 @@ describe('Group', () => {
   it('triggers onValueChanged only once when setting multiple nested values', () => {
     const onValueChanged = vi.fn();
     const group = new Group({
-      field1: new Field({ enabled: true }),
-      field2: new Field({ enabled: true }),
+      field1: Field.create({ enabled: true }),
+      field2: Field.create({ enabled: true }),
     }).registerAction(new ValueChangedAction(onValueChanged));
 
     group.value = { field1: 'test1', field2: 'test2' };
@@ -42,13 +42,13 @@ describe('Group', () => {
 
   it('correctly uses nested groups', () => {
     const subGroup = new Group({
-      subField1: new Field({ value: 'sub1' }),
-      subField2: new Field({ value: 'sub2', enabled: false }),
-      subField3: new Field({ value: 'sub3' }),
+      subField1: Field.create({ value: 'sub1' }),
+      subField2: Field.create({ value: 'sub2', enabled: false }),
+      subField3: Field.create({ value: 'sub3' }),
     });
 
     const mainGroup = new Group({
-      field1: new Field({ value: 'main1', enabled: true }),
+      field1: Field.create({ value: 'main1', enabled: true }),
       group: subGroup,
     });
 
@@ -63,7 +63,7 @@ describe('Group', () => {
 
   it('correctly notifies parent of changes', () => {
     const onValueChanged = vi.fn();
-    const group = new Group({ field1: new Field() })
+    const group = new Group({ field1: Field.create() })
       .registerAction(new ValueChangedAction(onValueChanged));
 
     const field = group.fields.field1;
@@ -76,8 +76,8 @@ describe('Group', () => {
 describe('Group value initialization', () => {
   it('correctly initializes empty fields without value', () => {
     const fields = {
-      name: new Field(),
-      age: new Field(),
+      name: Field.create(),
+      age: Field.create(),
     };
 
     const group = new Group(fields);
@@ -90,8 +90,8 @@ describe('Group value initialization', () => {
 
   it('correctly initializes fields with their own values', () => {
     const fields = {
-      name: new Field({ value: 'John' }),
-      age: new Field({ value: 30 }),
+      name: Field.create({ value: 'John' }),
+      age: Field.create({ value: 30 }),
     };
 
     const group = new Group(fields);
@@ -104,8 +104,8 @@ describe('Group value initialization', () => {
 
   it('correctly overrides field values with group constructor value parameter', () => {
     const fields = {
-      name: new Field({ value: 'John' }),
-      age: new Field({ value: 30 }),
+      name: Field.create({ value: 'John' }),
+      age: Field.create({ value: 30 }),
     };
 
     const group = new Group(fields, {
@@ -127,9 +127,9 @@ describe('Group value initialization', () => {
 
   it('correctly handles partial value overrides', () => {
     const fields = {
-      name: new Field({ value: 'John' }),
-      age: new Field({ value: 30 }),
-      active: new Field({ value: true }),
+      name: Field.create({ value: 'John' }),
+      age: Field.create({ value: 30 }),
+      active: Field.create({ value: true }),
     };
 
     const group = new Group(fields, {
@@ -148,12 +148,12 @@ describe('Group value initialization', () => {
 
   it('correctly initializes nested groups with values', () => {
     const addressFields = {
-      street: new Field({ value: 'Main St' }),
-      city: new Field({ value: 'New York' }),
+      street: Field.create({ value: 'Main St' }),
+      city: Field.create({ value: 'New York' }),
     };
 
     const personFields = {
-      name: new Field({ value: 'John' }),
+      name: Field.create({ value: 'John' }),
       address: new Group(addressFields),
     };
 
@@ -183,8 +183,8 @@ describe('Group value initialization', () => {
 
   it('handles originalValue correctly', () => {
     const fields = {
-      name: new Field({ value: 'John' }),
-      age: new Field({ value: 30 }),
+      name: Field.create({ value: 'John' }),
+      age: Field.create({ value: 30 }),
     };
 
     const group = new Group(fields, {

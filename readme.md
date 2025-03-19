@@ -39,10 +39,10 @@ import { Field, Group, ValueChangedAction } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
 const personForm = new Group({
-  firstName: new Field({ value: 'John' }),
-  lastName: new Field({ value: 'Doe' }),
-  age: new Field({ value: 30 }),
-  active: new Field({ value: true })
+  firstName: Field.create({ value: 'John' }),
+  lastName: Field.create({ value: 'Doe' }),
+  age: Field.create({ value: 30 }),
+  active: Field.create({ value: true })
 });
 
 // Access values
@@ -65,7 +65,7 @@ The library provides a powerful event system for field changes and other actions
 ```typescript
 import { Field, Group, ValueChangedAction, ValidationErrorText } from '@dynamicforms/vue-forms';
 
-const emailField = new Field({ value: '' })
+const emailField = Field.create({ value: '' })
   .registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
     // Custom validation on value change
     if (!newValue.includes('@')) {
@@ -81,7 +81,7 @@ const emailField = new Field({ value: '' })
 // Or register events on a form
 const form = new Group({
   email: emailField,
-  username: new Field()
+  username: Field.create()
 }).registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
   console.log('Form data changed:', newValue);
   return supr(field, newValue, oldValue);
@@ -107,11 +107,11 @@ interface UserFormData {
 
 // Create the form with type checking
 const userForm = new Group<UserFormData>({
-  username: new Field({ value: '' }),
-  email: new Field({ value: '' }),
+  username: Field.create({ value: '' }),
+  email: Field.create({ value: '' }),
   preferences: new Group({
-    darkMode: new Field({ value: true }),
-    notifications: new Field({ value: true })
+    darkMode: Field.create({ value: true }),
+    notifications: Field.create({ value: true })
   })
 });
 
