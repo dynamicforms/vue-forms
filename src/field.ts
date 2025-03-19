@@ -1,10 +1,9 @@
-import { reactive, Reactive } from 'vue';
+import { reactive } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
 import { IField } from './field.interface';
 
-// eslint-disable-next-line import/prefer-default-export
 export class Field<T = any> extends FieldBase {
   private _value: T = undefined!;
 
@@ -18,8 +17,8 @@ export class Field<T = any> extends FieldBase {
     }
   }
 
-  static create<T = any>(params?: Partial<IField<T>>): Reactive<Field<T>> {
-    return reactive(new Field(params));
+  static create<T = any>(params?: Partial<IField<T>>): Field<T> {
+    return reactive(new Field(params)) as Field<T>;
   }
 
   get value() { return this._value; }
@@ -33,7 +32,7 @@ export class Field<T = any> extends FieldBase {
     this.validate();
   }
 
-  clone(overrides?: Partial<IField<T>>): Reactive<Field<T>> {
+  clone(overrides?: Partial<IField<T>>): Field<T> {
     return Field.create<T>({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),

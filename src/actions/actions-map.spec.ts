@@ -7,7 +7,7 @@ import { Group } from '../group';
 import { ValueChangedAction, VisibilityChangedAction } from '.';
 
 describe('Form actions', () => {
-  it('corrctly executes action chain', () => {
+  it('correctly executes action chain', () => {
     const klici: string[] = [];
     const valueAction1 = vi.fn((field, supr, newValue, oldValue) => {
       klici.push('valueAction1');

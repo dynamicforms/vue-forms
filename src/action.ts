@@ -1,4 +1,4 @@
-import { reactive, Reactive } from 'vue';
+import { reactive } from 'vue';
 
 import { ExecuteAction, ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
@@ -31,8 +31,8 @@ export class Action extends FieldBase {
     }
   }
 
-  static create(params?: Partial<IField<ActionValue>>): Reactive<Action> {
-    return reactive(new Action(params));
+  static create(params?: Partial<IField<ActionValue>>): Action {
+    return reactive(new Action(params)) as Action;
   }
 
   get value(): ActionValue { return this._value; }
@@ -63,8 +63,8 @@ export class Action extends FieldBase {
     this.value = { label: newValue, icon: this.value.icon };
   }
 
-  clone(overrides?: Partial<IField>): Reactive<Action> {
-    return new Action({
+  clone(overrides?: Partial<IField>): Action {
+    return Action.create({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
       errors: [...(overrides?.errors ?? this.errors)],
