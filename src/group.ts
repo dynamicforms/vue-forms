@@ -3,7 +3,7 @@ import { isEmpty, isEqual } from 'lodash-es';
 import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { FieldBase } from './field-base';
-import { IField } from './field.interface';
+import { IField, IFieldConstructorParams } from './field.interface';
 
 export type GenericFieldsInterface = Record<string, IField>;
 
@@ -14,7 +14,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
   private suppressNotifyValueChanged: boolean = false;
 
-  constructor(fields: T, params?: Partial<IField>) {
+  constructor(fields: T, params?: Partial<IFieldConstructorParams>) {
     super();
 
     if (!Group.isValidFields(fields)) throw new Error('Invalid fields object provided');
@@ -30,7 +30,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     });
 
     if (params) {
-      const { value: paramValue, ...otherParams } = params;
+      const { value: paramValue, validators, actions, ...otherParams } = params;
+      [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
       Object.assign(this, otherParams);
       this.value = paramValue ?? this.originalValue;
     }
@@ -38,6 +39,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     if (this.originalValue === undefined) this.originalValue = this.value;
 
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
+    this.runValidators(this.value, this.originalValue);
   }
 
   private static isValidFields(flds: unknown): flds is Record<string, FieldBase> {
@@ -112,6 +114,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     if (!isEqual(newValue, this._value)) {
       const oldValue = this._value;
       this._value = newValue;
+      this.runValidators(newValue, oldValue);
       this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
       if (this.parent) this.parent.notifyValueChanged();
     }

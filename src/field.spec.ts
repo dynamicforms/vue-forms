@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-import { ValidationErrorText } from './validation-error';
+import { ValidationErrorText } from './validators/validation-error';
 
 import Form from '.';
 

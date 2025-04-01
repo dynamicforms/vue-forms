@@ -2,22 +2,24 @@ import { reactive } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
-import { IField } from './field.interface';
+import { IField, IFieldConstructorParams } from './field.interface';
 
 export class Field<T = any> extends FieldBase {
   private _value: T = undefined!;
 
-  protected constructor(params?: Partial<IField<T>>) {
+  protected constructor(params?: Partial<IFieldConstructorParams<T>>) {
     super();
     if (params) {
-      const { value: paramValue, ...otherParams } = params;
+      const { value: paramValue, validators, actions, ...otherParams } = params;
+      [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
       Object.assign(this, otherParams);
       this._value = paramValue ?? this.originalValue;
       if (this.originalValue === undefined) this.originalValue = this._value;
     }
+    this.runValidators(this.value, this.originalValue);
   }
 
-  static create<T = any>(params?: Partial<IField<T>>): Field<T> {
+  static create<T = any>(params?: Partial<IFieldConstructorParams<T>>): Field<T> {
     return reactive(new Field(params)) as Field<T>;
   }
 
@@ -27,6 +29,7 @@ export class Field<T = any> extends FieldBase {
     if (!this.enabled) return; // a disabled field does not allow changing value
     const oldValue = this._value;
     this._value = newValue;
+    this.runValidators(newValue, oldValue);
     this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
     this.validate();

@@ -13,7 +13,7 @@ import FieldActionBase from './actions/field-action-base';
 import DisplayMode from './display-mode';
 import { IField, IFieldAction } from './field.interface';
 import { type Group } from './group';
-import { ValidationError } from './validation-error';
+import { ValidationError, Validator } from './validators';
 
 // eslint-disable-next-line import/prefer-default-export
 export abstract class FieldBase<T = any> implements IField<T> {
@@ -98,5 +98,9 @@ export abstract class FieldBase<T = any> implements IField<T> {
     ...params: any[]
   ): any {
     return this.actions.trigger(actionClass as any, this, ...params);
+  }
+
+  protected runValidators(newValue: T, oldValue: T) {
+    this.actions.trigger(Validator, this, newValue, oldValue);
   }
 }

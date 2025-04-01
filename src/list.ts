@@ -2,7 +2,7 @@ import { isEmpty, isEqual } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction, ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
-import { IField } from './field.interface';
+import { IField, IFieldConstructorParams } from './field.interface';
 import { GenericFieldsInterface, Group } from './group';
 
 export class List<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase {
@@ -12,13 +12,14 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
 
   private _previousValue: Record<string, any>[] | null;
 
-  constructor(itemTemplate?: Group<T>, params?: Partial<IField>) {
+  constructor(itemTemplate?: Group<T>, params?: Partial<IFieldConstructorParams>) {
     super();
 
     this._itemTemplate = itemTemplate;
 
     if (params) {
-      const { value: paramValue, ...otherParams } = params;
+      const { value: paramValue, validators, actions, ...otherParams } = params;
+      [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
       Object.assign(this, otherParams);
 
       if (paramValue) this.setValue(paramValue);
@@ -27,6 +28,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     if (this.originalValue === undefined) this.originalValue = this.value;
     this._previousValue = this.value;
     // if (Object.keys(this._fields).length) console.log('formGroup created', this, Error().stack);
+    this.runValidators(this.value, this.originalValue);
   }
 
   private processSetValueItem(item: any) : Group<T> {
@@ -56,6 +58,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   set value(newValue: Record<string, any>[]) {
     const oldValue = this.value;
     this.setValue(newValue);
+    this.runValidators(this.value, oldValue);
     this.actions.trigger(ValueChangedAction, this, this.value, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
   }
@@ -75,6 +78,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     if (!isEqual(newValue, this._previousValue)) {
       const oldValue = this._previousValue;
       this._previousValue = newValue;
+      this.runValidators(newValue, oldValue);
       this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
       if (this.parent) this.parent.notifyValueChanged();
     }

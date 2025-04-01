@@ -1,7 +1,7 @@
 import { ComputedRef } from 'vue';
 
 import type DisplayMode from './display-mode';
-import { type ValidationError } from './validation-error';
+import { type ValidationError } from './validators/validation-error';
 
 export interface IField<T = any> {
   value: T;
@@ -25,6 +25,13 @@ export interface IField<T = any> {
   validate(): void;
   isChanged: boolean;
 }
+
+export interface IFieldConstructorActionsList<T = any> {
+  actions?: IFieldAction<T>[],
+  validators?: IFieldAction<T>[],
+}
+
+export type IFieldConstructorParams<T = any> = IField<T> & IFieldConstructorActionsList<T>;
 
 export class AbortEventHandlingException extends Error {}
 

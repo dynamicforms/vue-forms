@@ -2,7 +2,7 @@ import { reactive } from 'vue';
 
 import { ExecuteAction, ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
-import { IField } from './field.interface';
+import { IField, IFieldConstructorParams } from './field.interface';
 
 export interface ActionValue {
   label?: string;
@@ -17,10 +17,11 @@ function isValEmpty(val: ActionValue, defaultIfTrue: ActionValue): ActionValue {
 export class Action extends FieldBase {
   private readonly _value: ActionValue;
 
-  protected constructor(params?: Partial<IField<ActionValue>>) {
+  protected constructor(params?: Partial<IFieldConstructorParams<ActionValue>>) {
     super();
     if (params) {
-      const { value: paramValue, originalValue, ...otherParams } = params;
+      const { value: paramValue, originalValue, validators, actions, ...otherParams } = params;
+      [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
       Object.assign(this, otherParams);
       const val = { label: paramValue?.label, icon: paramValue?.icon } as ActionValue;
       const orgVal = Object.freeze({ label: originalValue?.label, icon: originalValue?.icon } as ActionValue);
@@ -29,6 +30,7 @@ export class Action extends FieldBase {
     } else {
       this._value = reactive({ label: undefined, icon: undefined });
     }
+    this.runValidators(this.value, this.originalValue);
   }
 
   static create(params?: Partial<IField<ActionValue>>): Action {
@@ -42,6 +44,7 @@ export class Action extends FieldBase {
     const oldValue = this._value;
     this._value.icon = newValue?.icon;
     this._value.label = newValue?.label;
+    this.runValidators(newValue, oldValue);
     this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
     this.validate();
