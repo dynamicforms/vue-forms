@@ -1,18 +1,17 @@
 // eslint-disable-next-line max-classes-per-file
 import { IField } from '../field.interface';
 
-import { MdString, RenderContentRef, ValidationErrorRenderContent } from './validation-error';
+import { buildErrorMessage } from './error-message-builder';
+import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 export class MinValue<T = any> extends Validator {
-  constructor(
-    minValue: T,
-    message: RenderContentRef = new MdString('Value must be larger or equal to **{minValue}**'),
-  ) {
+  constructor(minValue: T, message?: RenderContentRef) {
+    const msg = message || buildErrorMessage('Value must be larger or equal to **{minValue}**');
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: IField) => {
       if (newValue < minValue) {
         return [
-          new ValidationErrorRenderContent(this.replacePlaceholders(message, { newValue, oldValue, field, minValue })),
+          new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field, minValue })),
         ];
       }
       return null;
@@ -23,14 +22,12 @@ export class MinValue<T = any> extends Validator {
 }
 
 export class MaxValue<T = any> extends Validator {
-  constructor(
-    maxValue: T,
-    message: RenderContentRef = new MdString('Value must be less than or equal to **{maxValue}**'),
-  ) {
+  constructor(maxValue: T, message?: RenderContentRef) {
+    const msg = message || buildErrorMessage('Value must be less than or equal to **{maxValue}**');
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: IField) => {
       if (newValue > maxValue) {
         return [
-          new ValidationErrorRenderContent(this.replacePlaceholders(message, { newValue, oldValue, field, maxValue })),
+          new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field, maxValue })),
         ];
       }
       return null;
@@ -41,16 +38,13 @@ export class MaxValue<T = any> extends Validator {
 }
 
 export class ValueInRange<T = any> extends Validator {
-  constructor(
-    minValue: T,
-    maxValue: T,
-    message: RenderContentRef = new MdString('Value must be between **{minValue}** and **{maxValue}**'),
-  ) {
+  constructor(minValue: T, maxValue: T, message?: RenderContentRef) {
+    const msg = message || buildErrorMessage('Value must be between **{minValue}** and **{maxValue}**');
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: IField) => {
       if (newValue < minValue || newValue > maxValue) {
         return [
           new ValidationErrorRenderContent(
-            this.replacePlaceholders(message, { newValue, oldValue, field, minValue, maxValue }),
+            this.replacePlaceholders(msg, { newValue, oldValue, field, minValue, maxValue }),
           ),
         ];
       }

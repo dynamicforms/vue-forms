@@ -3,14 +3,13 @@ import { unref } from 'vue';
 
 import { IField } from '../field.interface';
 
-import { MdString, RenderContentRef, ValidationErrorRenderContent } from './validation-error';
+import { buildErrorMessage } from './error-message-builder';
+import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 export default class InAllowedValues<T = any> extends Validator {
-  constructor(
-    allowedValues: T[],
-    message: RenderContentRef = new MdString('Value must be one of "**{allowedAsText}**"'),
-  ) {
+  constructor(allowedValues: T[], message?: RenderContentRef) {
+    const msg = message || buildErrorMessage('Must be one of [**{allowedAsText}**]');
     let allowedAsText = allowedValues.join(', ');
     if (allowedAsText.length > 60) {
       allowedAsText = truncate(allowedAsText, {
@@ -24,7 +23,7 @@ export default class InAllowedValues<T = any> extends Validator {
       if (!allowedValues.includes(unref(newValue))) {
         return [
           new ValidationErrorRenderContent(
-            this.replacePlaceholders(message, { newValue, oldValue, field, allowedValues, allowedAsText }),
+            this.replacePlaceholders(msg, { newValue, oldValue, field, allowedValues, allowedAsText }),
           ),
         ];
       }
