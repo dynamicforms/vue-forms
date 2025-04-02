@@ -13,12 +13,14 @@ import FieldActionBase from './actions/field-action-base';
 import DisplayMode from './display-mode';
 import { IField, IFieldAction } from './field.interface';
 import { type Group } from './group';
-import { ValidationError, Validator } from './validators';
+import { ValidationError } from './validators';
 
 // eslint-disable-next-line import/prefer-default-export
 export abstract class FieldBase<T = any> implements IField<T> {
   abstract get value(): T;
   abstract set value(newValue: T);
+  abstract setValue(newValue: T): Promise<void>;
+
   public readonly reactiveValue = computed(() => this.value);
 
   abstract clone(overrides?: Partial<IField<T>>): IField<T>;
@@ -52,7 +54,7 @@ export abstract class FieldBase<T = any> implements IField<T> {
     const alteredValue = await this.actions.trigger(VisibilityChangingAction, this, newValue, oldValue);
     if (!DisplayMode.isDefined(alteredValue ?? newValue)) throw new Error('visibility must be a DisplayMode constant');
     this._visibility = DisplayMode.fromAny(alteredValue ?? newValue);
-    this.actions.trigger(VisibilityChangedAction, this, this._visibility, oldValue);
+    await this.actions.trigger(VisibilityChangedAction, this, this._visibility, oldValue);
   }
 
   private _enabled: boolean = true;
@@ -71,7 +73,7 @@ export abstract class FieldBase<T = any> implements IField<T> {
     const alteredValue = await this.actions.trigger(EnabledChangingAction, this, newValue, oldValue);
     if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
     this._enabled = alteredValue ?? newValue;
-    this.actions.trigger(EnabledChangedAction, this, this._enabled, oldValue);
+    await this.actions.trigger(EnabledChangedAction, this, this._enabled, oldValue);
   }
 
   validate() {
@@ -89,7 +91,13 @@ export abstract class FieldBase<T = any> implements IField<T> {
   }
 
   registerAction(action: IFieldAction<T>): this {
-    this.actions.register(action as FieldActionBase);
+    const act = action as FieldActionBase;
+    this.actions.register(act);
+    act.boundToField(this);
+    if (act.eager) {
+      // When adding eager actions, execute them immediately
+      this.actions.trigger(Object.getPrototypeOf(action).constructor, this, this.value, this.originalValue);
+    }
     return this;
   }
 
@@ -98,9 +106,5 @@ export abstract class FieldBase<T = any> implements IField<T> {
     ...params: any[]
   ): any {
     return this.actions.trigger(actionClass as any, this, ...params);
-  }
-
-  protected runValidators(newValue: T, oldValue: T) {
-    this.actions.trigger(Validator, this, newValue, oldValue);
   }
 }

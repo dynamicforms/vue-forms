@@ -7,12 +7,12 @@ import Form from '.';
 import DisplayMode from '@/display-mode';
 
 describe('Field', () => {
-  it('trigger onValueChanged on value change', () => {
+  it('trigger onValueChanged on value change', async () => {
     const onValueChanged = vi.fn();
     const field = Form.Field.create({ enabled: true })
       .registerAction(new Form.ValueChangedAction(onValueChanged));
 
-    field.value = 'test';
+    await field.setValue('test');
 
     expect(onValueChanged).toHaveBeenCalledWith(field, expect.any(Function), 'test', undefined);
   });

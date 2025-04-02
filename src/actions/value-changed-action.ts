@@ -2,7 +2,7 @@ import FieldActionBase from './field-action-base';
 
 import { FieldActionExecute, type IField } from '@/field.interface';
 
-const ValueChangedActionClassIdentifier = Symbol('ValueChangedAction');
+export const ValueChangedActionClassIdentifier = Symbol('ValueChangedAction');
 
 // eslint-disable-next-line import/prefer-default-export
 export class ValueChangedAction<T = any> extends FieldActionBase {
@@ -16,7 +16,7 @@ export class ValueChangedAction<T = any> extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return ValueChangedActionClassIdentifier; }
+  static get classIdentifier() { return ValueChangedActionClassIdentifier; }
 
   async execute(
     field: IField<T>,

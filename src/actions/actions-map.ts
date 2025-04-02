@@ -1,8 +1,11 @@
 import { type FieldActionExecute, type IField, AbortEventHandlingException } from '../field.interface';
 
 import FieldActionBase from './field-action-base';
+import { ValueChangedActionClassIdentifier } from './value-changed-action';
 
 export default class ActionsMap extends Map<symbol, FieldActionExecute> {
+  private readonly eagerActions = new Set<symbol>();
+
   register(action: FieldActionBase) {
     if (!(action instanceof FieldActionBase)) {
       throw new Error('Invalid action type');
@@ -15,20 +18,34 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
       return action.execute(field, existingExecute, ...params);
     }
     this.set(actionType, ex);
+    if (action.eager) this.eagerActions.add(action.classIdentifier);
   }
 
-  trigger<T extends FieldActionBase>(
-    ActionClass: new (...args: any[]) => T,
+  async trigger<T extends FieldActionBase>(
+    ActionClass: { new (...args: any[]): T, classIdentifier: symbol },
     field: IField,
     ...params: any[]
-  ): any {
-    const identifier = new ActionClass(() => {}).classIdentifier;
+  ): Promise<any> {
+    const identifier = ActionClass.classIdentifier;
+    if (identifier === ValueChangedActionClassIdentifier) await this.triggerEager(field, ...params);
     const execute = this.get(identifier);
     try {
-      if (execute) return execute(field, ...params);
+      if (execute) return await execute(field, ...params);
     } catch (error) {
       if (!(error instanceof AbortEventHandlingException)) throw error;
     }
     return null;
+  }
+
+  async triggerEager(field: IField, ...params: any[]): Promise<any> {
+    for (const identifier of this.eagerActions) {
+      const execute = this.get(identifier);
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        if (execute) await execute(field, ...params);
+      } catch (error) {
+        if (!(error instanceof AbortEventHandlingException)) throw error;
+      }
+    }
   }
 }

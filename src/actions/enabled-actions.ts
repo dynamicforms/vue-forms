@@ -16,7 +16,7 @@ export class EnabledChangingAction extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return EnabledChangingActionClassIdentifier; }
+  static get classIdentifier() { return EnabledChangingActionClassIdentifier; }
 
   async execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean)
     : Promise<boolean> {
@@ -37,7 +37,7 @@ export class EnabledChangedAction extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return EnabledChangedActionClassIdentifier; }
+  static get classIdentifier() { return EnabledChangedActionClassIdentifier; }
 
   async execute(
     field: IField,

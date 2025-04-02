@@ -28,14 +28,14 @@ describe('Group', () => {
     expect(field2.value).toBe('test2');
   });
 
-  it('triggers onValueChanged only once when setting multiple nested values', () => {
+  it('triggers onValueChanged only once when setting multiple nested values', async () => {
     const onValueChanged = vi.fn();
     const group = new Group({
       field1: Field.create({ enabled: true }),
       field2: Field.create({ enabled: true }),
     }).registerAction(new ValueChangedAction(onValueChanged));
 
-    group.value = { field1: 'test1', field2: 'test2' };
+    await group.setValue({ field1: 'test1', field2: 'test2' });
 
     expect(onValueChanged).toHaveBeenCalledTimes(1);
   });
@@ -61,13 +61,13 @@ describe('Group', () => {
     });
   });
 
-  it('correctly notifies parent of changes', () => {
+  it('correctly notifies parent of changes', async () => {
     const onValueChanged = vi.fn();
     const group = new Group({ field1: Field.create() })
       .registerAction(new ValueChangedAction(onValueChanged));
 
     const field = group.fields.field1;
-    field.value = 'test';
+    await field.setValue('test');
 
     expect(onValueChanged).toHaveBeenCalled();
   });

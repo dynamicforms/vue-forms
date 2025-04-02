@@ -17,7 +17,7 @@ export class VisibilityChangingAction extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return VisibilityChangingActionClassIdentifier; }
+  static get classIdentifier() { return VisibilityChangingActionClassIdentifier; }
 
   async execute(
     field: IField,
@@ -42,7 +42,7 @@ export class VisibilityChangedAction extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return VisibilityChangedActionClassIdentifier; }
+  static get classIdentifier() { return VisibilityChangedActionClassIdentifier; }
 
   async execute(
     field: IField,

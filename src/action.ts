@@ -30,7 +30,7 @@ export class Action extends FieldBase {
     } else {
       this._value = reactive({ label: undefined, icon: undefined });
     }
-    this.runValidators(this.value, this.originalValue);
+    this.actions.triggerEager(this, this.value, this.originalValue);
   }
 
   static create(params?: Partial<IField<ActionValue>>): Action {
@@ -44,9 +44,18 @@ export class Action extends FieldBase {
     const oldValue = this._value;
     this._value.icon = newValue?.icon;
     this._value.label = newValue?.label;
-    this.runValidators(newValue, oldValue);
     this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
+    this.validate();
+  }
+
+  async setValue(newValue: ActionValue) {
+    if (!this.enabled) return; // a disabled field does not allow changing value
+    const oldValue = this._value;
+    this._value.icon = newValue?.icon;
+    this._value.label = newValue?.label;
+    await this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
+    if (this.parent) await this.parent.notifyValueChanged();
     this.validate();
   }
 

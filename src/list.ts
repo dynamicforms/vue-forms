@@ -22,13 +22,13 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
       Object.assign(this, otherParams);
 
-      if (paramValue) this.setValue(paramValue);
+      if (paramValue) this.setValueInternal(paramValue);
     }
 
     if (this.originalValue === undefined) this.originalValue = this.value;
     this._previousValue = this.value;
     // if (Object.keys(this._fields).length) console.log('formGroup created', this, Error().stack);
-    this.runValidators(this.value, this.originalValue);
+    this.actions.triggerEager(this, this.value, this.originalValue);
   }
 
   private processSetValueItem(item: any) : Group<T> {
@@ -44,7 +44,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     return res;
   }
 
-  private setValue(newValue: any[]) {
+  private setValueInternal(newValue: any[]) {
     if (Array.isArray(newValue)) {
       this._value = newValue.map((item: any) => this.processSetValueItem(item));
     }
@@ -57,10 +57,16 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
 
   set value(newValue: Record<string, any>[]) {
     const oldValue = this.value;
-    this.setValue(newValue);
-    this.runValidators(this.value, oldValue);
+    this.setValueInternal(newValue);
     this.actions.trigger(ValueChangedAction, this, this.value, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
+  }
+
+  async setValue(newValue: Record<string, any>[]) {
+    const oldValue = this.value;
+    this.setValueInternal(newValue);
+    await this.actions.trigger(ValueChangedAction, this, this.value, oldValue);
+    if (this.parent) await this.parent.notifyValueChanged();
   }
 
   clone(overrides?: Partial<IField>): List<T> {
@@ -78,7 +84,6 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     if (!isEqual(newValue, this._previousValue)) {
       const oldValue = this._previousValue;
       this._previousValue = newValue;
-      this.runValidators(newValue, oldValue);
       this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
       if (this.parent) this.parent.notifyValueChanged();
     }

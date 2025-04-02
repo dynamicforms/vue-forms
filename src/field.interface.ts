@@ -17,6 +17,10 @@ export interface IField<T = any> {
   fieldName?: string; // when member of a Group, fieldName specifies the name of this field
 
   clone(overrides?: Partial<IField<T>>): IField<T>;
+  setVisibility(newValue: DisplayMode): Promise<void>;
+  setEnabled(newValue: boolean): Promise<void>;
+  setValue(newValue: T): Promise<void>;
+
   // events
   registerAction(action: IFieldAction<T>): this;
   triggerAction<T2 extends IFieldAction<T>>(actionClass: abstract new (...args: any[]) => T2, ...params: any[]): any;

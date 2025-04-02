@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { nextTick } from 'vue';
 
 import { ValueChangedAction, ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Field } from './field';
@@ -50,12 +51,14 @@ describe('List', () => {
     expect(list.get(0)?.fields.active.value).toBe(true); // Default from template
   });
 
-  it('triggers value changed on push', () => {
+  it('triggers value changed on push', async () => {
     const onValueChanged = vi.fn();
     const list = new List()
       .registerAction(new ValueChangedAction(onValueChanged));
+    await nextTick();
 
     list.push({ name: 'John' });
+    await nextTick();
 
     expect(onValueChanged).toHaveBeenCalled();
     expect(list.value).toEqual([{ name: 'John' }]);

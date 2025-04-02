@@ -16,9 +16,14 @@ export class Field<T = any> extends FieldBase {
       this._value = paramValue ?? this.originalValue;
       if (this.originalValue === undefined) this.originalValue = this._value;
     }
-    this.runValidators(this.value, this.originalValue);
+    this.actions.triggerEager(this, this.value, this.originalValue);
   }
 
+  /**
+   * Creates a new reactive Field instance.
+   * @param params Initial field parameters
+   * @returns Reactive Field instance
+   */
   static create<T = any>(params?: Partial<IFieldConstructorParams<T>>): Field<T> {
     return reactive(new Field(params)) as Field<T>;
   }
@@ -29,9 +34,17 @@ export class Field<T = any> extends FieldBase {
     if (!this.enabled) return; // a disabled field does not allow changing value
     const oldValue = this._value;
     this._value = newValue;
-    this.runValidators(newValue, oldValue);
     this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
+    this.validate();
+  }
+
+  async setValue(newValue: T) {
+    if (!this.enabled) return; // a disabled field does not allow changing value
+    const oldValue = this._value;
+    this._value = newValue;
+    await this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
+    if (this.parent) await this.parent.notifyValueChanged();
     this.validate();
   }
 

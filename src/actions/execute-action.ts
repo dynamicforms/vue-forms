@@ -14,7 +14,7 @@ export class ExecuteAction extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return ExecuteActionClassIdentifier; }
+  static get classIdentifier() { return ExecuteActionClassIdentifier; }
 
   async execute(field: IField, supr: FieldActionExecute, params: any): Promise<any> {
     return super.execute(field, supr, params);

@@ -14,7 +14,7 @@ export class ListItemRemovedAction extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return ListItemRemovedActionClassIdentifier; }
+  static get classIdentifier() { return ListItemRemovedActionClassIdentifier; }
 
   async execute(field: IField, supr: FieldActionExecute, item: any, index: number): Promise<void> {
     return super.execute(field, supr, item, index);

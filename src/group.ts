@@ -39,7 +39,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     if (this.originalValue === undefined) this.originalValue = this.value;
 
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
-    this.runValidators(this.value, this.originalValue);
+    this.actions.triggerEager(this, this.value, this.originalValue);
   }
 
   private static isValidFields(flds: unknown): flds is Record<string, FieldBase> {
@@ -102,21 +102,39 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     this.notifyValueChanged();
   }
 
+  async setValue(newValue: Record<string, any> | null) {
+    this.suppressNotifyValueChanged = true;
+
+    async function fieldSetter(name: string, field: IField) {
+      if (newValue == null || name in newValue) {
+        await field.setValue(newValue == null ? null : newValue[name]);
+      }
+    }
+
+    try {
+      for (const [name, entry] of Object.entries(this._fields)) {
+        await fieldSetter(name, entry); // eslint-disable-line no-await-in-loop
+      }
+    } finally {
+      this.suppressNotifyValueChanged = false;
+    }
+    await this.notifyValueChanged();
+  }
+
   get fullValue(): Record<string, any> {
     const value: Record<string, any> = {};
     Object.entries(this._fields).forEach(([name, field]) => { value[name] = field.fullValue; });
     return value;
   }
 
-  notifyValueChanged() {
+  async notifyValueChanged() {
     if (this.suppressNotifyValueChanged) return;
     const newValue = this.value;
     if (!isEqual(newValue, this._value)) {
       const oldValue = this._value;
       this._value = newValue;
-      this.runValidators(newValue, oldValue);
-      this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
-      if (this.parent) this.parent.notifyValueChanged();
+      await this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
+      if (this.parent) await this.parent.notifyValueChanged();
     }
   }
 

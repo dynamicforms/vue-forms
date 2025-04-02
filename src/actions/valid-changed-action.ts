@@ -16,7 +16,7 @@ export class ValidChangedAction extends FieldActionBase {
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return ValidChangedActionClassIdentifier; }
+  static get classIdentifier() { return ValidChangedActionClassIdentifier; }
 
   async execute(
     field: IField,

@@ -7,7 +7,7 @@ import { Group } from '../group';
 import { ValueChangedAction, VisibilityChangedAction } from '.';
 
 describe('Form actions', () => {
-  it('correctly executes action chain', () => {
+  it('correctly executes action chain', async () => {
     const klici: string[] = [];
     const valueAction1 = vi.fn((field, supr, newValue, oldValue) => {
       klici.push('valueAction1');
@@ -28,12 +28,12 @@ describe('Form actions', () => {
       .registerAction(new VisibilityChangedAction(visibilityAction));
 
     const form = new Group({
-      polje1: field,
-      polje2: Field.create({ value: 'drugo polje' }),
+      field1: field,
+      field2: Field.create({ value: 'drugo polje' }),
     });
 
     // Sprožimo ValueChangedAction
-    form.fields.polje1.value = 'nova vrednost';
+    await form.fields.field1.setValue('nova vrednost');
 
     // Preverimo vrstni red klicev
     expect(klici).toEqual(['valueAction2', 'valueAction1']);
@@ -50,7 +50,7 @@ describe('Form actions', () => {
     );
   });
 
-  it('dovoli prekinjanje verige akcij', () => {
+  it('dovoli prekinjanje verige akcij', async () => {
     const valueAction1 = vi.fn(async (field, supr, newValue, oldValue) => supr(field, newValue, oldValue));
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const valueAction2 = vi.fn(async (field, supr, newValue, oldValue) => {
@@ -61,7 +61,7 @@ describe('Form actions', () => {
       .registerAction(new ValueChangedAction(valueAction1))
       .registerAction(new ValueChangedAction(valueAction2));
 
-    field.value = 'nova vrednost';
+    await field.setValue('nova vrednost');
 
     expect(valueAction2).toHaveBeenCalled();
     expect(valueAction1).not.toHaveBeenCalled();

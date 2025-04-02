@@ -1,6 +1,6 @@
 import { isEqual } from 'lodash-es';
 
-import { ValueChangedAction } from '../actions';
+import { ValueChangedAction } from '../actions/value-changed-action';
 import { FieldActionExecute, type IField } from '../field.interface';
 
 import { isCustomModalContentComponentDef, MdString, RenderContentRef, ValidationError } from './validation-error';
@@ -17,8 +17,6 @@ const ValidatorClassIdentifier = Symbol('Validator');
  */
 export class Validator<T = any> extends ValueChangedAction {
   private readonly source: symbol;
-
-  private readonly validationFn: ValidationFunction<T>;
 
   /**
    * Creates a new validator
@@ -46,14 +44,16 @@ export class Validator<T = any> extends ValueChangedAction {
     };
 
     super(executor);
-    this.validationFn = validationFn;
 
     // Create a unique symbol for this validator instance
     this.source = Symbol(this.constructor.name);
   }
 
   // eslint-disable-next-line class-methods-use-this
-  get classIdentifier() { return ValidatorClassIdentifier; }
+  static get classIdentifier() { return ValidatorClassIdentifier; }
+
+  // eslint-disable-next-line class-methods-use-this
+  get eager() { return true; }
 
   // eslint-disable-next-line class-methods-use-this
   protected replacePlaceholders(text: RenderContentRef, replace: Record<string, any>) {
