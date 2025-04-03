@@ -65,7 +65,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     );
   }
 
-  field(fieldName: string): IField | null {
+  field<K extends keyof T>(fieldName: K): T[K] | null {
     return this._fields[fieldName] ?? null;
   }
 
