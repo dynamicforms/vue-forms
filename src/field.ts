@@ -31,8 +31,8 @@ export class Field<T = any> extends FieldBase {
   get value() { return this._value; }
 
   set value(newValue: T) {
-    if (!this.enabled) return; // a disabled field does not allow changing value
     const oldValue = this._value;
+    if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
     this._value = newValue;
     this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
@@ -40,8 +40,8 @@ export class Field<T = any> extends FieldBase {
   }
 
   async setValue(newValue: T) {
-    if (!this.enabled) return; // a disabled field does not allow changing value
     const oldValue = this._value;
+    if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
     this._value = newValue;
     await this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
     if (this.parent) await this.parent.notifyValueChanged();

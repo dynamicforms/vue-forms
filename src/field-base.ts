@@ -1,15 +1,11 @@
 import { isBoolean, isEqual } from 'lodash-es';
 import { computed } from 'vue';
 
-import {
-  ActionsMap,
-  EnabledChangedAction,
-  EnabledChangingAction,
-  ValidChangedAction,
-  VisibilityChangedAction,
-  VisibilityChangingAction,
-} from './actions';
+import ActionsMap from './actions/actions-map';
+import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
 import FieldActionBase from './actions/field-action-base';
+import { ValidChangedAction } from './actions/valid-changed-action';
+import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import DisplayMode from './display-mode';
 import { IField, IFieldAction } from './field.interface';
 import { type Group } from './group';

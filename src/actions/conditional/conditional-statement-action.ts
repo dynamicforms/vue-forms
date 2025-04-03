@@ -1,7 +1,7 @@
 // eslint-disable-next-line max-classes-per-file
-import { ValueChangedAction } from '..';
 import DisplayMode from '../../display-mode';
 import { FieldActionExecute, IField } from '../../field.interface';
+import { ValueChangedAction } from '../value-changed-action';
 
 import { Statement } from './statement';
 

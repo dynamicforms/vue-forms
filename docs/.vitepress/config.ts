@@ -3,6 +3,9 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'DynamicForms Vue Forms',
   description: 'A lightweight, reactive data entry forms library for Vue.js',
+  ignoreDeadLinks: [
+    /^https?:\/\/localhost/
+  ],
   themeConfig: {
     logo: '/logo.png',
     nav: [
@@ -24,7 +27,8 @@ export default defineConfig({
           text: 'Examples',
           items: [
             { text: 'Basic Form', link: '/examples/basic-form' },
-            { text: 'Validators', link: '/examples/validators' }
+            { text: 'Validators', link: '/examples/validators' },
+            { text: 'Conditional statements', link: '/examples/conditional-statement' },
           ]
         }
       ]

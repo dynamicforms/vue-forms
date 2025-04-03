@@ -1,5 +1,6 @@
 export { default as FieldActionBase } from './field-action-base';
 export { default as ActionsMap } from './actions-map';
+export * from './conditional';
 
 export { EnabledChangedAction, EnabledChangingAction } from './enabled-actions';
 export { ExecuteAction } from './execute-action';
