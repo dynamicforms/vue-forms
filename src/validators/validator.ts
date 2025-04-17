@@ -60,6 +60,6 @@ export class Validator<T = any> extends ValueChangedAction {
     if (isCustomModalContentComponentDef(text)) return text;
     let ret = (text as string | MdString);
     Object.keys(replace).forEach((key) => { ret = ret.replaceAll(`{${key}}`, replace[key]); });
-    return ret;
+    return (text instanceof MdString) ? new MdString(ret) : ret;
   }
 }

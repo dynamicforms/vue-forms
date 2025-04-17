@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ref } from 'vue';
+import { reactive, ref } from 'vue';
 
 import {
   MdString,
@@ -35,8 +35,14 @@ describe('ValidationErrorRenderContent', () => {
   it('handles plain string content', () => {
     const error = new ValidationErrorRenderContent('Plain text error');
 
-    expect(error.text.value).toBe('Plain text error');
-    expect(error.textType.value).toBe('string');
+    expect(error.componentName).toBe('template');
+    expect(error.componentBody).toBe('Plain text error');
+    expect(error.componentBindings).toEqual({});
+  });
+
+  it('handles reactive object automatic unRef-fing', () => {
+    const error = reactive(new ValidationErrorRenderContent('Plain text error'));
+
     expect(error.componentName).toBe('template');
     expect(error.componentBody).toBe('Plain text error');
     expect(error.componentBindings).toEqual({});
@@ -46,8 +52,6 @@ describe('ValidationErrorRenderContent', () => {
     const mdContent = new MdString('**Bold** error message');
     const error = new ValidationErrorRenderContent(mdContent);
 
-    expect(error.text.value).toBe(mdContent);
-    expect(error.textType.value).toBe('md');
     expect(error.componentName).toBe('vue-markdown');
     expect(error.componentBody).toBe('');
     expect(error.componentBindings).toHaveProperty('source');
@@ -61,8 +65,6 @@ describe('ValidationErrorRenderContent', () => {
 
     const error = new ValidationErrorRenderContent(componentDef);
 
-    expect(error.text.value).toStrictEqual(componentDef);
-    expect(error.textType.value).toBe('component');
     expect(error.componentName).toBe('CustomError');
     expect(error.componentBody).toBe('');
     expect(error.componentBindings).toEqual({ type: 'danger', dismissible: true });
@@ -72,19 +74,17 @@ describe('ValidationErrorRenderContent', () => {
     const contentRef = ref('Initial error');
     const error = new ValidationErrorRenderContent(contentRef);
 
-    expect(error.text.value).toBe('Initial error');
-    expect(error.textType.value).toBe('string');
+    expect(error.componentBody).toBe('Initial error');
+    expect(error.componentName).toBe('template');
 
     // Change the reactive content
     contentRef.value = 'Updated error';
-    expect(error.text.value).toBe('Updated error');
+    expect(error.componentBody).toBe('Updated error');
   });
 
   it('handles empty content gracefully', () => {
     const error = new ValidationErrorRenderContent('');
 
-    expect(error.text.value).toBe('');
-    expect(error.textType.value).toBe('string');
     expect(error.componentName).toBe('template');
     expect(error.componentBody).toBe('');
   });

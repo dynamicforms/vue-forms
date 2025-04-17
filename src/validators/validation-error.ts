@@ -1,5 +1,5 @@
 /* eslint-disable max-classes-per-file */
-import { computed, ComputedRef, Ref, toRef, unref } from 'vue';
+import { computed, ComputedRef, Ref, unref } from 'vue';
 
 /**
  * Marks content for markdown rendering
@@ -64,18 +64,18 @@ export class ValidationErrorText extends ValidationError {
  * Validation error that supports multiple content types (plain text, markdown, component)
  */
 export class ValidationErrorRenderContent extends ValidationError {
-  text: Ref<RenderContent>;
+  private text: RenderContent | Ref<RenderContent>;
 
-  textType: ComputedRef<'string' | 'md' | 'component'>;
+  private textType: ComputedRef<'string' | 'md' | 'component'>;
 
   constructor(text: RenderContentRef) {
     super();
-    this.text = toRef(text);
+    this.text = text;
     this.textType = computed(() => this.getTextType);
   }
 
   get getTextType() {
-    const msg = this.text.value;
+    const msg = unref(this.text);
     if (!msg) return 'string';
     if (msg instanceof MdString) return 'md';
     if (isCustomModalContentComponentDef(msg)) return 'component';
@@ -83,26 +83,26 @@ export class ValidationErrorRenderContent extends ValidationError {
   }
 
   get componentName() {
-    switch (this.textType.value) {
+    switch (unref(this.textType)) {
     case 'string': return 'template';
     case 'md': return 'vue-markdown';
-    case 'component': return (this.text.value as CustomModalContentComponentDef).componentName;
+    case 'component': return (unref(this.text) as CustomModalContentComponentDef).componentName;
     default: return 'template';
     }
   }
 
   get componentBindings() {
-    switch (this.textType.value) {
+    switch (unref(this.textType)) {
     case 'string': return { };
-    case 'md': return { source: this.text };
-    case 'component': return (this.text.value as CustomModalContentComponentDef).componentProps;
+    case 'md': return { source: this.text.toString() };
+    case 'component': return (unref(this.text) as CustomModalContentComponentDef).componentProps;
     default: return { };
     }
   }
 
   get componentBody() {
-    switch (this.textType.value) {
-    case 'string': return this.text.value as string;
+    switch (unref(this.textType)) {
+    case 'string': return unref(this.text) as string;
     default: return '';
     }
   }
