@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import vuetify from 'vite-plugin-vuetify';
 
 export default defineConfig({
   title: 'DynamicForms Vue Forms',
@@ -40,6 +41,15 @@ export default defineConfig({
       message: 'Released under the MIT License.',
       copyright: 'Copyright © 2025 Jure Erznožnik'
     }
-  }
+  },
+  vite: {
+    plugins: [vuetify()],
+    optimizeDeps: {
+      include: ['vuetify'],
+    },
+    ssr: {
+      noExternal: ['vuetify'],
+    }
+  },
 });
 
