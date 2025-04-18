@@ -9,12 +9,16 @@ describe('MinValue Validator', () => {
   it('returns error when value is less than minimum', async () => {
     const minValue = 10;
 
-    const field = Field.create({
+    const field = Field.create<number | undefined>({
       value: 5,
       validators: [new MinValue(minValue)],
     });
 
     // Assert
+    expect(field.errors.length).toBe(1);
+    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+
+    await field.setValue(undefined);
     expect(field.errors.length).toBe(1);
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
