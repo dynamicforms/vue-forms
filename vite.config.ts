@@ -4,6 +4,7 @@ import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import eslint from 'vite-plugin-eslint';
 import dts from 'vite-plugin-dts';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 /** @type {import('vite').UserConfig} */
 export default defineConfig({
@@ -20,6 +21,12 @@ export default defineConfig({
     dts({
       tsconfigPath: './tsconfig.build.json',
       rollupTypes: true
+    }),
+    visualizer({
+      open: false,
+      filename: 'coverage/stats.html',
+      gzipSize: true,
+      brotliSize: true,
     }),
   ],
   resolve: {

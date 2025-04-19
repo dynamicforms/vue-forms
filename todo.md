@@ -1,5 +1,7 @@
 immediate todo list
 
+- support clearing and dynamically setting validators
+
 - make the IField interface extendable so that the programmer may add any number of additional properties to  
   the Field / Group. Of course, the @dynamicforms/vuetify-inputs module should have a mechanism to bind such properties
   to the inputs themselves
@@ -59,6 +61,4 @@ immediate todo list
   ```
   most likely FieldBase would have to implement a constructor and the clone method, catering for the common scenarios
 
-- full documentation
-- demo app with more examples
 - more coverage in unit tests
