@@ -1,4 +1,5 @@
 import { type FieldActionExecute, type IField, AbortEventHandlingException } from '../field.interface';
+import { Validator } from '../validators/validator';
 
 import FieldActionBase from './field-action-base';
 import { ValueChangedActionClassIdentifier } from './value-changed-action';
@@ -6,10 +7,11 @@ import { ValueChangedActionClassIdentifier } from './value-changed-action';
 export default class ActionsMap extends Map<symbol, FieldActionExecute> {
   private readonly eagerActions = new Set<symbol>();
 
+  private readonly registeredActions: FieldActionBase[] = [];
+
   register(action: FieldActionBase) {
-    if (!(action instanceof FieldActionBase)) {
-      throw new Error('Invalid action type');
-    }
+    if (!(action instanceof FieldActionBase)) throw new Error('Invalid action type');
+    this.registeredActions.push(action);
 
     const actionType = action.classIdentifier;
     const existingExecute = this.get(actionType) || (() => null);
@@ -47,5 +49,14 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
         if (!(error instanceof AbortEventHandlingException)) throw error;
       }
     }
+  }
+
+  cloneWithoutValidators(): ActionsMap {
+    const newActions = new ActionsMap();
+    this.registeredActions.forEach((action) => {
+      if (action instanceof Validator) action.unregister();
+      else newActions.register(action);
+    });
+    return newActions;
   }
 }

@@ -27,4 +27,7 @@ export default abstract class FieldActionBase implements IFieldAction {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars, class-methods-use-this
   boundToField(field: IField) { }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars, class-methods-use-this
+  unregister() {}
 }

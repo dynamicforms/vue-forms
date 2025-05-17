@@ -90,6 +90,8 @@ describe('Pattern Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
+
+    // @ts-ignore
     const errorText = unref((field.errors[0] as ValidationErrorRenderContent).text);
     expect(errorText).toBe(customMessage);
   });

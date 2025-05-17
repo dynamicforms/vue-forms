@@ -27,6 +27,7 @@ export interface IField<T = any> {
 
   // API
   validate(): void;
+  clearValidators(): void;
   isChanged: boolean;
 }
 

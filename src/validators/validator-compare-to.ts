@@ -7,6 +7,8 @@ import { RenderContentRef, ValidationErrorRenderContent } from './validation-err
 import { ValidationFunction, Validator } from './validator';
 
 export default class CompareTo<T = any> extends Validator {
+  private unregistered = false;
+
   constructor(
     private otherField: IField,
     private isValidComparison: (myValue: T, otherValue: T) => boolean,
@@ -24,7 +26,7 @@ export default class CompareTo<T = any> extends Validator {
         this.otherField.registerAction(new ValueChangedAction(async (oField, supr, oNewValue, oOldValue) => {
           await supr(oField, oNewValue, oOldValue);
           // somewhat hackish: we just need to execute this one validator, not anything before, not anything after...
-          await this.execute(field, async () => null, nVal, oVal);
+          if (!this.unregistered) await this.execute(field, async () => null, nVal, oVal);
         }));
       }
       if (!this.isValidComparison(unref(newValue), unref(this.otherField.value))) {
@@ -38,5 +40,9 @@ export default class CompareTo<T = any> extends Validator {
     };
 
     super(validationFn);
+  }
+
+  unregister() {
+    this.unregistered = true;
   }
 }
