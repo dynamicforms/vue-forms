@@ -19,15 +19,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
     if (!Group.isValidFields(fields)) throw new Error('Invalid fields object provided');
     this._fields = {} as T;
-    Object.entries(fields).forEach(([name, field]) => {
-      Object.defineProperty(field, 'parent', { get: () => this, configurable: false, enumerable: false });
-      Object.defineProperty(field, 'fieldName', { get: () => name, configurable: false, enumerable: false });
-      Object.defineProperty(
-        this._fields,
-        name,
-        { get() { return field; }, configurable: false, enumerable: true },
-      );
-    });
+    Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
 
     if (params) {
       const { value: paramValue, validators, actions, ...otherParams } = params;
@@ -40,6 +32,20 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
     this.actions.triggerEager(this, this.value, this.originalValue);
+  }
+
+  addField(fieldName: string, field: IField) {
+    // todo: not sure if I should support this. breaks types, neglects events (originalValue, valueChanged), etc.
+    if (this.fields[fieldName] !== undefined) {
+      throw new Error(`Field ${fieldName} is already in this form`);
+    }
+    Object.defineProperty(field, 'parent', { get: () => this, configurable: false, enumerable: false });
+    Object.defineProperty(field, 'fieldName', { get: () => fieldName, configurable: false, enumerable: false });
+    Object.defineProperty(
+      this._fields,
+      fieldName,
+      { get() { return field; }, configurable: false, enumerable: true },
+    );
   }
 
   private static isValidFields(flds: unknown): flds is Record<string, FieldBase> {
