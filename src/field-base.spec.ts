@@ -1,7 +1,7 @@
 import { Field } from './field';
 import { Validators } from './validators';
 
-it('clears all validators and resets errors', async () => {
+it('clears all validators and resets errors', () => {
   // Create a field with validators that will produce errors
   const field = Field.create({ value: '' })
     .registerAction(new Validators.Required('Required field'));
@@ -24,7 +24,7 @@ it('clears all validators and resets errors', async () => {
   expect(field.valid).toBe(true);
 });
 
-it('clears CompareTo validator and its cross-field references', async () => {
+it('clears CompareTo validator and its cross-field references', () => {
   // Create two fields
   const field1 = Field.create<string>({ value: 'value1' });
   const field2 = Field.create<string>({ value: 'value2' });
@@ -48,12 +48,12 @@ it('clears CompareTo validator and its cross-field references', async () => {
   expect(field1.valid).toBe(true);
 
   // Changing the other field should not trigger validation on field1
-  await field2.setValue('new value');
+  field2.value = 'new value';
   expect(field1.errors.length).toBe(0);
   expect(field1.valid).toBe(true);
 
   // Changing field1 should not trigger validation
-  await field1.setValue('another value');
+  field1.value = 'another value';
   expect(field1.errors.length).toBe(0);
   expect(field1.valid).toBe(true);
 });

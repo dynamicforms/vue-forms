@@ -23,7 +23,7 @@ export class Validator<T = any> extends ValueChangedAction {
    * @param validationFn Function that validates the field value and returns errors or null
    */
   constructor(validationFn: ValidationFunction<T>) {
-    const executor = async (field: IField<T>, supr: FieldActionExecute<T>, newValue: T, oldValue: T) => {
+    const executor = (field: IField<T>, supr: FieldActionExecute<T>, newValue: T, oldValue: T) => {
       const errors = validationFn(newValue, oldValue, field) || [];
       errors.forEach(
         (err) => Object.defineProperty(err, 'source', { value: this.source, enumerable: false, configurable: false }),

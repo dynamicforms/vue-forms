@@ -68,7 +68,7 @@ The library provides a powerful event system for field changes and other actions
 import { Field, Group, ValueChangedAction, ValidationErrorText } from '@dynamicforms/vue-forms';
 
 const emailField = Field.create({ value: '' })
-  .registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
+  .registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
     // Custom validation on value change
     if (!newValue.includes('@')) {
       field.errors = [new ValidationErrorText('Invalid email format')];
@@ -84,7 +84,7 @@ const emailField = Field.create({ value: '' })
 const form = new Group({
   email: emailField,
   username: Field.create()
-}).registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
+}).registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   console.log('Form data changed:', newValue);
   return supr(field, newValue, oldValue);
 }));

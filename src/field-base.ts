@@ -15,7 +15,6 @@ import { ValidationError } from './validators/validation-error';
 export abstract class FieldBase<T = any> implements IField<T> {
   abstract get value(): T;
   abstract set value(newValue: T);
-  abstract setValue(newValue: T): Promise<void>;
 
   public readonly reactiveValue = computed(() => this.value);
 
@@ -23,7 +22,7 @@ export abstract class FieldBase<T = any> implements IField<T> {
 
   declare originalValue: T; // contains original field value as was provided at creation
 
-  valid: boolean = true; // is current value valid as per FE and BE validators?
+  protected _valid: boolean = true; // is current value valid as per FE and BE validators?
 
   errors: ValidationError[] = []; // list of errors
 
@@ -40,17 +39,10 @@ export abstract class FieldBase<T = any> implements IField<T> {
 
   set visibility(newValue: DisplayMode) {
     const oldValue = this._visibility;
-    if (!DisplayMode.isDefined(newValue)) throw new Error('visibility must be a DisplayMode constant');
-    this._visibility = DisplayMode.fromAny(newValue);
-    this.actions.trigger(VisibilityChangedAction, this, this._visibility, oldValue);
-  }
-
-  async setVisibility(newValue: DisplayMode) {
-    const oldValue = this._visibility;
-    const alteredValue = await this.actions.trigger(VisibilityChangingAction, this, newValue, oldValue);
+    const alteredValue = this.actions.trigger(VisibilityChangingAction, this, newValue, oldValue);
     if (!DisplayMode.isDefined(alteredValue ?? newValue)) throw new Error('visibility must be a DisplayMode constant');
     this._visibility = DisplayMode.fromAny(alteredValue ?? newValue);
-    await this.actions.trigger(VisibilityChangedAction, this, this._visibility, oldValue);
+    this.actions.trigger(VisibilityChangedAction, this, this._visibility, oldValue);
   }
 
   private _enabled: boolean = true;
@@ -59,23 +51,20 @@ export abstract class FieldBase<T = any> implements IField<T> {
 
   set enabled(newValue: boolean) {
     const oldValue = this._enabled;
-    if (!isBoolean(newValue)) throw new Error('Enabled value must be boolean');
-    this._enabled = newValue;
+    const alteredValue = this.actions.trigger(EnabledChangingAction, this, newValue, oldValue);
+    if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
+    this._enabled = alteredValue ?? newValue;
     this.actions.trigger(EnabledChangedAction, this, this._enabled, oldValue);
   }
 
-  async setEnabled(newValue: boolean) {
-    const oldValue = this._enabled;
-    const alteredValue = await this.actions.trigger(EnabledChangingAction, this, newValue, oldValue);
-    if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
-    this._enabled = alteredValue ?? newValue;
-    await this.actions.trigger(EnabledChangedAction, this, this._enabled, oldValue);
+  validate() {
+    const oldValid = this._valid;
+    this._valid = this.valid;
+    if (this._valid !== oldValid) this.actions.trigger(ValidChangedAction, this, this.valid, oldValid);
   }
 
-  validate() {
-    const oldValid = this.valid;
-    this.valid = this.errors.length === 0;
-    if (this.valid !== oldValid) this.actions.trigger(ValidChangedAction, this, this.valid, oldValid);
+  get valid() {
+    return this.errors.length === 0;
   }
 
   get fullValue(): any {
@@ -107,6 +96,6 @@ export abstract class FieldBase<T = any> implements IField<T> {
   clearValidators(): void {
     this.actions = this.actions.cloneWithoutValidators();
     this.errors = [];
-    this.valid = true;
+    this._valid = true;
   }
 }

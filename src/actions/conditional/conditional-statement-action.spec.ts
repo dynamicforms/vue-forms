@@ -15,26 +15,25 @@ import Operator from './operator';
 import { Statement } from './statement';
 
 describe('ConditionalStatementAction', () => {
-  it('executes callback when statement result changes', async () => {
+  it('executes callback when statement result changes', () => {
     // Setup
     const field = Field.create({ value: 'John' });
     const statement = new Statement(field, Operator.EQUALS, 'John');
     const callbackFn = vi.fn();
     field.registerAction(new ConditionalStatementAction(statement, callbackFn));
-    await nextTick();
 
     expect(callbackFn).toHaveBeenCalledTimes(1);
     expect(callbackFn).toHaveBeenLastCalledWith(expect.anything(), true, undefined);
 
     // Trigger action by changing field value
-    await field.setValue('test');
+    field.value = 'test';
 
     // Should be called on first evaluation
     expect(callbackFn).toHaveBeenCalledTimes(2);
     expect(callbackFn).toHaveBeenLastCalledWith(expect.anything(), false, true);
 
     // Trigger action again
-    await field.setValue('John');
+    field.value = 'John';
 
     // Should be called again because statement value changed
     expect(callbackFn).toHaveBeenCalledTimes(3);
@@ -44,7 +43,7 @@ describe('ConditionalStatementAction', () => {
     callbackFn.mockReset();
 
     // Trigger action again without changing statement value
-    await field.setValue('John');
+    field.value = 'John';
 
     // Should not be called because statement value didn't change
     expect(callbackFn).not.toHaveBeenCalled();
@@ -60,7 +59,7 @@ describe('ConditionalStatementAction', () => {
 });
 
 describe('ConditionalVisibilityAction', () => {
-  it('sets field visibility based on statement result', async () => {
+  it('sets field visibility based on statement result', () => {
     // Setup
     const nameField = Field.create({ value: 'John' });
     const statement = new Statement(nameField, Operator.EQUALS, 'John');
@@ -70,14 +69,14 @@ describe('ConditionalVisibilityAction', () => {
     field.registerAction(action);
 
     // Initial visibility should be FULL (since statement is true)
-    await field.setValue('test');
+    field.value = 'test';
     expect(field.visibility).toBe(DisplayMode.FULL);
 
     // Change statement to evaluate to false
-    await nameField.setValue('Jane');
+    nameField.value = 'Jane';
 
     // Trigger visibility update
-    await field.setValue('another test');
+    field.value = 'another test';
 
     // Visibility should now be SUPPRESS
     expect(field.visibility).toBe(DisplayMode.SUPPRESS);
@@ -85,7 +84,7 @@ describe('ConditionalVisibilityAction', () => {
 });
 
 describe('ConditionalEnabledAction', () => {
-  it('sets field enabled state based on statement result', async () => {
+  it('sets field enabled state based on statement result', () => {
     // Setup
     const ageField = Field.create({ value: 25 });
     const statement = new Statement(ageField, Operator.GT, 18);
@@ -95,14 +94,14 @@ describe('ConditionalEnabledAction', () => {
     field.registerAction(action);
 
     // Initial enabled should be true (since statement is true)
-    await field.setValue('test');
+    field.value = 'test';
     expect(field.enabled).toBe(true);
 
     // Change statement to evaluate to false
-    await ageField.setValue(16);
+    ageField.value = 16;
 
     // Trigger enabled update
-    await field.setValue('another test');
+    field.value = 'another test';
 
     // Enabled should now be false
     expect(field.enabled).toBe(false);
@@ -126,9 +125,6 @@ describe('ConditionalValueAction', () => {
     // Change statement to evaluate to true
     isAdminField.value = true;
 
-    // Trigger value update
-    field.value = 'another update';
-
     // Value should be set to the trueValue
     expect(field.value).toBe('admin access');
   });
@@ -151,7 +147,7 @@ describe('ConditionalValueAction', () => {
 });
 
 describe('Complex Conditional Actions', () => {
-  it('integrates with form structure', async () => {
+  it('integrates with form structure', () => {
     // Create a form with conditional logic
     const form = new Group({
       age: Field.create({ value: 25 }),
@@ -176,10 +172,10 @@ describe('Complex Conditional Actions', () => {
     // Apply conditional actions
     form.fields.studentDiscount.registerAction(new ConditionalVisibilityAction(showDiscountStatement));
     form.fields.submitButton.registerAction(new ConditionalEnabledAction(enableSubmitStatement));
-    await nextTick();
+    nextTick();
 
     // Trigger initial evaluation
-    // await form.fields.age.setValue(24);
+    // form.fields.age.value = 24;
 
     // Initially: age=25, isStudent=false, terms=false
     // So discount should be hidden and submit disabled
@@ -187,15 +183,15 @@ describe('Complex Conditional Actions', () => {
     expect(form.fields.submitButton.enabled).toBe(false);
 
     // Update to make student discount visible
-    await form.fields.isStudent.setValue(true);
+    form.fields.isStudent.value = true;
     expect(form.fields.studentDiscount.visibility).toBe(DisplayMode.FULL);
 
     // Accept terms to enable submit button
-    await form.fields.acceptTerms.setValue(true);
+    form.fields.acceptTerms.value = true;
     expect(form.fields.submitButton.enabled).toBe(true);
 
     // Change age to hide discount again
-    await form.fields.age.setValue(35);
+    form.fields.age.value = 35;
     expect(form.fields.studentDiscount.visibility).toBe(DisplayMode.SUPPRESS);
   });
 });

@@ -7,7 +7,7 @@ import { ValidationErrorRenderContent } from './validation-error';
 import InAllowedValues from './validator-in-allowed-values';
 
 describe('InAllowedValues Validator', () => {
-  it('returns error when value is not in allowed values (string)', async () => {
+  it('returns error when value is not in allowed values (string)', () => {
     const allowedValues = ['red', 'green', 'blue'];
 
     const field = Field.create({
@@ -20,7 +20,7 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns error when value is not in allowed values (number)', async () => {
+  it('returns error when value is not in allowed values (number)', () => {
     const allowedValues = [1, 2, 3, 5, 8, 13];
 
     const field = Field.create({
@@ -33,7 +33,7 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns no error when value is in allowed values', async () => {
+  it('returns no error when value is in allowed values', () => {
     const allowedValues = ['red', 'green', 'blue'];
 
     const field = Field.create({
@@ -45,7 +45,7 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('handles reactive values correctly', async () => {
+  it('handles reactive values correctly', () => {
     const allowedValues = ['red', 'green', 'blue'];
     const validator = new InAllowedValues(allowedValues);
 
@@ -71,7 +71,7 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('truncates long list of allowed values in error message', async () => {
+  it('truncates long list of allowed values in error message', () => {
     // Create a long list of allowed values
     const allowedValues = Array.from({ length: 30 }, (_, i) => `item-${i}`);
 
@@ -90,7 +90,7 @@ describe('InAllowedValues Validator', () => {
     expect(errorContentText).toContain('30 items total');
   });
 
-  it('uses custom error message', async () => {
+  it('uses custom error message', () => {
     const allowedValues = ['admin', 'user', 'guest'];
     const customMessage = 'Invalid role selected';
 

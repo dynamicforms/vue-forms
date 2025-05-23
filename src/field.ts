@@ -1,4 +1,4 @@
-import { reactive } from 'vue';
+import { reactive, unref } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
@@ -17,6 +17,7 @@ export class Field<T = any> extends FieldBase {
       if (this.originalValue === undefined) this.originalValue = this._value;
     }
     this.actions.triggerEager(this, this.value, this.originalValue);
+    this.validate();
   }
 
   /**
@@ -28,7 +29,7 @@ export class Field<T = any> extends FieldBase {
     return reactive(new Field(params)) as Field<T>;
   }
 
-  get value() { return this._value; }
+  get value() { return unref(this._value); }
 
   set value(newValue: T) {
     const oldValue = this._value;
@@ -39,23 +40,16 @@ export class Field<T = any> extends FieldBase {
     this.validate();
   }
 
-  async setValue(newValue: T) {
-    const oldValue = this._value;
-    if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
-    this._value = newValue;
-    await this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
-    if (this.parent) await this.parent.notifyValueChanged();
-    this.validate();
-  }
-
   clone(overrides?: Partial<IField<T>>): Field<T> {
-    return Field.create<T>({
+    const res = Field.create<T>({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
-      errors: [...(overrides?.errors ?? this.errors)],
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
+    res.actions = this.actions.clone();
+    res.actions.triggerEager(res, res.value, res.originalValue);
+    return res;
   }
 }
 
@@ -63,7 +57,7 @@ export type NullableField<T = any> = Field<T> | null;
 
 export const EmptyField = Field.create({ value: 'EmptyField' })
   .registerAction(new ValueChangedAction(
-    async () => {
+    () => {
       console.warn('Working with EmptyField! This should not happen');
     },
   ));

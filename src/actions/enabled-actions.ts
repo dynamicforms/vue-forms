@@ -10,7 +10,7 @@ export class EnabledChangingAction extends FieldActionBase {
   constructor(
     executorFn: (
       field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean
-    ) => Promise<boolean>,
+    ) => boolean,
   ) {
     super(executorFn);
   }
@@ -18,8 +18,7 @@ export class EnabledChangingAction extends FieldActionBase {
   // eslint-disable-next-line class-methods-use-this
   static get classIdentifier() { return EnabledChangingActionClassIdentifier; }
 
-  async execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean)
-    : Promise<boolean> {
+  execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): boolean {
     return super.execute(field, supr, newValue, oldValue);
   }
 }
@@ -31,7 +30,7 @@ export class EnabledChangedAction extends FieldActionBase {
   constructor(
     executorFn: (
       field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean
-    ) => Promise<void>,
+    ) => void,
   ) {
     super(executorFn);
   }
@@ -39,12 +38,7 @@ export class EnabledChangedAction extends FieldActionBase {
   // eslint-disable-next-line class-methods-use-this
   static get classIdentifier() { return EnabledChangedActionClassIdentifier; }
 
-  async execute(
-    field: IField,
-    supr: FieldActionExecute,
-    newValue: boolean,
-    oldValue: boolean,
-  ): Promise<void> {
+  execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): void {
     return super.execute(field, supr, newValue, oldValue);
   }
 }

@@ -11,7 +11,7 @@ type ConditionalExecutorFn = (
   field: IField,
   currentResult: boolean,
   previousResult: boolean | undefined,
-) => Promise<void>;
+) => void;
 
 export class ConditionalStatementAction extends ValueChangedAction {
   private lastResult: boolean | undefined = undefined;
@@ -22,13 +22,12 @@ export class ConditionalStatementAction extends ValueChangedAction {
 
   constructor(statement: Statement, executorFn: ConditionalExecutorFn) {
     // Create ValueChangedAction executor that will evaluate statement and track changes
-    const actionExecutor = async (field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => {
+    const actionExecutor = (field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => {
       const currentResult = statement.evaluate();
 
       if (currentResult !== this.lastResult) {
         for (const fld of this.boundFields) {
-          // eslint-disable-next-line no-await-in-loop
-          await executorFn(fld, currentResult, this.lastResult);
+          executorFn(fld, currentResult, this.lastResult);
         }
         this.lastResult = currentResult;
       }
@@ -54,24 +53,24 @@ export class ConditionalStatementAction extends ValueChangedAction {
 
 export class ConditionalVisibilityAction extends ConditionalStatementAction {
   constructor(statement: Statement) {
-    super(statement, async (field: IField, currentResult) => {
-      await field.setVisibility(currentResult ? DisplayMode.FULL : DisplayMode.SUPPRESS);
+    super(statement, (field: IField, currentResult) => {
+      field.visibility = currentResult ? DisplayMode.FULL : DisplayMode.SUPPRESS;
     });
   }
 }
 
 export class ConditionalEnabledAction extends ConditionalStatementAction {
   constructor(statement: Statement) {
-    super(statement, async (field, currentResult) => {
-      await field.setEnabled(currentResult);
+    super(statement, (field, currentResult) => {
+      field.enabled = currentResult;
     });
   }
 }
 
 export class ConditionalValueAction<T> extends ConditionalStatementAction {
   constructor(statement: Statement, trueValue: T) {
-    super(statement, async (field, currentResult) => {
-      if (currentResult) await field.setValue(trueValue);
+    super(statement, (field, currentResult) => {
+      if (currentResult) field.value = trueValue;
     });
   }
 }

@@ -1,10 +1,10 @@
 import { vi } from 'vitest';
-import { nextTick } from 'vue';
 
 import { ValueChangedAction, ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
+import { Validators, ValidationErrorText } from './validators';
 
 describe('List', () => {
   it('correctly initializes with empty array', () => {
@@ -51,14 +51,12 @@ describe('List', () => {
     expect(list.get(0)?.fields.active.value).toBe(true); // Default from template
   });
 
-  it('triggers value changed on push', async () => {
+  it('triggers value changed on push', () => {
     const onValueChanged = vi.fn();
     const list = new List()
       .registerAction(new ValueChangedAction(onValueChanged));
-    await nextTick();
 
     list.push({ name: 'John' });
-    await nextTick();
 
     expect(onValueChanged).toHaveBeenCalled();
     expect(list.value).toEqual([{ name: 'John' }]);
@@ -268,5 +266,149 @@ describe('List', () => {
     // When we pop, the parent link is removed via cloning
     const popped = list.pop();
     expect(popped?.parent).toBeUndefined();
+  });
+});
+
+describe('List Validation', () => {
+  it('should be invalid when one of the list items becomes invalid', () => {
+    // Arrange
+    const itemTemplate = new Group({
+      name: Field.create({ validators: [new Validators.Required()] }),
+      email: Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+    });
+    expect(itemTemplate.valid).toBe(false);
+
+    const list = new List(itemTemplate, {
+      value: [
+        { name: 'John', email: 'john@example.com' },
+        { name: 'Jane', email: 'jane@example.com' },
+      ],
+    });
+
+    // Initially list should be valid
+    expect(list.get(0)!.fields.name.valid).toBe(true);
+    expect(list.get(0)!.fields.email.valid).toBe(true);
+    expect(list.get(0)!.valid).toBe(true);
+    expect(list.get(1)!.valid).toBe(true);
+    expect(list.valid).toBe(true);
+
+    // Act - make one item invalid
+    const firstItem = list.get(0);
+    firstItem!.fields.email.value = 'invalid-email';
+
+    // Assert
+    expect(firstItem!.valid).toBe(false);
+    expect(list.valid).toBe(false);
+  });
+
+  it('should be invalid when list-level error is added', () => {
+    // Arrange
+    const itemTemplate = new Group({ name: Field.create() });
+
+    const list = new List(itemTemplate, {
+      value: [
+        { name: 'Item 1' },
+        { name: 'Item 2' },
+      ],
+    });
+
+    // Initially list should be valid
+    expect(list.valid).toBe(true);
+
+    // Act - add list-level validation error
+    list.errors = [new ValidationErrorText('List must contain at least 3 items')];
+    list.validate();
+
+    // Assert
+    expect(list.valid).toBe(false);
+  });
+
+  it('should become valid again when item errors are resolved', () => {
+    // Arrange
+    const itemTemplate = new Group({ name: Field.create({ validators: [new Validators.Required()] }) });
+
+    const list = new List(itemTemplate, {
+      value: [
+        { name: '' }, // invalid - required field empty
+        { name: 'Valid Name' },
+      ],
+    });
+
+    // Initially list should be invalid
+    expect(list.valid).toBe(false);
+
+    // Act - fix the item error
+    const firstItem = list.get(0);
+    firstItem!.fields.name.value = 'Fixed Name';
+
+    // Assert
+    expect(firstItem!.valid).toBe(true);
+    expect(list.valid).toBe(true);
+  });
+
+  it('should become valid again when list-level errors are cleared', () => {
+    // Arrange
+    const itemTemplate = new Group({ name: Field.create() });
+
+    const list = new List(itemTemplate);
+
+    // Add list-level error
+    list.errors = [new ValidationErrorText('Custom list validation error')];
+    list.validate();
+    expect(list.valid).toBe(false);
+
+    // Act - clear list errors
+    list.errors = [];
+    list.validate();
+
+    // Assert
+    expect(list.valid).toBe(true);
+  });
+
+  it('should be invalid when new invalid item is added', () => {
+    // Arrange
+    const itemTemplate = new Group({
+      email:
+        Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+    });
+
+    const list = new List(itemTemplate, {
+      value: [
+        { email: 'valid@example.com' },
+      ],
+    });
+
+    // Initially list should be valid
+    expect(list.valid).toBe(true);
+
+    // Act - add invalid item
+    list.push({ email: 'invalid-email' });
+
+    // Assert
+    expect(list.valid).toBe(false);
+  });
+
+  it('should become valid when invalid item is removed', () => {
+    // Arrange
+    const itemTemplate = new Group({
+      email:
+        Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+    });
+
+    const list = new List(itemTemplate, {
+      value: [
+        { email: 'valid@example.com' },
+        { email: 'invalid-email' }, // invalid item
+      ],
+    });
+
+    // Initially list should be invalid
+    expect(list.valid).toBe(false);
+
+    // Act - remove invalid item
+    list.remove(1);
+
+    // Assert
+    expect(list.valid).toBe(true);
   });
 });

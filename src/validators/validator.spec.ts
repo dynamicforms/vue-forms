@@ -7,7 +7,7 @@ import { ValidationErrorText } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 describe('Validator', () => {
-  it('adds validation errors to field.errors', async () => {
+  it('adds validation errors to field.errors', () => {
     // Arrange
     const field = Field.create();
     field.validate = vi.fn();
@@ -16,7 +16,7 @@ describe('Validator', () => {
     const validator = new Validator(validationFn);
 
     // Act
-    await validator.execute(field, vi.fn(), 'new', 'old');
+    validator.execute(field, vi.fn(), 'new', 'old');
 
     // Assert
     expect(field.errors.length).toBe(1);
@@ -25,7 +25,7 @@ describe('Validator', () => {
     expect(field.validate).toHaveBeenCalled();
   });
 
-  it('removes previous errors from the same validator', async () => {
+  it('removes previous errors from the same validator', () => {
     // Arrange
     const existingError = new ValidationErrorText('Existing error');
 
@@ -47,7 +47,7 @@ describe('Validator', () => {
     expect(field.errors[0]).toStrictEqual(existingError);
   });
 
-  it('continues the action chain by calling supr', async () => {
+  it('continues the action chain by calling supr', () => {
     // Arrange
     const field = Field.create();
     field.validate = vi.fn();
@@ -58,13 +58,13 @@ describe('Validator', () => {
     const mockSupr = vi.fn();
 
     // Act
-    await validator.execute(field, mockSupr, 'new', 'old');
+    validator.execute(field, mockSupr, 'new', 'old');
 
     // Assert
     expect(mockSupr).toHaveBeenCalledWith(field, 'new', 'old');
   });
 
-  it('replaces placeholders in error messages', async () => {
+  it('replaces placeholders in error messages', () => {
     // Arrange
     const field = Field.create();
     field.validate = vi.fn();
@@ -90,14 +90,14 @@ describe('Validator', () => {
     const validator = new TestValidator();
 
     // Act
-    await validator.execute(field, vi.fn(), 'new-value', 'old-value');
+    validator.execute(field, vi.fn(), 'new-value', 'old-value');
 
     // Assert
     expect(field.errors.length).toBe(1);
     expect((field.errors[0] as ValidationErrorText).text).toBe('New: new-value, Old: old-value');
   });
 
-  it('properly replaces placeholders with direct method call', async () => {
+  it('properly replaces placeholders with direct method call', () => {
     // Create validator with exposed replacement method
     class TestValidator extends Validator {
       constructor() {
@@ -121,7 +121,7 @@ describe('Validator', () => {
     expect(result).toBe('Name: John, Age: 30, Value: test');
   });
 
-  it('creates validator with field instance instead of mock', async () => {
+  it('creates validator with field instance instead of mock', () => {
     // Create a field with a validator directly
     const validationFn: ValidationFunction =
       (newValue) => (newValue === 'invalid' ? [new ValidationErrorText('Invalid value')] : null);

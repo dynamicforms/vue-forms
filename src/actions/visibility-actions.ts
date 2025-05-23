@@ -11,7 +11,7 @@ export class VisibilityChangingAction extends FieldActionBase {
   constructor(
     executorFn: (
       field: IField, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode
-    ) => Promise<DisplayMode>,
+    ) => DisplayMode,
   ) {
     super(executorFn);
   }
@@ -19,12 +19,12 @@ export class VisibilityChangingAction extends FieldActionBase {
   // eslint-disable-next-line class-methods-use-this
   static get classIdentifier() { return VisibilityChangingActionClassIdentifier; }
 
-  async execute(
+  execute(
     field: IField,
     supr: FieldActionExecute,
     newValue: DisplayMode,
     oldValue: DisplayMode,
-  ): Promise<DisplayMode> {
+  ): DisplayMode {
     return super.execute(field, supr, newValue, oldValue);
   }
 }
@@ -36,7 +36,7 @@ export class VisibilityChangedAction extends FieldActionBase {
   constructor(
     executorFn: (
       field: IField, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode,
-    ) => Promise<void>,
+    ) => void,
   ) {
     super(executorFn);
   }
@@ -44,12 +44,12 @@ export class VisibilityChangedAction extends FieldActionBase {
   // eslint-disable-next-line class-methods-use-this
   static get classIdentifier() { return VisibilityChangedActionClassIdentifier; }
 
-  async execute(
+  execute(
     field: IField,
     supr: FieldActionExecute,
     newValue: DisplayMode,
     oldValue: DisplayMode,
-  ): Promise<void> {
+  ): void {
     return super.execute(field, supr, newValue, oldValue);
   }
 }

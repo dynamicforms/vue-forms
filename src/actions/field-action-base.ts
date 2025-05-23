@@ -5,7 +5,7 @@ import {
   type IFieldAction,
 } from '@/field.interface';
 
-type ActionExecutor = (field: IField, supr: FieldActionExecute, ...params: any[]) => Promise<any>;
+type ActionExecutor = (field: IField, supr: FieldActionExecute, ...params: any[]) => any;
 
 export default abstract class FieldActionBase implements IFieldAction {
   public static get classIdentifier(): symbol { throw new Error('classIdentifier must be declared'); }
@@ -18,7 +18,7 @@ export default abstract class FieldActionBase implements IFieldAction {
     this.executorFn = executorFn;
   }
 
-  async execute(field: IField, supr: IFieldAction['execute'], ...params: any[]): Promise<any> {
+  execute(field: IField, supr: IFieldAction['execute'], ...params: any[]): any {
     return this.executorFn(field, supr, ...params);
   }
 

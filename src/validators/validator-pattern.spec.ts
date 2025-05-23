@@ -7,7 +7,7 @@ import { ValidationErrorRenderContent } from './validation-error';
 import Pattern from './validator-pattern';
 
 describe('Pattern Validator', () => {
-  it('returns error when value does not match pattern', async () => {
+  it('returns error when value does not match pattern', () => {
     const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
     const invalidValues = [
@@ -33,7 +33,7 @@ describe('Pattern Validator', () => {
     }
   });
 
-  it('returns no error when value matches pattern', async () => {
+  it('returns no error when value matches pattern', () => {
     const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 
     const validValues = [
@@ -57,7 +57,7 @@ describe('Pattern Validator', () => {
     }
   });
 
-  it('properly converts non-string values to strings', async () => {
+  it('properly converts non-string values to strings', () => {
     const numberPattern = /^[0-9]+$/;
 
     // Test with valid number value
@@ -79,7 +79,7 @@ describe('Pattern Validator', () => {
     expect(field2.errors.length).toBe(1);
   });
 
-  it('uses custom error message', async () => {
+  it('uses custom error message', () => {
     const pattern = /^[A-Z]+$/;
     const customMessage = 'Only uppercase letters allowed';
 

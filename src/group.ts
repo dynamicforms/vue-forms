@@ -32,10 +32,12 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
     this.actions.triggerEager(this, this.value, this.originalValue);
+    this.validate();
   }
 
-  addField(fieldName: string, field: IField) {
-    // todo: not sure if I should support this. breaks types, neglects events (originalValue, valueChanged), etc.
+  private addField(fieldName: string, field: IField) {
+    // note: not sure if I should expose this (make it public).
+    //  breaks types, neglects events (originalValue, valueChanged), etc.
     if (this.fields[fieldName] !== undefined) {
       throw new Error(`Field ${fieldName} is already in this form`);
     }
@@ -106,25 +108,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
       this.suppressNotifyValueChanged = false;
     }
     this.notifyValueChanged();
-  }
-
-  async setValue(newValue: Record<string, any> | null) {
-    this.suppressNotifyValueChanged = true;
-
-    async function fieldSetter(name: string, field: IField) {
-      if (newValue == null || name in newValue) {
-        await field.setValue(newValue == null ? null : newValue[name]);
-      }
-    }
-
-    try {
-      for (const [name, entry] of Object.entries(this._fields)) {
-        await fieldSetter(name, entry); // eslint-disable-line no-await-in-loop
-      }
-    } finally {
-      this.suppressNotifyValueChanged = false;
-    }
-    await this.notifyValueChanged();
+    this.validate();
   }
 
   get fullValue(): Record<string, any> {
@@ -133,15 +117,20 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     return value;
   }
 
-  async notifyValueChanged() {
+  notifyValueChanged() {
     if (this.suppressNotifyValueChanged) return;
     const newValue = this.value;
     if (!isEqual(newValue, this._value)) {
       const oldValue = this._value;
       this._value = newValue;
-      await this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
-      if (this.parent) await this.parent.notifyValueChanged();
+      this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
+      if (this.parent) this.parent.notifyValueChanged();
+      this.validate();
     }
+  }
+
+  get valid() {
+    return super.valid && Object.values(this._fields).every((field) => field.valid);
   }
 
   clone(overrides?: Partial<IField>): Group<T> {
@@ -149,14 +138,15 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     Object.entries(this._fields).forEach(([name, field]) => {
       newFields[name as keyof T] = field.clone() as any;
     });
-
-    return new Group(newFields, {
+    const res = new Group(newFields, {
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
-      errors: [...(overrides?.errors ?? [])],
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
+    res.actions = this.actions.clone();
+    res.actions.triggerEager(res, res.value, res.originalValue);
+    return res;
   }
 }
 

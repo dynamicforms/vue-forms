@@ -31,6 +31,7 @@ export class Action extends FieldBase {
       this._value = reactive({ label: undefined, icon: undefined });
     }
     this.actions.triggerEager(this, this.value, this.originalValue);
+    this.validate();
   }
 
   static create(params?: Partial<IField<ActionValue>>): Action {
@@ -46,16 +47,6 @@ export class Action extends FieldBase {
     this._value.label = newValue?.label;
     this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
-    this.validate();
-  }
-
-  async setValue(newValue: ActionValue) {
-    if (!this.enabled) return; // a disabled field does not allow changing value
-    const oldValue = this._value;
-    this._value.icon = newValue?.icon;
-    this._value.label = newValue?.label;
-    await this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
-    if (this.parent) await this.parent.notifyValueChanged();
     this.validate();
   }
 
@@ -76,13 +67,15 @@ export class Action extends FieldBase {
   }
 
   clone(overrides?: Partial<IField>): Action {
-    return Action.create({
+    const res = Action.create({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
-      errors: [...(overrides?.errors ?? this.errors)],
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
+    res.actions = this.actions.clone();
+    res.actions.triggerEager(res, res.value, res.originalValue);
+    return res;
   }
 
   execute(params: any) {

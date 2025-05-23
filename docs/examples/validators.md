@@ -71,7 +71,7 @@ const formValid = computed(() => {
 });
 
 // Register a value changed action to update form output display
-validatedForm.registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
+validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   return supr(field, newValue, oldValue);
 }));
 ```

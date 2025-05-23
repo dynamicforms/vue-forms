@@ -17,9 +17,6 @@ export interface IField<T = any> {
   fieldName?: string; // when member of a Group, fieldName specifies the name of this field
 
   clone(overrides?: Partial<IField<T>>): IField<T>;
-  setVisibility(newValue: DisplayMode): Promise<void>;
-  setEnabled(newValue: boolean): Promise<void>;
-  setValue(newValue: T): Promise<void>;
 
   // events
   registerAction(action: IFieldAction<T>): this;
@@ -40,7 +37,7 @@ export type IFieldConstructorParams<T = any> = IField<T> & IFieldConstructorActi
 
 export class AbortEventHandlingException extends Error {}
 
-export type FieldActionExecute<T = any> = (field: IField<T>, ...params: any[]) => Promise<any>;
+export type FieldActionExecute<T = any> = (field: IField<T>, ...params: any[]) => any;
 export interface IFieldAction<T = any> {
   execute(field: IField<T>, supr: FieldActionExecute<T>, ...params: any[]): any;
 }

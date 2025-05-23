@@ -8,7 +8,7 @@ const ListItemRemovedActionClassIdentifier = Symbol('ListItemRemovedAction');
 export class ListItemRemovedAction extends FieldActionBase {
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(
-    executorFn: (field: IField, supr: FieldActionExecute, item: any, index: number) => Promise<void>,
+    executorFn: (field: IField, supr: FieldActionExecute, item: any, index: number) => void,
   ) {
     super(executorFn);
   }
@@ -16,7 +16,7 @@ export class ListItemRemovedAction extends FieldActionBase {
   // eslint-disable-next-line class-methods-use-this
   static get classIdentifier() { return ListItemRemovedActionClassIdentifier; }
 
-  async execute(field: IField, supr: FieldActionExecute, item: any, index: number): Promise<void> {
+  execute(field: IField, supr: FieldActionExecute, item: any, index: number): void {
     return super.execute(field, supr, item, index);
   }
 }

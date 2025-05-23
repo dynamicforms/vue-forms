@@ -7,7 +7,7 @@ import { ValidationErrorRenderContent } from './validation-error';
 import Required from './validator-required';
 
 describe('Required Validator', () => {
-  it('returns error when value is empty', async () => {
+  it('returns error when value is empty', () => {
     // Test with different empty values
     const emptyValues = [
       '', // empty string
@@ -30,7 +30,7 @@ describe('Required Validator', () => {
     }
   });
 
-  it('returns no error when value is not empty', async () => {
+  it('returns no error when value is not empty', () => {
     // Test with different non-empty values
     const nonEmptyValues = [
       'value',
@@ -54,7 +54,7 @@ describe('Required Validator', () => {
     }
   });
 
-  it('uses custom error message', async () => {
+  it('uses custom error message', () => {
     // Arrange
     const customMessage = 'This field is required!';
     const field = Field.create({

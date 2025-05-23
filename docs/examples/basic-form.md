@@ -37,7 +37,7 @@ const toggleField = (fieldName) => {
 };
 
 // Register a value changed action to update form output display
-personForm.registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
+personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   console.log('form value has changed');
   return supr(field, newValue, oldValue);
 }));

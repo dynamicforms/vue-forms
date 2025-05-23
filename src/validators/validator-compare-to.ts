@@ -23,10 +23,10 @@ export default class CompareTo<T = any> extends Validator {
       oVal = oldValue;
       if (!listenerSet) {
         listenerSet = true;
-        this.otherField.registerAction(new ValueChangedAction(async (oField, supr, oNewValue, oOldValue) => {
-          await supr(oField, oNewValue, oOldValue);
+        this.otherField.registerAction(new ValueChangedAction((oField, supr, oNewValue, oOldValue) => {
+          supr(oField, oNewValue, oOldValue);
           // somewhat hackish: we just need to execute this one validator, not anything before, not anything after...
-          if (!this.unregistered) await this.execute(field, async () => null, nVal, oVal);
+          if (!this.unregistered) this.execute(field, () => null, nVal, oVal);
         }));
       }
       if (!this.isValidComparison(unref(newValue), unref(this.otherField.value))) {

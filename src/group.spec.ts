@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { Group } from './group';
+import { Validators, ValidationErrorText } from './validators';
 
 describe('Group', () => {
   it('correctly serializes values', () => {
@@ -28,14 +29,14 @@ describe('Group', () => {
     expect(field2.value).toBe('test2');
   });
 
-  it('triggers onValueChanged only once when setting multiple nested values', async () => {
+  it('triggers onValueChanged only once when setting multiple nested values', () => {
     const onValueChanged = vi.fn();
     const group = new Group({
       field1: Field.create({ enabled: true }),
       field2: Field.create({ enabled: true }),
     }).registerAction(new ValueChangedAction(onValueChanged));
 
-    await group.setValue({ field1: 'test1', field2: 'test2' });
+    group.value = { field1: 'test1', field2: 'test2' };
 
     expect(onValueChanged).toHaveBeenCalledTimes(1);
   });
@@ -61,13 +62,13 @@ describe('Group', () => {
     });
   });
 
-  it('correctly notifies parent of changes', async () => {
+  it('correctly notifies parent of changes', () => {
     const onValueChanged = vi.fn();
     const group = new Group({ field1: Field.create() })
       .registerAction(new ValueChangedAction(onValueChanged));
 
     const field = group.fields.field1;
-    await field.setValue('test');
+    field.value = 'test';
 
     expect(onValueChanged).toHaveBeenCalled();
   });
@@ -210,5 +211,86 @@ describe('Group value initialization', () => {
 
     // Check isChanged reflects the difference between value and originalValue
     expect(group.isChanged).toBe(true);
+  });
+});
+
+describe('Form Validation', () => {
+  it('should be invalid when one of the fields becomes invalid', () => {
+    // Arrange
+    const form = new Group({
+      username: Field.create({
+        value: 'validuser',
+        validators: [new Validators.Required()],
+      }),
+      email: Field.create({
+        value: 'valid@email.com',
+        validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)],
+      }),
+    });
+
+    // Initially form should be valid
+    expect(form.valid).toBe(true);
+
+    // Act - make one field invalid
+    form.fields.email.value = 'invalid-email';
+
+    // Assert
+    expect(form.fields.email.valid).toBe(false);
+    expect(form.valid).toBe(false);
+  });
+
+  it('should be invalid when form-level error is added', () => {
+    // Arrange
+    const form = new Group({
+      phone: Field.create({ value: '' }), // non-required
+      email: Field.create({ value: '' }), // non-required
+    });
+
+    // Initially form should be valid (no required fields)
+    expect(form.valid).toBe(true);
+
+    // Act - add form-level validation error
+    form.errors = [new ValidationErrorText('At least one contact method (phone or email) is required')];
+    form.validate();
+
+    // Assert
+    expect(form.valid).toBe(false);
+  });
+
+  it('should become valid again when field errors are resolved', () => {
+    // Arrange
+    const form = new Group({
+      username: Field.create({
+        value: '',
+        validators: [new Validators.Required()],
+      }),
+    });
+
+    // Initially form should be invalid (required field is empty)
+    expect(form.valid).toBe(false);
+
+    // Act - fix the field error
+    form.fields.username.value = 'validuser';
+
+    // Assert
+    expect(form.fields.username.valid).toBe(true);
+    expect(form.valid).toBe(true);
+  });
+
+  it('should become valid again when form-level errors are cleared', () => {
+    // Arrange
+    const form = new Group({ optionalField: Field.create({ value: '' }) });
+
+    // Add form-level error
+    form.errors = [new ValidationErrorText('Custom form validation error')];
+    form.validate();
+    expect(form.valid).toBe(false);
+
+    // Act - clear form errors
+    form.errors = [];
+    form.validate();
+
+    // Assert
+    expect(form.valid).toBe(true);
   });
 });

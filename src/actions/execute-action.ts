@@ -8,7 +8,7 @@ const ExecuteActionClassIdentifier = Symbol('ExecuteAction');
 export class ExecuteAction extends FieldActionBase {
   // eslint-disable-next-line @typescript-eslint/no-useless-constructor
   constructor(
-    executorFn: (field: IField, supr: FieldActionExecute, params: any) => Promise<any>,
+    executorFn: (field: IField, supr: FieldActionExecute, params: any) => any,
   ) {
     super(executorFn);
   }
@@ -16,7 +16,7 @@ export class ExecuteAction extends FieldActionBase {
   // eslint-disable-next-line class-methods-use-this
   static get classIdentifier() { return ExecuteActionClassIdentifier; }
 
-  async execute(field: IField, supr: FieldActionExecute, params: any): Promise<any> {
+  execute(field: IField, supr: FieldActionExecute, params: any): any {
     return super.execute(field, supr, params);
   }
 }

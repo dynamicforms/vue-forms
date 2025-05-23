@@ -5,7 +5,7 @@ import { Field } from '../field';
 import { Validators, ValidationErrorRenderContent } from '.';
 
 describe('MinLength Validator', () => {
-  it('returns error when string length is less than minimum', async () => {
+  it('returns error when string length is less than minimum', () => {
     const minLength = 5;
 
     const field = Field.create({
@@ -18,7 +18,7 @@ describe('MinLength Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns error when array length is less than minimum', async () => {
+  it('returns error when array length is less than minimum', () => {
     const minLength = 3;
 
     const field = Field.create({
@@ -31,7 +31,7 @@ describe('MinLength Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns error when object keys length is less than minimum', async () => {
+  it('returns error when object keys length is less than minimum', () => {
     const minLength = 3;
 
     const field = Field.create({
@@ -44,7 +44,7 @@ describe('MinLength Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns no error when length equals minimum', async () => {
+  it('returns no error when length equals minimum', () => {
     const minLength = 3;
 
     // Test with string
@@ -69,7 +69,7 @@ describe('MinLength Validator', () => {
     expect(fieldObject.errors.length).toBe(0);
   });
 
-  it('returns no error when length is greater than minimum', async () => {
+  it('returns no error when length is greater than minimum', () => {
     const minLength = 3;
 
     const field = Field.create({
@@ -81,7 +81,7 @@ describe('MinLength Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('validates when value changes', async () => {
+  it('validates when value changes', () => {
     const minLength = 5;
 
     const field = Field.create({
@@ -107,7 +107,7 @@ describe('MinLength Validator', () => {
 });
 
 describe('MaxLength Validator', () => {
-  it('returns error when string length exceeds maximum', async () => {
+  it('returns error when string length exceeds maximum', () => {
     const maxLength = 5;
 
     const field = Field.create({
@@ -120,7 +120,7 @@ describe('MaxLength Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns error when array length exceeds maximum', async () => {
+  it('returns error when array length exceeds maximum', () => {
     const maxLength = 3;
 
     const field = Field.create({
@@ -133,7 +133,7 @@ describe('MaxLength Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns error when object keys length exceeds maximum', async () => {
+  it('returns error when object keys length exceeds maximum', () => {
     const maxLength = 2;
 
     const field = Field.create({
@@ -146,7 +146,7 @@ describe('MaxLength Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns no error when length equals maximum', async () => {
+  it('returns no error when length equals maximum', () => {
     const maxLength = 3;
 
     // Test with string
@@ -171,7 +171,7 @@ describe('MaxLength Validator', () => {
     expect(fieldObject.errors.length).toBe(0);
   });
 
-  it('returns no error when length is less than maximum', async () => {
+  it('returns no error when length is less than maximum', () => {
     const maxLength = 10;
 
     const field = Field.create({
@@ -185,7 +185,7 @@ describe('MaxLength Validator', () => {
 });
 
 describe('LengthInRange Validator', () => {
-  it('returns error when length is below range', async () => {
+  it('returns error when length is below range', () => {
     const minLength = 5;
     const maxLength = 10;
 
@@ -199,7 +199,7 @@ describe('LengthInRange Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns error when length exceeds range', async () => {
+  it('returns error when length exceeds range', () => {
     const minLength = 5;
     const maxLength = 10;
 
@@ -213,7 +213,7 @@ describe('LengthInRange Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns no error when length is at minimum boundary', async () => {
+  it('returns no error when length is at minimum boundary', () => {
     const minLength = 5;
     const maxLength = 10;
 
@@ -226,7 +226,7 @@ describe('LengthInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('returns no error when length is at maximum boundary', async () => {
+  it('returns no error when length is at maximum boundary', () => {
     const minLength = 5;
     const maxLength = 10;
 
@@ -239,7 +239,7 @@ describe('LengthInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('returns no error when length is within range', async () => {
+  it('returns no error when length is within range', () => {
     const minLength = 5;
     const maxLength = 10;
 
@@ -252,7 +252,7 @@ describe('LengthInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('works with different types of values', async () => {
+  it('works with different types of values', () => {
     const minLength = 2;
     const maxLength = 4;
 
@@ -278,7 +278,7 @@ describe('LengthInRange Validator', () => {
     expect(fieldTooLong.errors.length).toBe(1);
   });
 
-  it('validates when value changes', async () => {
+  it('validates when value changes', () => {
     const minLength = 5;
     const maxLength = 10;
 

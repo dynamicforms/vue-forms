@@ -23,32 +23,37 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
     if (action.eager) this.eagerActions.add(action.classIdentifier);
   }
 
-  async trigger<T extends FieldActionBase>(
+  trigger<T extends FieldActionBase>(
     ActionClass: { new (...args: any[]): T, classIdentifier: symbol },
     field: IField,
     ...params: any[]
-  ): Promise<any> {
+  ): any {
     const identifier = ActionClass.classIdentifier;
-    if (identifier === ValueChangedActionClassIdentifier) await this.triggerEager(field, ...params);
+    if (identifier === ValueChangedActionClassIdentifier) this.triggerEager(field, ...params);
     const execute = this.get(identifier);
     try {
-      if (execute) return await execute(field, ...params);
+      if (execute) return execute(field, ...params);
     } catch (error) {
       if (!(error instanceof AbortEventHandlingException)) throw error;
     }
     return null;
   }
 
-  async triggerEager(field: IField, ...params: any[]): Promise<any> {
+  triggerEager(field: IField, ...params: any[]): any {
     for (const identifier of this.eagerActions) {
       const execute = this.get(identifier);
       try {
-        // eslint-disable-next-line no-await-in-loop
-        if (execute) await execute(field, ...params);
+        if (execute) execute(field, ...params);
       } catch (error) {
         if (!(error instanceof AbortEventHandlingException)) throw error;
       }
     }
+  }
+
+  clone() : ActionsMap {
+    const newActions = new ActionsMap();
+    this.registeredActions.forEach((action) => newActions.register(action));
+    return newActions;
   }
 
   cloneWithoutValidators(): ActionsMap {

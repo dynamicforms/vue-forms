@@ -8,7 +8,7 @@ import { ValidationErrorRenderContent } from './validation-error';
 import CompareTo from './validator-compare-to';
 
 describe('CompareTo Validator', () => {
-  it('returns error when comparison fails', async () => {
+  it('returns error when comparison fails', () => {
     // Create two fields
     const field1 = Field.create({ value: 'abc' });
     const field2 = Field.create({ value: 'xyz' });
@@ -23,15 +23,15 @@ describe('CompareTo Validator', () => {
     expect(field1.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
 
     // When values are equal, there should be no error
-    await field1.setValue('xyz');
+    field1.value = 'xyz';
     expect(field1.errors.length).toBe(0);
 
     // When changing the second field's value, it should revalidate
-    await field2.setValue('123');
+    field2.value = '123';
     expect(field1.errors.length).toBe(1);
   });
 
-  it('validates with custom comparison function', async () => {
+  it('validates with custom comparison function', () => {
     const numberField = Field.create({ value: 10 });
     const limitField = Field.create({ value: 5 });
 
@@ -44,19 +44,19 @@ describe('CompareTo Validator', () => {
     expect(numberField.errors.length).toBe(0);
 
     // When setting an invalid value
-    await numberField.setValue(3);
+    numberField.value = 3;
     expect(numberField.errors.length).toBe(1);
 
     // When increasing the limit, it becomes invalid
-    await limitField.setValue(15);
+    limitField.value = 15;
     expect(numberField.errors.length).toBe(1);
 
     // When setting a valid value
-    await numberField.setValue(20);
+    numberField.value = 20;
     expect(numberField.errors.length).toBe(0);
   });
 
-  it('works in a form with two fields with bidirectional validation', async () => {
+  it('works in a form with two fields with bidirectional validation', () => {
     // Create a form with two fields
     const form = new Group({
       password: Field.create({ value: 'secret' }),
@@ -85,23 +85,23 @@ describe('CompareTo Validator', () => {
     expect(form.fields.confirmPassword.errors.length).toBe(1);
 
     // When values are equal, there should be no errors
-    await form.fields.confirmPassword.setValue('secret');
+    form.fields.confirmPassword.value = 'secret';
     form.fields.password.validate();
     expect(form.fields.password.errors.length).toBe(0);
     expect(form.fields.confirmPassword.errors.length).toBe(0);
 
     // When changing one field, both should show errors
-    await form.fields.password.setValue('newsecret');
+    form.fields.password.value = 'newsecret';
     expect(form.fields.password.errors.length).toBe(1);
     expect(form.fields.confirmPassword.errors.length).toBe(1);
 
     // When both are set to the same value, there should be no errors
-    await form.fields.confirmPassword.setValue('newsecret');
+    form.fields.confirmPassword.value = 'newsecret';
     expect(form.fields.password.errors.length).toBe(0);
     expect(form.fields.confirmPassword.errors.length).toBe(0);
   });
 
-  it('properly formats error message with field references', async () => {
+  it('properly formats error message with field references', () => {
     const form = new Group({
       username: Field.create({ value: 'user123' }),
       displayName: Field.create({ value: 'user123' }),

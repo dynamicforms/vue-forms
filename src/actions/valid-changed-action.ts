@@ -10,7 +10,7 @@ export class ValidChangedAction extends FieldActionBase {
   constructor(
     executorFn: (
       field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean,
-    ) => Promise<void>,
+    ) => void,
   ) {
     super(executorFn);
   }
@@ -18,12 +18,12 @@ export class ValidChangedAction extends FieldActionBase {
   // eslint-disable-next-line class-methods-use-this
   static get classIdentifier() { return ValidChangedActionClassIdentifier; }
 
-  async execute(
+  execute(
     field: IField,
     supr: FieldActionExecute,
     newValue: boolean,
     oldValue: boolean,
-  ): Promise<void> {
+  ): void {
     return super.execute(field, supr, newValue, oldValue);
   }
 }

@@ -6,7 +6,7 @@ import { ValidationErrorRenderContent } from './validation-error';
 import { MinValue, MaxValue, ValueInRange } from './validator-min-max-range';
 
 describe('MinValue Validator', () => {
-  it('returns error when value is less than minimum', async () => {
+  it('returns error when value is less than minimum', () => {
     const minValue = 10;
 
     const field = Field.create<number | undefined>({
@@ -18,12 +18,12 @@ describe('MinValue Validator', () => {
     expect(field.errors.length).toBe(1);
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
 
-    await field.setValue(undefined);
+    field.value = undefined;
     expect(field.errors.length).toBe(1);
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns no error when value equals minimum', async () => {
+  it('returns no error when value equals minimum', () => {
     const minValue = 10;
 
     const field = Field.create({
@@ -35,7 +35,7 @@ describe('MinValue Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('returns no error when value is greater than minimum', async () => {
+  it('returns no error when value is greater than minimum', () => {
     const minValue = 10;
 
     const field = Field.create({
@@ -47,7 +47,7 @@ describe('MinValue Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('validates when value changes', async () => {
+  it('validates when value changes', () => {
     const minValue = 10;
 
     const field = Field.create({
@@ -73,7 +73,7 @@ describe('MinValue Validator', () => {
 });
 
 describe('MaxValue Validator', () => {
-  it('returns error when value is greater than maximum', async () => {
+  it('returns error when value is greater than maximum', () => {
     const maxValue = 10;
 
     const field = Field.create({
@@ -86,7 +86,7 @@ describe('MaxValue Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns no error when value equals maximum', async () => {
+  it('returns no error when value equals maximum', () => {
     const maxValue = 10;
 
     const field = Field.create({
@@ -98,7 +98,7 @@ describe('MaxValue Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('returns no error when value is less than maximum', async () => {
+  it('returns no error when value is less than maximum', () => {
     const maxValue = 10;
 
     const field = Field.create({
@@ -112,7 +112,7 @@ describe('MaxValue Validator', () => {
 });
 
 describe('ValueInRange Validator', () => {
-  it('returns error when value is outside the range (too low)', async () => {
+  it('returns error when value is outside the range (too low)', () => {
     const minValue = 10;
     const maxValue = 20;
 
@@ -126,7 +126,7 @@ describe('ValueInRange Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns error when value is outside the range (too high)', async () => {
+  it('returns error when value is outside the range (too high)', () => {
     const minValue = 10;
     const maxValue = 20;
 
@@ -140,7 +140,7 @@ describe('ValueInRange Validator', () => {
     expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
   });
 
-  it('returns no error when value is at the minimum boundary', async () => {
+  it('returns no error when value is at the minimum boundary', () => {
     const minValue = 10;
     const maxValue = 20;
 
@@ -153,7 +153,7 @@ describe('ValueInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('returns no error when value is at the maximum boundary', async () => {
+  it('returns no error when value is at the maximum boundary', () => {
     const minValue = 10;
     const maxValue = 20;
 
@@ -166,7 +166,7 @@ describe('ValueInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('returns no error when value is inside the range', async () => {
+  it('returns no error when value is inside the range', () => {
     const minValue = 10;
     const maxValue = 20;
 
@@ -179,7 +179,7 @@ describe('ValueInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('validates when value changes', async () => {
+  it('validates when value changes', () => {
     const minValue = 10;
     const maxValue = 20;
 

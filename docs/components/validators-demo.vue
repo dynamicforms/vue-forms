@@ -160,7 +160,7 @@ function resetForm() {
 }
 
 // Register a value changed action to update form output display
-validatedForm.registerAction(new ValueChangedAction(async (field, supr, newValue, oldValue) => {
+validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   console.log('Form value has changed');
   return supr(field, newValue, oldValue);
 }));

@@ -29,6 +29,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     this._previousValue = this.value;
     // if (Object.keys(this._fields).length) console.log('formGroup created', this, Error().stack);
     this.actions.triggerEager(this, this.value, this.originalValue);
+    this.validate();
   }
 
   private processSetValueItem(item: any) : Group<T> {
@@ -36,6 +37,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     // If item is already a Group, use it
     if (item instanceof Group) res = item;
     // Otherwise create a Group from item
+    // eslint-disable-next-line no-underscore-dangle
     else if (this._itemTemplate) res = this._itemTemplate.clone({ value: item });
     else res = Group.createFromFormData(item) as Group<T>;
 
@@ -60,23 +62,19 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     this.setValueInternal(newValue);
     this.actions.trigger(ValueChangedAction, this, this.value, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
-  }
-
-  async setValue(newValue: Record<string, any>[]) {
-    const oldValue = this.value;
-    this.setValueInternal(newValue);
-    await this.actions.trigger(ValueChangedAction, this, this.value, oldValue);
-    if (this.parent) await this.parent.notifyValueChanged();
+    this.validate();
   }
 
   clone(overrides?: Partial<IField>): List<T> {
-    return new List(this._itemTemplate?.clone(), {
+    const res = new List(this._itemTemplate?.clone(), {
       value: [...(overrides?.value ?? this.value)],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
-      errors: [...(overrides?.errors ?? [])],
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
+    res.actions = this.actions.clone();
+    res.actions.triggerEager(res, res.value, res.originalValue);
+    return res;
   }
 
   notifyValueChanged() {
@@ -86,7 +84,12 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       this._previousValue = newValue;
       this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
       if (this.parent) this.parent.notifyValueChanged();
+      this.validate();
     }
+  }
+
+  get valid() {
+    return super.valid && (this._value?.every((item) => item.valid) ?? true);
   }
 
   get(index: number): Group<T> | undefined {
