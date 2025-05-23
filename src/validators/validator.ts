@@ -1,11 +1,14 @@
 import { isEqual } from 'lodash-es';
 
 import { ValueChangedAction } from '../actions/value-changed-action';
+import { type FieldBase } from '../field-base';
 import { FieldActionExecute, type IField } from '../field.interface';
 
 import { isCustomModalContentComponentDef, MdString, RenderContentRef, ValidationError } from './validation-error';
 
-export type ValidationFunction<T = any> = (newValue: T, oldValue: T, field: IField<T>) => ValidationError[] | null;
+export type ValidationFunctionResult = ValidationError[] | null;
+export type ValidationFunction<T = any> = (newValue: T, oldValue: T, field: IField<T>) =>
+  ValidationFunctionResult | Promise<ValidationFunctionResult>;
 
 interface SourceProp { source: symbol }
 
@@ -25,21 +28,36 @@ export class Validator<T = any> extends ValueChangedAction {
   constructor(validationFn: ValidationFunction<T>) {
     const executor = (field: IField<T>, supr: FieldActionExecute<T>, newValue: T, oldValue: T) => {
       const errors = validationFn(newValue, oldValue, field) || [];
-      errors.forEach(
-        (err) => Object.defineProperty(err, 'source', { value: this.source, enumerable: false, configurable: false }),
-      );
 
-      for (let i = field.errors.length - 1; i >= 0; i--) {
-        const error = field.errors[i] as ValidationError & SourceProp;
-        if (error.source === this.source) {
-          const idx = errors.findIndex((e) => isEqual(e, error));
-          if (idx >= 0) errors.splice(idx, 1);
-          else field.errors.splice(i, 1);
+      const processErrors = (err: ValidationFunctionResult) => {
+        err?.forEach(
+          (e) => Object.defineProperty(e, 'source', { value: this.source, enumerable: false, configurable: false }),
+        );
+        for (let i = field.errors.length - 1; i >= 0; i--) {
+          const error = field.errors[i] as ValidationError & SourceProp;
+          if (error.source === this.source) {
+            const idx = err?.findIndex((e) => isEqual(e, error)) ?? -1;
+            if (idx >= 0) err?.splice(idx, 1);
+            else field.errors.splice(i, 1);
+          }
         }
-      }
 
-      if (errors.length > 0) field.errors.push(...errors);
-      field.validate(); // Update the field's valid state
+        if (err && err.length > 0) field.errors.push(...err);
+        field.validate(); // Update the field's valid state
+      };
+
+      if (errors instanceof Promise) {
+        // @ts-ignore
+        field.validating = (++(<FieldBase> field).validatingCount) > 0;
+        errors
+          .then((err) => processErrors(err))
+          .finally(() => {
+            // @ts-ignore
+            (<FieldBase> field).validatingCount = Math.max(0, (<FieldBase> field).validatingCount - 1);
+            // @ts-ignore
+            field.validating = (<FieldBase>field).validatingCount > 0;
+          });
+      } else processErrors(errors);
       return supr(field, newValue, oldValue); // Continue the action chain
     };
 

@@ -9,33 +9,36 @@ export interface ActionValue {
   icon?: string;
 }
 
-function isValEmpty(val: ActionValue, defaultIfTrue: ActionValue): ActionValue {
+function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): ActionValue {
   if (val?.label == null && val?.icon == null) return defaultIfTrue;
   return val;
 }
 
 export class Action extends FieldBase {
-  private readonly _value: ActionValue;
+  private _value: ActionValue = { label: undefined, icon: undefined };
 
-  protected constructor(params?: Partial<IFieldConstructorParams<ActionValue>>) {
+  protected constructor() {
     super();
+  }
+
+  private init(params?: Partial<IFieldConstructorParams<ActionValue>>) {
     if (params) {
       const { value: paramValue, originalValue, validators, actions, ...otherParams } = params;
       [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
       Object.assign(this, otherParams);
-      const val = { label: paramValue?.label, icon: paramValue?.icon } as ActionValue;
+      const val = isValEmpty(paramValue, this._value);
       const orgVal = Object.freeze({ label: originalValue?.label, icon: originalValue?.icon } as ActionValue);
-      this._value = reactive(isValEmpty(val, orgVal));
+      this._value = isValEmpty(val, orgVal);
       this.originalValue = isValEmpty(orgVal, val);
-    } else {
-      this._value = reactive({ label: undefined, icon: undefined });
     }
     this.actions.triggerEager(this, this.value, this.originalValue);
     this.validate();
   }
 
   static create(params?: Partial<IField<ActionValue>>): Action {
-    return reactive(new Action(params)) as Action;
+    const res = reactive(new Action()) as Action;
+    res.init(params);
+    return res;
   }
 
   get value(): ActionValue { return this._value; }
@@ -55,7 +58,7 @@ export class Action extends FieldBase {
   }
 
   set icon(newValue: string | undefined) {
-    this.value = { label: this.label, icon: newValue };
+    this.value.icon = newValue;
   }
 
   get label(): string | undefined {
@@ -63,7 +66,7 @@ export class Action extends FieldBase {
   }
 
   set label(newValue: string | undefined) {
-    this.value = { label: newValue, icon: this.value.icon };
+    this.value.label = newValue;
   }
 
   clone(overrides?: Partial<IField>): Action {

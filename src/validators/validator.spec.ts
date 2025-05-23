@@ -148,3 +148,61 @@ describe('Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 });
+
+describe('Async Validator', () => {
+  it('handles async validation correctly', async () => {
+    const asyncValidator = new Validator(async (newValue: string) => {
+      await new Promise((resolve) => { setTimeout(resolve, 1); });
+      if (newValue === 'test@taken.com') {
+        return [new ValidationErrorText('Email already taken')];
+      }
+      return null;
+    });
+
+    const field = Field.create({
+      value: 'initial',
+      validators: [asyncValidator],
+    });
+
+    // Initially should be valid
+    expect(field.valid).toBe(true);
+    expect(field.validating).toBe(true); // after initialisation, validators are eagerly executed
+
+    // Wait for promise to resolve
+    await vi.waitFor(() => {
+      expect(field.validating).toBe(false);
+    });
+    expect(field.valid).toBe(true);
+
+    // Act - trigger async validation
+    field.value = 'test@taken.com';
+
+    // Assert - should be validating
+    expect(field.validating).toBe(true);
+    expect(field.errors.length).toBe(0); // No errors yet
+
+    // Wait for promise to resolve
+    await vi.waitFor(() => {
+      expect(field.validating).toBe(false);
+    });
+
+    // Should now have error
+    expect(field.errors.length).toBe(1);
+    expect(field.errors[0].componentBody).toBe('Email already taken');
+    expect(field.valid).toBe(false);
+
+    // Change to valid value
+    field.value = 'test@free.com';
+
+    expect(field.validating).toBe(true);
+    // Wait for promise to resolve
+    await vi.waitFor(() => {
+      expect(field.validating).toBe(false);
+    });
+
+    // Should clear error and not be validating
+    expect(field.validating).toBe(false);
+    expect(field.errors.length).toBe(0);
+    expect(field.valid).toBe(true);
+  });
+});

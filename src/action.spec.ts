@@ -1,4 +1,6 @@
-import { Action } from './action';
+import { reactive } from 'vue';
+
+import { Action, ActionValue } from './action';
 
 describe('Action', () => {
   it('correctly manages value, label and icon', () => {
@@ -28,5 +30,41 @@ describe('Action', () => {
     action.value = { label: 'New', icon: 'minus' };
     expect(action.label).toBe('Action');
     expect(action.icon).toBe('plus');
+  });
+
+  it('should maintain reactivity of input ActionValue object', () => {
+    // Arrange
+    const reactiveValue = reactive({ label: 'Initial', icon: 'start' });
+    const action = Action.create({ value: reactiveValue });
+
+    // Act - change original reactive object
+    reactiveValue.label = 'Modified';
+
+    // Assert - action should reflect the change
+    expect(action.label).toBe('Modified');
+    expect(action.value.label).toBe('Modified');
+    // expect(changeCount).toBe(1);
+
+    // Act - change via action setter
+    action.icon = 'new-icon';
+
+    // Assert - original reactive object should also change
+    expect(reactiveValue.icon).toBe('new-icon');
+  });
+
+  it('should lose maintain reactivity when input object is incomplete', () => {
+    // Arrange
+    const reactiveValue = reactive({ label: 'Initial' } as ActionValue); // missing icon
+    const action = Action.create({ value: reactiveValue });
+
+    // Act - change original reactive object
+    action.icon = 'icon';
+
+    // Assert - action should reflect the change
+    expect(reactiveValue.label).toBe('Initial');
+    expect(reactiveValue.icon).toBe('icon');
+
+    action.label = 'Modified';
+    expect(reactiveValue.label).toBe('Modified');
   });
 });

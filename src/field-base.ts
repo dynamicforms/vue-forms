@@ -22,6 +22,10 @@ export abstract class FieldBase<T = any> implements IField<T> {
 
   declare originalValue: T; // contains original field value as was provided at creation
 
+  protected validatingCount = 0;
+
+  public readonly validating = false;
+
   protected _valid: boolean = true; // is current value valid as per FE and BE validators?
 
   errors: ValidationError[] = []; // list of errors

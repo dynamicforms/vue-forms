@@ -9,6 +9,7 @@ export interface IField<T = any> {
   fullValue: T;
   originalValue: T;
   valid: boolean;
+  validating: boolean;
   errors: ValidationError[];
   enabled: boolean;
   visibility: DisplayMode;

@@ -7,8 +7,11 @@ import { IField, IFieldConstructorParams } from './field.interface';
 export class Field<T = any> extends FieldBase {
   private _value: T = undefined!;
 
-  protected constructor(params?: Partial<IFieldConstructorParams<T>>) {
+  protected constructor() {
     super();
+  }
+
+  private init(params?: Partial<IFieldConstructorParams<T>>) {
     if (params) {
       const { value: paramValue, validators, actions, ...otherParams } = params;
       [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
@@ -26,7 +29,9 @@ export class Field<T = any> extends FieldBase {
    * @returns Reactive Field instance
    */
   static create<T = any>(params?: Partial<IFieldConstructorParams<T>>): Field<T> {
-    return reactive(new Field(params)) as Field<T>;
+    const res = reactive(new Field()) as Field<T>;
+    res.init(params);
+    return res;
   }
 
   get value() { return unref(this._value); }

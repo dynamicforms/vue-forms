@@ -32,7 +32,24 @@ const validatedForm = new Group({
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
         'Please enter a valid email address'
-      )
+      ),
+      // Async validator to simulate email availability check
+      new Validators.Validator(async (newValue) => {
+        // Only validate if email format is correct
+        if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newValue)) {
+          return null; // Let pattern validator handle format errors
+        }
+
+        // Simulate API call delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Check if email is "taken"
+        if (newValue.endsWith('@taken.com')) {
+          return [new ValidationErrorRenderContent('This email address is already taken')];
+        }
+
+        return null; // Email is available
+      })
     ]
   }),
   
