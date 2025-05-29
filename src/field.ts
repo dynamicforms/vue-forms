@@ -11,7 +11,7 @@ export class Field<T = any> extends FieldBase {
     super();
   }
 
-  private init(params?: Partial<IFieldConstructorParams<T>>) {
+  protected init(params?: Partial<IFieldConstructorParams<T>>) {
     if (params) {
       const { value: paramValue, validators, actions, ...otherParams } = params;
       [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
@@ -40,7 +40,7 @@ export class Field<T = any> extends FieldBase {
     const oldValue = this._value;
     if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
     this._value = newValue;
-    this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
+    this.actions.trigger(ValueChangedAction, this, this._value, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
     this.validate();
   }
