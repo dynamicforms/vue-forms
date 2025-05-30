@@ -14,11 +14,16 @@ function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): A
   return val;
 }
 
+const actionConstructorGuard = Symbol('ActionConstructorGuard');
+
 export class Action<T extends ActionValue = ActionValue> extends FieldBase<T> {
   private _value: T = { label: undefined, icon: undefined } as T;
 
-  protected constructor() {
+  constructor(guard?: symbol) {
     super();
+    if (guard !== actionConstructorGuard) {
+      throw new TypeError('Don\'t use constructor to instantiate Action. Use Action.create<T>');
+    }
   }
 
   protected init(params?: Partial<IFieldConstructorParams<T>>) {
@@ -35,8 +40,11 @@ export class Action<T extends ActionValue = ActionValue> extends FieldBase<T> {
     this.validate();
   }
 
-  static create<T extends ActionValue = ActionValue>(params?: Partial<IFieldConstructorParams<T>>): Action<T> {
-    const res = <Action<T>> <any> reactive(new Action<T>());
+  static create<T extends ActionValue = ActionValue>(
+    this: new(guard?: symbol) => Action<T>,
+    params?: Partial<IFieldConstructorParams<T>>,
+  ): InstanceType<typeof this> {
+    const res = reactive(new this(actionConstructorGuard)) as any;
     res.init(params);
     return res;
   }

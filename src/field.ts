@@ -4,11 +4,16 @@ import { ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
 import { IField, IFieldConstructorParams } from './field.interface';
 
+const fieldConstructorGuard = Symbol('FieldConstructorGuard');
+
 export class Field<T = any> extends FieldBase {
   private _value: T = undefined!;
 
-  protected constructor() {
+  constructor(guard?: symbol) {
     super();
+    if (guard !== fieldConstructorGuard) {
+      throw new TypeError('Don\'t use constructor to instantiate Field. Use Field.create<T>');
+    }
   }
 
   protected init(params?: Partial<IFieldConstructorParams<T>>) {
@@ -28,8 +33,11 @@ export class Field<T = any> extends FieldBase {
    * @param params Initial field parameters
    * @returns Reactive Field instance
    */
-  static create<T = any>(params?: Partial<IFieldConstructorParams<T>>): Field<T> {
-    const res = reactive(new Field()) as Field<T>;
+  static create<T = any>(
+    this: new(guard?: symbol) => Field<T>,
+    params?: Partial<IFieldConstructorParams<T>>,
+  ): InstanceType<typeof this> {
+    const res = reactive(new this(fieldConstructorGuard)) as any;
     res.init(params);
     return res;
   }
