@@ -1,8 +1,6 @@
-import { reactive } from 'vue';
-
-import { ExecuteAction, ValueChangedAction } from './actions';
-import { FieldBase } from './field-base';
-import { IField, IFieldConstructorParams } from './field.interface';
+import { ExecuteAction } from './actions';
+import { Field } from './field';
+import { IFieldConstructorParams } from './field.interface';
 
 export interface ActionValue {
   label?: string;
@@ -14,19 +12,15 @@ function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): A
   return val;
 }
 
-const actionConstructorGuard = Symbol('ActionConstructorGuard');
-
-export class Action<T extends ActionValue = ActionValue> extends FieldBase<T> {
-  private _value: T = { label: undefined, icon: undefined } as T;
-
+// @ts-ignore: prevent TS from complaining how create method is not ok because its declaration differs from Field's
+export class Action<T extends ActionValue = ActionValue> extends Field<T> {
   constructor(guard?: symbol) {
-    super();
-    if (guard !== actionConstructorGuard) {
-      throw new TypeError('Don\'t use constructor to instantiate Action. Use Action.create<T>');
-    }
+    super(guard);
+    this._value = { label: undefined, icon: undefined } as T;
   }
 
   protected init(params?: Partial<IFieldConstructorParams<T>>) {
+    // TODO: this init is most likely not needed any more. The only read diff from Field.init is the orgVal handling
     if (params) {
       const { value: paramValue, originalValue, validators, actions, ...otherParams } = params;
       [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
@@ -41,23 +35,9 @@ export class Action<T extends ActionValue = ActionValue> extends FieldBase<T> {
   }
 
   static create<T extends ActionValue = ActionValue>(
-    this: new(guard?: symbol) => Action<T>,
     params?: Partial<IFieldConstructorParams<T>>,
-  ): InstanceType<typeof this> {
-    const res = reactive(new this(actionConstructorGuard)) as any;
-    res.init(params);
-    return res;
-  }
-
-  get value(): T { return this._value; }
-
-  set value(newValue: T) {
-    if (!this.enabled) return; // a disabled field does not allow changing value
-    const oldValue = this._value;
-    this._value = newValue;
-    this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
-    if (this.parent) this.parent.notifyValueChanged();
-    this.validate();
+  ): Action<T> {
+    return super.create<T>(params) as Action<T>;
   }
 
   get icon(): string | undefined {
@@ -74,18 +54,6 @@ export class Action<T extends ActionValue = ActionValue> extends FieldBase<T> {
 
   set label(newValue: string | undefined) {
     this.value.label = newValue;
-  }
-
-  clone(overrides?: Partial<IField<T>>): Action<T> {
-    const res = Action.create<T>({
-      value: overrides?.value ?? this.value,
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
-      enabled: overrides?.enabled ?? this.enabled,
-      visibility: overrides?.visibility ?? this.visibility,
-    });
-    res.actions = this.actions.clone();
-    res.actions.triggerEager(res, res.value, res.originalValue);
-    return res;
   }
 
   execute(params: any) {

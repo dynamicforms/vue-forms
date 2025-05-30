@@ -152,7 +152,7 @@ describe('Field', () => {
 
   it('triggers ValidChangedAction when valid state changes', () => {
     const onValidChanged = vi.fn();
-    const field = Form.Field.create({
+    const field = Form.Field.create<string>({
       value: 'valid',
       validators: [new Form.Validators.Required()],
     })

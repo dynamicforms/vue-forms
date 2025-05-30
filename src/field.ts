@@ -1,4 +1,4 @@
-import { reactive, unref } from 'vue';
+import { reactive } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
@@ -6,13 +6,14 @@ import { IField, IFieldConstructorParams } from './field.interface';
 
 const fieldConstructorGuard = Symbol('FieldConstructorGuard');
 
-export class Field<T = any> extends FieldBase {
-  private _value: T = undefined!;
+class Field<T = any> extends FieldBase {
+  protected _value: T = undefined!;
 
   constructor(guard?: symbol) {
     super();
     if (guard !== fieldConstructorGuard) {
-      throw new TypeError('Don\'t use constructor to instantiate Field. Use Field.create<T>');
+      const cn = this.constructor.name;
+      throw new TypeError(`Don't use constructor to instantiate ${cn}. Use ${cn}.create<T>`);
     }
   }
 
@@ -42,7 +43,7 @@ export class Field<T = any> extends FieldBase {
     return res;
   }
 
-  get value() { return unref(this._value); }
+  get value() { return this._value; }
 
   set value(newValue: T) {
     const oldValue = this._value;
@@ -53,8 +54,8 @@ export class Field<T = any> extends FieldBase {
     this.validate();
   }
 
-  clone(overrides?: Partial<IField<T>>): Field<T> {
-    const res = Field.create<T>({
+  clone(overrides?: Partial<IField<T>>): this {
+    const res: this = (this.constructor as any).create({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
       enabled: overrides?.enabled ?? this.enabled,
@@ -65,6 +66,8 @@ export class Field<T = any> extends FieldBase {
     return res;
   }
 }
+
+export { Field };
 
 export type NullableField<T = any> = Field<T> | null;
 
