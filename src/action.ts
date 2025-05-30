@@ -35,7 +35,7 @@ export class Action<T extends ActionValue = ActionValue> extends FieldBase<T> {
     this.validate();
   }
 
-  static create<T extends ActionValue = ActionValue>(params?: Partial<IField<T>>): Action<T> {
+  static create<T extends ActionValue = ActionValue>(params?: Partial<IFieldConstructorParams<T>>): Action<T> {
     const res = <Action<T>> <any> reactive(new Action<T>());
     res.init(params);
     return res;

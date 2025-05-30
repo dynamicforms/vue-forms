@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 
-## [0.3.1] - 2025-05-29
+## [0.3.2] - 2025-05-30
 
 ### Added
 - **Extending classes**: Support for extending the vue-forms classes, particularly the Action class
