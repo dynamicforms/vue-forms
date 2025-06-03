@@ -1,4 +1,5 @@
 import { isEmpty, isEqual } from 'lodash-es';
+import { computed } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { Field } from './field';
@@ -6,11 +7,17 @@ import { FieldBase } from './field-base';
 import { IField, IFieldConstructorParams } from './field.interface';
 
 export type GenericFieldsInterface = Record<string, IField>;
+// Utility tip za pretvorbo field strukture v value strukturo
+type FieldsToValues<T extends GenericFieldsInterface> = {
+  [K in keyof T]: T[K] extends IField<infer U> ? U : T[K] extends Group<infer G> ? FieldsToValues<G> : any;
+};
 
 export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase {
   private readonly _fields: T;
 
-  private _value: Record<string, any> | null = null;
+  private _value: FieldsToValues<T> | null = null;
+
+  public override readonly reactiveValue = computed<FieldsToValues<T> | null>(() => this.value);
 
   private suppressNotifyValueChanged: boolean = false;
 
@@ -81,22 +88,22 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     return this._fields;
   }
 
-  get value(): Record<string, any> | null {
-    const value: Record<string, any> = {};
+  get value(): FieldsToValues<T> | null {
+    const val = {} as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
       const fieldValue = field.value;
       if (field.enabled) {
         // readOnly fields do not serialize
-        value[name] = fieldValue;
+        val[name] = fieldValue;
       } else if (field instanceof Group && !isEmpty(fieldValue)) {
         // readOnly group only serializes if it is non-empty (some of its fields are not readOnly)
-        value[name] = fieldValue;
+        val[name] = fieldValue;
       }
     });
-    return isEmpty(value) ? null : value;
+    return isEmpty(val) ? null : val as FieldsToValues<T>;
   }
 
-  set value(newValue: Record<string, any> | null) {
+  set value(newValue: FieldsToValues<T> | null) {
     this.suppressNotifyValueChanged = true;
     try {
       Object.entries(this._fields).forEach(([name, field]) => {
