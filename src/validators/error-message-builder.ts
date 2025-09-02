@@ -2,6 +2,11 @@ import { getConfig } from '../config';
 
 import { MdString } from './validation-error';
 
+/**
+ * Depending on the useMarkdownInValidators setting, return either markdown or a plain string error message
+ * @param mdErrorString markdown source to optionally be stripped
+ * @return MdString or string
+ */
 // eslint-disable-next-line import/prefer-default-export
 export function buildErrorMessage(mdErrorString: string): string | MdString {
   const useMarkdownInValidators = getConfig().useMarkdownInValidators;
@@ -9,8 +14,8 @@ export function buildErrorMessage(mdErrorString: string): string | MdString {
 
   return mdErrorString
     .replace(/[*_~`]/g, '') // remove basic markdown (italic, bold, strike, code)
-    .replace(/\[.*?\]\((.*?)\)/g, '$1') // remove links, keep url only
-    .replace(/!\[.*?\]\((.*?)\)/g, '') // remove images
+    .replace(/!\[(.*?)\]\(.*?\)/g, '$1') // remove images, keep alt only
+    .replace(/\[(.*?)\]\((.*?)\)/g, '$1') // remove links, keep name only
     .replace(/#+\s?/g, '') // Remove heading markers (#, ##, ###)
     .replace(/>\s?/g, '') // remove quotes
     .replace(/(\*|-|\d+\.)\s+/g, '') // remove lists (bullet points and numbered lists)

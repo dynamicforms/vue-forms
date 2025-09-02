@@ -10,7 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 
-## [0.3.3] - 2025-05-30
+## [0.4.0] - 2025-09-02
+
+### Changed - breaking changes
+- renamed in error-message-builder: CustomModalContentComponentDef → SimpleComponentDef 
+
+### Added
+- Alias for ValidationErrorRenderContent: RenderableValue (it's not only usable for errors)
+- Support for v-html content in RenderableValue
+
+## [0.3.5] - 2025-06-03
+
+### Added
+- Support type generics on group.value / group.reactiveValue
+
+## [0.3.3 - 0.3.4] - 2025-05-30
 
 ### Added
 - **Extending classes**: Support for extending the vue-forms classes, particularly the Action class

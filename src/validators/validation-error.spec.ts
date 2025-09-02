@@ -3,11 +3,11 @@ import { reactive, ref } from 'vue';
 
 import {
   MdString,
-  CustomModalContentComponentDef,
+  SimpleComponentDef,
   ValidationError,
   ValidationErrorText,
   ValidationErrorRenderContent,
-  isCustomModalContentComponentDef,
+  isSimpleComponentDef, RenderableValue,
 } from './validation-error';
 
 describe('ValidationError', () => {
@@ -41,7 +41,7 @@ describe('ValidationErrorRenderContent', () => {
   });
 
   it('handles reactive object automatic unRef-fing', () => {
-    const error = reactive(new ValidationErrorRenderContent('Plain text error'));
+    const error = reactive(new RenderableValue('Plain text error'));
 
     expect(error.componentName).toBe('template');
     expect(error.componentBody).toBe('Plain text error');
@@ -58,7 +58,7 @@ describe('ValidationErrorRenderContent', () => {
   });
 
   it('handles component content', () => {
-    const componentDef: CustomModalContentComponentDef = {
+    const componentDef: SimpleComponentDef = {
       componentName: 'CustomError',
       componentProps: { type: 'danger', dismissible: true },
     };
@@ -92,15 +92,15 @@ describe('ValidationErrorRenderContent', () => {
 
 describe('isCustomModalContentComponentDef', () => {
   it('correctly identifies component definitions', () => {
-    const componentDef: CustomModalContentComponentDef = {
+    const componentDef: SimpleComponentDef = {
       componentName: 'CustomAlert',
       componentProps: {},
     };
 
-    expect(isCustomModalContentComponentDef(componentDef)).toBe(true);
-    expect(isCustomModalContentComponentDef('string')).toBe(false);
-    expect(isCustomModalContentComponentDef(new MdString('markdown'))).toBe(false);
-    expect(isCustomModalContentComponentDef(undefined)).toBe(false);
+    expect(isSimpleComponentDef(componentDef)).toBe(true);
+    expect(isSimpleComponentDef('string')).toBe(false);
+    expect(isSimpleComponentDef(new MdString('markdown'))).toBe(false);
+    expect(isSimpleComponentDef(undefined)).toBe(false);
   });
 
   it('works with reactive references', () => {
@@ -109,10 +109,10 @@ describe('isCustomModalContentComponentDef', () => {
       componentProps: {},
     });
 
-    expect(isCustomModalContentComponentDef(componentDef)).toBe(true);
+    expect(isSimpleComponentDef(componentDef)).toBe(true);
 
     const stringRef = ref('string value');
-    expect(isCustomModalContentComponentDef(stringRef)).toBe(false);
+    expect(isSimpleComponentDef(stringRef)).toBe(false);
   });
 });
 

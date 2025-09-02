@@ -4,7 +4,7 @@ import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute, type IField } from '../field.interface';
 
-import { isCustomModalContentComponentDef, MdString, RenderContentRef, ValidationError } from './validation-error';
+import { isSimpleComponentDef, MdString, RenderContentRef, ValidationError } from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
 export type ValidationFunction<T = any> = (newValue: T, oldValue: T, field: IField<T>) =>
@@ -75,7 +75,7 @@ export class Validator<T = any> extends ValueChangedAction {
 
   // eslint-disable-next-line class-methods-use-this
   protected replacePlaceholders(text: RenderContentRef, replace: Record<string, any>) {
-    if (isCustomModalContentComponentDef(text)) return text;
+    if (isSimpleComponentDef(text)) return text;
     let ret = (text as string | MdString);
     Object.keys(replace).forEach((key) => { ret = ret.replaceAll(`{${key}}`, replace[key]); });
     return (text instanceof MdString) ? new MdString(ret) : ret;
