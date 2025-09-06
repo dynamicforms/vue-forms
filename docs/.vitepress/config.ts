@@ -30,6 +30,7 @@ export default defineConfig({
             { text: 'Basic Form', link: '/examples/basic-form' },
             { text: 'Validators', link: '/examples/validators' },
             { text: 'Conditional statements', link: '/examples/conditional-statement' },
+            { text: 'Messages widget', link: '/examples/messages-widget' },
           ]
         }
       ]

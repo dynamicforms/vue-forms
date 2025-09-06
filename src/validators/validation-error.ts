@@ -44,22 +44,23 @@ export class ValidationError {
   get componentBindings() { return {}; }
 
   get componentBody() { return ''; }
+
+  get extraClasses() { return ''; }
 }
 
 /**
  * Simple text-only ValidationError
  */
 export class ValidationErrorText extends ValidationError {
-  text: string;
-
-  constructor(text: string) {
+  constructor(public text: string, public classes: string = '') {
     super();
-    this.text = text;
   }
 
   get componentName() { return 'template'; }
 
   get componentBody() { return this.text; }
+
+  get extraClasses() { return this.classes; }
 }
 /* eslint-enable class-methods-use-this */
 
@@ -71,7 +72,7 @@ export class ValidationErrorRenderContent extends ValidationError {
 
   private textType: ComputedRef<'string' | 'md' | 'component'>;
 
-  constructor(text: RenderContentRef) {
+  constructor(text: RenderContentRef, public classes: string = '') {
     super();
     this.text = text;
     this.textType = computed(() => this.getTextType);
@@ -110,6 +111,8 @@ export class ValidationErrorRenderContent extends ValidationError {
     default: return '';
     }
   }
+
+  get extraClasses() { return this.classes; }
 }
 
 /**

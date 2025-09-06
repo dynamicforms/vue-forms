@@ -137,6 +137,57 @@ const validatedForm = new Group({
 });
 ```
 
+## Messages Widget Component
+
+The library includes a `messages-widget` Vue component for displaying validation errors and messages:
+
+```vue
+<template>
+  <!-- Simple string message -->
+  <messages-widget 
+    message="This is an error message"
+    classes="text-error"
+  />
+  
+  <!-- Display field validation errors -->
+  <messages-widget 
+    v-if="field.errors && field.errors.length > 0"
+    :message="field.errors"
+    :classes="['text-error', 'mt-2']"
+  />
+</template>
+
+<script setup>
+import MessagesWidget from '@dynamicforms/vue-forms/components/messages-widget.vue';
+import { Field, Validators, ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
+
+// Example field with validation
+const emailField = Field.create({
+  value: '',
+  validators: [
+    new Validators.Pattern(
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+      'Please enter a valid email address'
+    )
+  ]
+});
+
+// Markdown message support (requires VueMarkdown component)
+const markdownErrors = [
+  new ValidationErrorRenderContent(
+    new MdString('**Error**: This field contains *invalid* data.')
+  )
+];
+</script>
+```
+
+The messages widget supports:
+- **String messages**: Simple text messages
+- **ValidationError arrays**: Rich error objects with styling and components
+- **Markdown content**: Rich text formatting (requires VueMarkdown component)
+- **Custom components**: Render any Vue component as an error message
+- **Flexible styling**: Multiple ways to apply CSS classes
+
 ## Conditional Form Behavior
 
 Create dynamic forms with conditional logic using Statements and Operators:

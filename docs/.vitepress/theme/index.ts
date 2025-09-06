@@ -4,6 +4,7 @@ import DefaultTheme from 'vitepress/theme'
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
+import VueMarkdown from 'vue-markdown-render';
 import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
 
@@ -22,6 +23,7 @@ export default {
 
     app.use(vuetify);
     app.use(forms, { useMarkdownInValidators: false });
+    app.component('VueMarkdown', VueMarkdown);
   },
   Layout: () => {
     return h(DefaultTheme.Layout, null, {
