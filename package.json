@@ -1,7 +1,7 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "description": "Data entry forms for vue - logic (no controls here)",
   "author": "Jure Erznožnik",

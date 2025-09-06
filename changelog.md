@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 
-## [0.4.1] - 2025-09-06
+## [0.4.2] - 2025-09-06
 
 ### Added
 - add classes to ValidationError (and descendants)
