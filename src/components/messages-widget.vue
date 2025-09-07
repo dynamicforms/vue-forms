@@ -18,6 +18,12 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), { classes: 'text-error' });
 const md = resolveComponent('vue-markdown');
+const htmlElements = new Set([
+  'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'section', 'article', 'aside', 'nav', 'header', 'footer',
+  'main', 'figure', 'figcaption', 'blockquote', 'pre', 'code', 'em', 'strong', 'small', 'mark', 'del', 'ins', 'sub',
+  'sup', 'i', 'b', 'u', 's', 'a', 'img', 'button', 'input', 'textarea', 'select', 'option', 'label', 'form', 'table',
+  'tr', 'td', 'th', 'thead', 'tbody', 'tfoot', 'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+]);
 
 const render = () => {
   if (typeof props.message === 'string') return h('span', { class: props.classes }, props.message);
@@ -46,7 +52,9 @@ const render = () => {
     default:
       res.push(
         h(
-          resolveComponent(msg.componentName),
+          htmlElements.has(msg.componentName.toLowerCase()) ? // only resolve if it's not a common html element
+            msg.componentName :
+            resolveComponent(msg.componentName),
           { class: [props.classes, msg.extraClasses], ...msg.componentBindings, innerHTML: msg.componentBody },
         ),
       );
