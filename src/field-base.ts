@@ -61,7 +61,8 @@ export abstract class FieldBase<T = any> implements IField<T> {
     this.actions.trigger(EnabledChangedAction, this, this._enabled, oldValue);
   }
 
-  validate() {
+  validate(revalidate: boolean = false) {
+    if (revalidate) this.actions.triggerEager(this, this.value, this.value);
     const oldValid = this._valid;
     this._valid = this.valid;
     if (this._valid !== oldValid) this.actions.trigger(ValidChangedAction, this, this.valid, oldValid);

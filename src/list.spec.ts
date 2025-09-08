@@ -412,3 +412,68 @@ describe('List Validation', () => {
     expect(list.valid).toBe(true);
   });
 });
+
+describe('Cross-field validation with revalidate', () => {
+  it('should revalidate list items with cross-field validation', () => {
+    // Setup - ustvari template za list item z dvema poljema
+    const itemTemplate = new Group({
+      startDate: Field.create(),
+      endDate: Field.create(),
+    });
+
+    // Dodaj validator za endDate, da mora biti po startDate
+    const dateValidator = new Validators.Validator((newValue, oldValue, field) => {
+      const startDate = field.parent?.fields.startDate.value;
+      if (startDate && newValue && new Date(newValue) <= new Date(startDate)) {
+        return [new ValidationErrorText('End date must be after start date')];
+      }
+      return null;
+    });
+    itemTemplate.fields.endDate.registerAction(dateValidator);
+
+    // Ustvari list z enim elementom
+    const eventsList = new List(itemTemplate, {
+      value: [
+        { startDate: '2025-01-01', endDate: '2025-01-05' },
+      ],
+    });
+
+    // Initially should be valid
+    const firstItem = eventsList.get(0);
+    expect(firstItem?.fields.startDate.valid).toBe(true);
+    expect(firstItem?.fields.endDate.valid).toBe(true);
+    expect(firstItem?.valid).toBe(true);
+    expect(eventsList.valid).toBe(true);
+
+    // Change startDate to be after endDate
+    firstItem!.fields.startDate.value = '2025-01-10';
+
+    // endDate should still be valid (cross-field validation not triggered)
+    expect(firstItem?.fields.endDate.valid).toBe(true);
+    expect(firstItem?.valid).toBe(true);
+    expect(eventsList.valid).toBe(true);
+
+    // Revalidate the list item
+    firstItem?.validate(true);
+    expect(firstItem?.fields.startDate.valid).toBe(true);
+    expect(firstItem?.fields.endDate.valid).toBe(false); // Should become invalid
+    expect(firstItem?.valid).toBe(false);
+    expect(eventsList.valid).toBe(false);
+
+    // Reset and test list-level revalidation
+    firstItem!.fields.endDate.value = '2025-01-15'; // Make valid again
+    expect(firstItem?.valid).toBe(true);
+    expect(eventsList.valid).toBe(true);
+
+    // Change startDate again
+    firstItem!.fields.startDate.value = '2025-01-20';
+
+    // Revalidate entire list
+    eventsList.validate(false);
+    expect(firstItem?.fields.endDate.valid).toBe(true); // We don't have cross-field revalidation, it will remain true
+    eventsList.validate(true);
+    expect(firstItem?.fields.endDate.valid).toBe(false); // Should become invalid
+    expect(firstItem?.valid).toBe(false);
+    expect(eventsList.valid).toBe(false);
+  });
+});

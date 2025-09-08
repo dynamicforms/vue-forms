@@ -140,6 +140,11 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     return super.valid && Object.values(this._fields).every((field) => field.valid);
   }
 
+  validate(revalidate: boolean = false) {
+    if (revalidate) Object.values(this._fields).forEach((field) => field.validate(true));
+    super.validate(revalidate);
+  }
+
   clone(overrides?: Partial<IField>): Group<T> {
     const newFields = {} as T;
     Object.entries(this._fields).forEach(([name, field]) => {

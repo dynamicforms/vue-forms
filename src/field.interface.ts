@@ -24,7 +24,7 @@ export interface IField<T = any> {
   triggerAction<T2 extends IFieldAction<T>>(actionClass: abstract new (...args: any[]) => T2, ...params: any[]): any;
 
   // API
-  validate(): void;
+  validate(revalidate: boolean): void;
   clearValidators(): void;
   isChanged: boolean;
 }

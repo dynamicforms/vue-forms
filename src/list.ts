@@ -92,6 +92,11 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     return super.valid && (this._value?.every((item) => item.valid) ?? true);
   }
 
+  validate(revalidate: boolean = false) {
+    if (revalidate) this._value?.forEach((item) => item.validate(true));
+    super.validate(revalidate);
+  }
+
   get(index: number): Group<T> | undefined {
     return this._value != null ? this._value[index] : undefined;
   }

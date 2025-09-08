@@ -294,3 +294,62 @@ describe('Form Validation', () => {
     expect(form.valid).toBe(true);
   });
 });
+
+describe('Cross-field validation with revalidate', () => {
+  it('should revalidate dependent fields when parent field changes', () => {
+    // Setup - ustvari formo z dvema poljema
+    const form = new Group({
+      minValue: Field.create<number>({ value: 10 }),
+      maxValue: Field.create<number>({ value: 20 }),
+    });
+
+    // Dodaj validator na maxValue, ki preverja, da je večji od minValue
+    const crossFieldValidator = new Validators.Validator((newValue) => {
+      const minVal = form.fields.minValue.value;
+      if (newValue <= minVal) {
+        return [new ValidationErrorText(`Max value must be greater than min value (${minVal})`)];
+      }
+      return null;
+    });
+    form.fields.maxValue.registerAction(crossFieldValidator);
+
+    // Initially both fields should be valid
+    expect(form.fields.minValue.valid).toBe(true);
+    expect(form.fields.maxValue.valid).toBe(true);
+    expect(form.valid).toBe(true);
+
+    // Change minValue to be higher than maxValue
+    form.fields.minValue.value = 25;
+
+    // maxValue should still be valid (cross-field validation not triggered yet)
+    expect(form.fields.minValue.valid).toBe(true);
+    expect(form.fields.maxValue.valid).toBe(true);
+    expect(form.valid).toBe(true);
+
+    // 1. Revalidate field A (minValue) - field B should remain unchanged
+    form.fields.minValue.validate(true);
+    expect(form.fields.minValue.valid).toBe(true);
+    expect(form.fields.maxValue.valid).toBe(true); // Should remain valid
+    expect(form.valid).toBe(true);
+
+    // 2. Revalidate field B (maxValue) - should become invalid
+    form.fields.maxValue.validate(true);
+    expect(form.fields.minValue.valid).toBe(true);
+    expect(form.fields.maxValue.valid).toBe(false); // Should become invalid
+    expect(form.valid).toBe(false);
+
+    // Reset for next test
+    form.fields.maxValue.value = 30; // Make it valid again
+    expect(form.fields.maxValue.valid).toBe(true);
+    expect(form.valid).toBe(true);
+
+    // Change minValue again
+    form.fields.minValue.value = 35;
+
+    // 3. Revalidate entire form - field B should become invalid
+    form.validate(true);
+    expect(form.fields.minValue.valid).toBe(true);
+    expect(form.fields.maxValue.valid).toBe(false); // Should become invalid
+    expect(form.valid).toBe(false);
+  });
+});
