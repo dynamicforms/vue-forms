@@ -32,7 +32,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     this.validate();
   }
 
-  private processSetValueItem(item: any) : Group<T> {
+  private processSetValueItem(item: any): Group<T> {
     let res: Group<T>;
     // If item is already a Group, use it
     if (item instanceof Group) res = item;
@@ -63,6 +63,16 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     this.actions.trigger(ValueChangedAction, this, this.value, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
     this.validate();
+  }
+
+  get touched(): boolean {
+    return this._value?.some((item) => item.touched) || false;
+  }
+
+  set touched(touched: boolean) {
+    this._value?.forEach((item) => {
+      item.touched = touched;
+    });
   }
 
   clone(overrides?: Partial<IField>): List<T> {

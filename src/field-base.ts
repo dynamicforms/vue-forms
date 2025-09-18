@@ -16,6 +16,9 @@ export abstract class FieldBase<T = any> implements IField<T> {
   abstract get value(): T;
   abstract set value(newValue: T);
 
+  abstract get touched(): boolean;
+  abstract set touched(touched: boolean);
+
   public readonly reactiveValue = computed(() => this.value);
 
   abstract clone(overrides?: Partial<IField<T>>): IField<T>;
@@ -39,7 +42,9 @@ export abstract class FieldBase<T = any> implements IField<T> {
   // default property handlers
   private _visibility: DisplayMode = DisplayMode.FULL;
 
-  get visibility(): DisplayMode { return this._visibility; }
+  get visibility(): DisplayMode {
+    return this._visibility;
+  }
 
   set visibility(newValue: DisplayMode) {
     const oldValue = this._visibility;
@@ -51,7 +56,9 @@ export abstract class FieldBase<T = any> implements IField<T> {
 
   private _enabled: boolean = true;
 
-  get enabled(): boolean { return this._enabled; }
+  get enabled(): boolean {
+    return this._enabled;
+  }
 
   set enabled(newValue: boolean) {
     const oldValue = this._enabled;
@@ -76,7 +83,7 @@ export abstract class FieldBase<T = any> implements IField<T> {
     return this.value;
   }
 
-  get isChanged() : boolean {
+  get isChanged(): boolean {
     return !isEqual(this.value, this.originalValue);
   }
 
