@@ -118,6 +118,16 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     this.validate();
   }
 
+  get touched(): boolean {
+    return Object.values(this._fields).some((field) => field.touched);
+  }
+
+  set touched(touched: boolean) {
+    Object.values(this._fields).forEach((field) => {
+      field.touched = touched;
+    });
+  }
+
   get fullValue(): Record<string, any> {
     const value: Record<string, any> = {};
     Object.entries(this._fields).forEach(([name, field]) => { value[name] = field.fullValue; });

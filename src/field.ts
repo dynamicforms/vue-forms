@@ -9,6 +9,8 @@ const fieldConstructorGuard = Symbol('FieldConstructorGuard');
 class Field<T = any> extends FieldBase {
   protected _value: T = undefined!;
 
+  protected _touched: boolean = false;
+
   constructor(guard?: symbol) {
     super();
     if (guard !== fieldConstructorGuard) {
@@ -43,7 +45,9 @@ class Field<T = any> extends FieldBase {
     return res;
   }
 
-  get value() { return this._value; }
+  get value() {
+    return this._value;
+  }
 
   set value(newValue: T) {
     const oldValue = this._value;
@@ -52,6 +56,14 @@ class Field<T = any> extends FieldBase {
     this.actions.trigger(ValueChangedAction, this, this._value, oldValue);
     if (this.parent) this.parent.notifyValueChanged();
     this.validate();
+  }
+
+  get touched(): boolean {
+    return this._touched;
+  }
+
+  set touched(touched: boolean) {
+    this._touched = touched;
   }
 
   clone(overrides?: Partial<IField<T>>): this {

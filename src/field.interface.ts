@@ -13,6 +13,7 @@ export interface IField<T = any> {
   errors: ValidationError[];
   enabled: boolean;
   visibility: DisplayMode;
+  touched: boolean;
 
   parent?: any; // Group when member of a Group, parent will specify that group
   fieldName?: string; // when member of a Group, fieldName specifies the name of this field
@@ -24,7 +25,7 @@ export interface IField<T = any> {
   triggerAction<T2 extends IFieldAction<T>>(actionClass: abstract new (...args: any[]) => T2, ...params: any[]): any;
 
   // API
-  validate(revalidate: boolean): void;
+  validate(revalidate?: boolean): void;
   clearValidators(): void;
   isChanged: boolean;
 }
