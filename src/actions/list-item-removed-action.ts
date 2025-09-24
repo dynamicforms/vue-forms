@@ -4,17 +4,14 @@ import { FieldActionExecute, type IField } from '@/field.interface';
 
 const ListItemRemovedActionClassIdentifier = Symbol('ListItemRemovedAction');
 
-// eslint-disable-next-line import/prefer-default-export
 export class ListItemRemovedAction extends FieldActionBase {
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-  constructor(
-    executorFn: (field: IField, supr: FieldActionExecute, item: any, index: number) => void,
-  ) {
+  constructor(executorFn: (field: IField, supr: FieldActionExecute, item: any, index: number) => void) {
     super(executorFn);
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  static get classIdentifier() { return ListItemRemovedActionClassIdentifier; }
+  static get classIdentifier() {
+    return ListItemRemovedActionClassIdentifier;
+  }
 
   execute(field: IField, supr: FieldActionExecute, item: any, index: number): void {
     return super.execute(field, supr, item, index);

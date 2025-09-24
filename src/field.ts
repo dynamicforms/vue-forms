@@ -37,7 +37,7 @@ class Field<T = any> extends FieldBase {
    * @returns Reactive Field instance
    */
   static create<T = any>(
-    this: new(guard?: symbol) => Field<T>,
+    this: new (guard?: symbol) => Field<T>,
     params?: Partial<IFieldConstructorParams<T>>,
   ): InstanceType<typeof this> {
     const res = reactive(new this(fieldConstructorGuard)) as any;
@@ -69,7 +69,7 @@ class Field<T = any> extends FieldBase {
   clone(overrides?: Partial<IField<T>>): this {
     const res: this = (this.constructor as any).create({
       value: overrides?.value ?? this.value,
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
+      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
@@ -83,9 +83,8 @@ export { Field };
 
 export type NullableField<T = any> = Field<T> | null;
 
-export const EmptyField = Field.create({ value: 'EmptyField' })
-  .registerAction(new ValueChangedAction(
-    () => {
-      console.warn('Working with EmptyField! This should not happen');
-    },
-  ));
+export const EmptyField = Field.create({ value: 'EmptyField' }).registerAction(
+  new ValueChangedAction(() => {
+    console.warn('Working with EmptyField! This should not happen');
+  }),
+);

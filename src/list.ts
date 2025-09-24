@@ -37,7 +37,6 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     // If item is already a Group, use it
     if (item instanceof Group) res = item;
     // Otherwise create a Group from item
-    // eslint-disable-next-line no-underscore-dangle
     else if (this._itemTemplate) res = this._itemTemplate.clone({ value: item });
     else res = Group.createFromFormData(item) as Group<T>;
 
@@ -54,7 +53,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
 
   get value(): Record<string, any>[] | null {
     const value = this._value?.map((item) => item.value);
-    return isEmpty(value) ? null : <Record<string, any>[]> value;
+    return isEmpty(value) ? null : <Record<string, any>[]>value;
   }
 
   set value(newValue: Record<string, any>[]) {
@@ -78,7 +77,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   clone(overrides?: Partial<IField>): List<T> {
     const res = new List(this._itemTemplate?.clone(), {
       value: [...(overrides?.value ?? this.value)],
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
+      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });

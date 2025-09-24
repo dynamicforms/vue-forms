@@ -7,10 +7,14 @@ export interface FormsConfig {
 const config: FormsConfig = { useMarkdownInValidators: true };
 
 // Function to access config
-export function getConfig(): FormsConfig { return config; }
+export function getConfig(): FormsConfig {
+  return config;
+}
 
 // Function to update config
-export function setConfig(newConfig: Partial<FormsConfig>): void { Object.assign(config, newConfig); }
+export function setConfig(newConfig: Partial<FormsConfig>): void {
+  Object.assign(config, newConfig);
+}
 
 // Vue plugin installation
 export default {

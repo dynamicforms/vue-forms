@@ -24,6 +24,7 @@ enum Operator {
   NOT_INCLUDES = -10,
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace, no-redeclare
 namespace Operator {
   export function fromString(operator: string): Operator {
     const op = operator.toLowerCase();
@@ -48,13 +49,13 @@ namespace Operator {
   }
 
   export function fromAny(mode: any): Operator {
-    const input = (typeof mode === 'number') ? mode : Operator.fromString(mode as string);
+    const input = typeof mode === 'number' ? mode : Operator.fromString(mode as string);
     if (Object.values(Operator).includes(input)) return input;
     throw new Error(`Unrecognised operator ${mode}`);
   }
 
   export function isDefined(operator: number | string): boolean {
-    const check = (typeof operator === 'number') ? operator : Operator.fromString(operator as string);
+    const check = typeof operator === 'number' ? operator : Operator.fromString(operator as string);
     return Object.values(Operator).includes(check);
   }
 

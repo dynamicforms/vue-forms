@@ -3,8 +3,7 @@ import { Validators } from './validators';
 
 it('clears all validators and resets errors', () => {
   // Create a field with validators that will produce errors
-  const field = Field.create({ value: '' })
-    .registerAction(new Validators.Required('Required field'));
+  const field = Field.create({ value: '' }).registerAction(new Validators.Required('Required field'));
 
   // Initially should have errors (empty value with Required validator)
   expect(field.errors.length).toBe(1);

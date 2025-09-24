@@ -7,7 +7,8 @@ import {
   ValidationError,
   ValidationErrorText,
   ValidationErrorRenderContent,
-  isSimpleComponentDef, RenderableValue,
+  isSimpleComponentDef,
+  RenderableValue,
 } from './validation-error';
 
 describe('ValidationError', () => {

@@ -78,17 +78,21 @@ describe('MessagesWidget', () => {
 
   it('renders custom component with bindings', () => {
     class CustomError extends ValidationError {
-      // eslint-disable-next-line class-methods-use-this
-      get componentName() { return 'custom-alert'; }
+      get componentName() {
+        return 'custom-alert';
+      }
 
-      // eslint-disable-next-line class-methods-use-this
-      get componentBindings() { return { type: 'warning', dismissible: true }; }
+      get componentBindings() {
+        return { type: 'warning', dismissible: true };
+      }
 
-      // eslint-disable-next-line class-methods-use-this
-      get componentBody() { return 'Custom error content'; }
+      get componentBody() {
+        return 'Custom error content';
+      }
 
-      // eslint-disable-next-line class-methods-use-this
-      get extraClasses() { return 'custom-class'; }
+      get extraClasses() {
+        return 'custom-class';
+      }
     }
 
     const errors = [new CustomError()];
@@ -102,10 +106,7 @@ describe('MessagesWidget', () => {
 
   it('handles multiple mixed error types', () => {
     const mdContent = new MdString('Markdown **error**');
-    const errors = [
-      new ValidationErrorText('Plain text error'),
-      new ValidationErrorRenderContent(mdContent),
-    ];
+    const errors = [new ValidationErrorText('Plain text error'), new ValidationErrorRenderContent(mdContent)];
 
     const wrapper = mount(MessagesWidget, {
       props: { message: errors },

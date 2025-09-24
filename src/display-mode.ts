@@ -11,6 +11,7 @@ enum DisplayMode {
 
 export const defaultDisplayMode = DisplayMode.FULL;
 
+// eslint-disable-next-line @typescript-eslint/no-namespace, no-redeclare
 namespace DisplayMode {
   export function fromString(mode: string): DisplayMode {
     if (mode.toUpperCase() === 'SUPPRESS') return DisplayMode.SUPPRESS;
@@ -20,13 +21,13 @@ namespace DisplayMode {
   }
 
   export function fromAny(mode: any): DisplayMode {
-    const input = (typeof mode === 'number') ? mode : DisplayMode.fromString(mode as string);
+    const input = typeof mode === 'number' ? mode : DisplayMode.fromString(mode as string);
     if (Object.values(DisplayMode).includes(input)) return input;
     return defaultDisplayMode;
   }
 
   export function isDefined(mode: number | string): boolean {
-    const check = (typeof mode === 'number') ? mode : DisplayMode.fromString(mode as string);
+    const check = typeof mode === 'number' ? mode : DisplayMode.fromString(mode as string);
     return Object.values(DisplayMode).includes(check);
   }
 }

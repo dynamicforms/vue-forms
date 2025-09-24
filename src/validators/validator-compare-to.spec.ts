@@ -14,9 +14,7 @@ describe('CompareTo Validator', () => {
     const field2 = Field.create({ value: 'xyz' });
 
     // Add validator to check for equality
-    field1.registerAction(
-      new CompareTo(field2, (val1, val2) => val1 === val2, 'Fields must match'),
-    );
+    field1.registerAction(new CompareTo(field2, (val1, val2) => val1 === val2, 'Fields must match'));
 
     // Verify that validator correctly detects mismatch
     expect(field1.errors.length).toBe(1);
@@ -65,19 +63,11 @@ describe('CompareTo Validator', () => {
 
     // Add validator to both fields to check for equality
     form.fields.password.registerAction(
-      new CompareTo(
-        form.fields.confirmPassword,
-        (pass, confirm) => pass === confirm,
-        'Passwords must match',
-      ),
+      new CompareTo(form.fields.confirmPassword, (pass, confirm) => pass === confirm, 'Passwords must match'),
     );
 
     form.fields.confirmPassword.registerAction(
-      new CompareTo(
-        form.fields.password,
-        (confirm, pass) => confirm === pass,
-        'Passwords must match',
-      ),
+      new CompareTo(form.fields.password, (confirm, pass) => confirm === pass, 'Passwords must match'),
     );
 
     // Check initial state - both fields should have errors
@@ -110,11 +100,7 @@ describe('CompareTo Validator', () => {
     // Check that values are different
     const errorMessage = 'Display name must be different from username';
     form.fields.displayName.registerAction(
-      new CompareTo(
-        form.fields.username,
-        (display, user) => display !== user,
-        errorMessage,
-      ),
+      new CompareTo(form.fields.username, (display, user) => display !== user, errorMessage),
     );
 
     // Currently they are equal, so we expect an error

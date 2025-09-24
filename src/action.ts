@@ -12,7 +12,7 @@ function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): A
   return val;
 }
 
-// @ts-ignore: prevent TS from complaining how create method is not ok because its declaration differs from Field's
+// @ts-expect-error: prevent TS from complaining how create method is not ok because its declaration differs from Fld's
 export class Action<T extends ActionValue = ActionValue> extends Field<T> {
   constructor(guard?: symbol) {
     super(guard);
@@ -34,9 +34,7 @@ export class Action<T extends ActionValue = ActionValue> extends Field<T> {
     this.validate();
   }
 
-  static create<T extends ActionValue = ActionValue>(
-    params?: Partial<IFieldConstructorParams<T>>,
-  ): Action<T> {
+  static create<T extends ActionValue = ActionValue>(params?: Partial<IFieldConstructorParams<T>>): Action<T> {
     return super.create<T>(params) as Action<T>;
   }
 

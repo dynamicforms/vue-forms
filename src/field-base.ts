@@ -11,7 +11,6 @@ import { IField, IFieldAction } from './field.interface';
 import { type Group } from './group';
 import { ValidationError } from './validators/validation-error';
 
-// eslint-disable-next-line import/prefer-default-export
 export abstract class FieldBase<T = any> implements IField<T> {
   abstract get value(): T;
   abstract set value(newValue: T);
@@ -98,10 +97,7 @@ export abstract class FieldBase<T = any> implements IField<T> {
     return this;
   }
 
-  triggerAction<T2 extends IFieldAction<T>>(
-    actionClass: new (...args: any[]) => T2,
-    ...params: any[]
-  ): any {
+  triggerAction<T2 extends IFieldAction<T>>(actionClass: new (...args: any[]) => T2, ...params: any[]): any {
     return this.actions.trigger(actionClass as any, this, ...params);
   }
 

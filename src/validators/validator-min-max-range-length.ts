@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import { isArray, isObject, isString } from 'lodash-es';
 
 import { IField } from '../field.interface';

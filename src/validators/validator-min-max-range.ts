@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import { IField } from '../field.interface';
 
 import { buildErrorMessage } from './error-message-builder';

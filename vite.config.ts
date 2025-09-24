@@ -20,7 +20,7 @@ export default defineConfig({
     },
     dts({
       tsconfigPath: './tsconfig.build.json',
-      rollupTypes: true
+      rollupTypes: true,
     }),
     visualizer({
       open: false,

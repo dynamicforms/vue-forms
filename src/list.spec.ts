@@ -53,8 +53,7 @@ describe('List', () => {
 
   it('triggers value changed on push', () => {
     const onValueChanged = vi.fn();
-    const list = new List()
-      .registerAction(new ValueChangedAction(onValueChanged));
+    const list = new List().registerAction(new ValueChangedAction(onValueChanged));
 
     list.push({ name: 'John' });
 
@@ -64,8 +63,7 @@ describe('List', () => {
 
   it('triggers ArrayItemAddedAction on push', () => {
     const onItemAdded = vi.fn();
-    const list = new List()
-      .registerAction(new ListItemAddedAction(onItemAdded));
+    const list = new List().registerAction(new ListItemAddedAction(onItemAdded));
 
     list.push({ name: 'John' });
 
@@ -93,8 +91,9 @@ describe('List', () => {
 
   it('triggers ArrayItemRemovedAction on pop', () => {
     const onItemRemoved = vi.fn();
-    const list = new List(undefined, { value: [{ name: 'John' }] })
-      .registerAction(new ListItemRemovedAction(onItemRemoved));
+    const list = new List(undefined, { value: [{ name: 'John' }] }).registerAction(
+      new ListItemRemovedAction(onItemRemoved),
+    );
 
     const popped = list.pop();
 
@@ -123,20 +122,13 @@ describe('List', () => {
 
   it('performs insert operations', () => {
     const list = new List(undefined, {
-      value: [
-        { name: 'First' },
-        { name: 'Last' },
-      ],
+      value: [{ name: 'First' }, { name: 'Last' }],
     });
 
     // Insert in the middle
     list.insert({ name: 'Middle' }, 1);
 
-    expect(list.value).toEqual([
-      { name: 'First' },
-      { name: 'Middle' },
-      { name: 'Last' },
-    ]);
+    expect(list.value).toEqual([{ name: 'First' }, { name: 'Middle' }, { name: 'Last' }]);
   });
 
   it('handles insert at higher index than length', () => {
@@ -157,29 +149,19 @@ describe('List', () => {
 
   it('removes items correctly', () => {
     const list = new List(undefined, {
-      value: [
-        { name: 'John' },
-        { name: 'Jane' },
-        { name: 'Bob' },
-      ],
+      value: [{ name: 'John' }, { name: 'Jane' }, { name: 'Bob' }],
     });
 
     // Remove the middle item
     const removed = list.remove(1);
 
-    expect(list.value).toEqual([
-      { name: 'John' },
-      { name: 'Bob' },
-    ]);
+    expect(list.value).toEqual([{ name: 'John' }, { name: 'Bob' }]);
     expect(removed?.value).toEqual({ name: 'Jane' });
   });
 
   it('clears all items', () => {
     const list = new List(undefined, {
-      value: [
-        { name: 'John' },
-        { name: 'Jane' },
-      ],
+      value: [{ name: 'John' }, { name: 'Jane' }],
     });
 
     list.clear();
@@ -220,15 +202,9 @@ describe('List', () => {
   it('sets values correctly', () => {
     const list = new List();
 
-    list.value = [
-      { name: 'John' },
-      { name: 'Jane' },
-    ];
+    list.value = [{ name: 'John' }, { name: 'Jane' }];
 
-    expect(list.value).toEqual([
-      { name: 'John' },
-      { name: 'Jane' },
-    ]);
+    expect(list.value).toEqual([{ name: 'John' }, { name: 'Jane' }]);
 
     // Change values
     list.value = [{ name: 'Bob' }];
@@ -306,10 +282,7 @@ describe('List Validation', () => {
     const itemTemplate = new Group({ name: Field.create() });
 
     const list = new List(itemTemplate, {
-      value: [
-        { name: 'Item 1' },
-        { name: 'Item 2' },
-      ],
+      value: [{ name: 'Item 1' }, { name: 'Item 2' }],
     });
 
     // Initially list should be valid
@@ -368,14 +341,11 @@ describe('List Validation', () => {
   it('should be invalid when new invalid item is added', () => {
     // Arrange
     const itemTemplate = new Group({
-      email:
-        Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+      email: Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
     });
 
     const list = new List(itemTemplate, {
-      value: [
-        { email: 'valid@example.com' },
-      ],
+      value: [{ email: 'valid@example.com' }],
     });
 
     // Initially list should be valid
@@ -391,8 +361,7 @@ describe('List Validation', () => {
   it('should become valid when invalid item is removed', () => {
     // Arrange
     const itemTemplate = new Group({
-      email:
-        Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+      email: Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
     });
 
     const list = new List(itemTemplate, {
@@ -433,9 +402,7 @@ describe('Cross-field validation with revalidate', () => {
 
     // Ustvari list z enim elementom
     const eventsList = new List(itemTemplate, {
-      value: [
-        { startDate: '2025-01-01', endDate: '2025-01-05' },
-      ],
+      value: [{ startDate: '2025-01-01', endDate: '2025-01-05' }],
     });
 
     // Initially should be valid

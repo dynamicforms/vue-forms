@@ -31,8 +31,8 @@ export interface IField<T = any> {
 }
 
 export interface IFieldConstructorActionsList<T = any> {
-  actions?: IFieldAction<T>[],
-  validators?: IFieldAction<T>[],
+  actions?: IFieldAction<T>[];
+  validators?: IFieldAction<T>[];
 }
 
 export type IFieldConstructorParams<T = any> = IField<T> & IFieldConstructorActionsList<T>;

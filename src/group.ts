@@ -50,11 +50,13 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     }
     Object.defineProperty(field, 'parent', { get: () => this, configurable: false, enumerable: false });
     Object.defineProperty(field, 'fieldName', { get: () => fieldName, configurable: false, enumerable: false });
-    Object.defineProperty(
-      this._fields,
-      fieldName,
-      { get() { return field; }, configurable: false, enumerable: true },
-    );
+    Object.defineProperty(this._fields, fieldName, {
+      get() {
+        return field;
+      },
+      configurable: false,
+      enumerable: true,
+    });
   }
 
   private static isValidFields(flds: unknown): flds is Record<string, FieldBase> {
@@ -62,9 +64,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
       return field instanceof FieldBase;
     }
 
-    return typeof flds === 'object' &&
-      flds !== null &&
-      Object.entries(flds).every(([, field]) => isFieldAll(field));
+    return typeof flds === 'object' && flds !== null && Object.entries(flds).every(([, field]) => isFieldAll(field));
   }
 
   static createFromFormData(data: Record<string, any> | null): Group {
@@ -72,11 +72,9 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
       throw new Error('data is already a Form structure, should be a simple object');
     }
     return new Group(
-      data == null ?
-        { } :
-        Object.fromEntries(
-          Object.entries(data).map(([key, value]) => [key, Field.create({ value })]),
-        ),
+      data == null
+        ? {}
+        : Object.fromEntries(Object.entries(data).map(([key, value]) => [key, Field.create({ value })])),
     );
   }
 
@@ -100,7 +98,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         val[name] = fieldValue;
       }
     });
-    return isEmpty(val) ? null : val as FieldsToValues<T>;
+    return isEmpty(val) ? null : (val as FieldsToValues<T>);
   }
 
   set value(newValue: FieldsToValues<T> | null) {
@@ -130,7 +128,9 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
   get fullValue(): Record<string, any> {
     const value: Record<string, any> = {};
-    Object.entries(this._fields).forEach(([name, field]) => { value[name] = field.fullValue; });
+    Object.entries(this._fields).forEach(([name, field]) => {
+      value[name] = field.fullValue;
+    });
     return value;
   }
 
@@ -162,7 +162,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     });
     const res = new Group(newFields, {
       value: overrides?.value ?? this.value,
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
+      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });

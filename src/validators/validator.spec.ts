@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import { vi } from 'vitest';
 
 import { Field } from '../field';
@@ -113,18 +112,19 @@ describe('Validator', () => {
     const validator = new TestValidator();
 
     // Test replacement
-    const result = validator.testReplacePlaceholders(
-      'Name: {name}, Age: {age}, Value: {value}',
-      { name: 'John', age: 30, value: 'test' },
-    );
+    const result = validator.testReplacePlaceholders('Name: {name}, Age: {age}, Value: {value}', {
+      name: 'John',
+      age: 30,
+      value: 'test',
+    });
 
     expect(result).toBe('Name: John, Age: 30, Value: test');
   });
 
   it('creates validator with field instance instead of mock', () => {
     // Create a field with a validator directly
-    const validationFn: ValidationFunction =
-      (newValue) => (newValue === 'invalid' ? [new ValidationErrorText('Invalid value')] : null);
+    const validationFn: ValidationFunction = (newValue) =>
+      newValue === 'invalid' ? [new ValidationErrorText('Invalid value')] : null;
 
     const field = Field.create({
       value: 'valid',
@@ -152,7 +152,9 @@ describe('Validator', () => {
 describe('Async Validator', () => {
   it('handles async validation correctly', async () => {
     const asyncValidator = new Validator(async (newValue: string) => {
-      await new Promise((resolve) => { setTimeout(resolve, 1); });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 1);
+      });
       if (newValue === 'test@taken.com') {
         return [new ValidationErrorText('Email already taken')];
       }

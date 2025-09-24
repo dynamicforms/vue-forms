@@ -1,4 +1,3 @@
-/* eslint-disable max-classes-per-file */
 import { computed, ComputedRef, Ref, unref } from 'vue';
 
 /**
@@ -37,32 +36,48 @@ export function isSimpleComponentDef(msg?: RenderContentRef): msg is SimpleCompo
 /**
  * Base validation error class with component rendering capabilities
  */
-/* eslint-disable class-methods-use-this */
+
 export class ValidationError {
-  get componentName() { return 'Comment'; }
+  get componentName() {
+    return 'Comment';
+  }
 
-  get componentBindings() { return {}; }
+  get componentBindings() {
+    return {};
+  }
 
-  get componentBody() { return ''; }
+  get componentBody() {
+    return '';
+  }
 
-  get extraClasses() { return ''; }
+  get extraClasses() {
+    return '';
+  }
 }
 
 /**
  * Simple text-only ValidationError
  */
 export class ValidationErrorText extends ValidationError {
-  constructor(public text: string, public classes: string = '') {
+  constructor(
+    public text: string,
+    public classes: string = '',
+  ) {
     super();
   }
 
-  get componentName() { return 'template'; }
+  get componentName() {
+    return 'template';
+  }
 
-  get componentBody() { return this.text; }
+  get componentBody() {
+    return this.text;
+  }
 
-  get extraClasses() { return this.classes; }
+  get extraClasses() {
+    return this.classes;
+  }
 }
-/* eslint-enable class-methods-use-this */
 
 /**
  * Validation error that supports multiple content types (plain text, markdown, component)
@@ -72,7 +87,10 @@ export class ValidationErrorRenderContent extends ValidationError {
 
   private textType: ComputedRef<'string' | 'md' | 'component'>;
 
-  constructor(text: RenderContentRef, public classes: string = '') {
+  constructor(
+    text: RenderContentRef,
+    public classes: string = '',
+  ) {
     super();
     this.text = text;
     this.textType = computed(() => this.getTextType);
@@ -88,31 +106,44 @@ export class ValidationErrorRenderContent extends ValidationError {
 
   get componentName() {
     switch (unref(this.textType)) {
-    case 'string': return 'template';
-    case 'md': return 'vue-markdown';
-    case 'component': return (unref(this.text) as SimpleComponentDef).componentName;
-    default: return 'template';
+      case 'string':
+        return 'template';
+      case 'md':
+        return 'vue-markdown';
+      case 'component':
+        return (unref(this.text) as SimpleComponentDef).componentName;
+      default:
+        return 'template';
     }
   }
 
   get componentBindings() {
     switch (unref(this.textType)) {
-    case 'string': return { };
-    case 'md': return { source: this.text.toString() };
-    case 'component': return (unref(this.text) as SimpleComponentDef).componentProps || { };
-    default: return { };
+      case 'string':
+        return {};
+      case 'md':
+        return { source: this.text.toString() };
+      case 'component':
+        return (unref(this.text) as SimpleComponentDef).componentProps || {};
+      default:
+        return {};
     }
   }
 
   get componentBody() {
     switch (unref(this.textType)) {
-    case 'string': return unref(this.text) as string;
-    case 'component': return (unref(this.text) as SimpleComponentDef).componentVHtml || '';
-    default: return '';
+      case 'string':
+        return unref(this.text) as string;
+      case 'component':
+        return (unref(this.text) as SimpleComponentDef).componentVHtml || '';
+      default:
+        return '';
     }
   }
 
-  get extraClasses() { return this.classes; }
+  get extraClasses() {
+    return this.classes;
+  }
 }
 
 /**

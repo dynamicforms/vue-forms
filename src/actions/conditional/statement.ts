@@ -42,44 +42,44 @@ export class Statement {
     const operand2 = this.operand2Value;
 
     switch (this.operator) {
-    // logical operators
-    case Operator.AND:
-      return operand1 && operand2;
-    case Operator.OR:
-      return operand1 || operand2;
-    case Operator.NAND:
-      return !(operand1 && operand2);
-    case Operator.NOR:
-      return !(operand1 || operand2);
-    case Operator.XOR:
-      return XOR(operand1, operand2);
-    case Operator.NOT:
-      return !operand1;
+      // logical operators
+      case Operator.AND:
+        return operand1 && operand2;
+      case Operator.OR:
+        return operand1 || operand2;
+      case Operator.NAND:
+        return !(operand1 && operand2);
+      case Operator.NOR:
+        return !(operand1 || operand2);
+      case Operator.XOR:
+        return XOR(operand1, operand2);
+      case Operator.NOT:
+        return !operand1;
 
-    // comparison operators
-    case Operator.EQUALS:
-      return operand1 == operand2; // eslint-disable-line eqeqeq
-    case Operator.NOT_EQUALS:
-      return operand1 != operand2; // eslint-disable-line eqeqeq
-    case Operator.LT:
-      return operand1 < operand2;
-    case Operator.LE:
-      return operand1 <= operand2;
-    case Operator.GE:
-      return operand1 >= operand2;
-    case Operator.GT:
-      return operand1 > operand2;
-    case Operator.IN:
-      return operand2?.includes?.(operand1) ?? false;
-    case Operator.NOT_IN:
-      return !(operand2?.includes?.(operand1) ?? true);
-    case Operator.INCLUDES:
-      return isString(operand1) && isString(operand2) && operand1.indexOf(operand2) >= 0;
-    case Operator.NOT_INCLUDES:
-      return !(isString(operand1) && isString(operand2) && operand1.indexOf(operand2) >= 0);
+      // comparison operators
+      case Operator.EQUALS:
+        return operand1 == operand2;
+      case Operator.NOT_EQUALS:
+        return operand1 != operand2;
+      case Operator.LT:
+        return operand1 < operand2;
+      case Operator.LE:
+        return operand1 <= operand2;
+      case Operator.GE:
+        return operand1 >= operand2;
+      case Operator.GT:
+        return operand1 > operand2;
+      case Operator.IN:
+        return operand2?.includes?.(operand1) ?? false;
+      case Operator.NOT_IN:
+        return !(operand2?.includes?.(operand1) ?? true);
+      case Operator.INCLUDES:
+        return isString(operand1) && isString(operand2) && operand1.indexOf(operand2) >= 0;
+      case Operator.NOT_INCLUDES:
+        return !(isString(operand1) && isString(operand2) && operand1.indexOf(operand2) >= 0);
 
-    default:
-      throw new Error(`Operator not implemented ${this.operator}`);
+      default:
+        throw new Error(`Operator not implemented ${this.operator}`);
     }
   }
 

@@ -91,7 +91,7 @@ describe('Pattern Validator', () => {
     // Assert
     expect(field.errors.length).toBe(1);
 
-    // @ts-ignore
+    // @ts-expect-error text is private, but we want to use it here internally in the library
     const errorText = unref((field.errors[0] as ValidationErrorRenderContent).text);
     expect(errorText).toBe(customMessage);
   });

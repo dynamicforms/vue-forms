@@ -42,12 +42,7 @@ describe('Form actions', () => {
     expect(visibilityAction).not.toHaveBeenCalled();
 
     // Preverimo parametre klica
-    expect(valueAction2).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.any(Function),
-      'nova vrednost',
-      'začetno',
-    );
+    expect(valueAction2).toHaveBeenCalledWith(expect.anything(), expect.any(Function), 'nova vrednost', 'začetno');
   });
 
   it('dovoli prekinjanje verige akcij', () => {

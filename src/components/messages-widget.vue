@@ -1,5 +1,5 @@
 <template>
-  <render/>
+  <render />
 </template>
 
 <script setup lang="ts">
@@ -19,10 +19,61 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), { classes: 'text-error' });
 const md = resolveComponent('vue-markdown');
 const htmlElements = new Set([
-  'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'section', 'article', 'aside', 'nav', 'header', 'footer',
-  'main', 'figure', 'figcaption', 'blockquote', 'pre', 'code', 'em', 'strong', 'small', 'mark', 'del', 'ins', 'sub',
-  'sup', 'i', 'b', 'u', 's', 'a', 'img', 'button', 'input', 'textarea', 'select', 'option', 'label', 'form', 'table',
-  'tr', 'td', 'th', 'thead', 'tbody', 'tfoot', 'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+  'div',
+  'span',
+  'p',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'section',
+  'article',
+  'aside',
+  'nav',
+  'header',
+  'footer',
+  'main',
+  'figure',
+  'figcaption',
+  'blockquote',
+  'pre',
+  'code',
+  'em',
+  'strong',
+  'small',
+  'mark',
+  'del',
+  'ins',
+  'sub',
+  'sup',
+  'i',
+  'b',
+  'u',
+  's',
+  'a',
+  'img',
+  'button',
+  'input',
+  'textarea',
+  'select',
+  'option',
+  'label',
+  'form',
+  'table',
+  'tr',
+  'td',
+  'th',
+  'thead',
+  'tbody',
+  'tfoot',
+  'ul',
+  'ol',
+  'li',
+  'dl',
+  'dt',
+  'dd',
 ]);
 
 const render = () => {
@@ -30,35 +81,34 @@ const render = () => {
   const res: ReturnType<typeof h>[] = [];
   props.message.forEach((msg) => {
     switch (msg.componentName) {
-    case 'template':
-      res.push(h('div', { class: [props.classes, msg.extraClasses] }, msg.componentBody));
-      break;
-    case 'vue-markdown':
-      if (typeof md === 'string') {
-        console.warn(
-          'You are using markdown for messages-widget, but you haven\'t registered a vue-markdown component',
+      case 'template':
+        res.push(h('div', { class: [props.classes, msg.extraClasses] }, msg.componentBody));
+        break;
+      case 'vue-markdown':
+        if (typeof md === 'string') {
+          console.warn(
+            "You are using markdown for messages-widget, but you haven't registered a vue-markdown component",
+          );
+          res.push(h('div', { class: [props.classes, msg.extraClasses] }, (<any>msg.componentBindings).source));
+        } else {
+          res.push(
+            h(md, {
+              class: [props.classes, msg.extraClasses, 'df-messages-widget-markdown'],
+              source: (<any>msg.componentBindings).source,
+            }),
+          );
+        }
+        break;
+      default:
+        res.push(
+          h(
+            htmlElements.has(msg.componentName.toLowerCase()) // only resolve if it's not a common html element
+              ? msg.componentName
+              : resolveComponent(msg.componentName),
+            { class: [props.classes, msg.extraClasses], ...msg.componentBindings, innerHTML: msg.componentBody },
+          ),
         );
-        res.push(h('div', { class: [props.classes, msg.extraClasses] }, (<any>msg.componentBindings).source));
-      } else {
-        res.push(h(
-          md,
-          {
-            class: [props.classes, msg.extraClasses, 'df-messages-widget-markdown'],
-            source: (<any>msg.componentBindings).source,
-          },
-        ));
-      }
-      break;
-    default:
-      res.push(
-        h(
-          htmlElements.has(msg.componentName.toLowerCase()) ? // only resolve if it's not a common html element
-            msg.componentName :
-            resolveComponent(msg.componentName),
-          { class: [props.classes, msg.extraClasses], ...msg.componentBindings, innerHTML: msg.componentBody },
-        ),
-      );
-      break;
+        break;
     }
   });
   return res;
@@ -67,7 +117,8 @@ const render = () => {
 
 <style>
 /* we would like there to be no margins for markdown at the very top and very bottom. the rest of it is fine */
-.df-messages-widget-markdown > :first-child, .df-messages-widget-markdown > :last-child {
+.df-messages-widget-markdown > :first-child,
+.df-messages-widget-markdown > :last-child {
   margin-top: 0 !important;
   padding-top: 0 !important;
   margin-bottom: 0 !important;

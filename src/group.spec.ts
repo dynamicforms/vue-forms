@@ -64,8 +64,7 @@ describe('Group', () => {
 
   it('correctly notifies parent of changes', () => {
     const onValueChanged = vi.fn();
-    const group = new Group({ field1: Field.create() })
-      .registerAction(new ValueChangedAction(onValueChanged));
+    const group = new Group({ field1: Field.create() }).registerAction(new ValueChangedAction(onValueChanged));
 
     const field = group.fields.field1;
     field.value = 'test';

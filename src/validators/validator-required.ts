@@ -20,9 +20,7 @@ export default class Required<T = any> extends Validator {
     const msg = message || buildErrorMessage('Please enter a value');
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: IField) => {
       if (toLength(unref(newValue)) === 0) {
-        return [new ValidationErrorRenderContent(
-          this.replacePlaceholders(msg, { newValue, oldValue, field }),
-        )];
+        return [new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field }))];
       }
       return null;
     };

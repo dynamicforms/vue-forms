@@ -4,26 +4,16 @@ import { FieldActionExecute, type IField } from '@/field.interface';
 
 const ValidChangedActionClassIdentifier = Symbol('ValidChangedAction');
 
-// eslint-disable-next-line import/prefer-default-export
 export class ValidChangedAction extends FieldActionBase {
-  // eslint-disable-next-line @typescript-eslint/no-useless-constructor
-  constructor(
-    executorFn: (
-      field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean,
-    ) => void,
-  ) {
+  constructor(executorFn: (field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => void) {
     super(executorFn);
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  static get classIdentifier() { return ValidChangedActionClassIdentifier; }
+  static get classIdentifier() {
+    return ValidChangedActionClassIdentifier;
+  }
 
-  execute(
-    field: IField,
-    supr: FieldActionExecute,
-    newValue: boolean,
-    oldValue: boolean,
-  ): void {
+  execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): void {
     return super.execute(field, supr, newValue, oldValue);
   }
 }

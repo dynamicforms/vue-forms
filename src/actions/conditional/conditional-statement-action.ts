@@ -1,4 +1,3 @@
-// eslint-disable-next-line max-classes-per-file
 import DisplayMode from '../../display-mode';
 import { FieldActionExecute, IField } from '../../field.interface';
 import { ValueChangedAction } from '../value-changed-action';
@@ -7,11 +6,7 @@ import { Statement } from './statement';
 
 const ConditionalStatementActionClassIdentifier = Symbol('ConditionalStatementAction');
 
-type ConditionalExecutorFn = (
-  field: IField,
-  currentResult: boolean,
-  previousResult: boolean | undefined,
-) => void;
+type ConditionalExecutorFn = (field: IField, currentResult: boolean, previousResult: boolean | undefined) => void;
 
 export class ConditionalStatementAction extends ValueChangedAction {
   private lastResult: boolean | undefined = undefined;
@@ -40,13 +35,17 @@ export class ConditionalStatementAction extends ValueChangedAction {
     statement.collectFields().forEach((field) => field.registerAction(new ValueChangedAction(actionExecutor)));
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  static get classIdentifier() { return ConditionalStatementActionClassIdentifier; }
+  static get classIdentifier() {
+    return ConditionalStatementActionClassIdentifier;
+  }
 
-  // eslint-disable-next-line class-methods-use-this
-  get eager() { return true; }
+  get eager() {
+    return true;
+  }
 
-  boundToField(field: IField) { this.boundFields.add(field); }
+  boundToField(field: IField) {
+    this.boundFields.add(field);
+  }
 }
 
 // Derived classes for visibility, enabled, and value changes

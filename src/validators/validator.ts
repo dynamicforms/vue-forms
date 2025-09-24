@@ -7,10 +7,15 @@ import { FieldActionExecute, type IField } from '../field.interface';
 import { isSimpleComponentDef, MdString, RenderContentRef, ValidationError } from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
-export type ValidationFunction<T = any> = (newValue: T, oldValue: T, field: IField<T>) =>
-  ValidationFunctionResult | Promise<ValidationFunctionResult>;
+export type ValidationFunction<T = any> = (
+  newValue: T,
+  oldValue: T,
+  field: IField<T>,
+) => ValidationFunctionResult | Promise<ValidationFunctionResult>;
 
-interface SourceProp { source: symbol }
+interface SourceProp {
+  source: symbol;
+}
 
 const ValidatorClassIdentifier = Symbol('Validator');
 
@@ -30,8 +35,8 @@ export class Validator<T = any> extends ValueChangedAction {
       const errors = validationFn(newValue, oldValue, field) || [];
 
       const processErrors = (err: ValidationFunctionResult) => {
-        err?.forEach(
-          (e) => Object.defineProperty(e, 'source', { value: this.source, enumerable: false, configurable: false }),
+        err?.forEach((e) =>
+          Object.defineProperty(e, 'source', { value: this.source, enumerable: false, configurable: false }),
         );
         for (let i = field.errors.length - 1; i >= 0; i--) {
           const error = field.errors[i] as ValidationError & SourceProp;
@@ -47,14 +52,14 @@ export class Validator<T = any> extends ValueChangedAction {
       };
 
       if (errors instanceof Promise) {
-        // @ts-ignore
-        field.validating = (++(<FieldBase> field).validatingCount) > 0;
+        // @ts-expect-error validatingCount is protected, but we want it internally
+        field.validating = ++(<FieldBase>field).validatingCount > 0;
         errors
           .then((err) => processErrors(err))
           .finally(() => {
-            // @ts-ignore
-            (<FieldBase> field).validatingCount = Math.max(0, (<FieldBase> field).validatingCount - 1);
-            // @ts-ignore
+            // @ts-expect-error validatingCount is protected, but we want it internally
+            (<FieldBase>field).validatingCount = Math.max(0, (<FieldBase>field).validatingCount - 1);
+            // @ts-expect-error validatingCount is protected, but we want it internally
             field.validating = (<FieldBase>field).validatingCount > 0;
           });
       } else processErrors(errors);
@@ -67,17 +72,20 @@ export class Validator<T = any> extends ValueChangedAction {
     this.source = Symbol(this.constructor.name);
   }
 
-  // eslint-disable-next-line class-methods-use-this
-  static get classIdentifier() { return ValidatorClassIdentifier; }
+  static get classIdentifier() {
+    return ValidatorClassIdentifier;
+  }
 
-  // eslint-disable-next-line class-methods-use-this
-  get eager() { return true; }
+  get eager() {
+    return true;
+  }
 
-  // eslint-disable-next-line class-methods-use-this
   protected replacePlaceholders(text: RenderContentRef, replace: Record<string, any>) {
     if (isSimpleComponentDef(text)) return text;
-    let ret = (text as string | MdString);
-    Object.keys(replace).forEach((key) => { ret = ret.replaceAll(`{${key}}`, replace[key]); });
-    return (text instanceof MdString) ? new MdString(ret) : ret;
+    let ret = text as string | MdString;
+    Object.keys(replace).forEach((key) => {
+      ret = ret.replaceAll(`{${key}}`, replace[key]);
+    });
+    return text instanceof MdString ? new MdString(ret) : ret;
   }
 }

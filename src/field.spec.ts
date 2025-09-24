@@ -9,8 +9,7 @@ import DisplayMode from '@/display-mode';
 describe('Field', () => {
   it('trigger onValueChanged on value change', () => {
     const onValueChanged = vi.fn();
-    const field = Form.Field.create({ enabled: true })
-      .registerAction(new Form.ValueChangedAction(onValueChanged));
+    const field = Form.Field.create({ enabled: true }).registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
 
@@ -19,8 +18,7 @@ describe('Field', () => {
 
   it('does not trigger onValueChanged, when the field is read only', () => {
     const onValueChanged = vi.fn();
-    const field = Form.Field.create({ enabled: false })
-      .registerAction(new Form.ValueChangedAction(onValueChanged));
+    const field = Form.Field.create({ enabled: false }).registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
 
@@ -52,8 +50,7 @@ describe('Field', () => {
 
   it('triggers validation on value change', () => {
     const onValidChanged = vi.fn();
-    const field = Form.Field.create({ enabled: true })
-      .registerAction(new Form.ValidChangedAction(onValidChanged));
+    const field = Form.Field.create({ enabled: true }).registerAction(new Form.ValidChangedAction(onValidChanged));
 
     field.errors = [new ValidationErrorText('Napaka')];
     field.value = 'test';
@@ -62,39 +59,42 @@ describe('Field', () => {
     expect(onValidChanged).toHaveBeenCalledWith(field, expect.any(Function), false, true);
   });
 
-  it.each(
-    [null, DisplayMode.FULL, DisplayMode.HIDDEN],
-  )('triggers onVisibilityChanging on visibility change', (changingReturnValue: DisplayMode | null) => {
-    // why we're doing .each? it's to test that the function for setting visibility value
-    //  actually uses the result of the event handler.
-    //  when it returns null, expected result is what was requested in the setVisibility call
-    const onVisibilityChanging = vi.fn().mockReturnValue(changingReturnValue);
-    const field = Form.Field.create()
-      .registerAction(new Form.VisibilityChangingAction(onVisibilityChanging));
+  it.each([null, DisplayMode.FULL, DisplayMode.HIDDEN])(
+    'triggers onVisibilityChanging on visibility change',
+    (changingReturnValue: DisplayMode | null) => {
+      // why we're doing .each? it's to test that the function for setting visibility value
+      //  actually uses the result of the event handler.
+      //  when it returns null, expected result is what was requested in the setVisibility call
+      const onVisibilityChanging = vi.fn().mockReturnValue(changingReturnValue);
+      const field = Form.Field.create().registerAction(new Form.VisibilityChangingAction(onVisibilityChanging));
 
-    field.visibility = DisplayMode.HIDDEN;
+      field.visibility = DisplayMode.HIDDEN;
 
-    expect(onVisibilityChanging)
-      .toHaveBeenCalledWith(field, expect.any(Function), DisplayMode.HIDDEN, DisplayMode.FULL);
-    expect(field.visibility).toBe(changingReturnValue ?? DisplayMode.HIDDEN);
-  });
+      expect(onVisibilityChanging).toHaveBeenCalledWith(
+        field,
+        expect.any(Function),
+        DisplayMode.HIDDEN,
+        DisplayMode.FULL,
+      );
+      expect(field.visibility).toBe(changingReturnValue ?? DisplayMode.HIDDEN);
+    },
+  );
 
-  it.each(
-    [null, true, false],
-  )('triggers onEnabledChanging on enabled change', (changingReturnValue: boolean | null) => {
-    // why we're doing .each? it's to test that the function for setting enabled value
-    //  actually uses the result of the event handler.
-    //  when it returns null, expected result is what was requested in the setEnabled call
-    const onEnabledChanging = vi.fn().mockReturnValue(changingReturnValue);
-    const field = Form.Field.create()
-      .registerAction(new Form.EnabledChangingAction(onEnabledChanging));
+  it.each([null, true, false])(
+    'triggers onEnabledChanging on enabled change',
+    (changingReturnValue: boolean | null) => {
+      // why we're doing .each? it's to test that the function for setting enabled value
+      //  actually uses the result of the event handler.
+      //  when it returns null, expected result is what was requested in the setEnabled call
+      const onEnabledChanging = vi.fn().mockReturnValue(changingReturnValue);
+      const field = Form.Field.create().registerAction(new Form.EnabledChangingAction(onEnabledChanging));
 
-    field.enabled = false;
+      field.enabled = false;
 
-    expect(onEnabledChanging)
-      .toHaveBeenCalledWith(field, expect.any(Function), false, true);
-    expect(field.enabled).toBe(changingReturnValue ?? false);
-  });
+      expect(onEnabledChanging).toHaveBeenCalledWith(field, expect.any(Function), false, true);
+      expect(field.enabled).toBe(changingReturnValue ?? false);
+    },
+  );
 
   it('correctly manages valid state based on errors', () => {
     // Test initial valid state (no validators)
@@ -155,8 +155,7 @@ describe('Field', () => {
     const field = Form.Field.create<string>({
       value: 'valid',
       validators: [new Form.Validators.Required()],
-    })
-      .registerAction(new Form.ValidChangedAction(onValidChanged));
+    }).registerAction(new Form.ValidChangedAction(onValidChanged));
 
     // Initially valid, no action triggered during setup
     expect(field.valid).toBe(true);

@@ -24,7 +24,7 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
   }
 
   trigger<T extends FieldActionBase>(
-    ActionClass: { new (...args: any[]): T, classIdentifier: symbol },
+    ActionClass: { new (...args: any[]): T; classIdentifier: symbol },
     field: IField,
     ...params: any[]
   ): any {
@@ -50,7 +50,7 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
     }
   }
 
-  clone() : ActionsMap {
+  clone(): ActionsMap {
     const newActions = new ActionsMap();
     this.registeredActions.forEach((action) => newActions.register(action));
     return newActions;

@@ -7,7 +7,7 @@ import { MdString } from './validation-error';
  * @param mdErrorString markdown source to optionally be stripped
  * @return MdString or string
  */
-// eslint-disable-next-line import/prefer-default-export
+
 export function buildErrorMessage(mdErrorString: string): string | MdString {
   const useMarkdownInValidators = getConfig().useMarkdownInValidators;
   if (useMarkdownInValidators) return new MdString(mdErrorString);
