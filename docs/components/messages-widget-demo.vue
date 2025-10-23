@@ -32,7 +32,7 @@
                 outlined
                 class="mb-2"
               ></v-text-field>
-              
+
               <v-text-field
                 v-model.number="testForm.fields.age.value"
                 type="number"
@@ -41,7 +41,7 @@
                 outlined
                 class="mb-2"
               ></v-text-field>
-              
+
               <div class="mb-2">
                 <strong>Custom Messages Widget for Email:</strong>
                 <messages-widget
@@ -51,7 +51,7 @@
                 />
                 <div v-else class="text-success">Email is valid</div>
               </div>
-              
+
               <div class="mb-2">
                 <strong>Custom Messages Widget for Age:</strong>
                 <messages-widget
@@ -127,6 +127,7 @@
 <script setup>
 import { computed, ref } from 'vue';
 import { Group, Field, Validators, ValidationErrorText, ValidationErrorRenderContent, MdString } from '../../src';
+import MarkdownItAttrs from 'markdown-it-attrs';
 import MessagesWidget from '../../src/components/messages-widget.vue';
 
 // Simple string message
@@ -135,7 +136,7 @@ const simpleMessage = ref('This is a simple error message');
 // Class options for styling
 const classOptions = [
   'text-error',
-  'text-warning', 
+  'text-warning',
   'text-success',
   'text-info',
   'custom-error-style'
@@ -153,7 +154,7 @@ const testForm = new Group({
       )
     ]
   }),
-  
+
   age: Field.create({
     value: null,
     validators: [
@@ -163,9 +164,13 @@ const testForm = new Group({
 });
 
 // Markdown content
-const markdownContent = ref('**Error**: This is a *markdown* message with [links](https://example.com) and `code`.');
+const markdownContent = ref(`
+  **Error**: This is a *markdown* message with [links](https://example.com) and
+  [new tab links](https://example.com){target="_blank" rel="noopener noreferrer"} \`code\`.
+  `,
+);
 const markdownErrors = computed(() => [
-  new ValidationErrorRenderContent(new MdString(markdownContent.value))
+  new ValidationErrorRenderContent(new MdString(markdownContent.value, undefined, [MarkdownItAttrs]))
 ]);
 
 // Custom errors
@@ -176,21 +181,21 @@ class CustomAlertError extends ValidationErrorText {
   constructor(message, extraClasses = '') {
     super(message, extraClasses);
   }
-  
-  get componentName() { 
-    return 'v-alert'; 
+
+  get componentName() {
+    return 'v-alert';
   }
-  
-  get componentBindings() { 
-    return { 
+
+  get componentBindings() {
+    return {
       type: 'warning',
       variant: 'tonal',
-      closable: true 
-    }; 
+      closable: true,
+    };
   }
-  
-  get componentBody() { 
-    return this.text; 
+
+  get componentBody() {
+    return this.text;
   }
 }
 

@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils';
+import MarkdownItAttrs from 'markdown-it-attrs';
+import VueMarkdown from 'vue-markdown-render';
 
 import { ValidationError, ValidationErrorText, ValidationErrorRenderContent, MdString } from '../validators';
 
@@ -52,7 +54,10 @@ describe('MessagesWidget', () => {
     const mdContent = new MdString('**Bold** markdown content');
     const errors = [new ValidationErrorRenderContent(mdContent)];
 
-    const wrapper = mount(MessagesWidget, { props: { message: errors } });
+    const wrapper = mount(MessagesWidget, {
+      props: { message: errors },
+      global: { components: { VueMarkdown: undefined as any } },
+    });
 
     const div = wrapper.find('div');
     expect(div.exists()).toBe(true);
@@ -66,12 +71,32 @@ describe('MessagesWidget', () => {
 
     const wrapper = mount(MessagesWidget, {
       props: { message: errors },
-      global: { components: { VueMarkdown: MockVueMarkdown } },
+      global: { components: { VueMarkdown: VueMarkdown } },
     });
 
-    const markdownDiv = wrapper.find('.vue-markdown-mock');
+    const markdownDiv = wrapper.find('.df-messages-widget-markdown');
+
     expect(markdownDiv.exists()).toBe(true);
-    expect(markdownDiv.text()).toBe('**Bold** markdown content');
+    expect(markdownDiv.element.innerHTML.replaceAll('\n', '')).toBe('<p><strong>Bold</strong> markdown content</p>');
+    expect(markdownDiv.classes()).toContain('text-error');
+    expect(markdownDiv.classes()).toContain('df-messages-widget-markdown');
+  });
+
+  it('renders markdown content with attributes using VueMarkdown when component is registered', () => {
+    const mdContent = new MdString('**Bold** markdown [content](https://example.com){target="_blank"}', undefined, [
+      MarkdownItAttrs,
+    ]);
+    const errors = [new ValidationErrorRenderContent(mdContent)];
+
+    const wrapper = mount(MessagesWidget, {
+      props: { message: errors },
+      global: { components: { VueMarkdown: VueMarkdown } },
+    });
+    const markdownDiv = wrapper.find('.df-messages-widget-markdown');
+    expect(markdownDiv.exists()).toBe(true);
+    expect(markdownDiv.element.innerHTML.replaceAll('\n', '')).toBe(
+      '<p><strong>Bold</strong> markdown <a href="https://example.com" target="_blank">content</a></p>',
+    );
     expect(markdownDiv.classes()).toContain('text-error');
     expect(markdownDiv.classes()).toContain('df-messages-widget-markdown');
   });

@@ -86,6 +86,6 @@ export class Validator<T = any> extends ValueChangedAction {
     Object.keys(replace).forEach((key) => {
       ret = ret.replaceAll(`{${key}}`, replace[key]);
     });
-    return text instanceof MdString ? new MdString(ret) : ret;
+    return text instanceof MdString ? new MdString(ret.toString(), text.options, text.plugins) : ret;
   }
 }
