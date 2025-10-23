@@ -74,6 +74,16 @@ import { ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms'
 const markdownError = new ValidationErrorRenderContent(
   new MdString('**Error**: This field contains *invalid* data.')
 );
+
+const markdownErrorWithPlugin = new ValidationErrorRenderContent(
+  new MdString(`
+  **Error**: This field contains *invalid* data. See 
+  [Instructions](https://example.com){target="_blank" rel="noopener noreferrer"}
+  `, 
+      undefined,
+      [MarkdownItAttrs],
+  )
+);
 ```
 
 #### Custom Component Errors
@@ -203,6 +213,37 @@ app.component('VueMarkdown', VueMarkdown); // make sure it's not vue-markdown
 ```
 
 If no markdown component is registered, markdown content will be displayed as plain text with a console warning.
+
+Use `MdString` to create a markdown string. You can also include options and plugins that are accepted in `VueMarkdown`
+component in MdString. For example, you need to include `MarkdownItAttrs` plugin to support additional attributes like 
+`target` and `rel` in markdown links:
+
+```js
+new MdString(`
+**Error**: This field contains *invalid* data. See 
+[Instructions](https://example.com){target="_blank" rel="noopener noreferrer"}
+`, 
+  undefined,
+  [MarkdownItAttrs],
+)
+```
+
+Of course, you can also create your own markdown string class, that extends `MdString`, so you don't have to 
+include the plugin every time.
+
+```js
+class MdStringWithAttrs extends MdString {
+    constructor(value: string) {
+        super(value, undefined, [MarkdownItAttrs]);
+    }
+}
+
+new MdStringWithAttrs(`
+  **Error**: This field contains *invalid* data. See 
+  [Instructions](https://example.com){target="_blank" rel="noopener noreferrer"}
+`);
+```
+
 
 <script setup>
 import MessagesWidgetDemo from '../components/messages-widget-demo.vue';

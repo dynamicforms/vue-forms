@@ -3,7 +3,16 @@ import { computed, ComputedRef, Ref, unref } from 'vue';
 /**
  * Marks content for markdown rendering
  */
-export class MdString extends String {}
+export class MdString extends String {
+  plugins?: any[];
+  options?: any;
+
+  constructor(value: string, options?: any, plugins?: any[]) {
+    super(value);
+    this.plugins = plugins;
+    this.options = options;
+  }
+}
 
 /**
  * Interface for custom component content definition
@@ -121,8 +130,10 @@ export class ValidationErrorRenderContent extends ValidationError {
     switch (unref(this.textType)) {
       case 'string':
         return {};
-      case 'md':
-        return { source: this.text.toString() };
+      case 'md': {
+        const text = this.text as MdString;
+        return { source: text.toString(), options: text.options, plugins: text.plugins };
+      }
       case 'component':
         return (unref(this.text) as SimpleComponentDef).componentProps || {};
       default:
@@ -150,6 +161,7 @@ export class ValidationErrorRenderContent extends ValidationError {
  * A value, renderable three different ways (plain text, markdown, component) - alias for ValidationErrorRenderContent
  */
 export class RenderableValue extends ValidationErrorRenderContent {}
+
 /** ********************************************************************************************************************
  *
  at some point there will be classes here that will support links or action buttons or something even more complex

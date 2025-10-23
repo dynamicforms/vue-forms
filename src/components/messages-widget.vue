@@ -91,10 +91,13 @@ const render = () => {
           );
           res.push(h('div', { class: [props.classes, msg.extraClasses] }, (<any>msg.componentBindings).source));
         } else {
+          const componentBindings = <any>msg.componentBindings;
           res.push(
             h(md, {
               class: [props.classes, msg.extraClasses, 'df-messages-widget-markdown'],
-              source: (<any>msg.componentBindings).source,
+              source: componentBindings.source,
+              options: componentBindings.options,
+              plugins: componentBindings.plugins,
             }),
           );
         }
