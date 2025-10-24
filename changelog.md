@@ -10,7 +10,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 
-## [0.4.2] - 2025-09-06
+## [0.4.6] - 2025-09-24
+
+### Added
+- Add plugins and options to MdString supporting markdown-it extensibility
+
+## [0.4.5] - 2025-09-19
+
+### Added
+- Add field touched property to indicate when user had at least visited a field
+
+## [0.4.4] - 2025-09-08
+
+### Added
+- Add revalidate parameter to field validate method forcing revalidation
+
+## [0.4.2,0.4.3] - 2025-09-06
 
 ### Added
 - add classes to ValidationError (and descendants)
