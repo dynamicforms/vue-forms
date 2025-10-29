@@ -128,8 +128,6 @@ describe('MdString', () => {
   });
 });
 
-// Add these tests after the existing ValidationErrorRenderContent tests
-
 describe('ValidationErrorRenderContent with callable functions', () => {
     it('handles callable function that returns plain string', () => {
         const contentFn = () => 'Dynamic error message';
