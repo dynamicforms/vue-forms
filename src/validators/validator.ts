@@ -1,10 +1,17 @@
 import { isEqual } from 'lodash-es';
+import { unref } from 'vue';
 
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute, type IField } from '../field.interface';
 
-import { isSimpleComponentDef, MdString, RenderContentRef, ValidationError } from './validation-error';
+import {
+  isCallableFunction,
+  isSimpleComponentDef,
+  MdString,
+  RenderContentRef,
+  ValidationError,
+} from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
 export type ValidationFunction<T = any> = (
@@ -80,9 +87,21 @@ export class Validator<T = any> extends ValueChangedAction {
     return true;
   }
 
-  protected replacePlaceholders(text: RenderContentRef, replace: Record<string, any>) {
+  protected replacePlaceholdersFunction(text: RenderContentRef, replace: Record<string, any>): RenderContentRef {
+    return () => {
+      let ret = unref(text);
+      while (isCallableFunction(ret)) {
+        ret = unref(this.replacePlaceholders(ret(), replace));
+      }
+      return ret;
+    };
+  }
+
+  protected replacePlaceholders(text: RenderContentRef, replace: Record<string, any>): RenderContentRef {
+    if (isCallableFunction(text)) return this.replacePlaceholdersFunction(text, replace);
+
     if (isSimpleComponentDef(text)) return text;
-    let ret = text as string | MdString;
+    let ret = unref(text) as string | MdString;
     Object.keys(replace).forEach((key) => {
       ret = ret.replaceAll(`{${key}}`, replace[key]);
     });
