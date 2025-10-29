@@ -2,13 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { reactive, ref } from 'vue';
 
 import {
-  MdString,
-  SimpleComponentDef,
-  ValidationError,
-  ValidationErrorText,
-  ValidationErrorRenderContent,
-  isSimpleComponentDef,
-  RenderableValue,
+    MdString,
+    SimpleComponentDef,
+    ValidationError,
+    ValidationErrorText,
+    ValidationErrorRenderContent,
+    isSimpleComponentDef,
+    RenderableValue,
+    isCallableFunction,
 } from './validation-error';
 
 describe('ValidationError', () => {
@@ -125,4 +126,89 @@ describe('MdString', () => {
     expect(mdString).toBeInstanceOf(String);
     expect(mdString.toString()).toBe('**Bold text**');
   });
+});
+
+// Add these tests after the existing ValidationErrorRenderContent tests
+
+describe('ValidationErrorRenderContent with callable functions', () => {
+    it('handles callable function that returns plain string', () => {
+        const contentFn = () => 'Dynamic error message';
+        const error = new ValidationErrorRenderContent(contentFn);
+
+        expect(error.componentName).toBe('template');
+        expect(error.componentBody).toBe('Dynamic error message');
+        expect(error.componentBindings).toEqual({});
+    });
+
+    it('handles callable function that returns MdString', () => {
+        const contentFn = () => new MdString('**Dynamic** markdown');
+        const error = new ValidationErrorRenderContent(contentFn);
+
+        expect(error.componentName).toBe('vue-markdown');
+        expect(error.componentBody).toBe('');
+        expect(error.componentBindings).toHaveProperty('source', '**Dynamic** markdown');
+    });
+
+    it('handles callable function that returns component definition', () => {
+        const contentFn = () => ({
+            componentName: 'DynamicAlert',
+            componentProps: { severity: 'error' },
+            componentVHtml: '<strong>Error</strong>',
+        });
+        const error = new ValidationErrorRenderContent(contentFn);
+
+        expect(error.componentName).toBe('DynamicAlert');
+        expect(error.componentBindings).toEqual({ severity: 'error' });
+        expect(error.componentBody).toBe('<strong>Error</strong>');
+    });
+
+    it('handles reactive ref containing callable function', () => {
+        const contentFn = () => 'Translated message';
+        const contentRef = ref(contentFn);
+        const error = new ValidationErrorRenderContent(contentRef);
+
+        expect(error.componentBody).toBe('Translated message');
+    });
+
+    it('evaluates callable function on each access (useful for translations)', () => {
+        let counter = -1;
+        const contentFn = () => `Error count: ${++counter}`;
+        const error = new ValidationErrorRenderContent(contentFn);
+
+        expect(error.componentBody).toBe('Error count: 1');
+        expect(error.componentBody).toBe('Error count: 2');
+        expect(error.componentBody).toBe('Error count: 3');
+    });
+
+    it('handles callable function with translation example', () => {
+        const t = (key: string) => {
+            const translations: Record<string, string> = {
+                'error.required': 'This field is required',
+                'error.invalid': 'Invalid value',
+            };
+            return translations[key] || key;
+        };
+
+        const error = new ValidationErrorRenderContent(() => t('error.required'));
+        expect(error.componentBody).toBe('This field is required');
+    });
+});
+
+describe('isCallableFunction', () => {
+    it('correctly identifies callable functions', () => {
+        const fn = () => 'test';
+        expect(isCallableFunction(fn)).toBe(true);
+        expect(isCallableFunction('string')).toBe(false);
+        expect(isCallableFunction(new MdString('markdown'))).toBe(false);
+        expect(isCallableFunction({ componentName: 'Test' })).toBe(false);
+        expect(isCallableFunction(undefined)).toBe(false);
+    });
+
+    it('works with reactive references containing functions', () => {
+        const fnRef = ref(() => 'test');
+        expect(isCallableFunction(fnRef)).toBe(true);
+
+        const stringRef = ref('string value');
+        expect(isCallableFunction(stringRef)).toBe(false);
+    });
 });

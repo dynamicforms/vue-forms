@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 
+## [0.4.7] - 2025-10-29
+
+### Added
+- Support functions for `RenderContent` to support dynamically retrieving text and allow for translations.
+
 ## [0.4.6] - 2025-09-24
 
 ### Added

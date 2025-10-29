@@ -23,8 +23,8 @@ export interface SimpleComponentDef {
   componentVHtml?: string;
 }
 
-export type RenderContentCallable = () => string | MdString | SimpleComponentDef;
 export type RenderContentNonCallable = string | MdString | SimpleComponentDef;
+export type RenderContentCallable = () => RenderContentNonCallable;
 /**
  * Type for different renderable content formats: plain string, markdown, or custom component
  */
@@ -45,8 +45,7 @@ export function isSimpleComponentDef(msg?: RenderContentRef): msg is SimpleCompo
 }
 
 export function isCallableFunction(msg?: RenderContentRef): msg is RenderContentCallable {
-  const uMsg = unref(msg);
-  return typeof uMsg === 'function';
+  return typeof unref(msg) === 'function';
 }
 
 /**
@@ -114,8 +113,7 @@ export class ValidationErrorRenderContent extends ValidationError {
 
   get resolvedText() {
     const text = unref(this.text);
-    if (isCallableFunction(text)) return text();
-    return text;
+    return isCallableFunction(text) ? text() : text;
   }
 
   get getTextType() {

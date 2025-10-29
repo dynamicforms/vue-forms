@@ -185,7 +185,8 @@ You can define custom styles for your messages:
 
 ## Key Features
 
-- **Flexible Message Types**: Supports strings, validation errors, markdown, and custom components
+- **Flexible Message Types**: Supports strings, validation errors, markdown, and custom components. In addition, all of 
+  these can also be passed as a function returning these types to allow for dynamic resolution such as i18n. 
 - **Customizable Styling**: Multiple ways to apply CSS classes
 - **Markdown Support**: Rich text formatting when VueMarkdown is available
 - **Validation Integration**: Works seamlessly with form validation errors
