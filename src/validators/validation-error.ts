@@ -23,10 +23,12 @@ export interface SimpleComponentDef {
   componentVHtml?: string;
 }
 
+export type RenderContentNonCallable = string | MdString | SimpleComponentDef;
+export type RenderContentCallable = () => RenderContentNonCallable;
 /**
  * Type for different renderable content formats: plain string, markdown, or custom component
  */
-export type RenderContent = string | MdString | SimpleComponentDef;
+export type RenderContent = RenderContentNonCallable | RenderContentCallable;
 /**
  * Type for different renderable content formats (supporting references): plain string, markdown, or custom component
  */
@@ -40,6 +42,10 @@ export type RenderContentRef = RenderContent | Ref<RenderContent>;
 export function isSimpleComponentDef(msg?: RenderContentRef): msg is SimpleComponentDef {
   const uMsg = unref(msg);
   return typeof uMsg === 'object' && 'componentName' in uMsg;
+}
+
+export function isCallableFunction(msg?: RenderContentRef): msg is RenderContentCallable {
+  return typeof unref(msg) === 'function';
 }
 
 /**
@@ -105,8 +111,14 @@ export class ValidationErrorRenderContent extends ValidationError {
     this.textType = computed(() => this.getTextType);
   }
 
+  get resolvedText() {
+    const text = unref(this.text);
+    return isCallableFunction(text) ? text() : text;
+  }
+
   get getTextType() {
-    const msg = unref(this.text);
+    const msg = this.resolvedText;
+
     if (!msg) return 'string';
     if (msg instanceof MdString) return 'md';
     if (isSimpleComponentDef(msg)) return 'component';
@@ -120,7 +132,7 @@ export class ValidationErrorRenderContent extends ValidationError {
       case 'md':
         return 'vue-markdown';
       case 'component':
-        return (unref(this.text) as SimpleComponentDef).componentName;
+        return (this.resolvedText as SimpleComponentDef).componentName;
       default:
         return 'template';
     }
@@ -131,11 +143,11 @@ export class ValidationErrorRenderContent extends ValidationError {
       case 'string':
         return {};
       case 'md': {
-        const text = this.text as MdString;
+        const text = this.resolvedText as MdString;
         return { source: text.toString(), options: text.options, plugins: text.plugins };
       }
       case 'component':
-        return (unref(this.text) as SimpleComponentDef).componentProps || {};
+        return (this.resolvedText as SimpleComponentDef).componentProps || {};
       default:
         return {};
     }
@@ -144,9 +156,9 @@ export class ValidationErrorRenderContent extends ValidationError {
   get componentBody() {
     switch (unref(this.textType)) {
       case 'string':
-        return unref(this.text) as string;
+        return this.resolvedText as string;
       case 'component':
-        return (unref(this.text) as SimpleComponentDef).componentVHtml || '';
+        return (this.resolvedText as SimpleComponentDef).componentVHtml || '';
       default:
         return '';
     }
