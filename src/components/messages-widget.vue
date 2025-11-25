@@ -108,7 +108,11 @@ const render = () => {
             htmlElements.has(msg.componentName.toLowerCase()) // only resolve if it's not a common html element
               ? msg.componentName
               : resolveComponent(msg.componentName),
-            { class: [props.classes, msg.extraClasses], ...msg.componentBindings, innerHTML: msg.componentBody },
+            {
+              class: [props.classes, msg.extraClasses],
+              ...msg.componentBindings,
+              ...(msg.componentBody ? { innerHTML: msg.componentBody } : {}),
+            },
           ),
         );
         break;

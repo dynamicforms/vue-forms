@@ -13,6 +13,12 @@ const MockVueMarkdown = {
   template: '<div class="vue-markdown-mock" :class="$props.class">{{ source }}</div>',
 };
 
+const MockCustomAlert = {
+  name: 'CustomAlert',
+  props: ['type', 'dismissible'],
+  template: '<div class="custom-alert-mock" :type="$props.type" :dismissible="$props.dismissible"></div>',
+};
+
 describe('MessagesWidget', () => {
   it('renders simple message when provided', () => {
     const wrapper = mount(MessagesWidget, { props: { message: 'Simple error message' } });
@@ -135,7 +141,7 @@ describe('MessagesWidget', () => {
 
     const wrapper = mount(MessagesWidget, {
       props: { message: errors },
-      global: { components: { VueMarkdown: MockVueMarkdown } },
+      global: { components: { VueMarkdown: MockVueMarkdown, CustomAlert: MockCustomAlert } },
     });
 
     const textDiv = wrapper.find('div');
@@ -189,5 +195,27 @@ describe('MessagesWidget', () => {
 
     const markdownDiv = wrapper.find('.df-messages-widget-markdown');
     expect(markdownDiv.exists()).toBe(true);
+  });
+
+  it('renders custom component without innerHTML when componentBody is empty', () => {
+    const errors = [
+      new ValidationErrorRenderContent({
+        componentName: 'custom-alert',
+        componentProps: { type: 'warning', dismissible: true },
+      }),
+    ];
+
+    const wrapper = mount(MessagesWidget, {
+      props: { message: errors },
+      global: { components: { VueMarkdown: MockVueMarkdown, CustomAlert: MockCustomAlert } },
+    });
+
+    // Komponenta se renderira, ampak brez innerHTML
+    const customAlert = wrapper.find('.custom-alert-mock');
+    expect(customAlert.exists()).toBe(true);
+    expect(customAlert.attributes('type')).toBe('warning');
+    expect(customAlert.attributes('dismissible')).toBe('true');
+
+    expect(customAlert.element.innerHTML).toBe('');
   });
 });
