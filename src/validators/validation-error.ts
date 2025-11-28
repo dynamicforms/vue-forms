@@ -23,6 +23,9 @@ export interface SimpleComponentDef {
   componentVHtml?: string;
 }
 
+export type ClassType = string | string[] | Record<string, boolean>;
+export type ClassTypes = ClassType | ClassType[];
+
 export type RenderContentNonCallable = string | MdString | SimpleComponentDef;
 export type RenderContentCallable = () => RenderContentNonCallable;
 /**
@@ -65,7 +68,7 @@ export class ValidationError {
     return '';
   }
 
-  get extraClasses() {
+  get extraClasses(): ClassTypes {
     return '';
   }
 }
@@ -76,7 +79,7 @@ export class ValidationError {
 export class ValidationErrorText extends ValidationError {
   constructor(
     public text: string,
-    public classes: string = '',
+    public classes: ClassTypes = '',
   ) {
     super();
   }
@@ -104,7 +107,7 @@ export class ValidationErrorRenderContent extends ValidationError {
 
   constructor(
     text: RenderContentRef,
-    public classes: string = '',
+    public classes: ClassTypes = '',
   ) {
     super();
     this.text = text;

@@ -7,13 +7,11 @@
 // all those dependencies (but I did have to add vue-markdown-render for this widget)
 import { h, resolveComponent } from 'vue';
 
-import { ValidationError } from '../validators';
-
-type ClassTypes = string | string[] | Record<string, boolean>;
+import { ClassTypes, ValidationError } from '../validators';
 
 interface Props {
   message: string | ValidationError[];
-  classes?: ClassTypes | ClassTypes[];
+  classes?: ClassTypes;
 }
 
 const props = withDefaults(defineProps<Props>(), { classes: 'text-error' });

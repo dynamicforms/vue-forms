@@ -1,7 +1,7 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "0.4.8",
+  "version": "0.4.9",
   "type": "module",
   "description": "Data entry forms for vue - logic (no controls here)",
   "author": "Jure Erznožnik",
@@ -52,6 +52,7 @@
     "@vitest/coverage-v8": "^3",
     "@vue/test-utils": "^2.2.4",
     "@vue/tsconfig": "^0.7.0",
+    "baseline-browser-mapping": "^2.8.31",
     "eslint-config-velis": "^2.0.11",
     "jsdom": "^26.0.0",
     "markdown-it-attrs": "^4.3.1",

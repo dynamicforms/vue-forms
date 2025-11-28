@@ -84,7 +84,6 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(1);
 
     // Check that the error message contains truncated text
-    console.log(field.errors[0].componentName, field.errors[0].componentBody, field.errors[0].componentBindings);
     const errorContentText = (unref(field.errors[0]) as ValidationErrorRenderContent).componentBindings.source;
     expect(errorContentText).toContain('...');
     expect(errorContentText).toContain('30 items total');

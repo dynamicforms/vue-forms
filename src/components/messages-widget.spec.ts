@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils';
 import MarkdownItAttrs from 'markdown-it-attrs';
+import { vi } from 'vitest';
 import VueMarkdown from 'vue-markdown-render';
 
 import { ValidationError, ValidationErrorText, ValidationErrorRenderContent, MdString } from '../validators';
@@ -19,9 +20,23 @@ const MockCustomAlert = {
   template: '<div class="custom-alert-mock" :type="$props.type" :dismissible="$props.dismissible"></div>',
 };
 
+function buildMockWrapper(props: any) {
+  return mount(MessagesWidget, {
+    props,
+    global: { components: { VueMarkdown: MockVueMarkdown, CustomAlert: MockCustomAlert } },
+  });
+}
+
+function buildWrapper(props: any) {
+  return mount(MessagesWidget, {
+    props,
+    global: { components: { VueMarkdown, CustomAlert: MockCustomAlert } },
+  });
+}
+
 describe('MessagesWidget', () => {
   it('renders simple message when provided', () => {
-    const wrapper = mount(MessagesWidget, { props: { message: 'Simple error message' } });
+    const wrapper = buildMockWrapper({ message: 'Simple error message' });
 
     expect(wrapper.text()).toBe('Simple error message');
     expect(wrapper.find('span').exists()).toBe(true);
@@ -29,12 +44,7 @@ describe('MessagesWidget', () => {
   });
 
   it('renders simple message with custom classes', () => {
-    const wrapper = mount(MessagesWidget, {
-      props: {
-        message: 'Error with custom class',
-        classes: 'custom-error-class',
-      },
-    });
+    const wrapper = buildMockWrapper({ message: 'Error with custom class', classes: 'custom-error-class' });
 
     expect(wrapper.find('span').classes()).toContain('custom-error-class');
   });
@@ -45,7 +55,7 @@ describe('MessagesWidget', () => {
       new ValidationErrorText('Second error', 'error-class-2'),
     ];
 
-    const wrapper = mount(MessagesWidget, { props: { message: errors } });
+    const wrapper = buildMockWrapper({ message: errors });
 
     const divs = wrapper.findAll('div');
     expect(divs).toHaveLength(2);
@@ -60,10 +70,15 @@ describe('MessagesWidget', () => {
     const mdContent = new MdString('**Bold** markdown content');
     const errors = [new ValidationErrorRenderContent(mdContent)];
 
+    const originalWarn = console.warn;
+    console.warn = vi.fn(); // Suppresses warnings ([Vue warn]: Failed to resolve component: vue-markdown)
+
     const wrapper = mount(MessagesWidget, {
       props: { message: errors },
       global: { components: { VueMarkdown: undefined as any } },
     });
+
+    console.warn = originalWarn;
 
     const div = wrapper.find('div');
     expect(div.exists()).toBe(true);
@@ -75,10 +90,7 @@ describe('MessagesWidget', () => {
     const mdContent = new MdString('**Bold** markdown content');
     const errors = [new ValidationErrorRenderContent(mdContent)];
 
-    const wrapper = mount(MessagesWidget, {
-      props: { message: errors },
-      global: { components: { VueMarkdown: VueMarkdown } },
-    });
+    const wrapper = buildWrapper({ message: errors });
 
     const markdownDiv = wrapper.find('.df-messages-widget-markdown');
 
@@ -94,10 +106,7 @@ describe('MessagesWidget', () => {
     ]);
     const errors = [new ValidationErrorRenderContent(mdContent)];
 
-    const wrapper = mount(MessagesWidget, {
-      props: { message: errors },
-      global: { components: { VueMarkdown: VueMarkdown } },
-    });
+    const wrapper = buildWrapper({ message: errors });
     const markdownDiv = wrapper.find('.df-messages-widget-markdown');
     expect(markdownDiv.exists()).toBe(true);
     expect(markdownDiv.element.innerHTML.replaceAll('\n', '')).toBe(
@@ -128,7 +137,7 @@ describe('MessagesWidget', () => {
 
     const errors = [new CustomError()];
 
-    const wrapper = mount(MessagesWidget, { props: { message: errors } });
+    const wrapper = buildMockWrapper({ message: errors });
 
     // Since we don't register the custom-alert component, Vue will render it as a custom element
     // We can check if the component was created with the right props by examining the vnode
@@ -139,10 +148,7 @@ describe('MessagesWidget', () => {
     const mdContent = new MdString('Markdown **error**');
     const errors = [new ValidationErrorText('Plain text error'), new ValidationErrorRenderContent(mdContent)];
 
-    const wrapper = mount(MessagesWidget, {
-      props: { message: errors },
-      global: { components: { VueMarkdown: MockVueMarkdown, CustomAlert: MockCustomAlert } },
-    });
+    const wrapper = buildMockWrapper({ message: errors });
 
     const textDiv = wrapper.find('div');
     const markdownDiv = wrapper.find('.vue-markdown-mock');
@@ -152,12 +158,7 @@ describe('MessagesWidget', () => {
   });
 
   it('handles array of classes', () => {
-    const wrapper = mount(MessagesWidget, {
-      props: {
-        message: 'Test message',
-        classes: ['class1', 'class2'],
-      },
-    });
+    const wrapper = buildMockWrapper({ message: 'Test message', classes: ['class1', 'class2'] });
 
     const span = wrapper.find('span');
     expect(span.classes()).toContain('class1');
@@ -165,12 +166,7 @@ describe('MessagesWidget', () => {
   });
 
   it('handles object classes', () => {
-    const wrapper = mount(MessagesWidget, {
-      props: {
-        message: 'Test message',
-        classes: { active: true, inactive: false },
-      },
-    });
+    const wrapper = buildMockWrapper({ message: 'Test message', classes: { active: true, inactive: false } });
 
     const span = wrapper.find('span');
     expect(span.classes()).toContain('active');
@@ -178,7 +174,7 @@ describe('MessagesWidget', () => {
   });
 
   it('handles empty errors array', () => {
-    const wrapper = mount(MessagesWidget, { props: { message: [] } });
+    const wrapper = buildMockWrapper({ message: [] });
 
     expect(wrapper.text()).toBe('');
     expect(wrapper.findAll('div')).toHaveLength(0);
@@ -188,10 +184,7 @@ describe('MessagesWidget', () => {
     const mdContent = new MdString('Markdown content');
     const errors = [new ValidationErrorRenderContent(mdContent)];
 
-    const wrapper = mount(MessagesWidget, {
-      props: { message: errors },
-      global: { components: { VueMarkdown: MockVueMarkdown } },
-    });
+    const wrapper = buildMockWrapper({ message: errors });
 
     const markdownDiv = wrapper.find('.df-messages-widget-markdown');
     expect(markdownDiv.exists()).toBe(true);
@@ -205,10 +198,7 @@ describe('MessagesWidget', () => {
       }),
     ];
 
-    const wrapper = mount(MessagesWidget, {
-      props: { message: errors },
-      global: { components: { VueMarkdown: MockVueMarkdown, CustomAlert: MockCustomAlert } },
-    });
+    const wrapper = buildMockWrapper({ message: errors });
 
     // Komponenta se renderira, ampak brez innerHTML
     const customAlert = wrapper.find('.custom-alert-mock');
