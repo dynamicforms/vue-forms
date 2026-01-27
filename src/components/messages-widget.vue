@@ -3,8 +3,6 @@
 </template>
 
 <script setup lang="ts">
-// This is a straight copy from vuetify-inputs, but I don't want all the baggage associated. df-table dowesn't need
-// all those dependencies (but I did have to add vue-markdown-render for this widget)
 import { h, resolveComponent } from 'vue';
 
 import { ClassTypes, ValidationError } from '../validators';
@@ -14,7 +12,7 @@ interface Props {
   classes?: ClassTypes;
 }
 
-const props = withDefaults(defineProps<Props>(), { classes: 'text-error' });
+const props = defineProps<Props>();
 const md = resolveComponent('vue-markdown');
 const htmlElements = new Set([
   'div',
