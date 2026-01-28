@@ -35,8 +35,16 @@ function buildWrapper(props: any) {
 }
 
 describe('MessagesWidget', () => {
-  it('renders simple message when provided', () => {
-    const wrapper = buildMockWrapper({ message: 'Simple error message' });
+  it('renders simple hint message when provided', () => {
+    const wrapper = buildMockWrapper({ message: 'Simple hint message' });
+
+    expect(wrapper.text()).toBe('Simple hint message');
+    expect(wrapper.find('span').exists()).toBe(true);
+    expect(wrapper.find('span').classes()).toHaveLength(0);
+  });
+
+  it('renders simple error message when provided', () => {
+    const wrapper = buildMockWrapper({ message: 'Simple error message', classes: 'text-error' });
 
     expect(wrapper.text()).toBe('Simple error message');
     expect(wrapper.find('span').exists()).toBe(true);
@@ -44,7 +52,10 @@ describe('MessagesWidget', () => {
   });
 
   it('renders simple message with custom classes', () => {
-    const wrapper = buildMockWrapper({ message: 'Error with custom class', classes: 'custom-error-class' });
+    const wrapper = buildMockWrapper({
+      message: 'Error with custom class',
+      classes: ['custom-error-class', 'text-error'],
+    });
 
     expect(wrapper.find('span').classes()).toContain('custom-error-class');
   });
@@ -55,7 +66,7 @@ describe('MessagesWidget', () => {
       new ValidationErrorText('Second error', 'error-class-2'),
     ];
 
-    const wrapper = buildMockWrapper({ message: errors });
+    const wrapper = buildMockWrapper({ message: errors, classes: 'text-error' });
 
     const divs = wrapper.findAll('div');
     expect(divs).toHaveLength(2);
@@ -74,7 +85,7 @@ describe('MessagesWidget', () => {
     console.warn = vi.fn(); // Suppresses warnings ([Vue warn]: Failed to resolve component: vue-markdown)
 
     const wrapper = mount(MessagesWidget, {
-      props: { message: errors },
+      props: { message: errors, classes: 'text-error' },
       global: { components: { VueMarkdown: undefined as any } },
     });
 
@@ -90,7 +101,7 @@ describe('MessagesWidget', () => {
     const mdContent = new MdString('**Bold** markdown content');
     const errors = [new ValidationErrorRenderContent(mdContent)];
 
-    const wrapper = buildWrapper({ message: errors });
+    const wrapper = buildWrapper({ message: errors, classes: 'text-error' });
 
     const markdownDiv = wrapper.find('.df-messages-widget-markdown');
 
@@ -106,7 +117,7 @@ describe('MessagesWidget', () => {
     ]);
     const errors = [new ValidationErrorRenderContent(mdContent)];
 
-    const wrapper = buildWrapper({ message: errors });
+    const wrapper = buildWrapper({ message: errors, classes: 'text-error' });
     const markdownDiv = wrapper.find('.df-messages-widget-markdown');
     expect(markdownDiv.exists()).toBe(true);
     expect(markdownDiv.element.innerHTML.replaceAll('\n', '')).toBe(
