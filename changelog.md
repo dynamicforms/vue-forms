@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 
+## [0.5.0] - 2026-01-28
+- Remove default class from MessagesWidget
+
 ## [0.4.7] - 2025-10-29
 
 ### Added

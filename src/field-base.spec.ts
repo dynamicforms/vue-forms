@@ -1,5 +1,30 @@
+import { ValueChangedAction } from './actions/value-changed-action';
 import { Field } from './field';
 import { Validators } from './validators';
+
+it('triggers action with custom parameters', () => {
+  // Create a field with a custom action
+  let capturedField: any;
+  let capturedNewValue: any;
+  let capturedOldValue: any;
+
+  const valueChangedAction = new ValueChangedAction((field, supr, newValue, oldValue) => {
+    capturedField = field;
+    capturedNewValue = newValue;
+    capturedOldValue = oldValue;
+  });
+
+  const field = Field.create({ value: 'initial' });
+  field.registerAction(valueChangedAction);
+
+  // Trigger the action manually with custom parameters
+  field.triggerAction(ValueChangedAction, 'new value', 'old value');
+
+  // Verify the action was triggered with the correct parameters
+  expect(capturedField).toBe(field);
+  expect(capturedNewValue).toBe('new value');
+  expect(capturedOldValue).toBe('old value');
+});
 
 it('clears all validators and resets errors', () => {
   // Create a field with validators that will produce errors

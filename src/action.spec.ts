@@ -1,6 +1,7 @@
 import { reactive } from 'vue';
 
 import { Action, ActionValue } from './action';
+import { ExecuteAction } from './actions';
 
 describe('Action', () => {
   it('correctly manages value, label and icon', () => {
@@ -66,5 +67,25 @@ describe('Action', () => {
 
     action.label = 'Modified';
     expect(reactiveValue.label).toBe('Modified');
+  });
+
+  it('should execute action with ExecuteAction', () => {
+    // Arrange
+    let executedParams: any;
+    const executeAction = new ExecuteAction((field, supr, params) => {
+      executedParams = params;
+    });
+
+    const action = Action.create({
+      value: { label: 'Test', icon: 'test' },
+      actions: [executeAction],
+    });
+
+    // Act
+    const params = { data: 'test-data' };
+    action.execute(params);
+
+    // Assert
+    expect(executedParams).toEqual(params);
   });
 });
