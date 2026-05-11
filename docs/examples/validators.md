@@ -15,7 +15,7 @@ Here's the source code for the demo above:
 ### JavaScript/TypeScript
 
 ```js
-import { Group, Field, ValueChangedAction, Validators } from '@dynamicforms/vue-forms';
+import { Group, Field, ValueChangedAction, Validators, ValidationErrorRenderContent } from '@dynamicforms/vue-forms';
 
 // Create a form group with validated fields
 const validatedForm = new Group({
@@ -172,6 +172,11 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
   </div>
 </template>
 ```
+
+## API Reference
+
+- [Validators](/api/validators) — all built-in validators with signatures and placeholder list
+- [Field → errors](/api/field#properties) — `errors`, `valid`, `validating` properties
 
 ## Key Features Demonstrated
 

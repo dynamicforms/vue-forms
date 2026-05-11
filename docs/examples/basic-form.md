@@ -120,6 +120,12 @@ personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValu
 </template>
 ```
 
+## API Reference
+
+- [Field](/api/field) — field creation, `value`, `enabled`, `registerAction()`
+- [Group](/api/group) — `fields`, `value`, serialization rules
+- [Actions → ValueChangedAction](/api/actions#valuechangedaction)
+
 ## Key Features Demonstrated
 
 - **Form Creation**: Creating a form group with fields

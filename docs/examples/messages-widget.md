@@ -40,7 +40,7 @@ Here's how to use the messages widget:
 </template>
 
 <script setup>
-import MessagesWidget from '@dynamicforms/vue-forms/components/messages-widget.vue';
+import { MessagesWidget } from '@dynamicforms/vue-forms';
 </script>
 ```
 
@@ -49,7 +49,7 @@ import MessagesWidget from '@dynamicforms/vue-forms/components/messages-widget.v
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
 | `message` | `string \| ValidationError[]` | - | The message(s) to display |
-| `classes` | `ClassTypes \| ClassTypes[]` | `'text-error'` | CSS classes to apply |
+| `classes` | `ClassTypes` | - | CSS classes to apply |
 
 Where `ClassTypes` can be:
 - `string` - Single class name
@@ -70,6 +70,7 @@ const textError = new ValidationErrorText('Username is required', 'custom-class'
 #### Markdown Errors
 ```js
 import { ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
+import MarkdownItAttrs from 'markdown-it-attrs';
 
 const markdownError = new ValidationErrorRenderContent(
   new MdString('**Error**: This field contains *invalid* data.')
@@ -220,6 +221,8 @@ component in MdString. For example, you need to include `MarkdownItAttrs` plugin
 `target` and `rel` in markdown links:
 
 ```js
+import MarkdownItAttrs from 'markdown-it-attrs';
+
 new MdString(`
 **Error**: This field contains *invalid* data. See 
 [Instructions](https://example.com){target="_blank" rel="noopener noreferrer"}
@@ -233,6 +236,8 @@ Of course, you can also create your own markdown string class, that extends `MdS
 include the plugin every time.
 
 ```js
+import MarkdownItAttrs from 'markdown-it-attrs';
+
 class MdStringWithAttrs extends MdString {
     constructor(value: string) {
         super(value, undefined, [MarkdownItAttrs]);
@@ -245,6 +250,8 @@ new MdStringWithAttrs(`
 `);
 ```
 
+
+> See also: [Components → MessagesWidget](/api/components), [Validators](/api/validators), [Configuration](/api/config)
 
 <script setup>
 import MessagesWidgetDemo from '../components/messages-widget-demo.vue';

@@ -15,8 +15,8 @@ Here's the source code for the demo above:
 ### JavaScript/TypeScript
 
 ```js
-import { Group, Field, Operator, Statement, ConditionalVisibilityAction, 
-         ConditionalEnabledAction, ConditionalValueAction } from '@dynamicforms/vue-forms';
+import { Group, Field, Operator, Statement, DisplayMode,
+         ConditionalVisibilityAction, ConditionalEnabledAction, ConditionalValueAction } from '@dynamicforms/vue-forms';
 
 // Create a form group with conditional fields
 const conditionsForm = new Group({
@@ -119,7 +119,7 @@ conditionsForm.fields.submitAction.registerAction(
           
           <!-- Additional info field (conditionally visible) -->
           <v-text-field
-            v-if="conditionsForm.fields.additionalInfo.visibility === 10"
+            v-if="conditionsForm.fields.additionalInfo.visibility === DisplayMode.FULL"
             v-model="conditionsForm.fields.additionalInfo.value"
             label="Additional Information"
             outlined
@@ -148,6 +148,12 @@ conditionsForm.fields.submitAction.registerAction(
   </div>
 </template>
 ```
+
+## API Reference
+
+- [Actions → Conditional actions](/api/actions#conditional-actions) — `Statement`, `Operator`,
+  `ConditionalVisibilityAction`, `ConditionalEnabledAction`, `ConditionalValueAction`
+- [Actions → DisplayMode](/api/actions#displaymode)
 
 ## Key Features Demonstrated
 

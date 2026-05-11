@@ -36,7 +36,6 @@ npm install @dynamicforms/vue-forms
 Here's a simple example of how to create and use a form with fields and groups:
 
 ```typescript
-import { reactive } from 'vue';
 import { Field, Group, ValueChangedAction } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
@@ -158,8 +157,7 @@ The library includes a `messages-widget` Vue component for displaying validation
 </template>
 
 <script setup>
-import MessagesWidget from '@dynamicforms/vue-forms/components/messages-widget.vue';
-import { Field, Validators, ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
+import { MessagesWidget, Field, Validators, ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
 
 // Example field with validation
 const emailField = Field.create({
