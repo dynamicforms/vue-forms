@@ -1,9 +1,9 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
-  "description": "Data entry forms for vue - logic (no controls here)",
+  "description": "A lightweight Vue.js library for form state management with built-in validation, conditional logic, nested structures, and a rich event system. UI-agnostic and TypeScript-first.",
   "author": "Jure Erznožnik",
   "files": [
     "dist/*"
@@ -29,17 +29,25 @@
   },
   "keywords": [
     "vue",
+    "vue3",
     "dynamicforms",
-    "velis",
     "forms",
+    "form-state",
+    "form-management",
+    "validation",
+    "reactive",
+    "typescript",
     "data entry"
   ],
   "license": "MIT",
+  "homepage": "https://docs.velis.si/dynamicforms/vue-forms",
   "repository": {
     "type": "git",
-    "url": "git@github.com:dynamicforms/vue-forms.git"
+    "url": "git+https://github.com/velis74/dynamicforms-vue-forms.git"
   },
-  "issues": "https://github.com/dynamicforms/vue-forms/issues",
+  "bugs": {
+    "url": "https://github.com/velis74/dynamicforms-vue-forms/issues"
+  },
   "peerDependencies": {
     "lodash-es": "^4.17.12",
     "vue": "^3.4"

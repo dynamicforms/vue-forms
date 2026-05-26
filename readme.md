@@ -305,7 +305,7 @@ const darkMode: boolean = userForm.fields.preferences.fields.darkMode.value;
 
 ## Documentation
 
-For more detailed documentation and examples, check out the documentation (currently only locally runnable).
+For more detailed documentation and examples, check out the [documentation](https://docs.velis.si/dynamicforms/vue-forms).
 
 ## Conclusion
 

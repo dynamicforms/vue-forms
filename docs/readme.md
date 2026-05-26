@@ -2,6 +2,8 @@
 
 This directory contains the VitePress documentation for `@dynamicforms/vue-forms`.
 
+The documentation is publicly hosted at **https://docs.velis.si/dynamicforms/vue-forms**.
+
 ## Development
 
 To start the documentation site in development mode:
