@@ -14,6 +14,9 @@ jobs:
   build:
     name: Lint, test & build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
     timeout-minutes: 15
     strategy:
       matrix:
@@ -22,7 +25,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          fetch-depth: 2
+          fetch-depth: 0
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v7
@@ -45,13 +48,12 @@ jobs:
         run: npm run docs:build
 
       - name: Incremental coverage check
-        uses: velis74/incremental-coverage-check@main
+        uses: velis74/incremental-coverage-check@v2
         with:
-          clover_coverage_json: coverage/coverage-final.json
-          logging_level: INFO
-          base_ref: ${{ github.base_ref }}
-          head_ref: HEAD
-          rep_ref: main
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_number: ${{ github.event.pull_request.number }}
+          coverage-files: coverage/coverage-final.json
+          log-level: INFO
+          base-ref: ${{ github.base_ref }}
+          head-ref: HEAD
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-number: ${{ github.event.pull_request.number }}
         if: github.event_name == 'pull_request'
