@@ -17,6 +17,9 @@ The `messages-widget` component is a flexible message display component that can
 - Markdown content (requires `VueMarkdown` component)
 - Custom component messages
 
+A plain string renders as a single `<span>`; an array of errors renders one element per error (a `<div>` for text and
+markdown errors, the resolved component otherwise).
+
 ## Source Code
 
 Here's how to use the messages widget:
@@ -46,15 +49,17 @@ import { MessagesWidget } from '@dynamicforms/vue-forms';
 
 ### Props
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `message` | `string \| ValidationError[]` | - | The message(s) to display |
-| `classes` | `ClassTypes` | - | CSS classes to apply |
+| Prop | Type | Required | Default | Description |
+|------|------|----------|---------|-------------|
+| `message` | `string \| ValidationError[]` | yes | - | The message(s) to display |
+| `classes` | `ClassTypes` | no | - | CSS classes to apply |
 
-Where `ClassTypes` can be:
+`ClassTypes` is `ClassType | ClassType[]`, where `ClassType` can be:
 - `string` - Single class name
 - `string[]` - Array of class names  
 - `Record<string, boolean>` - Object with conditional classes
+
+Arrays may mix these forms, e.g. `[{ 'text-error': true }, 'mt-2']`.
 
 ### ValidationError Types
 
@@ -67,28 +72,24 @@ import { ValidationErrorText } from '@dynamicforms/vue-forms';
 const textError = new ValidationErrorText('Username is required', 'custom-class');
 ```
 
+The optional second argument sets per-message classes (`extraClasses`); MessagesWidget merges them with its own
+`classes` prop on each rendered message.
+
 #### Markdown Errors
 ```js
 import { ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
-import MarkdownItAttrs from 'markdown-it-attrs';
 
 const markdownError = new ValidationErrorRenderContent(
   new MdString('**Error**: This field contains *invalid* data.')
 );
-
-const markdownErrorWithPlugin = new ValidationErrorRenderContent(
-  new MdString(`
-  **Error**: This field contains *invalid* data. See 
-  [Instructions](https://example.com){target="_blank" rel="noopener noreferrer"}
-  `, 
-      undefined,
-      [MarkdownItAttrs],
-  )
-);
 ```
+
+See [Markdown Support](#markdown-support) for markdown options and plugins.
 
 #### Custom Component Errors
 ```js
+import { ValidationErrorText } from '@dynamicforms/vue-forms';
+
 class CustomAlertError extends ValidationErrorText {
   get componentName() { 
     return 'v-alert'; 
@@ -106,6 +107,13 @@ class CustomAlertError extends ValidationErrorText {
   }
 }
 ```
+
+`componentName` must be either a plain HTML tag or the name of a **globally registered** component
+(`app.component('v-alert', VAlert)`) — MessagesWidget resolves it with `resolveComponent()` in its own scope, so
+locally imported components are not visible.
+
+For custom components the `componentBody` is passed as the `innerHTML` prop (not as slot content), so it is rendered
+as raw HTML — never put untrusted input there.
 
 ### With Form Fields
 
@@ -176,18 +184,21 @@ You can define custom styles for your messages:
   border-radius: 4px;
   border-left: 4px solid #d32f2f;
 }
+```
 
-.df-messages-widget-markdown > :first-child,
-.df-messages-widget-markdown > :last-child {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-}
+The `.df-messages-widget-markdown` rules (which strip the outer margins, paddings and tighten the line height of
+rendered markdown) ship with the library — import them once in your app entry point:
+
+```js
+import '@dynamicforms/vue-forms/style.css';
 ```
 
 ## Key Features
 
-- **Flexible Message Types**: Supports strings, validation errors, markdown, and custom components. In addition, all of 
-  these can also be passed as a function returning these types to allow for dynamic resolution such as i18n. 
+- **Flexible Message Types**: Supports strings, validation errors, markdown, and custom components. The content of a 
+  `ValidationErrorRenderContent` may also be a function (or a `Ref`) returning the string / MdString / component 
+  definition, which enables lazy resolution such as i18n. The `message` prop itself must be a string or an array of 
+  `ValidationError`s. 
 - **Customizable Styling**: Multiple ways to apply CSS classes
 - **Markdown Support**: Rich text formatting when VueMarkdown is available
 - **Validation Integration**: Works seamlessly with form validation errors
@@ -211,8 +222,12 @@ For markdown support, ensure you have a `VueMarkdown` component registered:
 // In your main app file
 import VueMarkdown from 'vue-markdown-render'; // or your preferred markdown component
 
-app.component('VueMarkdown', VueMarkdown); // make sure it's not vue-markdown
+app.component('VueMarkdown', VueMarkdown);
 ```
+
+Register the component under the name `VueMarkdown` (or `vue-markdown`); MessagesWidget resolves it as `vue-markdown`.
+The package used here is `vue-markdown-render` (or any other Vue 3 markdown renderer); the old `vue-markdown` package
+is Vue 2 only.
 
 If no markdown component is registered, markdown content will be displayed as plain text with a console warning.
 
@@ -232,10 +247,9 @@ new MdString(`
 )
 ```
 
-Of course, you can also create your own markdown string class, that extends `MdString`, so you don't have to 
-include the plugin every time.
+You can subclass `MdString` to bundle options and plugins once:
 
-```js
+```ts
 import MarkdownItAttrs from 'markdown-it-attrs';
 
 class MdStringWithAttrs extends MdString {

@@ -10,7 +10,7 @@ Here's a live demo showing how conditional actions can be used to create dynamic
 
 ## Source Code
 
-Here's the source code for the demo above:
+Here's a simplified version of the demo above:
 
 ### JavaScript/TypeScript
 
@@ -78,6 +78,10 @@ conditionsForm.fields.submitAction.registerAction(
   new ConditionalEnabledAction(fieldsFilledStatement)
 );
 ```
+
+::: tip
+`visibility` controls rendering only. Suppressed fields are still part of `group.value`; use `enabled = false` if you want a field left out of the serialized value.
+:::
 
 ### Vue Template
 

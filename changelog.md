@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Set `rootDir` explicitly in `tsconfig.build.json` and verify declaration output size in CI. TS 6.0 stops
   inferring it, and without it the rolled up `index.d.ts` comes out empty with a green build.
 
+### Documentation
+- Audited the whole of `docs/` against the source. Corrected statements that no longer matched the code
+  (`enabled` cascading, `Statement` reactivity, the `EnabledChangingAction` return value, list defaults and
+  every built-in validator's default message), and documented previously undocumented public API: `Action`,
+  `FieldBase`, `AbortEventHandlingException`, `buildErrorMessage`, `EmptyField`, `RenderableValue` and the
+  `Nullable*` type aliases.
+- Removed passages that narrated the library's own history - a superseded claim left standing next to its
+  correction, reassurances about doubts the reader never had, and leftovers of a mechanical API rename.
+
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 

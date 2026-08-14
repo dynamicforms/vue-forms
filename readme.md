@@ -19,7 +19,7 @@ separates these concerns, allowing you to build forms that match your design sys
 - **Nested structures**: Support for complex data with nested fields and groups
 - **Event system**: Rich event handling for field changes, validation, and more
 - **TypeScript support**: Full type definitions for excellent developer experience
-- **Lightweight**: No dependencies besides Vue and lodash
+- **Lightweight**: no runtime dependencies — only peer deps `vue` (^3.4) and `lodash-es` (^4.17)
 - **Field types**: Core field types (Field, Action, Group, List) to represent any data structure
 - **Validation**: Comprehensive validation system with built-in validators and extensible error handling
 - **Conditional logic**: Dynamic form behavior based on field values and conditions
@@ -31,12 +31,32 @@ separates these concerns, allowing you to build forms that match your design sys
 npm install @dynamicforms/vue-forms
 ```
 
+## Setup
+
+The library ships a Vue plugin for its global options:
+
+```typescript
+import { forms } from '@dynamicforms/vue-forms';
+
+app.use(forms, { useMarkdownInValidators: false });
+```
+
+The import must be a named one — the default export is a namespace of the library members, not the plugin.
+
+`useMarkdownInValidators` defaults to `true`, which means the default messages of the built-in validators are markdown
+(`MdString`). Rendering those requires a globally registered `vue-markdown` component; set the option to `false` if you
+want plain text instead.
+
 ## Basic Usage Example
+
+Fields and actions are created through their static factory: `Field.create({ ... })`, `Action.create({ ... })`. Groups
+and lists are created with the constructor: `new Group({ ... })`, `new List(template)`. Calling `new Field()` throws a
+TypeError.
 
 Here's a simple example of how to create and use a form with fields and groups:
 
 ```typescript
-import { Field, Group, ValueChangedAction } from '@dynamicforms/vue-forms';
+import { Field, Group } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
 const personForm = new Group({
@@ -57,6 +77,19 @@ personForm.fields.age.enabled = false;
 
 // Form serializes only enabled fields
 console.log(personForm.value);  // { firstName: 'Jane', lastName: 'Doe', active: true }
+```
+
+An `Action` is a field whose value is a label / icon pair and which can be executed:
+
+```typescript
+import { Action, ExecuteAction } from '@dynamicforms/vue-forms';
+
+const saveAction = Action.create({
+  value: { label: 'Save' },
+  actions: [new ExecuteAction((field, supr, params) => { console.log('saving', params); })]
+});
+
+saveAction.execute({ form: personForm });  // 'saving { form: ... }'
 ```
 
 ## Events Example
@@ -88,6 +121,9 @@ const form = new Group({
   return supr(field, newValue, oldValue);
 }));
 ```
+
+Assigning `field.errors` directly replaces the whole array, including errors owned by validators — prefer a
+`Validator` (see below) when all you want is to add a validation rule.
 
 ## Built-in Validators
 
@@ -136,6 +172,9 @@ const validatedForm = new Group({
 });
 ```
 
+Validators run eagerly — a field is validated the moment it is created, so a form built from empty required fields is
+invalid immediately. Use `field.touched` to decide when to show the errors in the UI.
+
 ## Messages Widget Component
 
 The library includes a `messages-widget` Vue component for displaying validation errors and messages:
@@ -150,10 +189,13 @@ The library includes a `messages-widget` Vue component for displaying validation
   
   <!-- Display field validation errors -->
   <messages-widget 
-    v-if="field.errors && field.errors.length > 0"
-    :message="field.errors"
+    v-if="emailField.errors.length > 0"
+    :message="emailField.errors"
     :classes="['text-error', 'mt-2']"
   />
+  
+  <!-- Markdown message -->
+  <messages-widget :message="markdownErrors" />
 </template>
 
 <script setup>
@@ -240,8 +282,8 @@ const contactsList = new List(contactTemplate);
 contactsList.push({ name: 'John Doe', email: 'john@example.com', phone: '123-456-7890' });
 contactsList.push({ name: 'Jane Doe', email: 'jane@example.com', phone: '987-654-3210' });
 
-// Access list items
-const firstContact = contactsList.get(0);
+// Access list items: get() returns undefined for an invalid index
+const firstContact = contactsList.get(0)!;
 console.log(firstContact.fields.name.value); // 'John Doe'
 
 // Modify items
@@ -256,7 +298,7 @@ contactsList.remove(1);
 The library is written in TypeScript and provides full type definitions:
 
 ```typescript
-import { Field, Group, IField } from '@dynamicforms/vue-forms';
+import { Field, Group, GenericFieldsInterface } from '@dynamicforms/vue-forms';
 
 // Define field types explicitly
 const usernameField = Field.create<string>({ value: '' });

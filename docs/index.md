@@ -10,7 +10,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/velis74/dynamicforms-vue-forms
+      link: https://github.com/dynamicforms/vue-forms
 features:
   - title: UI-agnostic
     details: Works with any Vue UI components or your custom ones
@@ -33,9 +33,6 @@ UI components.
 applications. The library focuses on the logic layer of forms, giving you complete freedom to use any UI components 
 you prefer.
 
-Unlike other form libraries that couple data management with specific UI components, `@dynamicforms/vue-forms` 
-separates these concerns, allowing you to build forms that match your design system perfectly.
-
 ## Interactive Demo
 
 Below is an interactive demo of a simple person form built with `@dynamicforms/vue-forms` and Vuetify. Try toggling the 
@@ -48,7 +45,7 @@ field states and see how the form output changes:
 Here's a simple example of how to create and use a form with fields and groups:
 
 ```typescript
-import { Field, Group, ValueChangedAction } from '@dynamicforms/vue-forms';
+import { Field, Group } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
 const personForm = new Group({
