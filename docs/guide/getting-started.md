@@ -33,6 +33,9 @@ const personForm = new Group({
 });
 ```
 
+Fields are created with the static factory `Field.create()` (the constructor is guarded and throws), while `Group` and
+`List` are created with `new`.
+
 ## Using with Vue Components
 
 You can bind the form fields to any Vue component:
@@ -63,7 +66,47 @@ const personForm = new Group({
 </script>
 ```
 
+A disabled field silently ignores writes to `value` and is omitted from `group.value` (use `group.fullValue` if you
+need every field regardless of `enabled`).
+
+## Validation
+
+Attach validators to a field and render the resulting errors with the `MessagesWidget` component:
+
+```vue
+<template>
+  <input v-model="username.value" />
+  <messages-widget
+    v-if="username.touched && username.errors.length > 0"
+    :message="username.errors"
+    classes="text-error"
+  />
+</template>
+
+<script setup>
+import { Field, MessagesWidget, Validators } from '@dynamicforms/vue-forms';
+
+const username = Field.create({ value: '', validators: [new Validators.Required()] });
+</script>
+```
+
+Validators run eagerly — the field above is already invalid right after creation, because it has no value. That is why
+the template checks `touched` before showing the errors.
+
+## Plugin Setup
+
+The library ships a Vue plugin for its global options:
+
+```typescript
+import { forms } from '@dynamicforms/vue-forms';
+
+app.use(forms, { useMarkdownInValidators: false });
+```
+
+By default the built-in validators produce markdown messages, which `MessagesWidget` renders through a globally
+registered `vue-markdown` component. Set `useMarkdownInValidators` to `false` if you don't have one.
+
 ## Next Steps
 
-Check out the [Examples](/examples/basic-form) section to see more advanced usage patterns, or dive into the documentation to learn 
-about all available features.
+Check out the [Examples](/examples/basic-form) section to see more advanced usage patterns, or read the API reference:
+[Field](/api/field), [Group](/api/group), [Validators](/api/validators) and [Configuration](/api/config).

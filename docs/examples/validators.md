@@ -15,6 +15,7 @@ Here's the source code for the demo above:
 ### JavaScript/TypeScript
 
 ```js
+import { computed } from 'vue';
 import { Group, Field, ValueChangedAction, Validators, ValidationErrorRenderContent } from '@dynamicforms/vue-forms';
 
 // Create a form group with validated fields
@@ -22,7 +23,7 @@ const validatedForm = new Group({
   // Required field - cannot be empty
   username: Field.create({ 
     value: '', 
-    validators: [new Validators.Required('Username is required')]
+    validators: [new Validators.Required()]
   }),
   
   // Email field with pattern validation
@@ -55,9 +56,9 @@ const validatedForm = new Group({
   
   // Number field with range validation
   age: Field.create({ 
-    value: 18, 
+    value: null, 
     validators: [
-      new Validators.ValueInRange(18, 100, 'Age must be between 18 and 100')
+      new Validators.ValueInRange(18, 100)
     ]
   }),
   
@@ -65,10 +66,7 @@ const validatedForm = new Group({
   role: Field.create({ 
     value: '', 
     validators: [
-      new Validators.InAllowedValues(
-        ['admin', 'user', 'guest'], 
-        'Role must be one of: admin, user, or guest'
-      )
+      new Validators.InAllowedValues(['admin', 'user', 'guest'])
     ]
   }),
   
@@ -76,7 +74,7 @@ const validatedForm = new Group({
   bio: Field.create({
     value: '',
     validators: [
-      new Validators.LengthInRange(10, 200, 'Bio must be between 10 and 200 characters')
+      new Validators.LengthInRange(10, 200)
     ]
   })
 });
@@ -87,8 +85,25 @@ const formValid = computed(() => {
   return Object.values(validatedForm.fields).every(field => field.valid);
 });
 
-// Register a value changed action to update form output display
+// Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
+// componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.
+function getErrorMessages(field) {
+  if (!field.errors || field.errors.length === 0) return [];
+  return field.errors.map(error => error.componentBody || error.componentBindings.source || 'Validation error');
+}
+
+// Function to reset the form
+function resetForm() {
+  validatedForm.fields.username.value = '';
+  validatedForm.fields.email.value = '';
+  validatedForm.fields.age.value = null;
+  validatedForm.fields.role.value = '';
+  validatedForm.fields.bio.value = '';
+}
+
+// Optional: react to any value change in the form
 validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
+  console.log('Form value has changed');
   return supr(field, newValue, oldValue);
 }));
 ```
@@ -116,8 +131,11 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
             v-model="validatedForm.fields.email.value"
             label="Email"
             :error-messages="getErrorMessages(validatedForm.fields.email)"
+            :loading="validatedForm.fields.email.validating"
             outlined
             hide-details="auto"
+            hint="Try entering something@taken.com to see async validation"
+            persistent-hint
           ></v-text-field>
           
           <!-- Age field (ValueInRange) -->
@@ -159,6 +177,13 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
         >
           Submit
         </v-btn>
+        <v-btn
+          color="secondary"
+          class="ml-2"
+          @click="resetForm"
+        >
+          Reset
+        </v-btn>
       </v-card-actions>
     </v-card>
 
@@ -177,6 +202,7 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 
 - [Validators](/api/validators) — all built-in validators with signatures and placeholder list
 - [Field → errors](/api/field#properties) — `errors`, `valid`, `validating` properties
+- [MessagesWidget](/api/components) — renders `field.errors` directly, without converting them to strings
 
 ## Key Features Demonstrated
 
@@ -198,15 +224,5 @@ Experiment with the validators by:
 5. Entering text that's too short or too long in the bio field
 
 <script setup>
-import { computed } from 'vue';
 import ValidatorsFormDemo from '../components/validators-demo.vue';
-
-function getErrorMessages(field) {
-  if (!field.errors || field.errors.length === 0) return [];
-  return field.errors.map(error => {
-    if (error.componentBody) return error.componentBody;
-    if (error.text) return error.text;
-    return 'Validation error';
-  });
-}
 </script>

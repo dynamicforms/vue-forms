@@ -43,6 +43,8 @@ personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValu
 }));
 ```
 
+`Field` (and the `Action` field type) must be created via the static [`create()`](/api/field) factory — the constructor throws a `TypeError`. `Group` and `List` are created with `new`, as are the action classes such as `ValueChangedAction`.
+
 ### Vue Template
 
 ```vue
@@ -113,7 +115,7 @@ personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValu
     <v-card>
       <v-card-title>Form Output</v-card-title>
       <v-card-text>
-        <pre>{{ JSON.stringify(personForm.value, null, 2) }}</pre>
+        <pre>{{ formOutput }}</pre>
       </v-card-text>
     </v-card>
   </div>
@@ -135,7 +137,7 @@ personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValu
 
 ## Try It Yourself
 
-You can experiment with the code by changing field values, toggling field states, or adding Field.creates to the form.
+You can experiment with the code by changing field values, toggling field states, or adding new fields to the form.
 
 <script setup>
 import PersonFormDemo from '../components/person-form-demo.vue'

@@ -38,7 +38,7 @@
 
           <!-- Additional info field (conditionally visible) -->
           <v-text-field
-            v-if="conditionsForm.fields.additionalInfo.visibility === 10"
+            v-if="conditionsForm.fields.additionalInfo.visibility === DisplayMode.FULL"
             v-model="conditionsForm.fields.additionalInfo.value"
             label="Additional Information"
             outlined
