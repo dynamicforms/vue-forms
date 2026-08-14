@@ -47,6 +47,15 @@ import MarkdownItAttrs from 'markdown-it-attrs';
 new MdString('**bold** text', undefined, [MarkdownItAttrs]);
 ```
 
+### Stylesheet
+
+`MessagesWidget` relies on the `.df-messages-widget-markdown` rules shipped in the library stylesheet. It is not
+bundled into the JavaScript, so import it once in your app entry point:
+
+```typescript
+import '@dynamicforms/vue-forms/style.css';
+```
+
 ### Markdown support
 
 `MessagesWidget` looks for a globally registered `vue-markdown` component. If none is found, markdown content falls back to plain text with a console warning. Register it in your app entry point:

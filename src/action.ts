@@ -12,7 +12,6 @@ function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): A
   return val;
 }
 
-// @ts-expect-error: prevent TS from complaining how create method is not ok because its declaration differs from Fld's
 export class Action<T extends ActionValue = ActionValue> extends Field<T> {
   constructor(guard?: symbol) {
     super(guard);
@@ -34,8 +33,15 @@ export class Action<T extends ActionValue = ActionValue> extends Field<T> {
     this.validate();
   }
 
-  static create<T extends ActionValue = ActionValue>(params?: Partial<IFieldConstructorParams<T>>): Action<T> {
-    return super.create<T>(params) as Action<T>;
+  /**
+   * Two overloads on purpose. The first one is what callers resolve against and keeps the `T extends ActionValue`
+   * check. The second one mirrors Field.create so the static side stays assignable to the base class - declaring
+   * only the constrained signature narrows params against the base declaration, which TS rejects (TS2417).
+   */
+  static create<T extends ActionValue = ActionValue>(params?: Partial<IFieldConstructorParams<T>>): Action<T>;
+  static create<T = any>(this: never, params?: Partial<IFieldConstructorParams<T>>): Action<T & ActionValue>;
+  static create(params?: Partial<IFieldConstructorParams<ActionValue>>): Action {
+    return super.create<ActionValue>(params) as Action;
   }
 
   get icon(): string | undefined {
