@@ -44,6 +44,17 @@ jobs:
       - name: Build library
         run: npm run build
 
+      - name: Verify declaration output
+        run: |
+          for f in dist/index.d.ts dist/index.d.cts; do
+            size=$(wc -c < "$f")
+            if [ "$size" -lt 10000 ]; then
+              echo "::error::$f is only $size bytes - declarations were rolled up empty"
+              exit 1
+            fi
+          done
+          grep -q 'declare class Field' dist/index.d.ts
+
       - name: Build docs
         run: npm run docs:build
 

@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- Add `types` conditions to package `exports`, so consumers using `moduleResolution: bundler`, `node16` or
+  `nodenext` resolve the library's types instead of falling back to `any` (TS7016). A separate `index.d.cts` is
+  emitted for the `require` branch.
+- Expose the stylesheet as `@dynamicforms/vue-forms/style.css` - it was shipped in `dist` but unreachable
+  through `exports`. Documented in the getting started guide and the `MessagesWidget` reference.
+- `Action.create` no longer breaks the static side of `Field` (TS2417), which every consumer building with
+  `skipLibCheck: false` used to hit. The `@ts-expect-error` above the class is gone; the public signature is
+  unchanged and still rejects a non-`ActionValue` type argument.
+- `Field.create({ value: 'a' })` now infers `Field<string>` instead of `Field<unknown>` - the `this` annotation
+  was competing with `params` when inferring `T`.
+
+### Changed
+- Set `rootDir` explicitly in `tsconfig.build.json` and verify declaration output size in CI. TS 6.0 stops
+  inferring it, and without it the rolled up `index.d.ts` comes out empty with a green build.
+
 - Extendable field properties
 - Increase coverage to 95% (from >92% currently))
 

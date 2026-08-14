@@ -12,15 +12,23 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "require": "./dist/dynamicforms-vue-forms.umd.cjs",
-      "import": "./dist/dynamicforms-vue-forms.js"
-    }
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/dynamicforms-vue-forms.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/dynamicforms-vue-forms.umd.cjs"
+      }
+    },
+    "./style.css": "./dist/dynamicforms-vue-forms.css",
+    "./package.json": "./package.json"
   },
   "workspaces": [
     "docs"
   ],
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && node -e \"require('fs').copyFileSync('dist/index.d.ts', 'dist/index.d.cts')\"",
     "test": "vitest run --coverage",
     "lint": "eslint src --fix && vue-tsc --noEmit",
     "lint:ci": "eslint src && vue-tsc --noEmit",

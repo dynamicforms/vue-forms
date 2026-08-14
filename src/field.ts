@@ -33,13 +33,17 @@ class Field<T = any> extends FieldBase {
 
   /**
    * Creates a new reactive Field instance.
+   *
+   * `this` is deliberately typed as Field<any>: typing it as Field<T> makes it compete with params when
+   * inferring T, which resolves T to unknown instead of the value's type.
+   *
    * @param params Initial field parameters
    * @returns Reactive Field instance
    */
   static create<T = any>(
-    this: new (guard?: symbol) => Field<T>,
+    this: new (guard?: symbol) => Field<any>,
     params?: Partial<IFieldConstructorParams<T>>,
-  ): InstanceType<typeof this> {
+  ): Field<T> {
     const res = reactive(new this(fieldConstructorGuard)) as any;
     res.init(params);
     return res;

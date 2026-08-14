@@ -6,6 +6,17 @@
 npm install @dynamicforms/vue-forms
 ```
 
+### Stylesheet
+
+The library ships a small stylesheet used by `MessagesWidget`. It is not bundled into the JavaScript, so import it
+once in your app entry point if you use that component:
+
+```typescript
+import '@dynamicforms/vue-forms/style.css';
+```
+
+Everything else — `Field`, `Group`, `List`, validators, actions — is UI-agnostic and needs no styles.
+
 ## Basic Usage
 
 Here's how to create a simple form with `@dynamicforms/vue-forms`:
