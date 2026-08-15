@@ -189,6 +189,48 @@ thresholds.
 
 ---
 
+## Open design decisions
+
+Two questions with no settled answer yet. Both are worth deciding before the surface is frozen, because
+the cheap option in each case is also the one that keeps the other option available.
+
+### How a List gets its rows
+
+**Clone per row** (what the code does): the item template is deep-copied for every row, actions included.
+*For:* rows have independent identity, so `v-for` keying and component reuse work with no extra machinery;
+per-event property access is direct. *Against:* every row rebuilds an `ActionsMap` and its closure chain,
+which is the dominant cost of creating a row; it is the root of the shared-action defects above; and
+`clone()` has to be public for `List` to use it.
+
+**Bind to a shared definition**: the field definition (validators, actions, defaults) is extracted into a
+subobject that rows share, and each row holds only mutable state. `clone()` disappears; `bind(data)`
+replaces it. *For:* creating a row allocates state only; the shared-action defects cannot occur, because
+there is one action set and per-binding state; `CompareTo` resolves within the row for free. *Against:*
+`bind()` must recurse through nested structure and return stable objects, or `watch` over a field fires on
+every render; and `registerAction` on one row necessarily affects all rows, which needs documenting rather
+than solving — the closure chain has no defined composition order for a shared chain plus a per-row one.
+
+The two are close enough in cost that the choice is about correctness, not performance. Binding stays
+reachable as long as `clone()` is not part of the public surface, which makes that the one question to
+answer now.
+
+### How the action chain supports removal
+
+`ActionsMap` nests each handler in a closure that calls the previous one, so a handler cannot be removed
+and two chains cannot be composed.
+
+**A `deactivated` flag on each link**, passing straight through to `supr`. *For:* a few lines, no change in
+call-time shape. *Against:* the chain never shrinks, so the stack depth that produces the `RangeError` above
+keeps growing.
+
+**An array of handlers, composed into a chain that is rebuilt on registration.** *For:* removal is real, so
+dead links leave no depth behind; call-time shape and cost are unchanged. *Against:* more code, and the
+composition must preserve the onion semantics — an action decides whether to call `supr` and may transform
+its result, which a plain listener loop would lose.
+
+If rows come to share one definition, actions are registered once rather than per row, and the depth problem
+shrinks enough that the flag alone would do.
+
 ## Pre-existing items
 
 - Make fields extendable so that the programmer may add any number of additional properties
