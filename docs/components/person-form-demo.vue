@@ -69,7 +69,7 @@
     <v-card>
       <v-card-title>Form Output</v-card-title>
       <v-card-text>
-        <pre class="output">{{ formOutput }}</pre>
+        <pre class="output">{{ personForm.value }}</pre>
       </v-card-text>
     </v-card>
   </div>
@@ -80,14 +80,12 @@ import { Group, Field, ValueChangedAction } from '../../src'; //from '@dynamicfo
 
 // Create a form group with fields
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 
-// Create a reactive reference for form output
-const formOutput = personForm.reactiveValue;
 
 // Function to toggle field enabled state
 const toggleField = (fieldName) => {
@@ -97,7 +95,7 @@ const toggleField = (fieldName) => {
   }
 };
 
-// Register a value changed action to update form output display
+// Optional: react to any value change in the form
 personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   console.log('form value has changed');
   return supr(field, newValue, oldValue);

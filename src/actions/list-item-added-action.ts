@@ -1,11 +1,12 @@
 import FieldActionBase from './field-action-base';
 
-import { FieldActionExecute, type IField } from '@/field.interface';
+import type { FieldBase } from '@/field-base';
+import { FieldActionExecute } from '@/field.interface';
 
 const ListItemAddedActionClassIdentifier = Symbol('ListItemAddedAction');
 
 export class ListItemAddedAction extends FieldActionBase {
-  constructor(executorFn: (field: IField, supr: FieldActionExecute, item: any, index: number) => void) {
+  constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, item: any, index: number) => void) {
     super(executorFn);
   }
 
@@ -13,7 +14,7 @@ export class ListItemAddedAction extends FieldActionBase {
     return ListItemAddedActionClassIdentifier;
   }
 
-  execute(field: IField, supr: FieldActionExecute, item: any, index: number): void {
+  execute(field: FieldBase, supr: FieldActionExecute, item: any, index: number): void {
     return super.execute(field, supr, item, index);
   }
 }

@@ -20,7 +20,7 @@ describe('Pattern Validator', () => {
 
     for (const invalidValue of invalidValues) {
       // Arrange - create a new field for each test case
-      const field = Field.create({
+      const field = new Field({
         value: invalidValue,
         validators: [new Pattern(emailPattern)],
       });
@@ -45,7 +45,7 @@ describe('Pattern Validator', () => {
 
     for (const validValue of validValues) {
       // Arrange - create a new field for each test case
-      const field = Field.create({
+      const field = new Field({
         value: validValue,
         validators: [new Pattern(emailPattern)],
       });
@@ -61,7 +61,7 @@ describe('Pattern Validator', () => {
     const numberPattern = /^[0-9]+$/;
 
     // Test with valid number value
-    const field1 = Field.create({
+    const field1 = new Field({
       value: 12345,
       validators: [new Pattern(numberPattern)],
     });
@@ -70,7 +70,7 @@ describe('Pattern Validator', () => {
     expect(field1.errors.length).toBe(0);
 
     // Test with another number that doesn't match pattern as a string
-    const field2 = Field.create({
+    const field2 = new Field({
       value: 123.45,
       validators: [new Pattern(numberPattern)],
     });
@@ -83,7 +83,7 @@ describe('Pattern Validator', () => {
     const pattern = /^[A-Z]+$/;
     const customMessage = 'Only uppercase letters allowed';
 
-    const field = Field.create({
+    const field = new Field({
       value: 'lowercase',
       validators: [new Pattern(pattern, customMessage)],
     });

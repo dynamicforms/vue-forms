@@ -17,6 +17,14 @@ field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) =>
 Always call `supr(field, newValue, oldValue)` unless you deliberately want to stop the action chain. Validators are also actions and sit in the same chain.
 :::
 
+`supr` has the exported type `FieldActionExecute<T>`:
+
+```typescript
+type FieldActionExecute<T = any> = (field: FieldBase<T>, ...params: any[]) => any;
+```
+
+At the end of every chain sits a handler that returns `null`, so `supr` is always a function.
+
 ### `AbortEventHandlingException`
 
 Throwing `AbortEventHandlingException` from a handler aborts the rest of the chain. `ActionsMap` catches it, so it never escapes the setter and `triggerAction()` returns `null` for that trigger. All other exceptions propagate to the caller.
@@ -47,7 +55,7 @@ new ValueChangedAction((field, supr, newValue, oldValue) => {
 
 | Callback param | Type | Description |
 |----------------|------|-------------|
-| `field` | `IField` | The field that changed |
+| `field` | `FieldBase` | The field that changed |
 | `supr` | function | Next handler in the chain |
 | `newValue` | `T` | The new value |
 | `oldValue` | `T` | The previous value |
@@ -138,12 +146,12 @@ field.triggerAction(ExecuteAction, { reason: 'submit' });
 
 ### The `Action` class
 
-`Action` is a `Field` whose value is an `ActionValue` (`{ label?, icon? }`) — it represents a button or menu entry that runs an `ExecuteAction` chain. Like every field, it is created through the static factory; calling the constructor directly throws a `TypeError`.
+`Action` is a `Field` whose value is an `ActionValue` (`{ label?, icon? }`) — it represents a button or menu entry that runs an `ExecuteAction` chain.
 
 ```typescript
 import { Action, ExecuteAction } from '@dynamicforms/vue-forms';
 
-const save = Action.create({ value: { label: 'Save', icon: 'save' } });
+const save = new Action({ value: { label: 'Save', icon: 'save' } });
 
 save.registerAction(new ExecuteAction((field, supr, params) => {
   submitForm(params);
@@ -155,14 +163,28 @@ save.execute({ reason: 'toolbar' }); // triggers ExecuteAction, returns undefine
 
 | Member | Description |
 |--------|-------------|
-| `Action.create(params?)` | Creates a reactive `Action`. Same parameters as `Field.create()` |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — a `Partial<IFieldConstructorParams<T>>` |
 | `label` | Getter/setter for `value.label` |
 | `icon` | Getter/setter for `value.icon` |
 | `execute(params)` | Triggers `ExecuteAction` on this action; returns `undefined` |
 
+`ActionValue` is the exported shape of the value: `{ label?: string; icon?: string }`. `Action<T extends
+ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members is inferred from
+`params.value` the same way `Field`'s is.
+
+An `Action`'s value is always a shaped object, never `undefined`: `new Action()` starts out as
+`{ label: undefined, icon: undefined }`. A `params.value` whose `label` and `icon` are both `null`/absent counts as
+empty and is replaced — by `params.originalValue` if you passed one, otherwise by that pair of `undefined`s.
+`params.originalValue` is copied into a frozen `{ label, icon }` object; passing only `value` makes `originalValue`
+that same value object, so `isChanged` starts out `false`.
+
 ::: warning
 Setting `label` or `icon` mutates the existing value object in place, so it does **not** fire `ValueChangedAction`.
 :::
+
+### `NullableAction`
+
+Type alias for `Action | null`.
 
 ---
 
@@ -214,7 +236,14 @@ const combined = new Statement(stmt, Operator.AND, new Statement(ageField, Opera
 
 `EQUALS` / `NOT_EQUALS` compare with loose `==`, so `'1'` and `1` are equal, and so are `null` and `undefined`.
 
+Each operand has the exported type `OperandType` — a nested `Statement`, a `FieldBase` whose current `value` is
+compared, or a literal of any type. Because the union includes `any`, the type checker accepts anything there; the
+three cases are told apart at evaluation time by `instanceof`.
+
 `Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on any field.
+
+`collectFields(): Set<FieldBase>` is public: it walks the statement and its nested statements and returns the field
+instances themselves, which is useful when you want to attach your own handlers to the same set.
 
 ### `Operator`
 
@@ -268,7 +297,7 @@ targetField.registerAction(new ConditionalStatementAction(
 
 | Callback param | Type | Description |
 |----------------|------|-------------|
-| `field` | `IField` | The field this action is registered on |
+| `field` | `FieldBase` | The field this action is registered on |
 | `currentResult` | `boolean` | Current evaluation of the statement |
 | `previousResult` | `boolean \| undefined` | Previous result (`undefined` on first run) |
 
@@ -293,12 +322,24 @@ field.registerAction(new MyAction((field, supr, ...params) => supr(field, ...par
 field.triggerAction(MyAction, 'some param');
 ```
 
+Deriving from `FieldActionBase` is the only way to write an action: `registerAction()` checks
+`instanceof FieldActionBase` and rejects anything else with `Error('Invalid action type')`, so a hand-rolled object
+with a matching `execute` method does not work.
+
 Optional overrides:
 
 | Member | Description |
 |--------|-------------|
-| `get eager()` | Return `true` to have the action executed immediately on `registerAction()`. Defaults to `false` |
+| `get eager()` | Return `true` to have the action executed immediately on `registerAction()`, and on every `ValueChangedAction` trigger and `validate(true)`. Defaults to `false` |
 | `boundToField(field)` | Called when the action is registered on a field; use it to keep track of the fields the action serves |
+| `unregister()` | Called by `clearValidators()` on each dropped action that is a `Validator`, in place of carrying it over to the new chain. Override it to release listeners the validator installed on other fields — `CompareTo` does exactly that. A non-validator action is carried over instead, so its `unregister()` never runs |
+
+### `ActionsMap`
+
+The chain container each field holds, keyed by `classIdentifier`. It is the type of `FieldBase`'s internal action
+store and is exported so that type can be named; `registerAction()`, `triggerAction()` and `clearValidators()` on
+the field are the supported way to drive it. Its own surface is `register()`, `trigger()`, `triggerEager()`,
+`clone()` and `cloneWithoutValidators()`.
 
 ---
 

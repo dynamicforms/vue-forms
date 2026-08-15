@@ -1,7 +1,7 @@
 import { unref } from 'vue';
 
 import { ValueChangedAction } from '../actions';
-import { IField } from '../field.interface';
+import type { FieldBase } from '../field-base';
 
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
@@ -10,7 +10,7 @@ export default class CompareTo<T = any> extends Validator {
   private unregistered = false;
 
   constructor(
-    private otherField: IField,
+    private otherField: FieldBase,
     private isValidComparison: (myValue: T, otherValue: T) => boolean,
     message: RenderContentRef,
   ) {
@@ -18,7 +18,7 @@ export default class CompareTo<T = any> extends Validator {
     let nVal: T;
     let oVal: T;
 
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: IField) => {
+    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       nVal = newValue;
       oVal = oldValue;
       if (!listenerSet) {

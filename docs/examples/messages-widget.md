@@ -121,7 +121,7 @@ as raw HTML — never put untrusted input there.
 import { Group, Field, Validators } from '@dynamicforms/vue-forms';
 
 const form = new Group({
-  email: Field.create({
+  email: new Field({
     value: '',
     validators: [
       new Validators.Pattern(
@@ -226,8 +226,7 @@ app.component('VueMarkdown', VueMarkdown);
 ```
 
 Register the component under the name `VueMarkdown` (or `vue-markdown`); MessagesWidget resolves it as `vue-markdown`.
-The package used here is `vue-markdown-render` (or any other Vue 3 markdown renderer); the old `vue-markdown` package
-is Vue 2 only.
+Any Vue 3 markdown renderer will do — the examples here use `vue-markdown-render`.
 
 If no markdown component is registered, markdown content will be displayed as plain text with a console warning.
 

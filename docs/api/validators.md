@@ -14,7 +14,7 @@ The namespace contains validators only — `Validator`, `Required`, `Pattern`, `
 import { ValidationErrorText, ValidationErrorRenderContent, MdString, Validator } from '@dynamicforms/vue-forms';
 ```
 
-Pass validators when creating a field — `Field.create({ validators: [...] })`, `new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })` — or register them later with `registerAction()`.
+Pass validators when creating a field — `new Field({ validators: [...] })`, `new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })` — or register them later with `registerAction()`.
 
 Each validator only ever replaces its own errors when it re-runs; errors contributed by other validators or added from the outside (e.g. server-side errors) are left untouched.
 
@@ -33,12 +33,18 @@ const myValidator = new Validators.Validator(async (newValue, oldValue, field) =
 });
 ```
 
-**`validationFn` signature:**
+**`validationFn` signature** — exported as `ValidationFunction<T>`:
 ```typescript
-(newValue: T, oldValue: T, field: IField<T>) => ValidationError[] | null | Promise<ValidationError[] | null>
+type ValidationFunctionResult = ValidationError[] | null;
+type ValidationFunction<T = any> = (
+  newValue: T,
+  oldValue: T,
+  field: FieldBase<T>,
+) => ValidationFunctionResult | Promise<ValidationFunctionResult>;
 ```
 
-Return `null` or `[]` to indicate no errors.
+Return `null` or `[]` to indicate no errors. Import `ValidationFunction` when you write a reusable validation
+function separately from the `Validator` that wraps it.
 
 Validators are eager: they run immediately at field creation, immediately when passed to `registerAction()` on an existing field, and again on `field.validate(true)`. A field can therefore be `valid === false` before the user has interacted with it at all — use `touched` to decide when to actually display the errors.
 
@@ -68,7 +74,7 @@ All default messages below are the literal strings passed to `buildErrorMessage(
 Fails when the value is empty (zero-length string, empty array, empty plain object, or `null`/`undefined`).
 
 ```typescript
-Field.create({ value: '', validators: [new Validators.Required('This field is required')] })
+new Field({ value: '', validators: [new Validators.Required('This field is required')] })
 ```
 
 | Parameter | Type | Default |
@@ -181,7 +187,7 @@ new Validators.InAllowedValues(['admin', 'user', 'guest'])
 | `allowedValues` | `T[]` | required |
 | `message` | `RenderContentRef` | `'Must be one of [**{allowedAsText}**]'` |
 
-`{allowedAsText}` is `allowedValues.join(', ')`, computed once in the constructor; when it is longer than 60 characters it is truncated to 40 characters and suffixed with `... (N items total)`. The full list is available through `{allowedValues}`.
+`{allowedAsText}` is `allowedValues.join(', ')`, computed once in the constructor; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is available through `{allowedValues}`.
 
 ---
 
@@ -199,7 +205,7 @@ new Validators.CompareTo(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `otherField` | `IField` | The field to compare against |
+| `otherField` | `FieldBase` | The field to compare against |
 | `isValidComparison` | `(myValue: T, otherValue: T) => boolean` | Return `true` when valid |
 | `message` | `RenderContentRef` | Error message — required, there is no default |
 

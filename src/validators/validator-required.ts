@@ -1,7 +1,7 @@
 import { isArray, isObject, isString } from 'lodash-es';
 import { unref } from 'vue';
 
-import { IField } from '../field.interface';
+import type { FieldBase } from '../field-base';
 
 import { buildErrorMessage } from './error-message-builder';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
@@ -18,7 +18,7 @@ function toLength(a: any): number {
 export default class Required<T = any> extends Validator {
   constructor(message?: RenderContentRef) {
     const msg = message || buildErrorMessage('Please enter a value');
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: IField) => {
+    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (toLength(unref(newValue)) === 0) {
         return [new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field }))];
       }

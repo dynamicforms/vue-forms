@@ -7,17 +7,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Removed (breaking)
+- `Field.create()` and `Action.create()`. Fields are constructed with `new`, the way groups and lists always were:
+  `new Field({ value: 1 })`, `new Action({ value: { label: 'Save' } })`. The constructor guard that used to make
+  `new Field()` throw is gone as well. Type inference is unchanged - `new Field({ value: 'a' })` is `Field<string>`.
+- The `reactiveValue` member on `Field`, `Group` and `List`. Every field is now a Vue reactive object from
+  construction on, so `field.value` is itself reactive and needs no computed wrapper. Replace
+  `const out = form.reactiveValue` plus `{{ out }}` with `{{ form.value }}`.
+- The `IField` and `IFieldAction` interfaces. Use the classes `FieldBase` (or `FieldBase<T>`) and
+  `FieldActionBase` instead. The interfaces duplicated the class surface and promised a structural
+  implementability the runtime never allowed: `Group` rejects a field that is not `instanceof FieldBase`, and
+  `ActionsMap` rejects an action that is not `instanceof FieldActionBase`.
+
+### Changed (breaking)
+- `IFieldConstructorParams` now lists only the writable members - `value`, `originalValue`, `enabled`,
+  `visibility`, `touched`, `errors`, plus `actions` and `validators`. Passing a derived member such as
+  `new Field({ value: 1, valid: true })` used to type-check and then throw at runtime; it is now a type error.
+- `IFieldConstructorActionsList` lost its type parameter and its members are typed `FieldActionBase[]`.
+- A `Field` subclass applies its parameters from the constructor, so the protected `init(params)` hook runs
+  before the subclass's own class field initializers - the factory used to run it after the instance was fully
+  constructed. An initializer now overwrites what `init` assigned to the same member, and `init` reads such a
+  member as `undefined`. Move that state into the `init` override.
+- `field.validating` is a getter over the number of validators still running, so it is read-only. Asynchronous
+  validators bracket their work with the new `beginValidating()` / `endValidating()` methods. It is typed
+  `boolean` rather than the literal `false`, so `if (field.validating === true)` no longer reports TS2367.
+- `Group.value` and `List.value` carry their real value types: for `Group<{ name: Field<string> }>`,
+  `group.value` is `{ name: string } | null` where it used to collapse to `any`, and `List.value` is
+  `ListValue`. `Group.value`'s setter accepts a partial value structure, which is what it has always done at
+  runtime.
+
+### Added
+- `FieldBase.beginValidating()` and `FieldBase.endValidating()`, the pair an asynchronous validator brackets its
+  work with to report that it is running.
+- The value types `FieldsToValues`, `GroupValue`, `GroupValueInput` and `ListValue` are exported.
+
 ### Fixed
+- `Group` and `List` are reactive from construction, as `Field` and `Action` already were. `Group.errors` - which
+  is where a group-level validator writes - `Group.visibility`, `Group.enabled`, group-level `Group.valid`, and
+  the structural changes made by `List.push()`, `insert()`, `remove()`, `pop()` and `clear()` now trigger a Vue
+  re-render. They were plain properties on a plain object, so a group-level validation message, a
+  `ConditionalVisibilityAction` on a group and a `v-for` over a list never repainted.
+- `List.clone()` on an empty list. It spread `value`, which is `null` while the list holds no rows, so both
+  `new List(template).clone()` and cloning a `Group` that holds an empty list threw a `TypeError`.
+- A `Group` field may be named after an `Object.prototype` member, `__proto__` included.
+  `new Group({ toString: new Field() })` used to throw "Field toString is already in this form", and a field
+  named `__proto__` - which `JSON.parse` does produce - was dropped from `fields` and from `value`. The group's
+  own value setter reads only own keys of the object it is given, so a field named after a prototype member is
+  no longer assigned that member's value.
+- `Action.label` and `Action.icon` are settable on an action constructed without a value, such as
+  `new Action({ actions: [new ExecuteAction(...)] })`. Its value object was the frozen baseline used for
+  `originalValue`, so assigning either threw "Cannot assign to read only property".
 - Add `types` conditions to package `exports`, so consumers using `moduleResolution: bundler`, `node16` or
   `nodenext` resolve the library's types instead of falling back to `any` (TS7016). A separate `index.d.cts` is
   emitted for the `require` branch.
 - Expose the stylesheet as `@dynamicforms/vue-forms/style.css` - it was shipped in `dist` but unreachable
   through `exports`. Documented in the getting started guide and the `MessagesWidget` reference.
-- `Action.create` no longer breaks the static side of `Field` (TS2417), which every consumer building with
-  `skipLibCheck: false` used to hit. The `@ts-expect-error` above the class is gone; the public signature is
-  unchanged and still rejects a non-`ActionValue` type argument.
-- `Field.create({ value: 'a' })` now infers `Field<string>` instead of `Field<unknown>` - the `this` annotation
-  was competing with `params` when inferring `T`.
 
 ### Changed
 - Set `rootDir` explicitly in `tsconfig.build.json` and verify declaration output size in CI. TS 6.0 stops
@@ -31,9 +75,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Nullable*` type aliases.
 - Removed passages that narrated the library's own history - a superseded claim left standing next to its
   correction, reassurances about doubts the reader never had, and leftovers of a mechanical API rename.
-
-- Extendable field properties
-- Increase coverage to 95% (from >92% currently))
 
 ## [0.5.0] - 2026-01-28
 - Remove default class from MessagesWidget

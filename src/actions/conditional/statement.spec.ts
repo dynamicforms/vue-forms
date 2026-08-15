@@ -84,8 +84,8 @@ describe('Statement', () => {
   });
 
   it('evaluates with Field values', () => {
-    const field1 = Field.create({ value: 10 });
-    const field2 = Field.create({ value: 20 });
+    const field1 = new Field({ value: 10 });
+    const field2 = new Field({ value: 20 });
 
     const statement = new Statement(field1, Operator.LT, field2);
     expect(statement.evaluate()).toBe(true);
@@ -131,9 +131,9 @@ describe('Statement', () => {
   });
 
   it('handles complex Field and Statement combinations', () => {
-    const nameField = Field.create({ value: 'John' });
-    const ageField = Field.create({ value: 25 });
-    const activeField = Field.create({ value: true });
+    const nameField = new Field({ value: 'John' });
+    const ageField = new Field({ value: 25 });
+    const activeField = new Field({ value: true });
 
     // (name === 'John' AND age > 18) OR active === false
     const statement = new Statement(
@@ -154,5 +154,18 @@ describe('Statement', () => {
 
     activeField.value = false;
     expect(statement.evaluate()).toBe(true);
+  });
+});
+
+describe('Statement.collectFields', () => {
+  it('returns the field instances the statement was built from', () => {
+    const field1 = new Field({ value: 1 });
+    const field2 = new Field({ value: 2 });
+    const statement = new Statement(new Statement(field1, Operator.LT, field2), Operator.AND, true);
+
+    const collected = statement.collectFields();
+    expect(collected.size).toBe(2);
+    expect(collected.has(field1)).toBe(true);
+    expect(collected.has(field2)).toBe(true);
   });
 });

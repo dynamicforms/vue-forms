@@ -22,6 +22,12 @@ export default defineConfig({
           items: [
             { text: 'Getting Started', link: '/guide/getting-started' },
           ]
+        },
+        {
+          text: 'Upgrading',
+          items: [
+            { text: 'Migration guide', link: '/guide/migration' },
+          ]
         }
       ],
       '/api/': [

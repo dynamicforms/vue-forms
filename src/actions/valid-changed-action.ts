@@ -1,11 +1,12 @@
 import FieldActionBase from './field-action-base';
 
-import { FieldActionExecute, type IField } from '@/field.interface';
+import type { FieldBase } from '@/field-base';
+import { FieldActionExecute } from '@/field.interface';
 
 const ValidChangedActionClassIdentifier = Symbol('ValidChangedAction');
 
 export class ValidChangedAction extends FieldActionBase {
-  constructor(executorFn: (field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => void) {
+  constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => void) {
     super(executorFn);
   }
 
@@ -13,7 +14,7 @@ export class ValidChangedAction extends FieldActionBase {
     return ValidChangedActionClassIdentifier;
   }
 
-  execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): void {
+  execute(field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): void {
     return super.execute(field, supr, newValue, oldValue);
   }
 }

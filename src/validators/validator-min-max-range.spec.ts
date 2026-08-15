@@ -9,7 +9,7 @@ describe('MinValue Validator', () => {
   it('returns error when value is less than minimum', () => {
     const minValue = 10;
 
-    const field = Field.create<number | undefined>({
+    const field = new Field<number | undefined>({
       value: 5,
       validators: [new MinValue(minValue)],
     });
@@ -26,7 +26,7 @@ describe('MinValue Validator', () => {
   it('returns no error when value equals minimum', () => {
     const minValue = 10;
 
-    const field = Field.create({
+    const field = new Field({
       value: 10,
       validators: [new MinValue(minValue)],
     });
@@ -38,7 +38,7 @@ describe('MinValue Validator', () => {
   it('returns no error when value is greater than minimum', () => {
     const minValue = 10;
 
-    const field = Field.create({
+    const field = new Field({
       value: 15,
       validators: [new MinValue(minValue)],
     });
@@ -50,7 +50,7 @@ describe('MinValue Validator', () => {
   it('validates when value changes', () => {
     const minValue = 10;
 
-    const field = Field.create({
+    const field = new Field({
       value: 15,
       validators: [new MinValue(minValue)],
     });
@@ -76,7 +76,7 @@ describe('MaxValue Validator', () => {
   it('returns error when value is greater than maximum', () => {
     const maxValue = 10;
 
-    const field = Field.create({
+    const field = new Field({
       value: 15,
       validators: [new MaxValue(maxValue)],
     });
@@ -89,7 +89,7 @@ describe('MaxValue Validator', () => {
   it('returns no error when value equals maximum', () => {
     const maxValue = 10;
 
-    const field = Field.create({
+    const field = new Field({
       value: 10,
       validators: [new MaxValue(maxValue)],
     });
@@ -101,7 +101,7 @@ describe('MaxValue Validator', () => {
   it('returns no error when value is less than maximum', () => {
     const maxValue = 10;
 
-    const field = Field.create({
+    const field = new Field({
       value: 5,
       validators: [new MaxValue(maxValue)],
     });
@@ -116,7 +116,7 @@ describe('ValueInRange Validator', () => {
     const minValue = 10;
     const maxValue = 20;
 
-    const field = Field.create({
+    const field = new Field({
       value: 5,
       validators: [new ValueInRange(minValue, maxValue)],
     });
@@ -130,7 +130,7 @@ describe('ValueInRange Validator', () => {
     const minValue = 10;
     const maxValue = 20;
 
-    const field = Field.create({
+    const field = new Field({
       value: 25,
       validators: [new ValueInRange(minValue, maxValue)],
     });
@@ -144,7 +144,7 @@ describe('ValueInRange Validator', () => {
     const minValue = 10;
     const maxValue = 20;
 
-    const field = Field.create({
+    const field = new Field({
       value: 10,
       validators: [new ValueInRange(minValue, maxValue)],
     });
@@ -157,7 +157,7 @@ describe('ValueInRange Validator', () => {
     const minValue = 10;
     const maxValue = 20;
 
-    const field = Field.create({
+    const field = new Field({
       value: 20,
       validators: [new ValueInRange(minValue, maxValue)],
     });
@@ -170,7 +170,7 @@ describe('ValueInRange Validator', () => {
     const minValue = 10;
     const maxValue = 20;
 
-    const field = Field.create({
+    const field = new Field({
       value: 15,
       validators: [new ValueInRange(minValue, maxValue)],
     });
@@ -183,7 +183,7 @@ describe('ValueInRange Validator', () => {
     const minValue = 10;
     const maxValue = 20;
 
-    const field = Field.create({
+    const field = new Field({
       value: 15,
       validators: [new ValueInRange(minValue, maxValue)],
     });

@@ -8,7 +8,7 @@ import { ValidationFunction, Validator } from './validator';
 describe('Validator', () => {
   it('adds validation errors to field.errors', () => {
     // Arrange
-    const field = Field.create();
+    const field = new Field();
     field.validate = vi.fn();
 
     const validationFn: ValidationFunction = () => [new ValidationErrorText('Error message')];
@@ -33,7 +33,7 @@ describe('Validator', () => {
       return null;
     };
     const validator = new Validator(validationFn);
-    const field = Field.create({ errors: [existingError], validators: [validator] });
+    const field = new Field({ errors: [existingError], validators: [validator] });
 
     // Act - First execution adds the error
     field.value = 'old';
@@ -48,7 +48,7 @@ describe('Validator', () => {
 
   it('continues the action chain by calling supr', () => {
     // Arrange
-    const field = Field.create();
+    const field = new Field();
     field.validate = vi.fn();
 
     const validationFn: ValidationFunction = () => null; // No errors
@@ -65,7 +65,7 @@ describe('Validator', () => {
 
   it('replaces placeholders in error messages', () => {
     // Arrange
-    const field = Field.create();
+    const field = new Field();
     field.validate = vi.fn();
 
     // Create a custom validator with a validation function that uses replacePlaceholders
@@ -126,7 +126,7 @@ describe('Validator', () => {
     const validationFn: ValidationFunction = (newValue) =>
       newValue === 'invalid' ? [new ValidationErrorText('Invalid value')] : null;
 
-    const field = Field.create({
+    const field = new Field({
       value: 'valid',
       validators: [new Validator(validationFn)],
     });
@@ -161,7 +161,7 @@ describe('Async Validator', () => {
       return null;
     });
 
-    const field = Field.create({
+    const field = new Field({
       value: 'initial',
       validators: [asyncValidator],
     });
@@ -206,5 +206,23 @@ describe('Async Validator', () => {
     expect(field.validating).toBe(false);
     expect(field.errors.length).toBe(0);
     expect(field.valid).toBe(true);
+  });
+});
+
+describe('Asynchronous validation', () => {
+  it('flags the field as validating while the validation promise is pending', async () => {
+    let resolveFn: (result: null) => void = () => {};
+    const pending = new Promise<null>((resolve) => {
+      resolveFn = resolve;
+    });
+    const field = new Field({ value: 'a', validators: [new Validator(() => pending)] });
+
+    field.value = 'b';
+    expect(field.validating).toBe(true);
+
+    resolveFn(null);
+    await pending;
+    await Promise.resolve();
+    expect(field.validating).toBe(false);
   });
 });

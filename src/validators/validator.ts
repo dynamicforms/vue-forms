@@ -3,7 +3,7 @@ import { unref } from 'vue';
 
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
-import { FieldActionExecute, type IField } from '../field.interface';
+import { FieldActionExecute } from '../field.interface';
 
 import {
   isCallableFunction,
@@ -17,7 +17,7 @@ export type ValidationFunctionResult = ValidationError[] | null;
 export type ValidationFunction<T = any> = (
   newValue: T,
   oldValue: T,
-  field: IField<T>,
+  field: FieldBase<T>,
 ) => ValidationFunctionResult | Promise<ValidationFunctionResult>;
 
 interface SourceProp {
@@ -38,7 +38,7 @@ export class Validator<T = any> extends ValueChangedAction {
    * @param validationFn Function that validates the field value and returns errors or null
    */
   constructor(validationFn: ValidationFunction<T>) {
-    const executor = (field: IField<T>, supr: FieldActionExecute<T>, newValue: T, oldValue: T) => {
+    const executor = (field: FieldBase<T>, supr: FieldActionExecute<T>, newValue: T, oldValue: T) => {
       const errors = validationFn(newValue, oldValue, field) || [];
 
       const processErrors = (err: ValidationFunctionResult) => {
@@ -59,16 +59,8 @@ export class Validator<T = any> extends ValueChangedAction {
       };
 
       if (errors instanceof Promise) {
-        // @ts-expect-error validatingCount is protected, but we want it internally
-        field.validating = ++(<FieldBase>field).validatingCount > 0;
-        errors
-          .then((err) => processErrors(err))
-          .finally(() => {
-            // @ts-expect-error validatingCount is protected, but we want it internally
-            (<FieldBase>field).validatingCount = Math.max(0, (<FieldBase>field).validatingCount - 1);
-            // @ts-expect-error validatingCount is protected, but we want it internally
-            field.validating = (<FieldBase>field).validatingCount > 0;
-          });
+        field.beginValidating();
+        errors.then((err) => processErrors(err)).finally(() => field.endValidating());
       } else processErrors(errors);
       return supr(field, newValue, oldValue); // Continue the action chain
     };

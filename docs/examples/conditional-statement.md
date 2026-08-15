@@ -21,17 +21,15 @@ import { Group, Field, Operator, Statement, DisplayMode,
 // Create a form group with conditional fields
 const conditionsForm = new Group({
   // Field that controls other fields
-  fruit: Field.create({ value: 'apple' }),
+  fruit: new Field({ value: 'apple' }),
   
   // Fields with conditional behavior
-  favoriteColor: Field.create({ value: '' }),
-  detailsToggle: Field.create({ value: false }),
-  additionalInfo: Field.create({ value: '' }),
-  submitAction: Field.create({ enabled: false }),
+  favoriteColor: new Field({ value: '' }),
+  detailsToggle: new Field({ value: false }),
+  additionalInfo: new Field({ value: '' }),
+  submitAction: new Field({ enabled: false }),
 });
 
-// Create a reactive reference for form output
-const formOutput = conditionsForm.reactiveValue;
 
 // Set up conditional actions
 
@@ -146,7 +144,7 @@ conditionsForm.fields.submitAction.registerAction(
     <v-card>
       <v-card-title>Form Output</v-card-title>
       <v-card-text>
-        <pre class="output">{{ formOutput }}</pre>
+        <pre class="output">{{ conditionsForm.value }}</pre>
       </v-card-text>
     </v-card>
   </div>

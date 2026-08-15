@@ -5,7 +5,7 @@ import { ExecuteAction } from './actions';
 
 describe('Action', () => {
   it('correctly manages value, label and icon', () => {
-    const action = Action.create({ value: { label: 'Action', icon: 'plus' } });
+    const action = new Action({ value: { label: 'Action', icon: 'plus' } });
 
     expect(action.value).toEqual({ label: 'Action', icon: 'plus' });
     expect(action.label).toBe('Action');
@@ -22,8 +22,20 @@ describe('Action', () => {
     expect(action.icon).toBe('edit');
   });
 
+  it('accepts label and icon on an action constructed without a value', () => {
+    const empty = new Action({});
+    empty.label = 'X';
+    expect(empty.label).toBe('X');
+
+    const withAction = new Action({ actions: [new ExecuteAction(() => null)] });
+    withAction.label = 'Save';
+    withAction.icon = 'check';
+    expect(withAction.value).toEqual({ label: 'Save', icon: 'check' });
+    expect(Object.isFrozen(withAction.value)).toBe(false);
+  });
+
   it('prevents changes when disabled', () => {
-    const action = Action.create({
+    const action = new Action({
       value: { label: 'Action', icon: 'plus' },
       enabled: false,
     });
@@ -36,7 +48,7 @@ describe('Action', () => {
   it('should maintain reactivity of input ActionValue object', () => {
     // Arrange
     const reactiveValue = reactive({ label: 'Initial', icon: 'start' });
-    const action = Action.create({ value: reactiveValue });
+    const action = new Action({ value: reactiveValue });
 
     // Act - change original reactive object
     reactiveValue.label = 'Modified';
@@ -56,7 +68,7 @@ describe('Action', () => {
   it('should lose maintain reactivity when input object is incomplete', () => {
     // Arrange
     const reactiveValue = reactive({ label: 'Initial' } as ActionValue); // missing icon
-    const action = Action.create({ value: reactiveValue });
+    const action = new Action({ value: reactiveValue });
 
     // Act - change original reactive object
     action.icon = 'icon';
@@ -76,7 +88,7 @@ describe('Action', () => {
       executedParams = params;
     });
 
-    const action = Action.create({
+    const action = new Action({
       value: { label: 'Test', icon: 'test' },
       actions: [executeAction],
     });
@@ -87,5 +99,22 @@ describe('Action', () => {
 
     // Assert
     expect(executedParams).toEqual(params);
+  });
+});
+
+describe('Action construction', () => {
+  it('starts from an empty label/icon pair', () => {
+    const action = new Action();
+
+    expect(action.value).toEqual({ label: undefined, icon: undefined });
+    expect(action.label).toBeUndefined();
+    expect(action.icon).toBeUndefined();
+  });
+
+  it('freezes originalValue derived from the constructor parameters', () => {
+    const action = new Action({ value: { label: 'Save' }, originalValue: { label: 'Original', icon: 'i' } });
+
+    expect(action.originalValue).toEqual({ label: 'Original', icon: 'i' });
+    expect(Object.isFrozen(action.originalValue)).toBe(true);
   });
 });

@@ -145,7 +145,7 @@ const selectedClasses = ref('text-error');
 
 // Test form with validation
 const testForm = new Group({
-  email: Field.create({
+  email: new Field({
     value: '',
     validators: [
       new Validators.Pattern(
@@ -155,7 +155,7 @@ const testForm = new Group({
     ]
   }),
 
-  age: Field.create({
+  age: new Field({
     value: null,
     validators: [
       new Validators.ValueInRange(18, 100, 'Age must be between 18 and 100')

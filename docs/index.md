@@ -10,12 +10,12 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/dynamicforms/vue-forms
+      link: https://github.com/velis74/dynamicforms-vue-forms
 features:
   - title: UI-agnostic
     details: Works with any Vue UI components or your custom ones
   - title: Reactive
-    details: Built on Vue's reactivity system for seamless integration
+    details: Fields, groups and lists are Vue reactive objects — read and assign properties directly, no ref to unwrap
   - title: TypeScript Support
     details: Full type definitions for an excellent developer experience
   - title: Nested Structures
@@ -49,10 +49,10 @@ import { Field, Group } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 
 // Access values

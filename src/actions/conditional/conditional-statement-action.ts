@@ -1,23 +1,24 @@
 import DisplayMode from '../../display-mode';
-import { FieldActionExecute, IField } from '../../field.interface';
+import { type FieldBase } from '../../field-base';
+import { FieldActionExecute } from '../../field.interface';
 import { ValueChangedAction } from '../value-changed-action';
 
 import { Statement } from './statement';
 
 const ConditionalStatementActionClassIdentifier = Symbol('ConditionalStatementAction');
 
-type ConditionalExecutorFn = (field: IField, currentResult: boolean, previousResult: boolean | undefined) => void;
+type ConditionalExecutorFn = (field: FieldBase, currentResult: boolean, previousResult: boolean | undefined) => void;
 
 export class ConditionalStatementAction extends ValueChangedAction {
   private lastResult: boolean | undefined = undefined;
 
   // boundField tracks the fields this action is bound to. so that it may perform the executorFn on them and not on the
   // ValueChangedAction fields that will call the actionExecutor
-  private readonly boundFields: Set<IField> = new Set<IField>();
+  private readonly boundFields: Set<FieldBase> = new Set<FieldBase>();
 
   constructor(statement: Statement, executorFn: ConditionalExecutorFn) {
     // Create ValueChangedAction executor that will evaluate statement and track changes
-    const actionExecutor = (field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => {
+    const actionExecutor = (field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => {
       const currentResult = statement.evaluate();
 
       if (currentResult !== this.lastResult) {
@@ -43,7 +44,7 @@ export class ConditionalStatementAction extends ValueChangedAction {
     return true;
   }
 
-  boundToField(field: IField) {
+  boundToField(field: FieldBase) {
     this.boundFields.add(field);
   }
 }
@@ -52,7 +53,7 @@ export class ConditionalStatementAction extends ValueChangedAction {
 
 export class ConditionalVisibilityAction extends ConditionalStatementAction {
   constructor(statement: Statement) {
-    super(statement, (field: IField, currentResult) => {
+    super(statement, (field: FieldBase, currentResult) => {
       field.visibility = currentResult ? DisplayMode.FULL : DisplayMode.SUPPRESS;
     });
   }

@@ -22,14 +22,14 @@ describe('Form actions', () => {
       return supr(field, newValue, oldValue);
     });
 
-    const field = Field.create({ value: 'začetno' })
+    const field = new Field({ value: 'začetno' })
       .registerAction(new ValueChangedAction(valueAction1))
       .registerAction(new ValueChangedAction(valueAction2))
       .registerAction(new VisibilityChangedAction(visibilityAction));
 
     const form = new Group({
       field1: field,
-      field2: Field.create({ value: 'drugo polje' }),
+      field2: new Field({ value: 'drugo polje' }),
     });
 
     // Sprožimo ValueChangedAction
@@ -52,7 +52,7 @@ describe('Form actions', () => {
       // Ne kličemo supr, prekinemo verigo
     });
 
-    const field = Field.create({ value: 'začetno' })
+    const field = new Field({ value: 'začetno' })
       .registerAction(new ValueChangedAction(valueAction1))
       .registerAction(new ValueChangedAction(valueAction2));
 
@@ -60,5 +60,13 @@ describe('Form actions', () => {
 
     expect(valueAction2).toHaveBeenCalled();
     expect(valueAction1).not.toHaveBeenCalled();
+  });
+});
+
+describe('Action registration', () => {
+  it('rejects anything that is not a FieldActionBase', () => {
+    const field = new Field({ value: 1 });
+
+    expect(() => field.registerAction({ execute: () => null } as any)).toThrow(/Invalid action type/);
   });
 });

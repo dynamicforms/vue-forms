@@ -17,7 +17,10 @@ app.use(forms, { useMarkdownInValidators: false });
 The second argument is optional — omitting it leaves all options at their defaults. The configuration is a
 single global object shared by the whole app.
 
-## `FormsConfig`
+## Plugin options
+
+The options object is a structural literal — the package root exports the `forms` plugin, not a type name for its
+options, so declare the shape yourself if you need to build it separately.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|

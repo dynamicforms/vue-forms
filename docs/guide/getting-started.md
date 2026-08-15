@@ -1,5 +1,24 @@
 # Getting Started
 
+## Introduction & Rationale
+
+Headless form libraries are not scarce. What varies between them is how much of a form's *behaviour* they model,
+as opposed to just its state.
+
+`@dynamicforms/vue-forms` treats behaviour between fields as part of the form definition rather than as wiring you
+add in your components. A field's visibility, enablement or value can be declared as a condition over other fields.
+Every change travels through an action pipeline in which each handler receives the previous one and decides whether
+to call it, transform its result, or abort the event outright. Groups and lists compose recursively, so a nested
+section or a list row behaves the same way a single field does — and rendering stays entirely yours.
+
+### Design Goals
+
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The only component the library ships is the optional `MessagesWidget` for rendering validation errors.
+- **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
+- **Reactive & Type-Safe**: Fields, groups and lists are Vue reactive objects — assign a property and whatever read it re-renders. A group's value type is inferred from the fields it holds, nested structures included.
+- **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
+- **Lightweight**: Depends on Vue and lodash-es, and nothing else.
+
 ## Installation
 
 ```bash
@@ -26,15 +45,16 @@ import { Field, Group } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 ```
 
-Fields are created with the static factory `Field.create()` (the constructor is guarded and throws), while `Group` and
-`List` are created with `new`.
+Every form element — `Field`, `Action`, `Group` and `List` — is created with `new`, and the instance is a Vue
+reactive object from that moment on: reading `personForm.value` or `personForm.fields.age.enabled` in a template
+tracks it, and plain assignment re-renders.
 
 ## Using with Vue Components
 
@@ -58,10 +78,10 @@ You can bind the form fields to any Vue component:
 import { Field, Group } from '@dynamicforms/vue-forms';
 
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 </script>
 ```
@@ -86,7 +106,7 @@ Attach validators to a field and render the resulting errors with the `MessagesW
 <script setup>
 import { Field, MessagesWidget, Validators } from '@dynamicforms/vue-forms';
 
-const username = Field.create({ value: '', validators: [new Validators.Required()] });
+const username = new Field({ value: '', validators: [new Validators.Required()] });
 </script>
 ```
 
@@ -110,3 +130,5 @@ registered `vue-markdown` component. Set `useMarkdownInValidators` to `false` if
 
 Check out the [Examples](/examples/basic-form) section to see more advanced usage patterns, or read the API reference:
 [Field](/api/field), [Group](/api/group), [Validators](/api/validators) and [Configuration](/api/config).
+
+Coming from 0.5.x? The [migration guide](/guide/migration) lists the breaking changes with before/after code.

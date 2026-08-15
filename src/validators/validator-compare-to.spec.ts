@@ -10,8 +10,8 @@ import CompareTo from './validator-compare-to';
 describe('CompareTo Validator', () => {
   it('returns error when comparison fails', () => {
     // Create two fields
-    const field1 = Field.create({ value: 'abc' });
-    const field2 = Field.create({ value: 'xyz' });
+    const field1 = new Field({ value: 'abc' });
+    const field2 = new Field({ value: 'xyz' });
 
     // Add validator to check for equality
     field1.registerAction(new CompareTo(field2, (val1, val2) => val1 === val2, 'Fields must match'));
@@ -30,8 +30,8 @@ describe('CompareTo Validator', () => {
   });
 
   it('validates with custom comparison function', () => {
-    const numberField = Field.create({ value: 10 });
-    const limitField = Field.create({ value: 5 });
+    const numberField = new Field({ value: 10 });
+    const limitField = new Field({ value: 5 });
 
     // Check if value is greater than limit
     numberField.registerAction(
@@ -57,8 +57,8 @@ describe('CompareTo Validator', () => {
   it('works in a form with two fields with bidirectional validation', () => {
     // Create a form with two fields
     const form = new Group({
-      password: Field.create({ value: 'secret' }),
-      confirmPassword: Field.create({ value: '' }),
+      password: new Field({ value: 'secret' }),
+      confirmPassword: new Field({ value: '' }),
     });
 
     // Add validator to both fields to check for equality
@@ -93,8 +93,8 @@ describe('CompareTo Validator', () => {
 
   it('properly formats error message with field references', () => {
     const form = new Group({
-      username: Field.create({ value: 'user123' }),
-      displayName: Field.create({ value: 'user123' }),
+      username: new Field({ value: 'user123' }),
+      displayName: new Field({ value: 'user123' }),
     });
 
     // Check that values are different

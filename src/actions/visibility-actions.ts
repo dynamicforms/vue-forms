@@ -1,13 +1,19 @@
 import FieldActionBase from './field-action-base';
 
 import DisplayMode from '@/display-mode';
-import { FieldActionExecute, type IField } from '@/field.interface';
+import type { FieldBase } from '@/field-base';
+import { FieldActionExecute } from '@/field.interface';
 
 const VisibilityChangingActionClassIdentifier = Symbol('VisibilityChangingAction');
 
 export class VisibilityChangingAction extends FieldActionBase {
   constructor(
-    executorFn: (field: IField, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode) => DisplayMode,
+    executorFn: (
+      field: FieldBase,
+      supr: FieldActionExecute,
+      newValue: DisplayMode,
+      oldValue: DisplayMode,
+    ) => DisplayMode,
   ) {
     super(executorFn);
   }
@@ -16,7 +22,7 @@ export class VisibilityChangingAction extends FieldActionBase {
     return VisibilityChangingActionClassIdentifier;
   }
 
-  execute(field: IField, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode): DisplayMode {
+  execute(field: FieldBase, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode): DisplayMode {
     return super.execute(field, supr, newValue, oldValue);
   }
 }
@@ -25,7 +31,7 @@ const VisibilityChangedActionClassIdentifier = Symbol('VisibilityChangedAction')
 
 export class VisibilityChangedAction extends FieldActionBase {
   constructor(
-    executorFn: (field: IField, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode) => void,
+    executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode) => void,
   ) {
     super(executorFn);
   }
@@ -34,7 +40,7 @@ export class VisibilityChangedAction extends FieldActionBase {
     return VisibilityChangedActionClassIdentifier;
   }
 
-  execute(field: IField, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode): void {
+  execute(field: FieldBase, supr: FieldActionExecute, newValue: DisplayMode, oldValue: DisplayMode): void {
     return super.execute(field, supr, newValue, oldValue);
   }
 }

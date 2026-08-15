@@ -1,8 +1,9 @@
-import { FieldActionExecute, type IField, type IFieldAction } from '@/field.interface';
+import type { FieldBase } from '@/field-base';
+import { FieldActionExecute } from '@/field.interface';
 
-type ActionExecutor = (field: IField, supr: FieldActionExecute, ...params: any[]) => any;
+type ActionExecutor = (field: FieldBase, supr: FieldActionExecute, ...params: any[]) => any;
 
-export default abstract class FieldActionBase implements IFieldAction {
+export default abstract class FieldActionBase {
   public static get classIdentifier(): symbol {
     throw new Error('classIdentifier must be declared');
   }
@@ -17,7 +18,7 @@ export default abstract class FieldActionBase implements IFieldAction {
     this.executorFn = executorFn;
   }
 
-  execute(field: IField, supr: IFieldAction['execute'], ...params: any[]): any {
+  execute(field: FieldBase, supr: FieldActionExecute, ...params: any[]): any {
     return this.executorFn(field, supr, ...params);
   }
 
@@ -26,7 +27,7 @@ export default abstract class FieldActionBase implements IFieldAction {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  boundToField(field: IField) {}
+  boundToField(field: FieldBase) {}
 
   unregister() {}
 }

@@ -1,16 +1,18 @@
+import { isEqual } from 'lodash-es';
 import { vi } from 'vitest';
 
 import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { Group } from './group';
+import { List } from './list';
 import { Validators, ValidationErrorText } from './validators';
 
 describe('Group', () => {
   it('correctly serializes values', () => {
     const group = new Group({
-      field1: Field.create({ value: 'test1' }),
-      field2: Field.create({ value: 'test2', enabled: false }),
-      field3: Field.create({ value: 'test3' }),
+      field1: new Field({ value: 'test1' }),
+      field2: new Field({ value: 'test2', enabled: false }),
+      field3: new Field({ value: 'test3' }),
     });
 
     expect(group.value).toEqual({ field1: 'test1', field3: 'test3' });
@@ -18,8 +20,8 @@ describe('Group', () => {
   });
 
   it('correctly deserialises values', () => {
-    const field1 = Field.create();
-    const field2 = Field.create();
+    const field1 = new Field();
+    const field2 = new Field();
 
     const group = new Group({ field1, field2 });
 
@@ -32,8 +34,8 @@ describe('Group', () => {
   it('triggers onValueChanged only once when setting multiple nested values', () => {
     const onValueChanged = vi.fn();
     const group = new Group({
-      field1: Field.create({ enabled: true }),
-      field2: Field.create({ enabled: true }),
+      field1: new Field({ enabled: true }),
+      field2: new Field({ enabled: true }),
     }).registerAction(new ValueChangedAction(onValueChanged));
 
     group.value = { field1: 'test1', field2: 'test2' };
@@ -43,13 +45,13 @@ describe('Group', () => {
 
   it('correctly uses nested groups', () => {
     const subGroup = new Group({
-      subField1: Field.create({ value: 'sub1' }),
-      subField2: Field.create({ value: 'sub2', enabled: false }),
-      subField3: Field.create({ value: 'sub3' }),
+      subField1: new Field({ value: 'sub1' }),
+      subField2: new Field({ value: 'sub2', enabled: false }),
+      subField3: new Field({ value: 'sub3' }),
     });
 
     const mainGroup = new Group({
-      field1: Field.create({ value: 'main1', enabled: true }),
+      field1: new Field({ value: 'main1', enabled: true }),
       group: subGroup,
     });
 
@@ -64,7 +66,7 @@ describe('Group', () => {
 
   it('correctly notifies parent of changes', () => {
     const onValueChanged = vi.fn();
-    const group = new Group({ field1: Field.create() }).registerAction(new ValueChangedAction(onValueChanged));
+    const group = new Group({ field1: new Field() }).registerAction(new ValueChangedAction(onValueChanged));
 
     const field = group.fields.field1;
     field.value = 'test';
@@ -76,8 +78,8 @@ describe('Group', () => {
 describe('Group value initialization', () => {
   it('correctly initializes empty fields without value', () => {
     const fields = {
-      name: Field.create(),
-      age: Field.create(),
+      name: new Field(),
+      age: new Field(),
     };
 
     const group = new Group(fields);
@@ -90,8 +92,8 @@ describe('Group value initialization', () => {
 
   it('correctly initializes fields with their own values', () => {
     const fields = {
-      name: Field.create({ value: 'John' }),
-      age: Field.create({ value: 30 }),
+      name: new Field({ value: 'John' }),
+      age: new Field({ value: 30 }),
     };
 
     const group = new Group(fields);
@@ -104,8 +106,8 @@ describe('Group value initialization', () => {
 
   it('correctly overrides field values with group constructor value parameter', () => {
     const fields = {
-      name: Field.create({ value: 'John' }),
-      age: Field.create({ value: 30 }),
+      name: new Field({ value: 'John' }),
+      age: new Field({ value: 30 }),
     };
 
     const group = new Group(fields, {
@@ -127,9 +129,9 @@ describe('Group value initialization', () => {
 
   it('correctly handles partial value overrides', () => {
     const fields = {
-      name: Field.create({ value: 'John' }),
-      age: Field.create({ value: 30 }),
-      active: Field.create({ value: true }),
+      name: new Field({ value: 'John' }),
+      age: new Field({ value: 30 }),
+      active: new Field({ value: true }),
     };
 
     const group = new Group(fields, {
@@ -148,12 +150,12 @@ describe('Group value initialization', () => {
 
   it('correctly initializes nested groups with values', () => {
     const addressFields = {
-      street: Field.create({ value: 'Main St' }),
-      city: Field.create({ value: 'New York' }),
+      street: new Field({ value: 'Main St' }),
+      city: new Field({ value: 'New York' }),
     };
 
     const personFields = {
-      name: Field.create({ value: 'John' }),
+      name: new Field({ value: 'John' }),
       address: new Group(addressFields),
     };
 
@@ -183,8 +185,8 @@ describe('Group value initialization', () => {
 
   it('handles originalValue correctly', () => {
     const fields = {
-      name: Field.create({ value: 'John' }),
-      age: Field.create({ value: 30 }),
+      name: new Field({ value: 'John' }),
+      age: new Field({ value: 30 }),
     };
 
     const group = new Group(fields, {
@@ -217,11 +219,11 @@ describe('Form Validation', () => {
   it('should be invalid when one of the fields becomes invalid', () => {
     // Arrange
     const form = new Group({
-      username: Field.create({
+      username: new Field({
         value: 'validuser',
         validators: [new Validators.Required()],
       }),
-      email: Field.create({
+      email: new Field({
         value: 'valid@email.com',
         validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)],
       }),
@@ -241,8 +243,8 @@ describe('Form Validation', () => {
   it('should be invalid when form-level error is added', () => {
     // Arrange
     const form = new Group({
-      phone: Field.create({ value: '' }), // non-required
-      email: Field.create({ value: '' }), // non-required
+      phone: new Field({ value: '' }), // non-required
+      email: new Field({ value: '' }), // non-required
     });
 
     // Initially form should be valid (no required fields)
@@ -259,7 +261,7 @@ describe('Form Validation', () => {
   it('should become valid again when field errors are resolved', () => {
     // Arrange
     const form = new Group({
-      username: Field.create({
+      username: new Field({
         value: '',
         validators: [new Validators.Required()],
       }),
@@ -278,7 +280,7 @@ describe('Form Validation', () => {
 
   it('should become valid again when form-level errors are cleared', () => {
     // Arrange
-    const form = new Group({ optionalField: Field.create({ value: '' }) });
+    const form = new Group({ optionalField: new Field({ value: '' }) });
 
     // Add form-level error
     form.errors = [new ValidationErrorText('Custom form validation error')];
@@ -298,8 +300,8 @@ describe('Cross-field validation with revalidate', () => {
   it('should revalidate dependent fields when parent field changes', () => {
     // Setup - ustvari formo z dvema poljema
     const form = new Group({
-      minValue: Field.create<number>({ value: 10 }),
-      maxValue: Field.create<number>({ value: 20 }),
+      minValue: new Field<number>({ value: 10 }),
+      maxValue: new Field<number>({ value: 20 }),
     });
 
     // Dodaj validator na maxValue, ki preverja, da je večji od minValue
@@ -350,5 +352,95 @@ describe('Cross-field validation with revalidate', () => {
     expect(form.fields.minValue.valid).toBe(true);
     expect(form.fields.maxValue.valid).toBe(false); // Should become invalid
     expect(form.valid).toBe(false);
+  });
+});
+
+describe('Group field storage', () => {
+  it('keeps fields enumerable, ordered and identical to what was passed in', () => {
+    const inner = new Group({ x: new Field({ value: 1 }) });
+    const y = new Field({ value: 2 });
+    const outer = new Group({ inner, y });
+
+    expect(Object.keys(outer.fields)).toEqual(['inner', 'y']);
+    expect(outer.fields.inner).toBe(inner);
+    expect(outer.field('y')).toBe(y);
+  });
+
+  it('accepts field names that collide with Object.prototype members', () => {
+    const group = new Group({
+      toString: new Field({ value: 1 }),
+      constructor: new Field({ value: 2 }),
+      // computed, because a plain `__proto__:` in an object literal sets the literal's prototype
+      ['__proto__']: new Field({ value: 3 }),
+    });
+
+    expect(group.fields.toString.value).toBe(1);
+    expect(group.fields.constructor.value).toBe(2);
+    expect(group.fields['__proto__'].value).toBe(3);
+    expect(Object.keys(group.fields).sort()).toEqual(['__proto__', 'constructor', 'toString']);
+    expect(group.field('__proto__')).toBe(group.fields['__proto__']);
+    const expected = { toString: 1, constructor: 2, ['__proto__']: 3 };
+    expect(group.value).toEqual(expected);
+    expect(JSON.parse(JSON.stringify(group.value))).toEqual(expected);
+    expect(group.fullValue).toEqual(expected);
+    expect(group.clone().value).toEqual(expected);
+  });
+
+  it('keeps a __proto__ field coming from parsed API data', () => {
+    // JSON.parse produces a real own key, unlike an object literal
+    const group = Group.createFromFormData(JSON.parse('{"name":"a","__proto__":{"admin":true}}'));
+
+    expect(Object.keys(group.fields)).toEqual(['name', '__proto__']);
+    expect(group.value).toEqual({ name: 'a', ['__proto__']: { admin: true } });
+    expect(group.field('__proto__')!.value).toEqual({ admin: true });
+    expect(Object.getPrototypeOf(group.fields)).toBeNull();
+  });
+
+  it('assigns only from the own keys of the value it is given', () => {
+    const group = new Group({ toString: new Field({ value: 1 }) });
+
+    group.value = {} as any;
+    expect(group.fields.toString.value).toBe(1);
+
+    group.value = { toString: 5 } as any;
+    expect(group.fields.toString.value).toBe(5);
+  });
+
+  it('refuses to have its fields map rewritten from outside', () => {
+    const a = new Field({ value: 1 });
+    const other = new Field({ value: 9 });
+    const group = new Group({ a });
+
+    expect(() => {
+      (group.fields as any).a = other;
+    }).toThrow(TypeError);
+    expect(() => delete (group.fields as any).a).toThrow(TypeError);
+    expect(group.field('a')).toBe(a);
+    expect(other.parent).toBeUndefined();
+  });
+
+  it('rejects a duplicate field name', () => {
+    const group = new Group({ y: new Field({ value: 1 }) });
+
+    expect(() => (group as any).addField('y', new Field({ value: 2 }))).toThrow(/already in this form/);
+  });
+
+  it('keeps the parent back-reference out of enumeration so cyclic structures still serialize', () => {
+    const inner = new Group({ x: new Field({ value: 1 }) });
+    const list = new List(new Group({ z: new Field({ value: 0 }) }));
+    const outer = new Group({ inner, list });
+    list.push({ z: 3 });
+
+    expect(inner.parent).toBe(outer);
+    expect(inner.fieldName).toBe('inner');
+    expect(Object.keys(inner)).not.toContain('parent');
+    expect(Object.keys(inner)).not.toContain('fieldName');
+    expect(Object.getOwnPropertyDescriptor(inner, 'parent')!.enumerable).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(inner, 'fieldName')!.enumerable).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(list.get(0)!, 'parent')!.enumerable).toBe(false);
+
+    expect(() => JSON.stringify(outer)).not.toThrow();
+    // isEqual walks the same enumerable properties, so it must terminate as well
+    expect(() => isEqual(outer, outer.clone())).not.toThrow();
   });
 });
