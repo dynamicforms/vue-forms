@@ -12,6 +12,13 @@ you prefer.
 Unlike other form libraries that couple data management with specific UI components, `@dynamicforms/vue-forms` 
 separates these concerns, allowing you to build forms that match your design system perfectly.
 
+### Design Goals
+
+- **UI-Agnostic**: Pure logic layer for form state, validation, and dynamic behavior.
+- **Reactive & Type-Safe**: Native integration with Vue 3 reactivity and TypeScript.
+- **Dynamic & Compositional**: First-class support for nested groups, dynamic lists, conditional statements, and action pipelines.
+- **Lightweight & Predictable**: Zero runtime dependencies (beyond Vue and lodash-es) and transparent serialization.
+
 ## Features
 
 - **UI-agnostic**: Works with any Vue UI components or your custom ones

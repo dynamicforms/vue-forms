@@ -1,5 +1,18 @@
 # Getting Started
 
+## Introduction & Rationale
+
+Most form management libraries for Vue either couple state management directly to specific UI components or enforce opinionated template structures.
+
+`@dynamicforms/vue-forms` was created as a headless, logic-first form state management library. It decouples form logic, validation, dynamic actions, and data structures from rendering, giving you full control over your UI and component choices.
+
+### Design Goals
+
+- **UI-Agnostic**: Pure logic layer for form state, validation, and dynamic behavior. Works with native HTML controls, Vuetify, Tailwind, or any custom components.
+- **Reactive & Type-Safe**: Native integration with Vue 3 reactivity and TypeScript for automatic type inference across fields and nested forms.
+- **Dynamic & Compositional**: First-class support for nested groups, dynamic lists, conditional visibility/enablement, and extensible action event pipelines.
+- **Lightweight & Predictable**: Zero runtime dependencies (beyond Vue and lodash-es), transparent serialization, and clean lifecycle management.
+
 ## Installation
 
 ```bash
