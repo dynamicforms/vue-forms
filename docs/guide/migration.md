@@ -1,13 +1,19 @@
-# Migration from 0.5.x
+# Migration guide
 
-This page covers the breaking changes between `@dynamicforms/vue-forms` 0.5.x and the current release, with the
-before/after for each one. It is the only page that names the old API; everywhere else in this documentation only
-the current one exists.
+Every breaking release has its own section below, newest first. If you are crossing several releases at once,
+work from the bottom of the page upwards.
+
+This is the only page that names superseded APIs; everywhere else in this documentation only the current one
+exists.
+
+<!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
+
+## Upgrading to v0.6.0 (from v0.5.x)
 
 Most projects need three mechanical edits — `.create(` → `new `, dropping `reactiveValue`, and renaming `IField` /
-`IFieldAction` in type positions. There is a [checklist](#upgrade-checklist) at the bottom.
+`IFieldAction` in type positions. There is a [checklist](#checklist-for-0-6-0) at the end of this section.
 
-## Fields are constructed with `new`
+### Fields are constructed with `new`
 
 `Field.create()` and `Action.create()` are gone, and so is the constructor guard that made `new Field()` throw a
 `TypeError`. All four element classes are now constructed the same way.
@@ -56,7 +62,7 @@ A subclass field initializer also wins over anything `init` assigned to the same
 passed. If your subclass needs its own initialized state during setup, assign it inside the overridden `init`
 instead of as a class field.
 
-## `reactiveValue` is gone — read `.value`
+### `reactiveValue` is gone — read `.value`
 
 Every form element is a Vue reactive object from construction onwards, so `value` is directly reactive and needs no
 computed wrapper.
@@ -83,7 +89,7 @@ The same applies outside templates: `watch(() => form.value, ...)` and `computed
 `form.fields.age.enabled = false` re-renders whatever read `enabled`. Delete the intermediate constant; there is no
 replacement member to bind to.
 
-## `IField` and `IFieldAction` are gone
+### `IField` and `IFieldAction` are gone
 
 Both interfaces are removed. Use the classes in type positions:
 
@@ -129,7 +135,7 @@ The same substitution applies wherever the old name appeared in a library signat
 `ValidationFunction`'s third parameter, `Group`'s `fields` map, `CompareTo`'s `otherField`, and the `field`
 parameter of every action executor.
 
-## Constructor parameters accept only writable members
+### Constructor parameters accept only writable members
 
 `IFieldConstructorParams<T>` now lists exactly `value`, `originalValue`, `enabled`, `visibility`, `touched`,
 `errors`, `validators` and `actions`. Passing a derived member used to type-check and then throw a `TypeError` on
@@ -154,7 +160,7 @@ The other exported half of that type changed with it: `IFieldConstructorActionsL
 It lost its type parameter, which it never used for anything, and both its members are typed `FieldActionBase[]`.
 A written-out `IFieldConstructorActionsList<MyValue>` now fails with TS2315 — drop the argument.
 
-## `validating` is typed `boolean` and is read-only
+### `validating` is typed `boolean` and is read-only
 
 `validating` was a literal-`false` property, which made the documented guard `field.validating === true` report
 TS2367 in consumer code. It is a getter over the number of asynchronous validators still running, and its declared
@@ -180,7 +186,7 @@ try {
 }
 ```
 
-## Value types resolve instead of collapsing to `any`
+### Value types resolve instead of collapsing to `any`
 
 `Group.value` and `List.value` carry their real types. Every member of the value object used to come out `any`;
 each one is now the type of the field it came from, and a nested `Group` or `List` contributes its own value shape.
@@ -202,7 +208,7 @@ and `GroupValueInput<T>` are the group's read and write types, and `ListValue` i
 `Group.value`'s setter takes a `Partial` — keys you leave out are not touched, which is what it always did at
 runtime. `List.value`'s setter takes an array; use `clear()` to empty a list.
 
-## What newly works
+### What newly works
 
 Groups and lists are reactive objects, the same as fields. Three things the UI could not observe before are now
 plain reactive reads:
@@ -226,7 +232,7 @@ Two constructions that used to raise are also available now:
 - **A group field named after an `Object.prototype` member**, such as `new Group({ toString: new Field() })`. It
   used to be reported as a duplicate name.
 
-## Upgrade checklist
+### Checklist for 0.6.0
 
 1. Replace `Field.create(` with `new Field(` and `Action.create(` with `new Action(`, generic forms included.
 2. Delete every `reactiveValue` read; bind `.value` directly and remove the intermediate constant.

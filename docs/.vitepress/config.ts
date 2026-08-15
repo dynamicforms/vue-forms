@@ -26,7 +26,7 @@ export default defineConfig({
         {
           text: 'Upgrading',
           items: [
-            { text: 'Migration from 0.5.x', link: '/guide/migration' },
+            { text: 'Migration guide', link: '/guide/migration' },
           ]
         }
       ],
