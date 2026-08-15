@@ -19,14 +19,12 @@ import { Group, Field, ValueChangedAction } from '@dynamicforms/vue-forms';
 
 // Create a form group with fields
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 
-// Create a reactive reference for form output
-const formOutput = personForm.reactiveValue;
 
 // Function to toggle field enabled state
 const toggleField = (fieldName) => {
@@ -36,14 +34,14 @@ const toggleField = (fieldName) => {
   }
 };
 
-// Register a value changed action to update form output display
+// Optional: react to any value change in the form
 personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   console.log('form value has changed');
   return supr(field, newValue, oldValue);
 }));
 ```
 
-`Field` (and the `Action` field type) must be created via the static [`create()`](/api/field) factory — the constructor throws a `TypeError`. `Group` and `List` are created with `new`, as are the action classes such as `ValueChangedAction`.
+Every form element — [`Field`](/api/field), `Action`, [`Group`](/api/group), [`List`](/api/list) — is created with `new`, as are the action classes such as `ValueChangedAction`. The instances are Vue reactive objects, so the template below binds `personForm.fields.firstName.value` directly, and the output block that reads `personForm.value` re-renders on every change.
 
 ### Vue Template
 
@@ -115,7 +113,7 @@ personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValu
     <v-card>
       <v-card-title>Form Output</v-card-title>
       <v-card-text>
-        <pre>{{ formOutput }}</pre>
+        <pre>{{ personForm.value }}</pre>
       </v-card-text>
     </v-card>
   </div>

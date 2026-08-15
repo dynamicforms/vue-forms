@@ -1,4 +1,5 @@
-import { type FieldActionExecute, type IField, AbortEventHandlingException } from '../field.interface';
+import { type FieldBase } from '../field-base';
+import { type FieldActionExecute, AbortEventHandlingException } from '../field.interface';
 import { Validator } from '../validators/validator';
 
 import FieldActionBase from './field-action-base';
@@ -16,7 +17,7 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
     const actionType = action.classIdentifier;
     const existingExecute = this.get(actionType) || (() => null);
 
-    function ex(field: IField, ...params: any[]) {
+    function ex(field: FieldBase, ...params: any[]) {
       return action.execute(field, existingExecute, ...params);
     }
     this.set(actionType, ex);
@@ -24,8 +25,8 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
   }
 
   trigger<T extends FieldActionBase>(
-    ActionClass: { new (...args: any[]): T; classIdentifier: symbol },
-    field: IField,
+    ActionClass: (abstract new (...args: any[]) => T) & { classIdentifier: symbol },
+    field: FieldBase,
     ...params: any[]
   ): any {
     const identifier = ActionClass.classIdentifier;
@@ -39,7 +40,7 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
     return null;
   }
 
-  triggerEager(field: IField, ...params: any[]): any {
+  triggerEager(field: FieldBase, ...params: any[]): any {
     for (const identifier of this.eagerActions) {
       const execute = this.get(identifier);
       try {

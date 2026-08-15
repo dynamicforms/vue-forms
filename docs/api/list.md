@@ -9,8 +9,8 @@ import { Field, Group, List } from '@dynamicforms/vue-forms';
 
 // Define the item template
 const itemTemplate = new Group({
-  name:  Field.create({ value: '' }),
-  score: Field.create<number>({ value: 0 }),
+  name:  new Field({ value: '' }),
+  score: new Field<number>({ value: 0 }),
 });
 
 // Empty list
@@ -27,23 +27,27 @@ const list2 = new List(itemTemplate, {
 
 ## `new List(itemTemplate?, params?)`
 
+`params` is a `Partial<IFieldConstructorParams<ListValue>>` — the same parameter type every form element takes,
+with the list's value shape substituted.
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `itemTemplate` | `Group<T>` | `undefined` | Template cloned for each new item. If omitted, `Group.createFromFormData` is used for plain objects. |
-| `params.value` | `Record<string, any>[]` | `null` | Initial array of item values |
-| `params.originalValue` | `Record<string, any>[]` | same as `value` (`null` when empty) | Baseline for `isChanged` |
+| `params.value` | `ListValue` (`Record<string, any>[] \| null`) | `null` | Initial array of item values |
+| `params.originalValue` | `ListValue` | same as `value` (`null` when empty) | Baseline for `isChanged` |
 | `params.enabled` | `boolean` | `true` | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value |
 | `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
-| `params.validators` | `IFieldAction[]` | `[]` | List-level validators |
-| `params.actions` | `IFieldAction[]` | `[]` | List-level actions |
+| `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
+| `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
+| `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
+| `params.actions` | `FieldActionBase[]` | `[]` | List-level actions |
 
 ## Properties
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `Record<string, any>[] \| null` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. `null` when the list has no items |
-| `reactiveValue` | `ComputedRef<...>` | no | Vue computed ref of `value` |
-| `originalValue` | `Record<string, any>[] \| null` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
+| `value` | reads `ListValue`, accepts `Record<string, any>[]` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items; the setter only accepts an array, so use `clear()` to empty the list |
+| `originalValue` | `ListValue` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the list itself and all items are valid |
 | `validating` | `boolean` | no | `true` while an async validator registered on the list itself is pending; it does not aggregate items |
@@ -51,7 +55,12 @@ const list2 = new List(itemTemplate, {
 | `enabled` | `boolean` | yes | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
-| `fullValue` | `Record<string, any>[] \| null` | no | Same as `value` — `List` does not override it, so disabled fields inside items are still omitted. Consequently a parent `Group.fullValue` does not recover hidden values through a nested `List` either |
+| `fullValue` | `ListValue` | no | Same as `value` — `List` does not override it, so disabled fields inside items are still omitted. Consequently a parent `Group.fullValue` does not recover hidden values through a nested `List` either |
+
+`ListValue` is exported as `Record<string, any>[] | null`.
+
+Every mutation — `push()`, `insert()`, `remove()`, `pop()`, `clear()` and assigning `value` — is tracked by Vue, so
+a `v-for` over `list.value` re-renders on its own without any additional wiring.
 
 ## Methods
 
@@ -93,15 +102,16 @@ Registers an action on the list. Returns `this`.
 
 Validates the list. Pass `revalidate: true` to cascade to all items.
 
+### `notifyValueChanged(): void`
+
+Recomputes `value`, and if it differs from the previously seen one fires `ValueChangedAction`, notifies the parent
+and revalidates. The mutation methods call it themselves; you rarely need to.
+
 ### `clone(overrides?): List<T>`
 
-Returns a new `List` with a cloned item template, values and actions.
-
-::: warning
-Cloning an empty list throws a `TypeError`: `value` is `null` when the list has no items and `clone` spreads it. Passing `clone({ value: [] })` avoids it.
-
-Because cloning is also how items are produced, the same `TypeError` surfaces without any explicit `clone()` call whenever an empty `List` sits inside something that gets cloned: `Group.clone()` on a group containing an empty list (it does not forward overrides to children, so there is no workaround there), and `push()`, `insert()` or construction with a `value` on a list whose item template contains an empty `List`.
-:::
+Returns a new `List` with a cloned item template, values and actions. `overrides` is a
+`Partial<IFieldConstructorParams<ListValue>>`; of its keys, only `value`, `originalValue`, `enabled` and
+`visibility` are read. Cloning an empty list gives an empty list.
 
 ## `NullableList`
 

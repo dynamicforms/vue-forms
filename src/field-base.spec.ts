@@ -14,7 +14,7 @@ it('triggers action with custom parameters', () => {
     capturedOldValue = oldValue;
   });
 
-  const field = Field.create({ value: 'initial' });
+  const field = new Field({ value: 'initial' });
   field.registerAction(valueChangedAction);
 
   // Trigger the action manually with custom parameters
@@ -28,7 +28,7 @@ it('triggers action with custom parameters', () => {
 
 it('clears all validators and resets errors', () => {
   // Create a field with validators that will produce errors
-  const field = Field.create({ value: '' }).registerAction(new Validators.Required('Required field'));
+  const field = new Field({ value: '' }).registerAction(new Validators.Required('Required field'));
 
   // Initially should have errors (empty value with Required validator)
   expect(field.errors.length).toBe(1);
@@ -50,8 +50,8 @@ it('clears all validators and resets errors', () => {
 
 it('clears CompareTo validator and its cross-field references', () => {
   // Create two fields
-  const field1 = Field.create<string>({ value: 'value1' });
-  const field2 = Field.create<string>({ value: 'value2' });
+  const field1 = new Field<string>({ value: 'value1' });
+  const field2 = new Field<string>({ value: 'value2' });
 
   // Add CompareTo validator to check for equality
   const compareToValidator = new Validators.CompareTo(
@@ -80,4 +80,19 @@ it('clears CompareTo validator and its cross-field references', () => {
   field1.value = 'another value';
   expect(field1.errors.length).toBe(0);
   expect(field1.valid).toBe(true);
+});
+
+it('reports validating as a boolean that starts out false', () => {
+  const field = new Field({ value: 'x' });
+
+  expect(field.validating).toBe(false);
+  expect(typeof field.validating).toBe('boolean');
+
+  field.beginValidating();
+  expect(field.validating).toBe(true);
+  field.endValidating();
+  expect(field.validating).toBe(false);
+  // the counter never goes below zero, so a stray endValidating cannot latch the flag on
+  field.endValidating();
+  expect(field.validating).toBe(false);
 });

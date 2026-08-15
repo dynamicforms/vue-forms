@@ -1,5 +1,4 @@
 import { vi } from 'vitest';
-import { nextTick } from 'vue';
 
 import DisplayMode from '../../display-mode';
 import { Field } from '../../field';
@@ -17,7 +16,7 @@ import { Statement } from './statement';
 describe('ConditionalStatementAction', () => {
   it('executes callback when statement result changes', () => {
     // Setup
-    const field = Field.create({ value: 'John' });
+    const field = new Field({ value: 'John' });
     const statement = new Statement(field, Operator.EQUALS, 'John');
     const callbackFn = vi.fn();
     field.registerAction(new ConditionalStatementAction(statement, callbackFn));
@@ -61,10 +60,10 @@ describe('ConditionalStatementAction', () => {
 describe('ConditionalVisibilityAction', () => {
   it('sets field visibility based on statement result', () => {
     // Setup
-    const nameField = Field.create({ value: 'John' });
+    const nameField = new Field({ value: 'John' });
     const statement = new Statement(nameField, Operator.EQUALS, 'John');
 
-    const field = Field.create();
+    const field = new Field();
     const action = new ConditionalVisibilityAction(statement);
     field.registerAction(action);
 
@@ -86,10 +85,10 @@ describe('ConditionalVisibilityAction', () => {
 describe('ConditionalEnabledAction', () => {
   it('sets field enabled state based on statement result', () => {
     // Setup
-    const ageField = Field.create({ value: 25 });
+    const ageField = new Field({ value: 25 });
     const statement = new Statement(ageField, Operator.GT, 18);
 
-    const field = Field.create();
+    const field = new Field();
     const action = new ConditionalEnabledAction(statement);
     field.registerAction(action);
 
@@ -111,10 +110,10 @@ describe('ConditionalEnabledAction', () => {
 describe('ConditionalValueAction', () => {
   it('sets field value when statement evaluates to true', () => {
     // Setup
-    const isAdminField = Field.create({ value: false });
+    const isAdminField = new Field({ value: false });
     const statement = new Statement(isAdminField, Operator.EQUALS, true);
 
-    const field = Field.create({ value: 'default' });
+    const field = new Field({ value: 'default' });
     const action = new ConditionalValueAction(statement, 'admin access');
     field.registerAction(action);
 
@@ -131,10 +130,10 @@ describe('ConditionalValueAction', () => {
 
   it('does not change value when statement evaluates to false', () => {
     // Setup
-    const isActiveField = Field.create({ value: true });
+    const isActiveField = new Field({ value: true });
     const statement = new Statement(isActiveField, Operator.EQUALS, false);
 
-    const field = Field.create({ value: 'initial' });
+    const field = new Field({ value: 'initial' });
     const action = new ConditionalValueAction(statement, 'changed');
     field.registerAction(action);
 
@@ -150,13 +149,13 @@ describe('Complex Conditional Actions', () => {
   it('integrates with form structure', () => {
     // Create a form with conditional logic
     const form = new Group({
-      age: Field.create({ value: 25 }),
-      isStudent: Field.create({ value: false }),
-      acceptTerms: Field.create({ value: false }),
+      age: new Field({ value: 25 }),
+      isStudent: new Field({ value: false }),
+      acceptTerms: new Field({ value: false }),
 
       // Fields that will be controlled conditionally
-      studentDiscount: Field.create({ value: 0 }),
-      submitButton: Field.create({ enabled: false }),
+      studentDiscount: new Field({ value: 0 }),
+      submitButton: new Field({ enabled: false }),
     });
 
     // Student discount is shown only if age < 30 AND isStudent = true
@@ -172,7 +171,6 @@ describe('Complex Conditional Actions', () => {
     // Apply conditional actions
     form.fields.studentDiscount.registerAction(new ConditionalVisibilityAction(showDiscountStatement));
     form.fields.submitButton.registerAction(new ConditionalEnabledAction(enableSubmitStatement));
-    nextTick();
 
     // Trigger initial evaluation
     // form.fields.age.value = 24;

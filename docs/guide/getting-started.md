@@ -26,15 +26,16 @@ import { Field, Group } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 ```
 
-Fields are created with the static factory `Field.create()` (the constructor is guarded and throws), while `Group` and
-`List` are created with `new`.
+Every form element — `Field`, `Action`, `Group` and `List` — is created with `new`, and the instance is a Vue
+reactive object from that moment on: reading `personForm.value` or `personForm.fields.age.enabled` in a template
+tracks it, and plain assignment re-renders.
 
 ## Using with Vue Components
 
@@ -58,10 +59,10 @@ You can bind the form fields to any Vue component:
 import { Field, Group } from '@dynamicforms/vue-forms';
 
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 </script>
 ```
@@ -86,7 +87,7 @@ Attach validators to a field and render the resulting errors with the `MessagesW
 <script setup>
 import { Field, MessagesWidget, Validators } from '@dynamicforms/vue-forms';
 
-const username = Field.create({ value: '', validators: [new Validators.Required()] });
+const username = new Field({ value: '', validators: [new Validators.Required()] });
 </script>
 ```
 
@@ -110,3 +111,5 @@ registered `vue-markdown` component. Set `useMarkdownInValidators` to `false` if
 
 Check out the [Examples](/examples/basic-form) section to see more advanced usage patterns, or read the API reference:
 [Field](/api/field), [Group](/api/group), [Validators](/api/validators) and [Configuration](/api/config).
+
+Coming from 0.5.x? The [migration guide](/guide/migration) lists the breaking changes with before/after code.

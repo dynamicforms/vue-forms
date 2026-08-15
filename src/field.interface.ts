@@ -1,45 +1,29 @@
-import { ComputedRef } from 'vue';
-
+import type FieldActionBase from './actions/field-action-base';
 import type DisplayMode from './display-mode';
+import type { FieldBase } from './field-base';
 import { type ValidationError } from './validators/validation-error';
 
-export interface IField<T = any> {
+export interface IFieldConstructorActionsList {
+  actions?: FieldActionBase[];
+  validators?: FieldActionBase[];
+}
+
+/**
+ * Parameters accepted by field constructors and by clone overrides.
+ *
+ * Only writable members are listed. valid, validating, fullValue and isChanged are getter-only, so assigning
+ * them throws a TypeError. parent and fieldName are set by the container: until a Group or List installs them
+ * as non-configurable accessors, assigning them is silently accepted, which is why the type rejects them.
+ */
+export type IFieldConstructorParams<T = any> = {
   value: T;
-  reactiveValue: ComputedRef<T>;
-  fullValue: T;
   originalValue: T;
-  valid: boolean;
-  validating: boolean;
-  errors: ValidationError[];
   enabled: boolean;
   visibility: DisplayMode;
   touched: boolean;
-
-  parent?: any; // Group when member of a Group, parent will specify that group
-  fieldName?: string; // when member of a Group, fieldName specifies the name of this field
-
-  clone(overrides?: Partial<IField<T>>): IField<T>;
-
-  // events
-  registerAction(action: IFieldAction<T>): this;
-  triggerAction<T2 extends IFieldAction<T>>(actionClass: abstract new (...args: any[]) => T2, ...params: any[]): any;
-
-  // API
-  validate(revalidate?: boolean): void;
-  clearValidators(): void;
-  isChanged: boolean;
-}
-
-export interface IFieldConstructorActionsList<T = any> {
-  actions?: IFieldAction<T>[];
-  validators?: IFieldAction<T>[];
-}
-
-export type IFieldConstructorParams<T = any> = IField<T> & IFieldConstructorActionsList<T>;
+  errors: ValidationError[];
+} & IFieldConstructorActionsList;
 
 export class AbortEventHandlingException extends Error {}
 
-export type FieldActionExecute<T = any> = (field: IField<T>, ...params: any[]) => any;
-export interface IFieldAction<T = any> {
-  execute(field: IField<T>, supr: FieldActionExecute<T>, ...params: any[]): any;
-}
+export type FieldActionExecute<T = any> = (field: FieldBase<T>, ...params: any[]) => any;

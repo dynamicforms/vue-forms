@@ -2,11 +2,13 @@ import { isString } from 'lodash-es';
 import { unref } from 'vue';
 
 import { FieldBase } from '../../field-base';
-import { IField } from '../../field.interface';
 
 import Operator from './operator';
 
-export type OperandType = any | Statement | IField;
+// An operand is a nested Statement, a field whose current value is compared, or a literal of any type. The
+// union with `any` collapses to `any` for the type checker, so the alias documents intent rather than
+// constraining callers.
+export type OperandType = any | Statement | FieldBase;
 
 function XOR(value1: boolean, value2: boolean): boolean {
   return value1 ? !value2 : value2;
@@ -87,8 +89,8 @@ export class Statement {
    * Recursively collects all fields used in this statement and its nested statements
    * @returns A set of all fields used in this statement
    */
-  collectFields(): Set<IField> {
-    const fields = new Set<IField>();
+  collectFields(): Set<FieldBase> {
+    const fields = new Set<FieldBase>();
 
     function processOperand(op: OperandType) {
       if (op instanceof FieldBase) {

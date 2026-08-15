@@ -16,11 +16,9 @@ Renders a `string` or an array of `ValidationError` objects. Commonly used to di
 <script setup>
 import { Field, MessagesWidget, Validators } from '@dynamicforms/vue-forms';
 
-const field = Field.create({ value: '', validators: [new Validators.Required()] });
+const field = new Field({ value: '', validators: [new Validators.Required()] });
 </script>
 ```
-
-A `Field` is always created with `Field.create()`, never with `new Field()`.
 
 ### Props
 
@@ -48,6 +46,15 @@ nested arrays are allowed, and the widget builds one internally.
 The content given to `ValidationErrorRenderContent` may be a `Ref` or a function returning the value; it is
 resolved on every read, which enables lazy / i18n resolution. The widget's `message` prop itself must be a
 `string` or a `ValidationError[]`.
+
+### Content types
+
+| Type | Definition |
+|------|-----------|
+| `RenderContentNonCallable` | `string \| MdString \| SimpleComponentDef` |
+| `RenderContentCallable` | `() => RenderContentNonCallable` |
+| `RenderContent` | `RenderContentNonCallable \| RenderContentCallable` |
+| `RenderContentRef` | `RenderContent \| Ref<RenderContent>` — the type accepted by `ValidationErrorRenderContent` and by every built-in validator's `message` parameter |
 
 A `componentName` that is a plain HTML tag name is rendered directly; any other name is resolved as a globally
 registered component.

@@ -83,26 +83,26 @@
         >
           Form is {{ formValid ? 'valid' : 'invalid' }}
         </v-alert>
-        <pre class="output">{{ JSON.stringify(formOutput, null, 2) }}</pre>
+        <pre class="output">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
       </v-card-text>
     </v-card>
   </div>
 </template>
 
 <script setup>
-import { computed, nextTick } from 'vue';
+import { computed } from 'vue';
 import { Group, Field, ValueChangedAction, Validators, ValidationErrorRenderContent } from '../../src'; // from '@dynamicforms/vue-forms'
 
 // Create a form group with validated fields
 const validatedForm = new Group({
   // Required field - cannot be empty
-  username: Field.create({
+  username: new Field({
     value: '',
     validators: [new Validators.Required()]
   }),
 
   // Email field with pattern validation
-  email: Field.create({
+  email: new Field({
     value: '',
     validators: [
       new Validators.Pattern(
@@ -130,7 +130,7 @@ const validatedForm = new Group({
   }),
 
   // Number field with range validation
-  age: Field.create({
+  age: new Field({
     value: null,
     validators: [
       new Validators.ValueInRange(18, 100)
@@ -138,7 +138,7 @@ const validatedForm = new Group({
   }),
 
   // Field with allowed values validation
-  role: Field.create({
+  role: new Field({
     value: '',
     validators: [
       new Validators.InAllowedValues(['admin', 'user', 'guest'])
@@ -146,7 +146,7 @@ const validatedForm = new Group({
   }),
 
   // Text field with length validation
-  bio: Field.create({
+  bio: new Field({
     value: '',
     validators: [
       new Validators.LengthInRange(10, 200)
@@ -154,20 +154,16 @@ const validatedForm = new Group({
   })
 });
 
-// Create a reactive reference for form output and validation status
-const formOutput = validatedForm.reactiveValue;
+// Overall form validity, recomputed whenever any field's valid state changes
 const formValid = computed(() => {
   return Object.values(validatedForm.fields).every(field => field.valid);
 });
 
-// Function to extract error messages
+// Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
+// componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.
 function getErrorMessages(field) {
   if (!field.errors || field.errors.length === 0) return [];
-  return field.errors.map(error => {
-    if (error.componentBody) return error.componentBody;
-    if (error.text) return error.text;
-    return 'Validation error';
-  });
+  return field.errors.map(error => error.componentBody || error.componentBindings.source || 'Validation error');
 }
 
 // Function to reset the form
@@ -179,7 +175,7 @@ function resetForm() {
   validatedForm.fields.bio.value = '';
 }
 
-// Register a value changed action to update form output display
+// Optional: react to any value change in the form
 validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   console.log('Form value has changed');
   return supr(field, newValue, oldValue);

@@ -15,7 +15,8 @@ separates these concerns, allowing you to build forms that match your design sys
 ## Features
 
 - **UI-agnostic**: Works with any Vue UI components or your custom ones
-- **Reactive**: Built on Vue's reactivity system for seamless integration
+- **Reactive**: Fields, groups and lists are Vue reactive objects — read and assign their properties directly, with
+  no `ref` to unwrap and no computed mirror to keep in sync
 - **Nested structures**: Support for complex data with nested fields and groups
 - **Event system**: Rich event handling for field changes, validation, and more
 - **TypeScript support**: Full type definitions for excellent developer experience
@@ -49,9 +50,10 @@ want plain text instead.
 
 ## Basic Usage Example
 
-Fields and actions are created through their static factory: `Field.create({ ... })`, `Action.create({ ... })`. Groups
-and lists are created with the constructor: `new Group({ ... })`, `new List(template)`. Calling `new Field()` throws a
-TypeError.
+Every form element is created with the constructor: `new Field({ ... })`, `new Action({ ... })`,
+`new Group({ ... })`, `new List(template)`. The instance is a Vue reactive object from that moment on, so reading
+`field.value` in a template tracks it and `field.value = x` re-renders — there is no `ref` to unwrap and no
+computed mirror to maintain.
 
 Here's a simple example of how to create and use a form with fields and groups:
 
@@ -60,10 +62,10 @@ import { Field, Group } from '@dynamicforms/vue-forms';
 
 // Create a form with fields
 const personForm = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName: Field.create({ value: 'Doe' }),
-  age: Field.create({ value: 30 }),
-  active: Field.create({ value: true })
+  firstName: new Field({ value: 'John' }),
+  lastName: new Field({ value: 'Doe' }),
+  age: new Field({ value: 30 }),
+  active: new Field({ value: true })
 });
 
 // Access values
@@ -84,7 +86,7 @@ An `Action` is a field whose value is a label / icon pair and which can be execu
 ```typescript
 import { Action, ExecuteAction } from '@dynamicforms/vue-forms';
 
-const saveAction = Action.create({
+const saveAction = new Action({
   value: { label: 'Save' },
   actions: [new ExecuteAction((field, supr, params) => { console.log('saving', params); })]
 });
@@ -99,7 +101,7 @@ The library provides a powerful event system for field changes and other actions
 ```typescript
 import { Field, Group, ValueChangedAction, ValidationErrorText } from '@dynamicforms/vue-forms';
 
-const emailField = Field.create({ value: '' })
+const emailField = new Field({ value: '' })
   .registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
     // Custom validation on value change
     if (!newValue.includes('@')) {
@@ -115,7 +117,7 @@ const emailField = Field.create({ value: '' })
 // Or register events on a form
 const form = new Group({
   email: emailField,
-  username: Field.create()
+  username: new Field()
 }).registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   console.log('Form data changed:', newValue);
   return supr(field, newValue, oldValue);
@@ -134,12 +136,12 @@ import { Field, Group, Validators } from '@dynamicforms/vue-forms';
 
 const validatedForm = new Group({
   // Required field
-  username: Field.create({ 
+  username: new Field({ 
     validators: [new Validators.Required('Username is required')] 
   }),
   
   // Email validation with pattern
-  email: Field.create({ 
+  email: new Field({ 
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
@@ -149,7 +151,7 @@ const validatedForm = new Group({
   }),
   
   // Numeric range validation
-  age: Field.create({ 
+  age: new Field({ 
     value: 25, 
     validators: [
       new Validators.ValueInRange(18, 100, 'Age must be between 18 and 100')
@@ -157,14 +159,14 @@ const validatedForm = new Group({
   }),
   
   // Allowed values validation
-  role: Field.create({ 
+  role: new Field({ 
     validators: [
       new Validators.InAllowedValues(['admin', 'user', 'guest'])
     ] 
   }),
   
   // Text length validation
-  bio: Field.create({
+  bio: new Field({
     validators: [
       new Validators.LengthInRange(10, 200, 'Bio must be between 10 and 200 characters')
     ]
@@ -202,7 +204,7 @@ The library includes a `messages-widget` Vue component for displaying validation
 import { MessagesWidget, Field, Validators, ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
 
 // Example field with validation
-const emailField = Field.create({
+const emailField = new Field({
   value: '',
   validators: [
     new Validators.Pattern(
@@ -239,10 +241,10 @@ import {
 } from '@dynamicforms/vue-forms';
 
 const form = new Group({
-  isCompany: Field.create({ value: false }),
-  companyName: Field.create(),
-  firstName: Field.create(),
-  lastName: Field.create()
+  isCompany: new Field({ value: false }),
+  companyName: new Field(),
+  firstName: new Field(),
+  lastName: new Field()
 });
 
 // Show company name field only when isCompany is true
@@ -270,9 +272,9 @@ import { Field, Group, List } from '@dynamicforms/vue-forms';
 
 // Define a template for list items
 const contactTemplate = new Group({
-  name: Field.create(),
-  email: Field.create(),
-  phone: Field.create()
+  name: new Field(),
+  email: new Field(),
+  phone: new Field()
 });
 
 // Create a list with the template
@@ -293,6 +295,9 @@ firstContact.fields.email.value = 'john.doe@example.com';
 contactsList.remove(1);
 ```
 
+Every list mutation is tracked, so a `v-for` over `contactsList.value` re-renders on `push()`, `insert()`,
+`remove()`, `pop()` and `clear()` without any extra wiring.
+
 ## TypeScript Support
 
 The library is written in TypeScript and provides full type definitions:
@@ -301,13 +306,13 @@ The library is written in TypeScript and provides full type definitions:
 import { Field, Group, GenericFieldsInterface } from '@dynamicforms/vue-forms';
 
 // Define field types explicitly
-const usernameField = Field.create<string>({ value: '' });
-const emailField = Field.create<string>({ value: '' });
-const ageField = Field.create<number>({ value: 25 });
-const isActiveField = Field.create<boolean>({ value: true });
+const usernameField = new Field<string>({ value: '' });
+const emailField = new Field<string>({ value: '' });
+const ageField = new Field<number>({ value: 25 });
+const isActiveField = new Field<boolean>({ value: true });
 
 // Type inference also works with initial values
-const implicitTypedField = Field.create({ value: 'string' }); // Type is inferred as string
+const implicitTypedField = new Field({ value: 'string' }); // Type is inferred as string
 
 // Define your form structure with types
 interface UserFormData extends GenericFieldsInterface {
@@ -323,16 +328,16 @@ interface UserFormData extends GenericFieldsInterface {
 
 // Create the form with type checking
 const userForm = new Group<UserFormData>({
-  username: Field.create<string>({ value: '' }),
-  email: Field.create<string>({ value: '' }),
-  age: Field.create<number>({ value: 25 }),
-  isActive: Field.create<boolean>({ value: true }),
+  username: new Field<string>({ value: '' }),
+  email: new Field<string>({ value: '' }),
+  age: new Field<number>({ value: 25 }),
+  isActive: new Field<boolean>({ value: true }),
   preferences: new Group<{
     darkMode: Field<boolean>;
     notifications: Field<boolean>;
   }>({
-    darkMode: Field.create<boolean>({ value: true }),
-    notifications: Field.create<boolean>({ value: true })
+    darkMode: new Field<boolean>({ value: true }),
+    notifications: new Field<boolean>({ value: true })
   })
 });
 
@@ -341,13 +346,48 @@ const email: string = userForm.fields.email.value;
 const age: number = userForm.fields.age.value;
 const darkMode: boolean = userForm.fields.preferences.fields.darkMode.value;
 
+// The serialized value is typed too, member by member
+const values = userForm.value!;
+const emailFromValue: string = values.email;
+const prefs: { darkMode: boolean; notifications: boolean } | null = values.preferences;
+
 // Type safety prevents errors
 // userForm.fields.age.value = 'not a number'; // Error: Type 'string' is not assignable to type 'number'
+```
+
+The value shape is derived from the fields map by the exported `FieldsToValues<T>`, with `GroupValue<T>` and
+`GroupValueInput<T>` as the group's read and write types, and `ListValue` for lists. Constructor parameters have
+their own exported type, `IFieldConstructorParams<T>`, shared by all four element classes and by `clone()`:
+
+```typescript
+import { Field, IFieldConstructorParams } from '@dynamicforms/vue-forms';
+
+const defaults: Partial<IFieldConstructorParams<string>> = { value: '', enabled: false };
+const field = new Field(defaults);
+```
+
+It admits only the writable members — `value`, `originalValue`, `enabled`, `visibility`, `touched`, `errors`,
+`validators` and `actions`. Derived members such as `valid` and `isChanged` are getters, and passing one is a
+compile error.
+
+`FieldBase<T>` is the abstract base of `Field`, `Action`, `Group` and `List`, and the type to use in your own
+signatures whenever you accept any form element:
+
+```typescript
+import { FieldBase } from '@dynamicforms/vue-forms';
+
+function isDirty(field: FieldBase): boolean {
+  return field.isChanged;
+}
 ```
 
 ## Documentation
 
 For more detailed documentation and examples, check out the [documentation](https://docs.velis.si/dynamicforms/vue-forms).
+
+Upgrading from 0.5.x? The
+[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration) lists every breaking change with
+before/after code.
 
 ## Conclusion
 

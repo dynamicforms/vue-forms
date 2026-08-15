@@ -1,7 +1,7 @@
 import { truncate } from 'lodash-es';
 import { unref } from 'vue';
 
-import { IField } from '../field.interface';
+import type { FieldBase } from '../field-base';
 
 import { buildErrorMessage } from './error-message-builder';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
@@ -19,7 +19,7 @@ export default class InAllowedValues<T = any> extends Validator {
       });
     }
 
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: IField) => {
+    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (!allowedValues.includes(unref(newValue))) {
         return [
           new ValidationErrorRenderContent(

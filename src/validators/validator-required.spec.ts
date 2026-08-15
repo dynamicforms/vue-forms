@@ -19,7 +19,7 @@ describe('Required Validator', () => {
 
     for (const emptyValue of emptyValues) {
       // Arrange - create a new field for each test case
-      const field = Field.create({
+      const field = new Field({
         value: emptyValue,
         validators: [new Required()],
       });
@@ -42,7 +42,7 @@ describe('Required Validator', () => {
 
     for (const nonEmptyValue of nonEmptyValues) {
       // Arrange - create a new field for each test case
-      const field = Field.create({
+      const field = new Field({
         value: nonEmptyValue,
         validators: [new Required()],
       });
@@ -57,7 +57,7 @@ describe('Required Validator', () => {
   it('uses custom error message', () => {
     // Arrange
     const customMessage = 'This field is required!';
-    const field = Field.create({
+    const field = new Field({
       value: '',
       validators: [new Required(customMessage)],
     });

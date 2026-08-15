@@ -8,29 +8,49 @@
 import { Field, Group } from '@dynamicforms/vue-forms';
 
 const form = new Group({
-  firstName: Field.create({ value: 'John' }),
-  lastName:  Field.create({ value: 'Doe' }),
-  age:       Field.create<number>({ value: 30 }),
+  firstName: new Field({ value: 'John' }),
+  lastName:  new Field({ value: 'Doe' }),
+  age:       new Field<number>({ value: 30 }),
 });
 ```
 
 ## `new Group(fields, params?)`
 
+`params` is a `Partial<IFieldConstructorParams<GroupValueInput<T>>>` — the same parameter type every form element
+takes, with the group's value shape substituted.
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `fields` | `Record<string, IField>` | required | Map of field name → field/group/list instance |
-| `params.value` | `object \| null` | `null` | Initial values applied to matching fields |
-| `params.originalValue` | `object \| null` | same as `value` | Baseline for `isChanged` |
+| `fields` | `GenericFieldsInterface` (`Record<string, FieldBase>`) | required | Map of field name → field/group/list instance |
+| `params.value` | `GroupValueInput<T>` (`Partial<FieldsToValues<T>> \| null`) | `null` | Initial values applied to matching fields; keys left out keep the value their field was created with |
+| `params.originalValue` | `GroupValueInput<T>` | same as `value` | Baseline for `isChanged` |
 | `params.enabled` | `boolean` | `true` | Whether the group itself is enabled. Not propagated to child fields, and it does not remove the group from its parent's `value` — a disabled subgroup is still serialized as long as its own value is non-empty |
 | `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
-| `params.validators` | `IFieldAction[]` | `[]` | Group-level validators |
-| `params.actions` | `IFieldAction[]` | `[]` | Group-level actions |
+| `params.touched` | `boolean` | `false` | Initial interaction flag, propagated to every child |
+| `params.errors` | `ValidationError[]` | `[]` | Initial group-level validation errors |
+| `params.validators` | `FieldActionBase[]` | `[]` | Group-level validators |
+| `params.actions` | `FieldActionBase[]` | `[]` | Group-level actions |
 
 ::: warning
 If you pass a `params` object, always include `value` (or `originalValue`). The constructor assigns `params.value` to the group, and an undefined value resets every child field to `null`. Passing only `validators`, `actions`, `enabled` or `visibility` therefore wipes the values the child fields were created with. Omitting `params` entirely is safe.
 :::
 
 The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you reuse a field instance that already belongs to another group or list — `parent` and `fieldName` are defined as non-configurable, so they cannot be redefined. Each group needs its own field instances (use `clone()`).
+
+Field names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`, `constructor`, `__proto__`, …) are accepted like any other: the map has no prototype, and both `value` and `fullValue` build their result the same way. The value setter likewise assigns only from the object's own keys, so `group.value = {}` leaves a field named `toString` untouched instead of handing it `Object.prototype.toString`. A name used twice in the same group throws `Error('Field <name> is already in this form')`.
+
+Each entry of `fields` is a non-configurable getter, so the map cannot be rewritten from outside: `group.fields.name = otherField` and `delete group.fields.name` both throw a `TypeError`. A field swapped in that way would never get `parent`, `fieldName` or change notifications. Build a new `Group` instead.
+
+`parent` and `fieldName` are non-enumerable, which keeps the parent link out of `Object.keys(field)`, `JSON.stringify(field)` and lodash `isEqual` — all three terminate on a group that contains its own descendants' back-references.
+
+## Types
+
+| Type | Definition | Purpose |
+|------|-----------|---------|
+| `GenericFieldsInterface` | `Record<string, FieldBase>` | The constraint on `Group`'s and `List`'s type argument. Extend it to declare a form's shape: `interface UserForm extends GenericFieldsInterface { name: Field<string> }` |
+| `FieldsToValues<T>` | `{ [K in keyof T]: T[K]['value'] }` | Maps a fields interface to the value object it serializes to. A nested `Group` contributes its own value object, a nested `List` its row array |
+| `GroupValue<T>` | `FieldsToValues<T> \| null` | What `group.value` reads back |
+| `GroupValueInput<T>` | `Partial<FieldsToValues<T>> \| null` | What `group.value` and `params.value` accept |
 
 ## `Group.createFromFormData(data)`
 
@@ -45,9 +65,8 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
 | `fields` | `T` | no | The typed map of child fields |
-| `value` | `FieldsToValues<T> \| null` | yes | Serialized object of **enabled** field values; `null` if all fields are disabled |
-| `reactiveValue` | `ComputedRef<...>` | no | Vue computed ref of `value` |
-| `originalValue` | `object \| null` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
+| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of **enabled** field values; `null` if all fields are disabled. Reading it gives each field's own value type — for `Group<{ age: Field<number> }>`, `group.value!.age` is `number`. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
+| `originalValue` | `GroupValueInput<T>` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the group itself and all child fields are valid |
 | `validating` | `boolean` | no | `true` while an async validator registered on the group itself is pending. Unlike `valid`, it does **not** aggregate child fields — check the children individually |
@@ -85,7 +104,9 @@ Called internally when a child value changes. You rarely need to call this direc
 
 ### `clone(overrides?): Group<T>`
 
-Returns a new `Group` with cloned children and actions. `overrides` can replace `value`, `originalValue`, `enabled`, or `visibility`.
+Returns a new `Group` with cloned children and actions. `overrides` is a
+`Partial<IFieldConstructorParams<GroupValueInput<T>>>`; of its keys, only `value`, `originalValue`, `enabled` and
+`visibility` are read, and they apply to the group itself — they are not forwarded to the children.
 
 The clone is detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly in `overrides` — otherwise the clone's `originalValue` becomes its current value, so `isChanged` starts out `false`.
 

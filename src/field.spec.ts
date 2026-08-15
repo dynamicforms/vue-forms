@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 
+import type { IFieldConstructorParams } from './field.interface';
 import { ValidationErrorText } from './validators/validation-error';
 
 import Form from '.';
@@ -9,7 +10,7 @@ import DisplayMode from '@/display-mode';
 describe('Field', () => {
   it('trigger onValueChanged on value change', () => {
     const onValueChanged = vi.fn();
-    const field = Form.Field.create({ enabled: true }).registerAction(new Form.ValueChangedAction(onValueChanged));
+    const field = new Form.Field({ enabled: true }).registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
 
@@ -18,7 +19,7 @@ describe('Field', () => {
 
   it('does not trigger onValueChanged, when the field is read only', () => {
     const onValueChanged = vi.fn();
-    const field = Form.Field.create({ enabled: false }).registerAction(new Form.ValueChangedAction(onValueChanged));
+    const field = new Form.Field({ enabled: false }).registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
 
@@ -26,7 +27,7 @@ describe('Field', () => {
   });
 
   it('sets originalValue', () => {
-    const field = Form.Field.create({
+    const field = new Form.Field({
       value: 'test',
       originalValue: 'original',
     });
@@ -37,7 +38,7 @@ describe('Field', () => {
   });
 
   it('check isChanged behaviour', () => {
-    const field = Form.Field.create({
+    const field = new Form.Field({
       value: 'test',
       originalValue: 'original',
     });
@@ -50,7 +51,7 @@ describe('Field', () => {
 
   it('triggers validation on value change', () => {
     const onValidChanged = vi.fn();
-    const field = Form.Field.create({ enabled: true }).registerAction(new Form.ValidChangedAction(onValidChanged));
+    const field = new Form.Field({ enabled: true }).registerAction(new Form.ValidChangedAction(onValidChanged));
 
     field.errors = [new ValidationErrorText('Napaka')];
     field.value = 'test';
@@ -66,7 +67,7 @@ describe('Field', () => {
       //  actually uses the result of the event handler.
       //  when it returns null, expected result is what was requested in the setVisibility call
       const onVisibilityChanging = vi.fn().mockReturnValue(changingReturnValue);
-      const field = Form.Field.create().registerAction(new Form.VisibilityChangingAction(onVisibilityChanging));
+      const field = new Form.Field().registerAction(new Form.VisibilityChangingAction(onVisibilityChanging));
 
       field.visibility = DisplayMode.HIDDEN;
 
@@ -87,7 +88,7 @@ describe('Field', () => {
       //  actually uses the result of the event handler.
       //  when it returns null, expected result is what was requested in the setEnabled call
       const onEnabledChanging = vi.fn().mockReturnValue(changingReturnValue);
-      const field = Form.Field.create().registerAction(new Form.EnabledChangingAction(onEnabledChanging));
+      const field = new Form.Field().registerAction(new Form.EnabledChangingAction(onEnabledChanging));
 
       field.enabled = false;
 
@@ -98,12 +99,12 @@ describe('Field', () => {
 
   it('correctly manages valid state based on errors', () => {
     // Test initial valid state (no validators)
-    const field = Form.Field.create({ value: 'test' });
+    const field = new Form.Field({ value: 'test' });
     expect(field.valid).toBe(true);
     expect(field.errors.length).toBe(0);
 
     // Test with validator that creates error
-    const fieldWithValidator = Form.Field.create({
+    const fieldWithValidator = new Form.Field({
       value: '',
       validators: [new Form.Validators.Required('Required field')],
     });
@@ -123,7 +124,7 @@ describe('Field', () => {
 
   it('maintains valid state after cloning', () => {
     // Test cloning field with errors (invalid)
-    const invalidField = Form.Field.create({
+    const invalidField = new Form.Field({
       value: '',
       validators: [new Form.Validators.Required()],
     });
@@ -134,7 +135,7 @@ describe('Field', () => {
     expect(clonedInvalid.errors.length).toBe(1);
 
     // Test cloning field without errors (valid)
-    const validField = Form.Field.create({
+    const validField = new Form.Field({
       value: 'valid value',
       validators: [new Form.Validators.Required()],
     });
@@ -152,7 +153,7 @@ describe('Field', () => {
 
   it('triggers ValidChangedAction when valid state changes', () => {
     const onValidChanged = vi.fn();
-    const field = Form.Field.create<string>({
+    const field = new Form.Field<string>({
       value: 'valid',
       validators: [new Form.Validators.Required()],
     }).registerAction(new Form.ValidChangedAction(onValidChanged));
@@ -170,5 +171,58 @@ describe('Field', () => {
     field.value = 'valid again';
     expect(field.valid).toBe(true);
     expect(onValidChanged).toHaveBeenCalledWith(field, expect.any(Function), true, false);
+  });
+});
+
+describe('Field construction', () => {
+  it('constructs directly, with and without parameters', () => {
+    expect(new Form.Field().value).toBeUndefined();
+    expect(new Form.Field({ value: 'x' }).value).toBe('x');
+  });
+
+  it('clones into the subclass it was called on', () => {
+    class MyField extends Form.Field<string> {}
+
+    const onChange = vi.fn();
+    const original = new MyField({ value: 'a' }).registerAction(new Form.ValueChangedAction(onChange));
+    const copy = original.clone();
+
+    expect(copy).toBeInstanceOf(MyField);
+    expect(copy).not.toBe(original);
+    expect(copy.value).toBe('a');
+
+    onChange.mockClear();
+    copy.value = 'b';
+    expect(onChange).toHaveBeenCalled();
+  });
+
+  it('runs init before a subclass class field initializer', () => {
+    const seenDuringInit: unknown[] = [];
+
+    class Suffixed extends Form.Field<string> {
+      suffix = ' EUR';
+
+      protected init(params?: Partial<IFieldConstructorParams<string>>) {
+        seenDuringInit.push(this.suffix);
+        super.init(params);
+      }
+    }
+
+    const field = new Suffixed({ value: 'a' });
+
+    // init is called from Field's constructor, so the subclass initializer has not run yet
+    expect(seenDuringInit).toEqual([undefined]);
+    expect(field.suffix).toBe(' EUR');
+    expect(field.value).toBe('a');
+  });
+
+  it('warns when EmptyField is written to', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      Form.EmptyField.value = 'anything';
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

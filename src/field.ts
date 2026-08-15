@@ -1,24 +1,26 @@
-import { reactive } from 'vue';
-
 import { ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
-import { IField, IFieldConstructorParams } from './field.interface';
+import { IFieldConstructorParams } from './field.interface';
 
-const fieldConstructorGuard = Symbol('FieldConstructorGuard');
-
-class Field<T = any> extends FieldBase {
+class Field<T = any> extends FieldBase<T> {
   protected _value: T = undefined!;
 
   protected _touched: boolean = false;
 
-  constructor(guard?: symbol) {
+  constructor(params?: Partial<IFieldConstructorParams<T>>) {
     super();
-    if (guard !== fieldConstructorGuard) {
-      const cn = this.constructor.name;
-      throw new TypeError(`Don't use constructor to instantiate ${cn}. Use ${cn}.create<T>`);
-    }
+    this.init(params);
   }
 
+  /**
+   * Applies the constructor parameters. It is a hook so that a subclass needing different parameter handling
+   * overrides one method instead of redeclaring the constructor - Action does exactly that.
+   *
+   * It is called from this constructor, so it runs before a subclass's own class field initializers, which
+   * only run once super() returns. An override must therefore work off its parameters alone: members the
+   * subclass initializes read as undefined inside it, and anything it writes to such a member is overwritten
+   * the moment the initializer runs.
+   */
   protected init(params?: Partial<IFieldConstructorParams<T>>) {
     if (params) {
       const { value: paramValue, validators, actions, ...otherParams } = params;
@@ -29,24 +31,6 @@ class Field<T = any> extends FieldBase {
     }
     this.actions.triggerEager(this, this.value, this.originalValue);
     this.validate();
-  }
-
-  /**
-   * Creates a new reactive Field instance.
-   *
-   * `this` is deliberately typed as Field<any>: typing it as Field<T> makes it compete with params when
-   * inferring T, which resolves T to unknown instead of the value's type.
-   *
-   * @param params Initial field parameters
-   * @returns Reactive Field instance
-   */
-  static create<T = any>(
-    this: new (guard?: symbol) => Field<any>,
-    params?: Partial<IFieldConstructorParams<T>>,
-  ): Field<T> {
-    const res = reactive(new this(fieldConstructorGuard)) as any;
-    res.init(params);
-    return res;
   }
 
   get value() {
@@ -70,8 +54,10 @@ class Field<T = any> extends FieldBase {
     this._touched = touched;
   }
 
-  clone(overrides?: Partial<IField<T>>): this {
-    const res: this = (this.constructor as any).create({
+  clone(overrides?: Partial<IFieldConstructorParams<T>>): this {
+    // construction goes through this.constructor so that a subclass clones into its own type
+    const Ctor = this.constructor as new (params?: Partial<IFieldConstructorParams<T>>) => this;
+    const res = new Ctor({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
@@ -87,7 +73,7 @@ export { Field };
 
 export type NullableField<T = any> = Field<T> | null;
 
-export const EmptyField = Field.create({ value: 'EmptyField' }).registerAction(
+export const EmptyField = new Field({ value: 'EmptyField' }).registerAction(
   new ValueChangedAction(() => {
     console.warn('Working with EmptyField! This should not happen');
   }),

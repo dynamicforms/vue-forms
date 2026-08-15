@@ -2,17 +2,20 @@ import { isEmpty, isEqual } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction, ValueChangedAction } from './actions';
 import { FieldBase } from './field-base';
-import { IField, IFieldConstructorParams } from './field.interface';
+import { IFieldConstructorParams } from './field.interface';
 import { GenericFieldsInterface, Group } from './group';
 
-export class List<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase {
+/** what List.value reads back: one plain object per item, or null when the list is empty */
+export type ListValue = Record<string, any>[] | null;
+
+export class List<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase<ListValue> {
   private _value: Group<T>[] | null = null;
 
   private _itemTemplate?: Group<T>;
 
-  private _previousValue: Record<string, any>[] | null;
+  private _previousValue: ListValue;
 
-  constructor(itemTemplate?: Group<T>, params?: Partial<IFieldConstructorParams>) {
+  constructor(itemTemplate?: Group<T>, params?: Partial<IFieldConstructorParams<ListValue>>) {
     super();
 
     this._itemTemplate = itemTemplate;
@@ -51,7 +54,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     }
   }
 
-  get value(): Record<string, any>[] | null {
+  get value(): ListValue {
     const value = this._value?.map((item) => item.value);
     return isEmpty(value) ? null : <Record<string, any>[]>value;
   }
@@ -74,9 +77,9 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     });
   }
 
-  clone(overrides?: Partial<IField>): List<T> {
+  clone(overrides?: Partial<IFieldConstructorParams<ListValue>>): List<T> {
     const res = new List(this._itemTemplate?.clone(), {
-      value: [...(overrides?.value ?? this.value)],
+      value: [...(overrides?.value ?? this.value ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,

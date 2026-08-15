@@ -1,11 +1,14 @@
 import FieldActionBase from './field-action-base';
 
-import { FieldActionExecute, type IField } from '@/field.interface';
+import type { FieldBase } from '@/field-base';
+import { FieldActionExecute } from '@/field.interface';
 
 const EnabledChangingActionClassIdentifier = Symbol('EnabledChangingAction');
 
 export class EnabledChangingAction extends FieldActionBase {
-  constructor(executorFn: (field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => boolean) {
+  constructor(
+    executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => boolean,
+  ) {
     super(executorFn);
   }
 
@@ -13,7 +16,7 @@ export class EnabledChangingAction extends FieldActionBase {
     return EnabledChangingActionClassIdentifier;
   }
 
-  execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): boolean {
+  execute(field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): boolean {
     return super.execute(field, supr, newValue, oldValue);
   }
 }
@@ -21,7 +24,7 @@ export class EnabledChangingAction extends FieldActionBase {
 const EnabledChangedActionClassIdentifier = Symbol('EnabledChangedAction');
 
 export class EnabledChangedAction extends FieldActionBase {
-  constructor(executorFn: (field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => void) {
+  constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => void) {
     super(executorFn);
   }
 
@@ -29,7 +32,7 @@ export class EnabledChangedAction extends FieldActionBase {
     return EnabledChangedActionClassIdentifier;
   }
 
-  execute(field: IField, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): void {
+  execute(field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): void {
     return super.execute(field, supr, newValue, oldValue);
   }
 }

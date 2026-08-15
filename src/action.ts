@@ -13,35 +13,24 @@ function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): A
 }
 
 export class Action<T extends ActionValue = ActionValue> extends Field<T> {
-  constructor(guard?: symbol) {
-    super(guard);
-    this._value = { label: undefined, icon: undefined } as T;
-  }
-
   protected init(params?: Partial<IFieldConstructorParams<T>>) {
-    // TODO: this init is most likely not needed any more. The only read diff from Field.init is the orgVal handling
+    // an Action's value is always a shaped object, so the empty value is the pair of undefined members and not
+    // undefined itself - both this hook and isValEmpty below rely on that
+    this._value = { label: undefined, icon: undefined } as T;
     if (params) {
       const { value: paramValue, originalValue, validators, actions, ...otherParams } = params;
       [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
       Object.assign(this, otherParams);
       const val = isValEmpty(paramValue, this._value);
       const orgVal = Object.freeze({ label: originalValue?.label, icon: originalValue?.icon } as ActionValue);
-      this._value = isValEmpty(val, orgVal) as T;
+      // the fallback is a copy of the baseline, never the frozen baseline itself: label and icon stay
+      // assignable on an action constructed without a value. A value that was given is kept by identity,
+      // so a reactive object passed in stays linked to the action.
+      this._value = isValEmpty(val, { ...orgVal }) as T;
       this.originalValue = isValEmpty(orgVal, val) as T;
     }
     this.actions.triggerEager(this, this.value, this.originalValue);
     this.validate();
-  }
-
-  /**
-   * Two overloads on purpose. The first one is what callers resolve against and keeps the `T extends ActionValue`
-   * check. The second one mirrors Field.create so the static side stays assignable to the base class - declaring
-   * only the constrained signature narrows params against the base declaration, which TS rejects (TS2417).
-   */
-  static create<T extends ActionValue = ActionValue>(params?: Partial<IFieldConstructorParams<T>>): Action<T>;
-  static create<T = any>(this: never, params?: Partial<IFieldConstructorParams<T>>): Action<T & ActionValue>;
-  static create(params?: Partial<IFieldConstructorParams<ActionValue>>): Action {
-    return super.create<ActionValue>(params) as Action;
   }
 
   get icon(): string | undefined {

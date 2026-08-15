@@ -10,7 +10,7 @@ describe('InAllowedValues Validator', () => {
   it('returns error when value is not in allowed values (string)', () => {
     const allowedValues = ['red', 'green', 'blue'];
 
-    const field = Field.create({
+    const field = new Field({
       value: 'yellow',
       validators: [new InAllowedValues(allowedValues)],
     });
@@ -23,7 +23,7 @@ describe('InAllowedValues Validator', () => {
   it('returns error when value is not in allowed values (number)', () => {
     const allowedValues = [1, 2, 3, 5, 8, 13];
 
-    const field = Field.create({
+    const field = new Field({
       value: 4,
       validators: [new InAllowedValues(allowedValues)],
     });
@@ -36,7 +36,7 @@ describe('InAllowedValues Validator', () => {
   it('returns no error when value is in allowed values', () => {
     const allowedValues = ['red', 'green', 'blue'];
 
-    const field = Field.create({
+    const field = new Field({
       value: 'green',
       validators: [new InAllowedValues(allowedValues)],
     });
@@ -50,7 +50,7 @@ describe('InAllowedValues Validator', () => {
     const validator = new InAllowedValues(allowedValues);
 
     // Create field with reactive value
-    const field = Field.create({
+    const field = new Field({
       value: 'red',
       validators: [validator],
     });
@@ -75,7 +75,7 @@ describe('InAllowedValues Validator', () => {
     // Create a long list of allowed values
     const allowedValues = Array.from({ length: 30 }, (_, i) => `item-${i}`);
 
-    const field = Field.create({
+    const field = new Field({
       value: 'not-in-list',
       validators: [new InAllowedValues(allowedValues)],
     });
@@ -87,13 +87,15 @@ describe('InAllowedValues Validator', () => {
     const errorContentText = (unref(field.errors[0]) as ValidationErrorRenderContent).componentBindings.source;
     expect(errorContentText).toContain('...');
     expect(errorContentText).toContain('30 items total');
+    // the 40 character budget covers the suffix too, so only the first two values survive
+    expect(errorContentText).toBe('Must be one of [**item-0, item-1... (30 items total)**]');
   });
 
   it('uses custom error message', () => {
     const allowedValues = ['admin', 'user', 'guest'];
     const customMessage = 'Invalid role selected';
 
-    const field = Field.create({
+    const field = new Field({
       value: 'superuser',
       validators: [new InAllowedValues(allowedValues, customMessage)],
     });

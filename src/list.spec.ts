@@ -33,9 +33,9 @@ describe('List', () => {
 
   it('initializes with template groups', () => {
     const template = new Group({
-      name: Field.create({ value: '' }),
-      age: Field.create({ value: 0 }),
-      active: Field.create({ value: true }),
+      name: new Field({ value: '' }),
+      age: new Field({ value: 0 }),
+      active: new Field({ value: true }),
     });
 
     const list = new List(template, {
@@ -171,8 +171,8 @@ describe('List', () => {
 
   it('clones list correctly', () => {
     const template = new Group({
-      name: Field.create(),
-      age: Field.create(),
+      name: new Field(),
+      age: new Field(),
     });
 
     const list = new List(template, {
@@ -217,8 +217,8 @@ describe('List', () => {
 
   it('creates items using the template', () => {
     const template = new Group({
-      name: Field.create({ value: 'Default Name' }),
-      age: Field.create({ value: 18 }),
+      name: new Field({ value: 'Default Name' }),
+      age: new Field({ value: 18 }),
     });
 
     const list = new List(template);
@@ -238,6 +238,10 @@ describe('List', () => {
     // Check that item has parent reference
     const item = list.get(0);
     expect(item?.parent).toBe(list);
+    // the back-reference stays non-enumerable, so serializing the list does not walk back up into it
+    expect(Object.keys(item!)).not.toContain('parent');
+    expect(Object.getOwnPropertyDescriptor(item!, 'parent')!.enumerable).toBe(false);
+    expect(() => JSON.stringify(list)).not.toThrow();
 
     // When we pop, the parent link is removed via cloning
     const popped = list.pop();
@@ -249,8 +253,8 @@ describe('List Validation', () => {
   it('should be invalid when one of the list items becomes invalid', () => {
     // Arrange
     const itemTemplate = new Group({
-      name: Field.create({ validators: [new Validators.Required()] }),
-      email: Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+      name: new Field({ validators: [new Validators.Required()] }),
+      email: new Field({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
     });
     expect(itemTemplate.valid).toBe(false);
 
@@ -279,7 +283,7 @@ describe('List Validation', () => {
 
   it('should be invalid when list-level error is added', () => {
     // Arrange
-    const itemTemplate = new Group({ name: Field.create() });
+    const itemTemplate = new Group({ name: new Field() });
 
     const list = new List(itemTemplate, {
       value: [{ name: 'Item 1' }, { name: 'Item 2' }],
@@ -298,7 +302,7 @@ describe('List Validation', () => {
 
   it('should become valid again when item errors are resolved', () => {
     // Arrange
-    const itemTemplate = new Group({ name: Field.create({ validators: [new Validators.Required()] }) });
+    const itemTemplate = new Group({ name: new Field({ validators: [new Validators.Required()] }) });
 
     const list = new List(itemTemplate, {
       value: [
@@ -321,7 +325,7 @@ describe('List Validation', () => {
 
   it('should become valid again when list-level errors are cleared', () => {
     // Arrange
-    const itemTemplate = new Group({ name: Field.create() });
+    const itemTemplate = new Group({ name: new Field() });
 
     const list = new List(itemTemplate);
 
@@ -341,7 +345,7 @@ describe('List Validation', () => {
   it('should be invalid when new invalid item is added', () => {
     // Arrange
     const itemTemplate = new Group({
-      email: Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+      email: new Field({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
     });
 
     const list = new List(itemTemplate, {
@@ -361,7 +365,7 @@ describe('List Validation', () => {
   it('should become valid when invalid item is removed', () => {
     // Arrange
     const itemTemplate = new Group({
-      email: Field.create({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
+      email: new Field({ validators: [new Validators.Pattern(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)] }),
     });
 
     const list = new List(itemTemplate, {
@@ -386,8 +390,8 @@ describe('Cross-field validation with revalidate', () => {
   it('should revalidate list items with cross-field validation', () => {
     // Setup - ustvari template za list item z dvema poljema
     const itemTemplate = new Group({
-      startDate: Field.create(),
-      endDate: Field.create(),
+      startDate: new Field(),
+      endDate: new Field(),
     });
 
     // Dodaj validator za endDate, da mora biti po startDate
@@ -442,5 +446,20 @@ describe('Cross-field validation with revalidate', () => {
     expect(firstItem?.fields.endDate.valid).toBe(false); // Should become invalid
     expect(firstItem?.valid).toBe(false);
     expect(eventsList.valid).toBe(false);
+  });
+});
+
+describe('List cloning', () => {
+  it('clones an empty list', () => {
+    const list = new List(new Group({ name: new Field({ value: 'template' }) }));
+
+    const copy = list.clone();
+
+    expect(copy).not.toBe(list);
+    expect(copy.value).toBeNull();
+
+    copy.push({ name: 'John' });
+    expect(copy.value).toEqual([{ name: 'John' }]);
+    expect(list.value).toBeNull();
   });
 });

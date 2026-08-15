@@ -13,96 +13,44 @@ still needs an empirical check before we act on it.
 
 ## Blockers for 1.0
 
-These must be settled before the public surface is frozen. Roughly half are not "bugs you patch" but
-decisions about the shape of types and signatures — after 1.0 they cost a 2.0.
+These must be settled before the public surface is frozen. Most are bugs you patch; the rest are decisions
+about the shape of signatures and of the published package — after 1.0 those cost a 2.0.
 
-### A. Vue integration
-
-- **[V] `Group` and `List` own state is not reactive.** `Field.create()` wraps the instance in `reactive()`
-  (`src/field.ts:47`); `Group` and `List` have no `create()` and are never wrapped, so `_visibility`,
-  `_enabled`, `errors` and `List._value` are plain properties on a plain object.
-
-  What works: `group.value`, `.valid`, `.touched` are getters that read the children, and the children *are*
-  reactive, so the dependency registers on the child. Value and validity propagation is fine.
-
-  What is dead: `group.errors` (exactly where **group-level validators** write, `validator.ts:57`), so
-  group-level validation is invisible in the UI; `group.visibility`/`enabled`, so
-  `ConditionalVisibilityAction` on a group never repaints; and `List._value`, so `push`/`insert`/`remove`/
-  `clear` never reach a `v-for`.
-
-  Fix: `static create()` with a `reactive()` wrapper for `Group`/`List`. The constructor can
-  `return reactive(this)` so existing `new Group(...)` calls keep working.
-
-  Note: no test in `group.spec.ts` or `list.spec.ts` uses `watchEffect`, `watch`, `isReactive` or `mount()` —
-  they exercise the manual action/event system, which is independent of Vue reactivity and works correctly.
-  Two parallel propagation mechanisms, tests cover one.
-
-- **[V] `reactiveValue` is a stale scalar on `Field` and `Action`.** `src/field-base.ts:21` creates
-  `computed(() => this.value)` as a class field, i.e. over the raw `this`, before the `reactive()` wrapper.
-  Result: `isRef(f.reactiveValue) === false` and the value freezes at the first read. On `Group` the same
-  member is a genuine `ComputedRef`, so the classes disagree with each other.
-  `ComputedRef<T>` is already published on `IField` (`src/field.interface.ts:8`) and recommended in
-  `docs/api/field.md:35` — changing the type or semantics after 1.0 needs a 2.0.
-  Fix: create the computed after the `reactive()` wrap (or expose it through a getter) and unify all three
-  classes.
-
-### B. Cloning and the action system
+### A. Cloning and the action system
 
 - **[R] `ActionsMap.clone()` never calls `boundToField()`.** `registerAction` does two things (`register` +
-  `boundToField`, `src/field-base.ts:89-98`), the clone only the first (`src/actions/actions-map.ts:53-57`).
-  Since `src/list.ts:40` builds every row with `_itemTemplate.clone()`, conditional actions are permanently
+  `boundToField`), the clone only the first (`src/actions/actions-map.ts`).
+  Since `src/list.ts` builds every row with `_itemTemplate.clone()`, conditional actions are permanently
   dead in every list row — a silent failure with no error.
   Fix: have `clone()` take the new owner and call `boundToField(newField)` per action, or add a
-  `cloneFor(field)` hook on `IFieldAction`.
+  `cloneFor(field)` hook on `FieldActionBase`.
 
 - **[R] `ConditionalStatementAction` shares one `lastResult` across all bound fields.**
-  `src/actions/conditional/conditional-statement-action.ts:12,20-28,46-48`. The same instance bound to `a`
+  `src/actions/conditional/conditional-statement-action.ts`. The same instance bound to `a`
   and then `b` leaves them disagreeing. The same pattern also breaks a single binding when the source field
   changes between constructing the action and `registerAction`: the constructor already registers a
   `ValueChangedAction` on the source fields and moves `lastResult` while `boundFields` is still empty.
-  Contradicts `docs/api/actions.md:201`.
-  Fix: `Map<IField, boolean | undefined>` instead of a single `lastResult`.
+  Contradicts `docs/api/actions.md`.
+  Fix: `Map<FieldBase, boolean | undefined>` instead of a single `lastResult`.
 
-- **[V] `List.clone()` throws on an empty list.** `src/list.ts:79` spreads `this.value`, which is `null` for
-  an empty list (`src/list.ts:56`). Both `new List(tpl).clone()` and `new Group({x: new List(tpl)}).clone()`
-  throw a `TypeError`. An empty nested list is the normal state of a fresh form, and `docs/api/list.md`
-  documents this as expected behaviour including "no workaround" for `Group.clone()`.
-  Fix: `?? this.value ?? []`, one line, plus a test for each case.
+### B. Constructors and public types
 
-### C. Constructors and public types
-
-- **[V] `new Group(fields, params)` without `params.value` wipes every child.** `src/group.ts:31-36`.
-  `new Group({a: Field.create({value: 1})}, {visibility: HIDDEN})` yields `value === {a: null}`, and
-  `originalValue` is rebaselined onto the wiped state so `isChanged` reports clean. `docs/api/group.md:29-31`
+- **[V] `new Group(fields, params)` without `params.value` wipes every child.** `src/group.ts`.
+  `new Group({a: new Field({value: 1})}, {visibility: HIDDEN})` yields `value === {a: null}`, and
+  `originalValue` is rebaselined onto the wiped state so `isChanged` reports clean. `docs/api/group.md`
   carries a `::: warning` about it, so it is known behaviour that 1.0 would freeze.
   Fix: `if ('value' in params)`, the same guard `clone()` already uses for `originalValue`.
 
-- **[R] `IFieldConstructorParams = IField & …` admits properties that throw.** `src/field.interface.ts:38`,
-  `Object.assign` in `src/field.ts:26` and `src/group.ts:34`. `Field.create({value: 1, valid: true})`
-  compiles under `--strict` against the published `dist/index.d.ts` and throws
-  `TypeError: 'set' on proxy: trap returned falsish for property 'valid'`. Conversely
-  `f.clone({errors: [...]})` compiles and is silently ignored — `clone()` forwards only four properties
-  (`src/field.ts:74-79`). Narrowing the type after 1.0 removes members from a published type.
-  Fix: separate `IFieldConstructorProps` (writable members only) from `IFieldCloneOverrides`.
-
-- **[R] `registerAction(action: IFieldAction)` is unsatisfiable.** `ActionsMap` requires
-  `instanceof FieldActionBase` and otherwise throws `Invalid action type`
-  (`src/actions/actions-map.ts:13`), so a structural implementation of the publicly exported interface
-  compiles and then throws. `IFieldAction` does not even carry the `classIdentifier` the dispatch uses
-  (`src/field.interface.ts:24,43-45`).
-  Fix: either type the parameter as `FieldActionBase`, or require `classIdentifier` in `IFieldAction`.
-  Both are breaking after 1.0.
-
-### D. Validation
+### C. Validation
 
 - **[R] Validity does not propagate upwards.** `Group.validate()` is only reached through
-  `notifyValueChanged`, i.e. only on a value change (`src/field-base.ts:70-75`, `src/group.ts:137-156`).
+  `notifyValueChanged`, i.e. only on a value change (`src/field-base.ts`, `src/group.ts`).
   When a child turns invalid by another route (async validator, externally pushed error), `g.valid` becomes
   `false` but `ValidChangedAction` on the group fires zero times — which is exactly the documented
-  "enable the Submit button" pattern (`docs/api/actions.md:109`).
+  "enable the Submit button" pattern (`docs/api/actions.md`).
   Fix: `parent?.notifyValidChanged()` in the `_valid !== oldValid` branch.
 
-- **[V] Async validators have no sequencing and no cancellation.** `src/validators/validator.ts:61-72` does
+- **[V] Async validators have no sequencing and no cancellation.** `src/validators/validator.ts` does
   `errors.then(processErrors)` with no token and no `catch`. With a validator taking 150 ms for `'bad'` and
   5 ms for `'good'`, setting `'bad'` then `'good'` ends at `value 'good'`, `valid false`,
   `errors ['bad:bad']`, `validating false` — the field claims validation finished while holding the previous
@@ -111,21 +59,14 @@ decisions about the shape of types and signatures — after 1.0 they cost a 2.0.
   safe to freeze — an `AbortSignal` 4th argument would be additive.
 
 - **[V] `CompareTo` binds to a field instance, so it points at the wrong field after any clone.**
-  `src/validators/validator-compare-to.ts:12-45`. Reproduced inverted: `pwd='a'`, `other='b'` gives
+  `src/validators/validator-compare-to.ts`. Reproduced inverted: `pwd='a'`, `other='b'` gives
   `pwd.valid === true`; `cloned='b'`, `other='b'` gives `cloned.valid === false`. Inside a `List` it is
   worse — `otherField` points at the *template's* field, so a row with `a === 'x', b === 'x'` is marked
   invalid. Password/confirm and date-from/date-to are the advertised use cases.
   Fix: resolve the other field by name or callback at validation time. That changes the `CompareTo`
   constructor, so after 1.0 it means 2.0.
 
-- **[V] `field.validating` is published with the literal type `false`.** `public readonly validating = false`
-  (`src/field-base.ts:29`) narrows to a literal in the declarations (`dist/index.d.ts:170`), so
-  `if (f.validating === true)` reports `TS2367` against the published types — and
-  `docs/api/validators.md:45` recommends exactly that pattern.
-  Fix: `public validating: boolean = false` (or a getter over `validatingCount`), and drop the
-  `@ts-expect-error` in `validator.ts:63,70`.
-
-### E. Packaging
+### D. Packaging
 
 - **[V] The CJS/UMD artifact `require()`s `lodash-es`, which is ESM-only.** `vite.config.ts:53-56` externalizes
   it in both formats. `node --no-experimental-require-module -e "require('./dist/…umd.cjs')"` gives
@@ -145,10 +86,10 @@ decisions about the shape of types and signatures — after 1.0 they cost a 2.0.
   Fix: raise the peer range (or hide `DefineComponent` behind a hand-written type), and add a CI job against
   the lowest supported Vue.
 
-- **[R] `List.insert()` emits wrong indexes in `ListItemAddedAction`.** `src/list.ts:143-144` uses
+- **[R] `List.insert()` emits wrong indexes in `ListItemAddedAction`.** `src/list.ts` uses
   `this._value.push(itm)`, which returns the new *length*, not the index. `insert({a: 9}, 3)` on an empty
   list emits `[1, 2, 3, 3]` for four elements — index 0 never announced, 3 announced twice. The only test
-  asserts `expect.any(Number)` (`src/list.spec.ts:74`), which cannot fail. The payload of a public,
+  asserts `expect.any(Number)` (`src/list.spec.ts`), which cannot fail. The payload of a public,
   documented event is frozen by 1.0.
   Fix: one line (`- 1`) plus a real test.
 
@@ -157,55 +98,59 @@ decisions about the shape of types and signatures — after 1.0 they cost a 2.0.
 ## Recommended before 1.0
 
 - **`clone()` semantics.** `Group.clone()`/`List.clone()` hardcode `new Group`/`new List` instead of
-  `this.constructor` (`src/group.ts:163`, `src/list.ts:78`), `clone()` drops every extra property
-  (`label`, `placeholder`, …), and `create()` does not preserve the subtype in the types. This has to be
-  decided now, because the `Extendable` work below depends on it.
-- **`clone()` rebaselines `originalValue`** (`src/field.ts:76`, `src/group.ts:165`) — `List.remove()` returns
+  `this.constructor`, so a subclass of either clones into the base class, and `clone()` drops every extra
+  property (`label`, `placeholder`, …). It also takes the full `IFieldConstructorParams` while forwarding
+  only `value`, `originalValue`, `enabled` and `visibility`, so `f.clone({errors: […]})` and
+  `f.clone({touched: true})` compile and are silently ignored. This has to be decided now, because the
+  `Extendable` work below depends on it.
+- **`clone()` rebaselines `originalValue`** (`src/field.ts`, `src/group.ts`) — `List.remove()` returns
   a clone with its dirty state erased.
-- **`clearValidators()` on a clone kills validation on the original** (`src/actions/actions-map.ts:61-63`
-  plus `validator-compare-to.ts:47-49`): shared action instances, and `unregister()` mutates the shared
+- **`clearValidators()` on a clone kills validation on the original** (`src/actions/actions-map.ts`
+  plus `validator-compare-to.ts`): shared action instances, and `unregister()` mutates the shared
   object. The form reports `valid` when it is not.
 - **`clearValidators()` does not cancel in-flight async validation** — the field is left permanently invalid
-  with an error nobody can clear (`src/field-base.ts:104-108`).
-- **Validators run 2..N+1 times during construction, the first calls with `undefined`** — `src/field.ts:25`
-  registers before the `_value` assignment on `:27`.
+  with an error nobody can clear (`src/field-base.ts`).
+- **Validators run 2..N+1 times during construction, the first calls with `undefined`** — `Field.init()`
+  registers them before the `_value` assignment (`src/field.ts`).
 - **A shared `ValidationError` object throws** `TypeError: Cannot redefine property: source`
-  (`src/validators/validator.ts:45-47`, `configurable: false`).
-- **A `Ref` as a validator message silently loses reactivity** (`src/validators/validator.ts:100-109`
+  (`src/validators/validator.ts`, `configurable: false`).
+- **A `Ref` as a validator message silently loses reactivity** (`src/validators/validator.ts`
   `unref`s at validation time) — i18n through `computed`/`t()` freezes in the language of the first
   validation, even though the docs list `Ref` as a supported form.
 - **`Statement.evaluate()` returns operands instead of a boolean** for AND/OR
-  (`src/actions/conditional/statement.ts:47,49`) → conditional actions fire on non-transitions (`0` vs
+  (`src/actions/conditional/statement.ts`) → conditional actions fire on non-transitions (`0` vs
   `false`), and the callback receives a number where the docs promise `boolean`.
-- **There is no way to unregister an action** (`src/actions/field-action-base.ts:31` is an empty stub,
+- **There is no way to unregister an action** (`src/actions/field-action-base.ts` has an empty stub,
   `ActionsMap` builds a closure chain). List rows leak handlers onto the shared source field permanently;
-  around 4565 handlers it hits a `RangeError`. Adding `unregisterAction` to `IField` later is breaking for
-  structural implementors — add it as an optional member now at the very least.
+  around 4565 handlers it hits a `RangeError`. `unregisterAction` can be added to `FieldBase` without
+  breaking anyone, but it needs the closure chain replaced by something that can drop a single handler.
 - **Async action handlers are neither awaited nor caught** — an `async` `ValueChangedAction` that throws
   ends as an unhandled rejection. Decide and document the contract, because changing it later (setters
   becoming async) is a 2.0.
-- **`Group.value` omits a disabled `List` but keeps a disabled `Group`** (`src/group.ts:96`; `List` does not
+- **`Group.value` omits a disabled `List` but keeps a disabled `Group`** (`src/group.ts`; `List` does not
   extend `Group`) — payload shape.
 - **`Group.value = null` does not clear a nested `List`**, and a non-array value is swallowed silently
-  (`src/list.ts:48-52`).
+  (`src/list.ts`).
 - **`Group`'s `_value` cache is not primed** — the first `ValueChangedAction` on a group always reports
-  `old = null` (`src/group.ts:18`); likewise the `List.value` setter leaves `_previousValue` stale
-  (`src/list.ts:59-65`).
+  `old = null` (`src/group.ts`); likewise the `List.value` setter leaves `_previousValue` stale
+  (`src/list.ts`).
 - **`DisplayMode`:** an invalid *string* silently becomes `FULL`, an invalid *number* throws
   (`src/display-mode.ts:29-32`).
 - **`Action.label`/`icon` write into the value object behind the setter's back**: no `ValueChangedAction`
-  fires, `isChanged` is structurally always `false`, and `Action.create({}).label = 'X'` throws on the
-  frozen object (`src/action.ts:21-34,52-61`).
-- **`EmptyField` is a shared mutable singleton** (`src/field.ts:90-94`) — `visibility`/`enabled` can be
+  fires, `isChanged` is structurally always `false`, and `new Action({}).label = 'X'` throws on the
+  frozen object (`src/action.ts`).
+- **`EmptyField` is a shared mutable singleton** (`src/field.ts`) — `visibility`/`enabled` can be
   overwritten with no warning.
 - **Validators are exported twice:** `Validator` is top-level *and* in `Validators`, while the concrete
   validators live only in the namespace (`src/validators/index.ts:3-4`). Pick one shape before both are
   promised.
-- **`T` does not propagate** (`class Field<T> extends FieldBase` with no argument,
-  `List.value: Record<string, any>[]`, `list.value = null` is a `TS2322` while `group.value = null` is fine);
-  the built-in validators carry an unused public `T` and never check the field's type.
-- **`IField.parent` is `any`** (`src/field.interface.ts:18`); the real type is `Group | List`, since
-  `src/list.ts:43` installs a `List` as the parent.
+- **`T` does not propagate all the way**: `List.value`'s setter is `Record<string, any>[]` while its getter is
+  `ListValue`, so `list.value = null` is a `TS2322` while `group.value = null` is fine; `Group.value`'s getter
+  still claims every key even though a disabled field is omitted at runtime; and the built-in validators carry
+  an unused public `T` and never check the field's type.
+- **`FieldBase.parent` is declared `Group | undefined`** (`src/field-base.ts`); a `List` installs itself as the
+  parent of its row groups (`src/list.ts`), so the honest type is `Group | List`. Widening it breaks the
+  documented sibling lookup `field.parent?.fields.other.value`, which is why it has to be decided before 1.0.
 - **`Required` accepts `'   '` as filled in** and has no `trim` option — after 1.0 the default is frozen for
   the whole 1.x line.
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
@@ -219,11 +164,13 @@ decisions about the shape of types and signatures — after 1.0 they cost a 2.0.
   aggregation and its role in getting-started), `Group.field()`/`createFromFormData()`/`clone()`, the
   disabled-subgroup serialization rule, `AbortEventHandlingException`,
   `EnabledChangedAction`/`VisibilityChangedAction`, `clearValidators()` with non-validator actions, and
-  function-valued validator messages (the i18n path). Nothing tests the built artifact or the export list —
-  the minified bundle reports `Don't use constructor to instantiate D` where the docs promise the class name.
+  function-valued validator messages (the i18n path). Nothing tests the built artifact or the export list.
 - **Documentation:** there is no versioning/stability statement and no supported Vue/Node/browser matrix,
-  `## Unreleased` still carries two todo lines (`changelog.md:35-36`), the sidebar has no changelog entry,
-  and the docs home links to a GitHub repo that does not exist.
+  the sidebar has no changelog entry, and the docs home links to a GitHub repo that does not exist.
+- **Stale GitHub URLs in `package.json`.** `repository` and `bugs` (`package.json:56-61`) point at
+  `velis74/dynamicforms-vue-forms`, while the actual remote is `dynamicforms/vue-forms`. Cosmetic, not
+  broken — the old path answers 301 and redirects to the new one — but npm shows these on the package page,
+  so fold it into the documentation pass above rather than giving it its own commit.
 
 ---
 
@@ -232,9 +179,9 @@ decisions about the shape of types and signatures — after 1.0 they cost a 2.0.
 `AbortEventHandlingException` does not veto `*Changing*` events (documented as it behaves) ·
 `enabled`/`visibility` fire events even without an actual change · an exception from a handler leaves parents
 with a stale cache · `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
-`Operator.NOT` requires a dummy third argument · `abstract new` vs `new` mismatch in `triggerAction` ·
-`parent` is `configurable: false` (documented) · `Group.addField`/`List.length`/`items` are missing
-(additive) · `Group`/`List` do not aggregate `validating` · `InAllowedValues` freezes the list at
+`Operator.NOT` requires a dummy third argument · `parent` is `configurable: false` (documented) ·
+`Group.addField`/`List.length`/`items` are missing (additive) ·
+`Group`/`List` do not aggregate `validating` · `InAllowedValues` freezes the list at
 construction · `ValidationError` has no machine-readable code · error object identity is not preserved
 across validations · `isSimpleComponentDef(null)` throws · the UMD global is literally named `[name]` ·
 `./style.css` is unreachable under node10 resolution · CI never packs and imports the artifact · no coverage
@@ -244,27 +191,21 @@ thresholds.
 
 ## Pre-existing items
 
-- Make the `IField` interface extendable so that the programmer may add any number of additional properties
+- Make fields extendable so that the programmer may add any number of additional properties
   to the Field / Group. The `@dynamicforms/vuetify-inputs` module should then have a mechanism to bind such
   properties to the inputs themselves.
 
-  Note: adding a `TExtend` generic parameter to `IField`/`Field`/`Group` after 1.0 changes published
+  Note: adding a `TExtend` generic parameter to `FieldBase`/`Field`/`Group` after 1.0 changes published
   signatures, so this belongs before the freeze — and it depends on the `clone()` semantics decision above.
 
   ```typescript
-  //In IField and FieldBase interface declarations
+  // In field.interface.ts
   export interface Extendable {
     setExtendedValues(values: Partial<typeof this>): void;
   }
 
-  export interface IField<T = any, TExtend extends Extendable = Extendable> extends TExtend {
-    // obstoječe lastnosti
-    clone(overrides?: Partial<IField<T>, TExtend>): IField<T, TExtend>;
-  }
-
-  //In FieldBase
-  constructor(params?: Partial<IField<T> & TExtend>) {
-    super();
+  // In Field, which would become Field<T = any, TExtend extends Extendable = Extendable>
+  protected init(params?: Partial<IFieldConstructorParams<T> & TExtend>) {
     if (params) {
       const { value: paramValue, ...otherParams } = params;
 
@@ -279,8 +220,8 @@ thresholds.
     }
   }
 
-  clone(overrides?: Partial<IField<T> & TExtend>): Reactive<Field<T, TExtend>> {
-    const cloned = Field.create<T, TExtend>({
+  clone(overrides?: Partial<IFieldConstructorParams<T> & TExtend>): Field<T, TExtend> {
+    const cloned = new Field<T, TExtend>({
       value: overrides?.value ?? this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
       errors: [...(overrides?.errors ?? this.errors)],
