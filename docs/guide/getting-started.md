@@ -2,16 +2,22 @@
 
 ## Introduction & Rationale
 
-Most form management libraries for Vue either couple state management directly to specific UI components or enforce opinionated template structures.
+Headless form libraries are not scarce. What varies between them is how much of a form's *behaviour* they model,
+as opposed to just its state.
 
-`@dynamicforms/vue-forms` was created as a headless, logic-first form state management library. It decouples form logic, validation, dynamic actions, and data structures from rendering, giving you full control over your UI and component choices.
+`@dynamicforms/vue-forms` treats behaviour between fields as part of the form definition rather than as wiring you
+add in your components. A field's visibility, enablement or value can be declared as a condition over other fields.
+Every change travels through an action pipeline in which each handler receives the previous one and decides whether
+to call it, transform its result, or abort the event outright. Groups and lists compose recursively, so a nested
+section or a list row behaves the same way a single field does — and rendering stays entirely yours.
 
 ### Design Goals
 
-- **UI-Agnostic**: Pure logic layer for form state, validation, and dynamic behavior. Works with native HTML controls, Vuetify, Tailwind, or any custom components.
-- **Reactive & Type-Safe**: Native integration with Vue 3 reactivity and TypeScript for automatic type inference across fields and nested forms.
-- **Dynamic & Compositional**: First-class support for nested groups, dynamic lists, conditional visibility/enablement, and extensible action event pipelines.
-- **Lightweight & Predictable**: Zero runtime dependencies (beyond Vue and lodash-es), transparent serialization, and clean lifecycle management.
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The only component the library ships is the optional `MessagesWidget` for rendering validation errors.
+- **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
+- **Reactive & Type-Safe**: Fields, groups and lists are Vue reactive objects — assign a property and whatever read it re-renders. A group's value type is inferred from the fields it holds, nested structures included.
+- **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
+- **Lightweight**: Depends on Vue and lodash-es, and nothing else.
 
 ## Installation
 

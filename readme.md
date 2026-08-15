@@ -5,19 +5,20 @@ UI components.
 
 ## Introduction
 
-`@dynamicforms/vue-forms` provides a powerful yet simple way to manage form data, validation, and state in Vue 
-applications. The library focuses on the logic layer of forms, giving you complete freedom to use any UI components 
-you prefer.
+`@dynamicforms/vue-forms` manages form data, validation and state, and leaves rendering entirely to you.
 
-Unlike other form libraries that couple data management with specific UI components, `@dynamicforms/vue-forms` 
-separates these concerns, allowing you to build forms that match your design system perfectly.
+What it models beyond state is the behaviour *between* fields. Visibility, enablement and values can be declared
+as conditions over other fields, and every change travels through an action pipeline in which each handler decides
+whether to pass the event on and may reshape its result. Groups and lists compose recursively, so the same
+mechanism applies at every level of a nested form.
 
 ### Design Goals
 
-- **UI-Agnostic**: Pure logic layer for form state, validation, and dynamic behavior.
-- **Reactive & Type-Safe**: Native integration with Vue 3 reactivity and TypeScript.
-- **Dynamic & Compositional**: First-class support for nested groups, dynamic lists, conditional statements, and action pipelines.
-- **Lightweight & Predictable**: Zero runtime dependencies (beyond Vue and lodash-es) and transparent serialization.
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own.
+- **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
+- **Reactive & Type-Safe**: Fields, groups and lists are Vue reactive objects, and a group's value type is inferred from the fields it holds, nested structures included.
+- **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
+- **Lightweight**: Depends on Vue and lodash-es, and nothing else.
 
 ## Features
 
@@ -27,7 +28,7 @@ separates these concerns, allowing you to build forms that match your design sys
 - **Nested structures**: Support for complex data with nested fields and groups
 - **Event system**: Rich event handling for field changes, validation, and more
 - **TypeScript support**: Full type definitions for excellent developer experience
-- **Lightweight**: no runtime dependencies — only peer deps `vue` (^3.4) and `lodash-es` (^4.17)
+- **Lightweight**: depends only on `vue` (^3.4) and `lodash-es` (^4.17)
 - **Field types**: Core field types (Field, Action, Group, List) to represent any data structure
 - **Validation**: Comprehensive validation system with built-in validators and extensible error handling
 - **Conditional logic**: Dynamic form behavior based on field values and conditions
