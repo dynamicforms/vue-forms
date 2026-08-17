@@ -1,8 +1,8 @@
 import { isEmpty, isEqual } from 'lodash-es';
-import { toRaw } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import { ValueChangedActionClassIdentifier } from './actions/value-changed-action';
+import { type ContainerSlots, containerSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
@@ -22,19 +22,18 @@ export type GroupValue<T extends GenericFieldsInterface> = FieldsToValues<T> | n
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
 
 export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase<GroupValue<T>> {
+  protected get state(): ContainerSlots<GroupValue<T>> {
+    return super.state as ContainerSlots<GroupValue<T>>;
+  }
+
+  protected get raw(): ContainerSlots<GroupValue<T>> {
+    return super.raw as ContainerSlots<GroupValue<T>>;
+  }
+
   private readonly _fields: T;
 
-  private _value: GroupValue<T> = null;
-
-  /** the object the value getter last built, together with the version of the tree it was built from */
-  private _cachedValue: GroupValue<T> = null;
-
-  private _cachedValueVersion: number = -1;
-
-  private suppressNotifyValueChanged: boolean = false;
-
   constructor(fields: T, params?: Partial<IFieldConstructorParams<GroupValueInput<T>>>) {
-    super();
+    super(containerSlots<GroupValue<T>>());
 
     if (!Group.isValidFields(fields)) throw new Error('Invalid fields object provided');
     // the backing map has no prototype: a field may be named after an Object.prototype member, and on an
@@ -61,9 +60,9 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     const constructedValue = this.value;
     if (this.originalValue === undefined) this.originalValue = Group.baseline(constructedValue);
 
-    // the cache the ValueChangedAction reads as the old value starts at the constructed value, so the first change
+    // the value the ValueChangedAction reads as the old one starts at the constructed value, so the first change
     // of a member reports what the group held before it instead of null
-    this._value = constructedValue;
+    this.raw.announcedValue = constructedValue;
 
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
     this._actions?.triggerEager(this, constructedValue, this.originalValue);
@@ -84,12 +83,9 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     if (Object.hasOwn(this._fields, fieldName)) {
       throw new Error(`Field ${fieldName} is already in this form`);
     }
-    // takeChild refuses a field that another group or list already holds, and installs the back-reference; the
-    // name goes with it, and it is non-enumerable for the same reason the back-reference is - lodash isEqual and
-    // JSON.stringify walk own enumerable properties. A group never releases a field, so the name is fixed for the
-    // lifetime of the field. defineProperty has no trap on a reactive proxy, so it reaches the underlying object.
-    this.takeChild(field);
-    Object.defineProperty(field, 'fieldName', { get: () => fieldName, configurable: false, enumerable: false });
+    // takeChild refuses a field that another group or list already holds, and installs the back-reference and the
+    // name together. A group never releases a field, so the name stands for the lifetime of the field.
+    this.takeChild(field, fieldName);
     // the entry is a non-configurable getter, so the map cannot be rewritten behind the group's back:
     // a field assigned straight into `fields` would never receive parent, fieldName or change notifications
     Object.defineProperty(this._fields, fieldName, { get: () => field, configurable: false, enumerable: true });
@@ -124,8 +120,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     // the version is a tracked read and the cache is not, so a reader that is answered from the cache still
     // depends on every write below this group without the walk being repeated for it
     const version = this.valueVersion;
-    const cache = toRaw(this);
-    if (cache._cachedValueVersion === version) return cache._cachedValue;
+    if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
 
     // accumulate without a prototype so a field named `__proto__` is stored instead of reassigning the
     // accumulator's prototype; the spread on return hands back an ordinary object
@@ -143,8 +138,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     // the object outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen: a caller writing into it would change what the group reports without any member holding that value
     const built = isEmpty(val) ? null : (Object.freeze({ ...val }) as FieldsToValues<T>);
-    cache._cachedValue = built;
-    cache._cachedValueVersion = version;
+    this.raw.cachedValue = built;
+    this.raw.cachedValueVersion = version;
     return built;
   }
 
@@ -156,9 +151,9 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
    * so a caller that is itself holding the group back stays in charge.
    */
   private assignMembers(newValue: GroupValueInput<T>) {
-    const outerNotify = this.suppressNotifyValueChanged;
+    const outerNotify = this.raw.suppressNotifyValueChanged;
     const outerValidation = this.suppressValidation;
-    this.suppressNotifyValueChanged = true;
+    this.raw.suppressNotifyValueChanged = true;
     this.suppressValidation = true;
     try {
       Object.entries(this._fields).forEach(([name, field]) => {
@@ -167,7 +162,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         }
       });
     } finally {
-      this.suppressNotifyValueChanged = outerNotify;
+      this.raw.suppressNotifyValueChanged = outerNotify;
       this.suppressValidation = outerValidation;
     }
   }
@@ -185,9 +180,9 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
    */
   protected resetTo(source: FieldBase, value: any): void {
     const template = source as Group<T>;
-    const outerNotify = this.suppressNotifyValueChanged;
+    const outerNotify = this.raw.suppressNotifyValueChanged;
     const outerValidation = this.suppressValidation;
-    this.suppressNotifyValueChanged = true;
+    this.raw.suppressNotifyValueChanged = true;
     this.suppressValidation = true;
     try {
       if (this.errors.length) this.errors = [];
@@ -200,11 +195,11 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         this.resetChild(field, template.field(name) ?? field, memberValue);
       });
     } finally {
-      this.suppressNotifyValueChanged = outerNotify;
+      this.raw.suppressNotifyValueChanged = outerNotify;
       this.suppressValidation = outerValidation;
     }
     const built = this.value;
-    this._value = built;
+    this.raw.announcedValue = built;
     this.originalValue = Group.baseline(built);
     super.validate(true);
   }
@@ -228,7 +223,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
   }
 
   notifyValueChanged() {
-    if (this.suppressNotifyValueChanged) return;
+    if (this.raw.suppressNotifyValueChanged) return;
     // the pair a ValueChangedAction carries is only built where something receives it: with no handler for it and
     // no eager action riding along, walking the members would produce an object nobody reads. What still has to
     // happen is the notification of the parent and this group's own recomputation - a member that changed its
@@ -238,9 +233,9 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     let oldValue: GroupValue<T> = null;
     if (actions) {
       newValue = this.value;
-      if (isEqual(newValue, this._value)) return;
-      oldValue = this._value;
-      this._value = newValue;
+      if (isEqual(newValue, this.raw.announcedValue)) return;
+      oldValue = this.raw.announcedValue;
+      this.raw.announcedValue = newValue;
     }
     // the parent learns of the new value below and validates itself from there, over the whole value; a
     // validator running on this group must therefore not send it a verdict of its own in the meantime
@@ -260,7 +255,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
   }
 
   protected refreshPreviousValue(): void {
-    this._value = this.value;
+    this.raw.announcedValue = this.value;
   }
 
   get valid() {
@@ -302,8 +297,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     if (this._actions) {
       const actions = this._actions.clone();
       res._actions = actions;
-      // the constructor primed _value with the value the members ended up holding, and nothing has run since
-      actions.triggerEager(res, res._value, res.originalValue);
+      // the constructor primed announcedValue with the value the members ended up holding, and nothing has run since
+      actions.triggerEager(res, res.raw.announcedValue, res.originalValue);
     }
     return res;
   }

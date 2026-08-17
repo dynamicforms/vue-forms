@@ -1,5 +1,5 @@
 import { isEqual } from 'lodash-es';
-import { EffectScope, effectScope, isReactive, nextTick, toRaw, watchEffect } from 'vue';
+import { EffectScope, effectScope, isReactive, isReadonly, nextTick, readonly, toRaw, watchEffect } from 'vue';
 
 import { Action } from './action';
 import DisplayMode from './display-mode';
@@ -9,9 +9,10 @@ import { List } from './list';
 import { ValidationErrorText, Validators } from './validators';
 
 /**
- * Every field is a Vue reactive proxy, so a template or a watcher that reads a field member re-runs when that
- * member is written. The effects below all run inside one scope that is stopped after each test: a leaked effect
- * keeps firing on later tests' fixtures and shows up as an off-by-one run count somewhere else entirely.
+ * A field is not a proxy of itself - it carries __v_skip, and what is reactive is the state it holds its members
+ * in. A template or a watcher that reads a field member still re-runs when that member is written, and toRaw() of
+ * a field is the field. The effects below all run inside one scope that is stopped after each test: a leaked
+ * effect keeps firing on later tests' fixtures and shows up as an off-by-one run count somewhere else entirely.
  */
 let scope: EffectScope;
 
@@ -53,16 +54,30 @@ describe('scheduling', () => {
   });
 });
 
-describe('reactive proxies', () => {
-  it('constructs every field type as a reactive proxy', () => {
+describe('reactivity flags', () => {
+  it('answers isReactive for every field type', () => {
     class MyField extends Field {}
 
     expect(isReactive(new Field({ value: 1 }))).toBe(true);
     expect(isReactive(new Action({ value: { label: 'x' } }))).toBe(true);
     expect(isReactive(new Group({ a: new Field({ value: 1 }) }))).toBe(true);
     expect(isReactive(new List())).toBe(true);
-    // the base constructor returns the proxy, so a subclass's own initializers and methods see it too
+    // the flags are on the base's prototype, so a subclass answers the same without doing anything for it
     expect(isReactive(new MyField({ value: 1 }))).toBe(true);
+  });
+
+  it('hands an element back unwrapped from readonly()', () => {
+    // __v_skip stops readonly() the same way it stops reactive(), so the wrapper protects nothing and the
+    // documentation says so: what a caller hands out instead is the value, which is frozen
+    const field = new Field({ value: 1 });
+    const view = readonly(field);
+
+    expect(view).toBe(field);
+    expect(isReadonly(view)).toBe(false);
+    // the type readonly() gives back still refuses the assignment, so the write is what a JavaScript caller, or
+    // one that casts, ends up doing
+    (view as Field<number>).value = 2;
+    expect(field.value).toBe(2);
   });
 
   it('keeps child fields reactive and identical to what was passed in', () => {
@@ -80,7 +95,7 @@ describe('reactive proxies', () => {
     expect(list.get(0)!.parent).toBe(list);
   });
 
-  it('keeps the parent back-reference out of enumeration on both the proxy and the raw object', () => {
+  it('keeps the parent back-reference out of enumeration, in a group member and in a list row', () => {
     const inner = new Group({ x: new Field({ value: 1 }) });
     const rows = new List(new Group({ n: new Field({ value: 0 }) }));
     const outer = new Group({ inner, rows });
@@ -89,8 +104,8 @@ describe('reactive proxies', () => {
     expect(Object.keys(inner)).not.toContain('parent');
     expect(Object.keys(toRaw(inner))).not.toContain('parent');
     expect(Object.keys(inner)).not.toContain('fieldName');
-    expect(Object.getOwnPropertyDescriptor(toRaw(inner), 'parent')!.enumerable).toBe(false);
-    expect(Object.getOwnPropertyDescriptor(toRaw(rows.get(0)!), 'parent')!.enumerable).toBe(false);
+    expect(Object.keys(rows.get(0)!)).not.toContain('parent');
+    expect(Object.keys(toRaw(rows.get(0)!))).not.toContain('parent');
 
     // both walkers follow own enumerable properties, so the parent/child cycle must not be reachable through them
     expect(() => JSON.stringify(outer)).not.toThrow();
@@ -143,21 +158,72 @@ describe('Field reactivity', () => {
     expect(errorCount).toEqual([0, 1, 0]);
   });
 
-  it('reports the unchanged value when the setter ignores the write', async () => {
-    // writing an accessor that the class declares on its prototype is recorded by the proxy as adding a key, so
-    // the watcher re-runs on the write itself; what the reader observes is the setter's decision - the same value
+  it('does not re-run when the setter ignores the write', async () => {
+    // a write the setter refuses reaches no slot, so nothing is triggered and the reader keeps the value it has
     const same = new Field({ value: 1 });
     const sameRuns = track(() => same.value);
     same.value = 1;
     await nextTick();
-    expect(sameRuns).toEqual([1, 1]);
+    expect(sameRuns).toEqual([1]);
 
     const disabled = new Field({ value: 1, enabled: false });
     const disabledRuns = track(() => disabled.value);
     disabled.value = 5;
     await nextTick();
-    expect(disabledRuns).toEqual([1, 1]);
+    expect(disabledRuns).toEqual([1]);
     expect(disabled.value).toBe(1);
+  });
+
+  it('re-runs on validationEpoch', async () => {
+    const field = new Field({ value: 1, validators: [new Validators.Required()] });
+    const runs = track(() => field.validationEpoch);
+    expect(runs).toEqual([0]);
+
+    field.clearValidators();
+    await nextTick();
+
+    expect(field.validationEpoch).toBe(1);
+    expect(runs).toEqual([0, 1]);
+  });
+});
+
+describe('parent reactivity', () => {
+  it('re-runs when a group takes a field', async () => {
+    const field = new Field({ value: 1 });
+    const runs = track(() => field.parent !== undefined);
+    expect(runs).toEqual([false]);
+
+    const group = new Group({ field });
+    await nextTick();
+
+    expect(field.parent).toBe(group);
+    expect(runs).toEqual([false, true]);
+  });
+
+  it('re-runs when a list releases a row', async () => {
+    const list = new List(new Group({ n: new Field({ value: 0 }) }), { value: [{ n: 1 }] });
+    const row = list.get(0)!;
+    const runs = track(() => row.parent !== undefined);
+    await nextTick();
+    expect(runs).toEqual([true]);
+
+    list.remove(0);
+    await nextTick();
+
+    expect(row.parent).toBeUndefined();
+    expect(runs).toEqual([true, false]);
+  });
+
+  it('re-runs on fieldName when a group takes a field', async () => {
+    const field = new Field({ value: 1 });
+    const runs = track(() => field.fieldName);
+    expect(runs).toEqual([undefined]);
+
+    const group = new Group({ named: field });
+    await nextTick();
+
+    expect(group.field('named')).toBe(field);
+    expect(runs).toEqual([undefined, 'named']);
   });
 });
 

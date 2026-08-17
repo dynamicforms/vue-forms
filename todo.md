@@ -106,6 +106,10 @@ about the shape of signatures and of the published package — after 1.0 those c
 - **`FieldBase.parent` is declared `Group | undefined`** (`src/field-base.ts`); a `List` installs itself as the
   parent of its row groups (`src/list.ts`), so the honest type is `Group | List`. Widening it breaks the
   documented sibling lookup `field.parent?.fields.other.value`, which is why it has to be decided before 1.0.
+- **`isEqual` over two elements answers `true` for any two of the same class**, because an element's state is
+  unreachable to a structural walker (`GAPS.md` D-001). `isEqual(a.value, b.value)` is the meaningful
+  comparison and is documented as such, but the trap is silent and a machine-readable identity — or a
+  documented refusal to support element comparison — is worth settling before the surface freezes.
 - **`Required` accepts `'   '` as filled in** and has no `trim` option — after 1.0 the default is frozen for
   the whole 1.x line.
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one

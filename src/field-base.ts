@@ -1,5 +1,5 @@
 import { isBoolean, isEqual } from 'lodash-es';
-import { computed, reactive, toRaw, type ComputedRef } from 'vue';
+import { computed, reactive, type ComputedRef } from 'vue';
 
 import ActionsMap from './actions/actions-map';
 import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
@@ -7,6 +7,7 @@ import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import DisplayMode from './display-mode';
+import { type ElementSlots } from './element-state';
 import { IFieldConstructorParams } from './field.interface';
 import { type Group } from './group';
 import { ValidationError } from './validators/validation-error';
@@ -20,12 +21,49 @@ const validReads = new WeakMap<object, ComputedRef<boolean>>();
 
 export abstract class FieldBase<T = any> {
   /**
-   * A field is a Vue reactive proxy from construction onwards: the base constructor returns the proxy, and a
-   * derived class's `this` is whatever super() returned, so every subclass constructor, field initializer and
-   * method sees the proxy. Consequence: plain `field.property = value` is tracked, with no wrapper in between.
+   * Vue's getTargetType answers INVALID for an object that carries __v_skip, so reactive() hands an element back
+   * unwrapped and no element is ever behind a proxy of its own. isReactive() reads the second flag, and it stays
+   * true because what carries an element's reactivity - its state - is a reactive object.
+   *
+   * Two consequences for a consumer, both silent. watch(field, cb) with a bare element as the source registers
+   * no dependency, because the deep traversal Vue starts for a reactive source stops on __v_skip; the supported
+   * form is watch(() => field.value, cb). And readonly(field) hands the element straight back, so the value it
+   * returns is the element itself and a write through it reaches the field; what a caller hands out instead is
+   * the value, which is frozen, or a computed over it.
    */
-  constructor() {
-    return reactive(this) as this;
+  get __v_skip(): boolean {
+    return true;
+  }
+
+  get __v_isReactive(): boolean {
+    return true;
+  }
+
+  /**
+   * The element's mutable state, in an object beside the element. `#state` is the tracked view of it: a slot read
+   * through it inside an effect subscribes the effect to that slot, and a write to the slot re-runs the effect.
+   * `#raw` is the same object without the proxy, for the bookkeeping nothing renders from.
+   *
+   * They are private class fields, so no reflection over the element reaches the state or the parent link it
+   * carries, and a subclass reads its own slot type through the accessors below.
+   */
+  readonly #state: ElementSlots<T>;
+
+  readonly #raw: ElementSlots<T>;
+
+  constructor(slots: ElementSlots<T>) {
+    this.#raw = slots;
+    this.#state = reactive(slots) as ElementSlots<T>;
+  }
+
+  /** the tracked view of this element's state; a subclass narrows the return type to its own slots */
+  protected get state(): ElementSlots<T> {
+    return this.#state;
+  }
+
+  /** the untracked view of this element's state; a subclass narrows the return type to its own slots */
+  protected get raw(): ElementSlots<T> {
+    return this.#raw;
   }
 
   abstract get value(): T;
@@ -36,39 +74,58 @@ export abstract class FieldBase<T = any> {
 
   abstract clone(overrides?: Partial<IFieldConstructorParams<T>>): FieldBase<T>;
 
-  declare originalValue: T; // contains original field value as was provided at creation
+  /** contains original field value as was provided at creation */
+  get originalValue(): T {
+    return this.#state.originalValue;
+  }
 
-  private validatingCount = 0;
+  set originalValue(newValue: T) {
+    this.#state.originalValue = newValue;
+  }
 
   /** true while at least one asynchronous validator is still running for this field */
   get validating(): boolean {
-    return this.validatingCount > 0;
+    return this.#state.validatingCount > 0;
   }
 
   /** announces the start of one asynchronous validation run; validators pair it with endValidating */
   beginValidating(): void {
-    this.validatingCount++;
+    this.#state.validatingCount++;
   }
 
   /** announces the end of one asynchronous validation run */
   endValidating(): void {
-    this.validatingCount = Math.max(0, this.validatingCount - 1);
+    this.#state.validatingCount = Math.max(0, this.#state.validatingCount - 1);
   }
 
-  protected _valid: boolean = true; // is current value valid as per FE and BE validators?
+  /** list of errors */
+  get errors(): ValidationError[] {
+    return this.#state.errors;
+  }
 
-  errors: ValidationError[] = []; // list of errors
+  set errors(newValue: ValidationError[]) {
+    this.#state.errors = newValue;
+  }
 
-  declare parent?: Group; // when member of a Group, parent will specify that group
+  /**
+   * The container that holds this element: the Group it is a member of, or the List whose row it is, and
+   * undefined while no container holds it. The container writes it; everyone else reads it. The read is tracked,
+   * so an effect rendering off the link - `v-if="field.parent"` - re-runs when a container takes the element or
+   * releases it.
+   */
+  get parent(): Group | undefined {
+    return this.#state.parent as Group | undefined;
+  }
 
-  declare fieldName?: string; // when member of a Group, fieldName specifies the name of this field
+  /** when member of a Group, fieldName specifies the name of this field. Written by the group, read-only after */
+  get fieldName(): string | undefined {
+    return this.#state.fieldName;
+  }
 
   /**
    * The map this element registers its actions in, absent while it has registered none. Code that only triggers
    * reads this slot rather than `actions`, so an element with nothing registered stays free of a map: `actions`
-   * allocates one for whoever asks, and a trigger over an empty map does nothing anyway. Writers assign it
-   * directly too - a write through the accessor makes the reactive proxy read the old value first, which is the
-   * one read that would allocate the map the assignment is about to replace.
+   * allocates one for whoever asks, and a trigger over an empty map does nothing anyway.
    */
   declare protected _actions?: ActionsMap;
 
@@ -81,15 +138,13 @@ export abstract class FieldBase<T = any> {
     this._actions = newValue;
   }
 
-  private _valueVersion: number = 0;
-
   /**
    * Counts the writes that have changed the value of this element or of anything below it. A container reads it
    * before answering from its value cache, and the read is an ordinary tracked one, so an effect that took a
    * cached value still re-runs when a descendant is written.
    */
   protected get valueVersion(): number {
-    return this._valueVersion;
+    return this.#state.valueVersion;
   }
 
   /**
@@ -98,10 +153,10 @@ export abstract class FieldBase<T = any> {
    * here for a reader that may never come.
    */
   protected bumpValueVersion(): void {
-    this._valueVersion++;
+    this.#state.valueVersion++;
     let ancestor: FieldBase | undefined = this.parent;
     while (ancestor) {
-      ancestor._valueVersion++;
+      ancestor.#state.valueVersion++;
       ancestor = ancestor.parent;
     }
   }
@@ -113,9 +168,6 @@ export abstract class FieldBase<T = any> {
    */
   protected refreshPreviousValue(): void {}
 
-  /** Number of direct children whose last validate() ended on an invalid verdict. */
-  protected invalidChildren: number = 0;
-
   /**
    * The verdict validate() records and announces: this element's own errors plus the tally of children that
    * reported themselves invalid, so a container forms it without walking its members. `valid` is the read path
@@ -123,27 +175,26 @@ export abstract class FieldBase<T = any> {
    * without a validate() call, which is the documented cost of pushing errors by hand.
    */
   protected get countedValid(): boolean {
-    return this.errors.length === 0 && this.invalidChildren === 0;
+    return this.errors.length === 0 && this.#raw.invalidChildren === 0;
   }
 
   /**
-   * Makes this element the container of `child`: it installs the back-reference and takes the child into the
-   * invalid tally. An element belongs to one container at a time, so a child that already carries the link is
-   * refused; releaseChild() takes the link away again, and an element released that way can be handed on.
-   *
-   * The link must stay non-enumerable: Group.value iterates its fields, and lodash isEqual and JSON.stringify walk
-   * own enumerable properties, so an enumerable back-reference makes all three recurse into the container.
-   * defineProperty has no trap on a reactive proxy, so it reaches the underlying object.
+   * Makes this element the container of `child`: it installs the back-reference, records the name a Group holds
+   * the child under, and takes the child into the invalid tally. An element belongs to one container at a time,
+   * so a child that already carries the link is refused; releaseChild() takes the link away again, and an element
+   * released that way can be handed on. The child's state is unreachable from outside FieldBase, so a container
+   * writes the two slots through here rather than on the child.
    */
-  protected takeChild(child: FieldBase): void {
+  protected takeChild(child: FieldBase, fieldName?: string): void {
     if (child.parent) throw new TypeError('This element already belongs to a container - pass a clone() of it');
-    Object.defineProperty(child, 'parent', { get: () => this, configurable: true, enumerable: false });
+    child.#state.fieldName = fieldName;
+    child.#state.parent = this;
     this.adoptChild(child);
   }
 
   /** Takes a child into this element's invalid tally; a container calls it once the child's parent link exists. */
   protected adoptChild(child: FieldBase): void {
-    if (!child._valid) this.invalidChildren++;
+    if (!child.#raw.valid) this.#raw.invalidChildren++;
   }
 
   /**
@@ -152,8 +203,8 @@ export abstract class FieldBase<T = any> {
    * stands in the way of the element being taken by another container.
    */
   protected releaseChild(child: FieldBase): void {
-    if (!child._valid) this.invalidChildren--;
-    delete child.parent;
+    if (!child.#raw.valid) this.#raw.invalidChildren--;
+    child.#state.parent = undefined;
   }
 
   /**
@@ -195,7 +246,7 @@ export abstract class FieldBase<T = any> {
    * the climb that would otherwise carry the change is held back.
    */
   protected childValidityChanged(nowValid: boolean): void {
-    this.invalidChildren += nowValid ? -1 : 1;
+    this.#raw.invalidChildren += nowValid ? -1 : 1;
   }
 
   /**
@@ -204,11 +255,10 @@ export abstract class FieldBase<T = any> {
    * from repeating while nothing it read has moved.
    */
   protected get validRead(): boolean {
-    const element = toRaw(this);
-    let read = validReads.get(element);
+    let read = validReads.get(this);
     if (!read) {
       read = computed(() => this.composeValid());
-      validReads.set(element, read);
+      validReads.set(this, read);
     }
     return read.value;
   }
@@ -219,35 +269,31 @@ export abstract class FieldBase<T = any> {
   }
 
   // default property handlers
-  private _visibility: DisplayMode = DisplayMode.FULL;
-
   get visibility(): DisplayMode {
-    return this._visibility;
+    return this.#state.visibility;
   }
 
   set visibility(newValue: DisplayMode) {
-    const oldValue = this._visibility;
+    const oldValue = this.#state.visibility;
     const alteredValue = this._actions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
     if (!DisplayMode.isDefined(alteredValue ?? newValue)) throw new Error('visibility must be a DisplayMode constant');
-    this._visibility = DisplayMode.fromAny(alteredValue ?? newValue);
-    this._actions?.trigger(VisibilityChangedAction, this, this._visibility, oldValue);
+    this.#state.visibility = DisplayMode.fromAny(alteredValue ?? newValue);
+    this._actions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
   }
 
-  private _enabled: boolean = true;
-
   get enabled(): boolean {
-    return this._enabled;
+    return this.#state.enabled;
   }
 
   set enabled(newValue: boolean) {
-    const oldValue = this._enabled;
+    const oldValue = this.#state.enabled;
     const alteredValue = this._actions?.trigger(EnabledChangingAction, this, newValue, oldValue);
     if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
-    this._enabled = alteredValue ?? newValue;
+    this.#state.enabled = alteredValue ?? newValue;
     // a disabled field is left out of the value its group serializes, so the switch changes the value of every
     // container above it just as a write to the value itself would
-    if (this._enabled !== oldValue) this.bumpValueVersion();
-    this._actions?.trigger(EnabledChangedAction, this, this._enabled, oldValue);
+    if (this.#state.enabled !== oldValue) this.bumpValueVersion();
+    this._actions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
   }
 
   /**
@@ -258,7 +304,13 @@ export abstract class FieldBase<T = any> {
    * followed by its own validate(). That call recomputes over the finished state and emits the net transition, so
    * the deferral cannot swallow a real change.
    */
-  protected suppressValidation: boolean = false;
+  protected get suppressValidation(): boolean {
+    return this.#raw.suppressValidation;
+  }
+
+  protected set suppressValidation(newValue: boolean) {
+    this.#raw.suppressValidation = newValue;
+  }
 
   /**
    * While true, a validity change is still recomputed and still announced on this field, but it is not passed up to
@@ -266,23 +318,27 @@ export abstract class FieldBase<T = any> {
    * the parent of the new value itself holds it over the notifying region, so the parent forms its verdict once,
    * over the finished value, instead of once over the value being replaced and once over the value replacing it.
    */
-  protected suppressParentValidityClimb: boolean = false;
+  protected get suppressParentValidityClimb(): boolean {
+    return this.#raw.suppressParentValidityClimb;
+  }
 
-  private parentValidityClimbPending: boolean = false;
+  protected set suppressParentValidityClimb(newValue: boolean) {
+    this.#raw.suppressParentValidityClimb = newValue;
+  }
 
   /** Carries out the climb that a validity change made while suppressParentValidityClimb was held, if there was one. */
   protected flushParentValidityClimb(): void {
-    if (!this.parentValidityClimbPending) return;
-    this.parentValidityClimbPending = false;
+    if (!this.#raw.parentValidityClimbPending) return;
+    this.#raw.parentValidityClimbPending = false;
     this.parent?.validate();
   }
 
   validate(revalidate: boolean = false) {
     if (this.suppressValidation) return;
     if (revalidate) this._actions?.triggerEager(this, this.value, this.value);
-    const oldValid = this._valid;
+    const oldValid = this.#raw.valid;
     const newValid = this.countedValid;
-    this._valid = newValid;
+    this.#raw.valid = newValid;
     if (newValid !== oldValid) {
       // the verdict goes to the container that holds this element, and a container that released it holds it no
       // longer: the link is gone with the release, so a dropped row moves no tally
@@ -296,7 +352,7 @@ export abstract class FieldBase<T = any> {
       // no revalidate, so it only recomputes, and it climbs no further than the first ancestor whose own
       // validity stays the same.
       if (container) {
-        if (this.suppressParentValidityClimb) this.parentValidityClimbPending = true;
+        if (this.suppressParentValidityClimb) this.#raw.parentValidityClimbPending = true;
         else container.validate();
       }
     }
@@ -345,19 +401,17 @@ export abstract class FieldBase<T = any> {
     return this._actions ? this._actions.trigger(actionClass, this, ...params) : null;
   }
 
-  private _validationEpoch: number = 0;
-
   /**
    * Generation counter of the validators attached to this field. A Validator reads it when a run starts and drops
    * a result whose epoch no longer matches, so a validation still in flight when clearValidators() is called
    * cannot push an error onto a field that no longer has the validator that produced it.
    */
   get validationEpoch(): number {
-    return this._validationEpoch;
+    return this.#state.validationEpoch;
   }
 
   clearValidators(): void {
-    this._validationEpoch++;
+    this.#state.validationEpoch++;
     if (this._actions) this.actions = this._actions.cloneWithoutValidators();
     this.errors = [];
     // the errors are gone before the recomputation, so validate() sees the cleared state and routes the validity

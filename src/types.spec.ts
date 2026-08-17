@@ -50,7 +50,7 @@ describe('constructor inference', () => {
       new Field({ value: 1, isChanged: true }),
       // @ts-expect-error validating is derived from the running validators and has no setter
       new Field({ value: 1, validating: true }),
-      // @ts-expect-error parent is installed by the containing Group as a non-configurable accessor
+      // @ts-expect-error parent is read-only; the containing Group writes the slot behind it
       new Field({ value: 1, parent: undefined }),
     ];
     expect(rejected).toBeInstanceOf(Function);

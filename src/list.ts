@@ -1,8 +1,8 @@
 import { isEmpty, isEqual } from 'lodash-es';
-import { toRaw } from 'vue';
 
 import { ListItemAddedAction, ListItemRemovedAction, ValueChangedAction } from './actions';
 import { ValueChangedActionClassIdentifier } from './actions/value-changed-action';
+import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
 import { GenericFieldsInterface, Group } from './group';
@@ -11,21 +11,18 @@ import { GenericFieldsInterface, Group } from './group';
 export type ListValue = Record<string, any>[] | null;
 
 export class List<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase<ListValue> {
-  private _value: Group<T>[] | null = null;
+  protected get state(): ListSlots<T> {
+    return super.state as ListSlots<T>;
+  }
 
-  /** the array the value getter last built, together with the version of the tree it was built from */
-  private _cachedValue: ListValue = null;
-
-  private _cachedValueVersion: number = -1;
+  protected get raw(): ListSlots<T> {
+    return super.raw as ListSlots<T>;
+  }
 
   private _itemTemplate?: Group<T>;
 
-  private _previousValue: ListValue;
-
-  private suppressNotifyValueChanged: boolean = false;
-
   constructor(itemTemplate?: Group<T>, params?: Partial<IFieldConstructorParams<ListValue>>) {
-    super();
+    super(listSlots<T>());
 
     this._itemTemplate = itemTemplate;
 
@@ -42,7 +39,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     }
 
     if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
-    this._previousValue = this.value;
+    this.raw.announcedValue = this.value;
     this._actions?.triggerEager(this, this.value, this.originalValue);
     this.validate();
   }
@@ -83,16 +80,16 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     // list nested in a group would keep its rows while every sibling field was emptied
     if (newValue == null) {
       this.releaseRows();
-      this._value = null;
+      this.state.rows = null;
     } else if (Array.isArray(newValue)) {
       // a row that takes the new item announces the change on its own and would carry it up here in the middle of
       // the walk; the list makes its own statement once, over the finished set, and the caller announces it
-      const outerNotify = this.suppressNotifyValueChanged;
+      const outerNotify = this.raw.suppressNotifyValueChanged;
       const outerValidation = this.suppressValidation;
-      this.suppressNotifyValueChanged = true;
+      this.raw.suppressNotifyValueChanged = true;
       this.suppressValidation = true;
       try {
-        const previous = this._value ?? [];
+        const previous = this.state.rows ?? [];
         // the new set is built beside the one in place and installed whole: writing a row runs its validators, and
         // one reading this list in the middle of the walk must not be shown a position that has yet to be filled
         const rows: Group<T>[] = new Array(newValue.length);
@@ -113,9 +110,9 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
           }
         }
         for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
-        this._value = rows;
+        this.state.rows = rows;
       } finally {
-        this.suppressNotifyValueChanged = outerNotify;
+        this.raw.suppressNotifyValueChanged = outerNotify;
         this.suppressValidation = outerValidation;
       }
     }
@@ -126,16 +123,15 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     // the version is a tracked read and the cache is not, so a reader that is answered from the cache still
     // depends on every write below this list without the walk over its rows being repeated for it
     const version = this.valueVersion;
-    const cache = toRaw(this);
-    if (cache._cachedValueVersion === version) return cache._cachedValue;
+    if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
 
-    const value = this._value?.map((item) => item.value);
+    const value = this.state.rows?.map((item) => item.value);
     // the array outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen, as is every row object in it; a caller writing into either would change what the list reports
     // without any row holding that value
     const built = isEmpty(value) ? null : (Object.freeze(value) as Record<string, any>[]);
-    cache._cachedValue = built;
-    cache._cachedValueVersion = version;
+    this.raw.cachedValue = built;
+    this.raw.cachedValueVersion = version;
     return built;
   }
 
@@ -160,11 +156,11 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     let oldValue: ListValue = null;
     if (actions) {
       newValue = this.value;
-      if (!forced && isEqual(newValue, this._previousValue)) return;
-      oldValue = this._previousValue;
+      if (!forced && isEqual(newValue, this.raw.announcedValue)) return;
+      oldValue = this.raw.announcedValue;
       // the cache is refreshed before the event: an item that reports a change while the handlers run must
       // compare against the value just assigned, not against the one replaced
-      this._previousValue = newValue;
+      this.raw.announcedValue = newValue;
     }
     // the parent learns of the new value below and validates itself from there, over the whole value; a validator
     // running on this list must therefore not send it a verdict of its own in the meantime
@@ -191,17 +187,17 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     if (this.errors.length) this.errors = [];
     this.setValueInternal(value === undefined ? (source as List<T>).value : value);
     const built = this.value;
-    this._previousValue = built;
+    this.raw.announcedValue = built;
     this.originalValue = List.baseline(built);
     super.validate(true);
   }
 
   get touched(): boolean {
-    return this._value?.some((item) => item.touched) || false;
+    return this.state.rows?.some((item) => item.touched) || false;
   }
 
   set touched(touched: boolean) {
-    this._value?.forEach((item) => {
+    this.state.rows?.forEach((item) => {
       item.touched = touched;
     });
   }
@@ -223,12 +219,12 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   notifyValueChanged() {
-    if (this.suppressNotifyValueChanged) return;
+    if (this.raw.suppressNotifyValueChanged) return;
     this.announceValueChanged(false);
   }
 
   protected refreshPreviousValue(): void {
-    this._previousValue = this.value;
+    this.raw.announcedValue = this.value;
   }
 
   get valid() {
@@ -236,7 +232,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   protected composeValid(): boolean {
-    return this.errors.length === 0 && (this._value?.every((item) => item.valid) ?? true);
+    return this.errors.length === 0 && (this.state.rows?.every((item) => item.valid) ?? true);
   }
 
   validate(revalidate: boolean = false) {
@@ -247,7 +243,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       const outerValidation = this.suppressValidation;
       this.suppressValidation = true;
       try {
-        this._value?.forEach((item) => item.validate(true));
+        this.state.rows?.forEach((item) => item.validate(true));
       } finally {
         this.suppressValidation = outerValidation;
       }
@@ -256,21 +252,21 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   get(index: number): Group<T> | undefined {
-    return this._value != null ? this._value[index] : undefined;
+    return this.state.rows != null ? this.state.rows[index] : undefined;
   }
 
   push(item: any): number {
-    return this.insert(item, this._value?.length ?? 0) + 1;
+    return this.insert(item, this.state.rows?.length ?? 0) + 1;
   }
 
   pop(): Group<T> | undefined {
-    return this.remove((this._value?.length ?? 0) - 1);
+    return this.remove((this.state.rows?.length ?? 0) - 1);
   }
 
   remove(index: number): Group<T> | undefined {
-    if (this._value == null || index < 0 || this._value.length <= index) return undefined;
+    if (this.state.rows == null || index < 0 || this.state.rows.length <= index) return undefined;
 
-    let removedItem = this._value.splice(index, 1)?.[0];
+    let removedItem = this.state.rows.splice(index, 1)?.[0];
 
     if (removedItem) {
       this.releaseChild(removedItem);
@@ -288,20 +284,20 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   insert(item: any, index: number): number {
-    if (this._value == null) this._value = [];
+    if (this.state.rows == null) this.state.rows = [];
     // a negative index counts back from the end and stops at the start, the way splice reads it, so the
     // position announced and returned is the one the item actually occupies
-    const position = index < 0 ? Math.max(this._value.length + index, 0) : index;
-    while (this._value.length < position) {
+    const position = index < 0 ? Math.max(this.state.rows.length + index, 0) : index;
+    while (this.state.rows.length < position) {
       // if the index is too large for current array size, we add as many as necessary
       const itm = this.createPaddingItem();
       // push returns the new length, while the event carries the index of the item that was added
-      const idx = this._value.push(itm) - 1;
+      const idx = this.state.rows.push(itm) - 1;
       this.bumpValueVersion();
       this._actions?.trigger(ListItemAddedAction, this, itm, idx);
     }
     const itm = this.processSetValueItem(item);
-    this._value.splice(position, 0, itm);
+    this.state.rows.splice(position, 0, itm);
     this.bumpValueVersion();
 
     this._actions?.trigger(ListItemAddedAction, this, itm, position);
@@ -313,13 +309,13 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
 
   /** Drops every row this list holds out of its tally, so a row that changes its verdict later is not counted. */
   private releaseRows(): void {
-    this._value?.forEach((row) => this.releaseChild(row));
+    this.state.rows?.forEach((row) => this.releaseChild(row));
   }
 
   clear() {
-    const hadItems = (this._value?.length ?? 0) > 0;
+    const hadItems = (this.state.rows?.length ?? 0) > 0;
     this.releaseRows();
-    this._value = null;
+    this.state.rows = null;
     this.bumpValueVersion();
     this.announceValueChanged(hadItems);
   }

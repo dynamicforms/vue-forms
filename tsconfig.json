@@ -1,6 +1,10 @@
 {
   "extends": "./node_modules/eslint-config-velis/tsconfig.json",
   "compilerOptions": {
+    // a form element's members are prototype accessors over the slots of its state object, and the code is
+    // written against define semantics for class fields: a subclass field named after an inherited accessor
+    // shadows it rather than running its setter. Pinned here instead of following from `target`.
+    "useDefineForClassFields": true,
     "resolveJsonModule": true,
     "paths": {
       "@/*": ["./src/*"],

@@ -8,6 +8,56 @@ exists.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.7.0 (from v0.6.x)
+
+### `watch(field, ...)` with a bare element as the source no longer fires, and `readonly(field)` no longer protects one
+
+These are the two changes that are invisible at runtime: nothing is logged and nothing throws. The watcher
+registers and its callback is simply never called. Search your project for `watch(` with a field, group, list or
+action passed directly — including the array form — and rewrite each to watch what you actually read.
+
+```typescript
+// before: fired on any change inside the field
+watch(field, () => save());
+watch([field, other], () => save());
+watch(form.fields.people, () => recount());
+
+// after: watch the value, or whichever member you care about
+watch(() => field.value, () => save());
+watch([() => field.value, () => other.value], () => save());
+watch(() => form.fields.people.value, () => recount());
+```
+
+A form element is no longer a Vue proxy of itself: its mutable state lives in a reactive object beside it, and
+the element carries `__v_skip`. Every read through the element — `field.value`, `group.valid`, `list.errors` —
+is tracked exactly as before, in a template, in a `computed`, in a `watchEffect` and in a getter passed to
+`watch`. What Vue can no longer do is take a bare element as a watch source and walk it: it starts a deep
+traversal, the traversal stops on `__v_skip`, and the watcher ends up subscribed to nothing.
+
+`watchEffect(() => save(field.value))` was never affected and needs no change.
+
+`readonly(field)` fails the same way. Vue's `readonly()` stops on `__v_skip` too, so it hands the element straight
+back: `readonly(field) === field`, `isReadonly(readonly(field))` is `false`, and a write through the value it
+returned goes through and changes the field. Nothing warns. Where you were handing a wrapped element out to keep a
+consumer from writing to it, hand out the value — `field.value`, `group.value` — which is frozen, or a `computed`
+over it.
+
+```typescript
+// before: writes through the wrapper were refused, with a warning
+const view = readonly(field);
+view.value = 'x'; // now: assigns to the field itself
+
+// after
+const view = computed(() => field.value);
+```
+
+Two further consequences are visible only to code that inspects the object itself: `toRaw(field)` returns `field`,
+and an element's whole state — `parent` and `fieldName` among it — is held in private class fields rather than in
+own properties. `Object.keys(field)`, `Object.getOwnPropertySymbols(field)`, `JSON.stringify(field)` and lodash
+`isEqual` reach none of it. Assigning `field.parent` yourself now throws a `TypeError` instead of being silently
+accepted; the container sets it. `isEqual` over two elements now answers `true` for any two instances of the same
+class, because it has nothing left to read — compare `a.value` with `b.value` instead.
+
 ## Upgrading to v0.6.0 (from v0.5.x)
 
 Most projects need three mechanical edits — `.create(` → `new `, dropping `reactiveValue`, and renaming `IField` /
