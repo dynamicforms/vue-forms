@@ -5,6 +5,34 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-08-17
+
+### Added
+- `Action.busy` reports whether an execution of the action has yet to settle. `execute()` raises it as the chain
+  is entered and clears it once the run has settled, whether it resolves or rejects; overlapping runs are counted,
+  so it stands until the last of them settles. It is a form-state flag a button binds to in order to disable
+  itself while a submit runs.
+
+### Changed
+- **Breaking:** `Action.execute(params?)` is asynchronous. It answers what the `ExecuteAction` chain returned,
+  as a promise, where it previously discarded the result and answered `undefined`. The chain is still entered
+  synchronously, so a handler has already run by the time the call returns, but a handler that throws now rejects
+  the promise instead of throwing out of the `execute()` call - a caller that wrapped `execute()` in `try/catch`
+  has to `await` it or attach a `.catch()`. A call that does neither leaves the rejection unhandled, which under
+  node's default settings ends the process; a Vue template handler needs no change, because Vue attaches its own
+  catch to the promise a handler returns. `params` is now optional.
+- **Breaking:** writing `Action.label` or `Action.icon` assigns a new value object instead of writing into the
+  one the action holds. Both are now ordinary value changes: `ValueChangedAction` fires, `isChanged` answers over
+  them, and a disabled action refuses the write, where previously none of the three happened. A value object you
+  passed as `params.value` and kept a reference to no longer follows the action once either setter has run;
+  reading still sees your writes to that object until then. Writing the label or icon the action already holds
+  changes nothing and announces nothing, and clearing one with `undefined` leaves the action reporting itself
+  unchanged against a baseline that never carried it.
+
+### Fixed
+- `label` and `icon` are assignable on an action constructed without a value. `new Action({}).label = 'X'` threw
+  a `TypeError`, because the action held the frozen `originalValue` baseline as its value.
+
 ## [0.8.0] - 2026-08-17
 
 ### Added

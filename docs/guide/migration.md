@@ -8,6 +8,65 @@ exists.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.9.0 (from v0.8.x)
+
+Only the `Action` class changes. Everything else — `Field`, `Group`, `List`, validators, transactions — keeps its
+signatures and its behaviour.
+
+### `execute()` answers a promise
+
+`Action.execute(params?)` is `async`. It returns what the `ExecuteAction` chain returned, where it used to discard
+that value, and `params` is now optional.
+
+```typescript
+// before
+save.execute({ reason: 'toolbar' });                      // returned undefined
+const stored = save.triggerAction(ExecuteAction, params);  // the only way to read the result
+
+// after
+const stored = await save.execute({ reason: 'toolbar' });
+```
+
+The chain is still entered synchronously, so a handler has already run by the time the call returns and code that
+ignores the answer keeps working. What changes is where a failure surfaces: a handler that throws now rejects the
+promise instead of throwing out of the call.
+
+```typescript
+// before: the throw arrived here
+try { save.execute(); } catch (e) { report(e); }
+
+// after: await it, or attach a catch
+try { await save.execute(); } catch (e) { report(e); }
+save.execute().catch(report);
+```
+
+A call that does neither leaves an unhandled rejection, which under node's default settings ends the process.
+Template handlers need no change — Vue attaches its own catch to the promise an event handler returns, and routes
+the error to `app.config.errorHandler`.
+
+### `label` and `icon` are value changes
+
+Both setters used to write into the value object the action held, so nothing observed them: no
+`ValueChangedAction`, `isChanged` permanently `false`, and a disabled action accepted the write. Each now assigns a
+new value object through the value setter, so all three behave as they do for any other field.
+
+If you registered a `ValueChangedAction` on an action and wrote its label, you now receive an event you did not
+receive before, and a form containing the action reports itself changed. If you kept a reference to the object you
+passed as `params.value` and read your later writes to it back off the action, that link breaks the first time
+either setter runs — the action holds a copy from then on.
+
+`new Action({}).label = 'X'` threw a `TypeError` and now works.
+
+### `Action.busy`
+
+```vue
+<button :disabled="!save.enabled || save.busy" @click="save.execute()">{{ save.label }}</button>
+```
+
+`busy` is `true` from the call to `execute()` until the run it started settles, however it settles. It is form
+state, not part of the action's value, so it is neither serialized nor restored by a transaction rollback: a
+rollback cannot un-start a submit that is already running.
+
 ## Upgrading to v0.8.0 (from v0.7.x)
 
 Nothing you call changes name or signature. What changes is **when** your handlers run and **how many times**,

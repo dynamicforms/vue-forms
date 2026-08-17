@@ -225,3 +225,102 @@ they can still unwind; answering nothing lets them go on believing it.
 
 **Rejected: letting it unwind whatever transaction is open.** That is not a stale handle doing nothing, it is a
 stale handle rolling back an unrelated operation.
+
+---
+
+## D-010 — 0.9.0 carries the `Action` changes alone; the declaration/binding split takes the next number
+
+**Version:** 0.9.0
+
+The plan assigns 0.9.0 to step 4 as a whole: declarations and bindings, `clone()` removed, `List` rows built by
+binding, `remove()` returning the instance, `TExtend`, and `Action`'s setter fix plus its asynchronous
+`execute()`. This release carries the `Action` half. The split follows in 0.10.0, with the steps behind it moving
+one number each.
+
+**Why the halves separate.** They share no code. The setters route through the value setter and `execute()` runs
+the `ExecuteAction` chain; neither reads or writes anything the split moves, and neither is easier to write once
+the split exists. What they do share is a release: both are breaking, and a consumer meets them in one upgrade
+whether or not one commit produced them.
+
+**Why the `Action` half goes first.** It is complete and its suite is green on its own, which the split's suite
+cannot be until it lands whole — the split's other half is step 5, which fixes `CompareTo` and
+`ConditionalStatementAction` against the binding it is validating, and neither of those compiles against a tree
+where half the declarations exist. A version that is green is a version the owner can tag.
+
+**Rejected: holding the `Action` work uncommitted until the split lands.** The two would then be one commit
+carrying two unrelated breaks, and the setter fix — which closes three defects a consumer can reach today — would
+wait for the largest change in the plan.
+
+**Rejected: numbering this 0.8.1.** `execute()` becoming asynchronous and the setters becoming ordinary value
+changes are both breaking. In `0.x` semver puts a breaking change in the minor.
+
+---
+
+## D-011 — `label` and `icon` compare before writing, and clear a member rather than writing `undefined`
+
+**Version:** 0.9.0
+
+Both setters answer early when the value handed in is the one already held, and a member assigned `undefined` is
+deleted from the new value object instead of being written into it.
+
+**What forces the comparison.** `Field`'s value setter compares by identity, and every write through these
+setters allocates a fresh object, so the setter's own guard can never catch a write of the value already held.
+Without a comparison here, `action.label = action.label` announces a `ValueChangedAction` and bumps the value
+version of the action and of every container above it, which is exactly the invalidation the memoised container
+value exists to avoid. A consumer reassigning a label on every locale change or every render would pay for it
+tree-wide.
+
+**What forces the delete.** An own key holding `undefined` is invisible to a reader and to `JSON.stringify`, but
+lodash `isEqual` compares own-key sets. An action constructed from `{ label: 'Save' }` holds that same object as
+its baseline, so writing `icon: undefined` into a copy would leave `isChanged` permanently `true` for two objects
+that serialise identically, and a form containing the action would report itself dirty for a write nobody can
+see.
+
+**Rejected: comparing with `isEqual` inside `Field`'s value setter.** It would catch this case and every other
+one, at the cost of a deep comparison on the hot path of every field write, to serve a value shape only `Action`
+has.
+
+**Rejected: writing `undefined` and teaching `isChanged` to ignore undefined members.** That makes the comparison
+`Action`-specific and leaves the odd value object in place, where a consumer reading `Object.keys(action.value)`
+still sees a key that was never set.
+
+---
+
+## D-012 — `execute()` rejects, and the contract is documented rather than softened
+
+**Version:** 0.9.0
+
+A handler that throws rejects the promise `execute()` answers. Nothing catches it inside the library.
+
+**What it costs.** A caller that neither awaits the answer nor attaches a `.catch()` leaves an unhandled
+rejection, which under node's default settings ends the process, where the same handler used to throw
+synchronously into the caller's `try`. Vue's event path is not affected: it attaches its own catch to the promise
+a handler returns, so a template `@click="save.execute()"` reaches `app.config.errorHandler` as before.
+
+**Rejected: catching inside `execute()`.** Swallowing a submit failure is worse than an unhandled rejection, and
+routing it to a library-configured handler invents a second error channel next to the one Vue already has, for
+the one caller shape that is outside a template.
+
+**Rejected: keeping `execute()` synchronous and exposing the promise separately.** `busy` has to be cleared when
+the run settles, so the method already awaits the chain; a synchronous wrapper around it would answer before the
+value it is supposed to carry exists.
+
+---
+
+## D-013 — `@dynamicforms/vuetify-inputs` is released alongside the split, not alongside 0.9.0
+
+**Version:** 0.9.0
+
+The plan names 0.9.0 as the version where the two packages must be released together, because it removes
+`clone()` and changes `Action`. With the split moved to 0.10.0 (D-010), the coupling moves with it: **0.10.0 is
+the version that needs a matching `@dynamicforms/vuetify-inputs` release**, and nothing may be published from
+either package for it alone.
+
+0.9.0 itself does not force one. Checked against that package rather than assumed: it calls `clone()` nowhere; it
+writes neither `label` nor `icon`, and its `Action` subclass declares both as getters with no setter, so the base
+accessors are shadowed entirely; and its single `execute()` call site is a template `@click` handler, where Vue
+catches the rejection. Its five `watch()` calls all take a ref.
+
+What the split does require of that package is a narrowed dependency range: code written against declarations and
+bindings does not run against a version that builds rows by cloning, so its release for 0.10.0 has to exclude
+every earlier one.

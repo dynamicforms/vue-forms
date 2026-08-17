@@ -107,7 +107,7 @@ const saveAction = new Action({
   actions: [new ExecuteAction((field, supr, params) => { console.log('saving', params); })]
 });
 
-saveAction.execute({ form: personForm });  // 'saving { form: ... }'
+await saveAction.execute({ form: personForm });  // 'saving { form: ... }'; saveAction.busy until it settles
 ```
 
 ## Events Example
