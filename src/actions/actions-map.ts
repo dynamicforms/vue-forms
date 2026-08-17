@@ -83,6 +83,15 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
   }
 
   /**
+   * Tells every action in this map that it serves `owner`. A copied map holds the instances the original holds, so
+   * the element that took the copy on is announced to them here, the way registering an action announces the
+   * element it was registered on.
+   */
+  bindTo(owner: FieldBase): void {
+    this.registeredActions.forEach((action) => action.boundToBinding(owner));
+  }
+
+  /**
    * A copy of this map carrying everything but the validators. It only leaves them out: releasing what a
    * validator installed elsewhere is the caller's to do, and only once the transaction that dropped them has
    * committed, because a rollback puts this map back with its validators in it.

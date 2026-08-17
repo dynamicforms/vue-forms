@@ -256,6 +256,40 @@ describe('Statement.evaluate return type', () => {
   });
 });
 
+describe('Statement.evaluate over a record', () => {
+  const listOf = (values: Record<string, any>[]) => {
+    const template = new Group({
+      quantity: new Field<number>({ value: 0 }),
+      limit: new Field<number>({ value: 0 }),
+    });
+    return { template, list: new List(template, { value: values }) };
+  };
+
+  it('reads the fields of the row it is given', () => {
+    const { template, list } = listOf([
+      { quantity: 5, limit: 10 },
+      { quantity: 20, limit: 10 },
+    ]);
+    const statement = new Statement(template.fields.quantity, Operator.GT, template.fields.limit);
+
+    expect(statement.evaluate(list.get(0)!)).toBe(false);
+    expect(statement.evaluate(list.get(1)!)).toBe(true);
+    // with no record named, the fields the statement was built from are the ones it reads
+    expect(statement.evaluate()).toBe(false);
+  });
+
+  it('reads a field of another record where it stands', () => {
+    const { template, list } = listOf([{ quantity: 5, limit: 10 }]);
+    const ceiling = new Field<number>({ value: 3 });
+    const statement = new Statement(template.fields.quantity, Operator.GT, ceiling);
+
+    expect(statement.evaluate(list.get(0)!)).toBe(true);
+
+    ceiling.value = 8;
+    expect(statement.evaluate(list.get(0)!)).toBe(false);
+  });
+});
+
 describe('Statement.collectFields', () => {
   it('returns the field instances the statement was built from', () => {
     const field1 = new Field({ value: 1 });

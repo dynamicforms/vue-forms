@@ -5,6 +5,64 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-08-17
+
+### Added
+- `field.declaration` names the element a field was declared as: itself for a field built from parameters, and the
+  field it was cloned from for a clone, transitively. Every row a `List` builds from an item template is a clone,
+  so `list.get(0).fields.a.declaration === template.fields.a`.
+- `field.bindingsOf(declaration)` lists the elements of a subtree that were declared as the given one —
+  `list.bindingsOf(template.fields.a)` is the `a` field of every row.
+- `Statement.evaluate(scope?)` takes the element whose record the field operands are read in, so one statement
+  serves every row of a `List`. Without an argument it reads the fields it was built from, as before.
+- `CompareTo` accepts the field to compare against as a name or as a callback receiving the field being validated,
+  next to the field itself. The exported type of the parameter is `Validators.CompareToTarget`.
+- `FieldActionBase.state(key, init)` holds what an action remembers between runs against the element it ran over,
+  or against the record that element belongs to. An action instance is shared by every clone of the element it was
+  registered on, so what it keeps on itself is shared by every row; what it keeps here is not, and is released with
+  the element.
+- `field.markRecordIncomplete()` lets an eager action say that it looked for a second element of the record and the
+  record was not assembled yet. The container that completes the record runs the element's eager actions again, and
+  so does a container that takes the record in afterwards.
+
+### Fixed
+- Conditional actions work inside a `List`. Registered on the item template, a conditional action serves every row,
+  each row holds a result of its own, and a change in one row reaches that row alone. Previously the rows shared a
+  single result and a row built by the list never had the action bound at all, so the condition was silently dead.
+- `CompareTo` compares within the row it is validating. It read the item template's field, so a row whose two
+  fields matched was reported invalid and a row where they differed was reported valid — password/confirmation and
+  date-from/date-to being the cases it exists for.
+- `clearValidators()` on one element leaves the same validator instance validating every other element it was
+  registered on. Dropping the validators of one row of a `List` silenced the validator in every row, so the form
+  reported itself valid when it was not.
+- A statement's fields are read once per record rather than once per row of listeners: one handler is registered on
+  each field the statement reads, however many rows read it.
+- A row that holds the very values its item template holds carries its own verdict. A cross-field rule is run again
+  once the record is assembled, so a `List` row, an item the list builds to fill a gap, the group `remove()` hands
+  back and a `clone()` all report what their own fields support instead of reporting themselves valid.
+- A cross-field rule registered on a single row is that row's rule. A change of the field it compares against, or
+  of a field its statement reads, no longer plants errors on the rows that never took the rule on — errors those
+  rows had no validator to clear.
+- Registering a validator again after `clearValidators()` re-arms it fully: it listens to the field it compares
+  against again, where before it only re-validated on writes of the field's own value.
+- A `CompareTo` naming a field the form above the list holds resolves it. A row reaches the form only once the list
+  takes it in, which is now where the rule is run again.
+
+### Changed
+- **Breaking:** `CompareTo`'s first constructor parameter widens from `FieldBase` to
+  `FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined)`. Passing a field keeps working, and
+  is now resolved within the record being validated rather than read as the one field it names.
+- **Breaking:** the two optional hooks of `FieldActionBase` are renamed: `boundToField(field)` is
+  `boundToBinding(binding)`, and it now runs for every element the action comes to serve rather than only for the
+  one it was registered on; `unregister()` is `unregisterFrom(binding)`, which names the element the validator was
+  dropped from. An action that overrode neither is unaffected.
+- **Breaking:** a cross-field rule that was inert inside a `List` now applies, so a form holding one may report
+  errors, hide fields or disable fields it did not before. The verdicts are the ones the data always called for.
+- `ActionsMap.bindTo(owner)` tells every action in a map that it serves `owner`; cloning an element calls it, which
+  is what makes an action registered on an item template serve every row.
+- `Validator` keeps its per-field run sequence through `bindingState(field)`, and a subclass widens that record by
+  overriding `newBindingState()`. The exported type is `ValidatorBindingState`.
+
 ## [0.9.0] - 2026-08-17
 
 ### Added

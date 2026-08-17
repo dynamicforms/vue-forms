@@ -31,6 +31,13 @@ import { ValidationError } from './validators/validation-error';
  */
 const validReads = new WeakMap<object, ComputedRef<boolean>>();
 
+/**
+ * How many elements are waiting for the record they belong to. A container that completes a record asks this
+ * before it walks anything, so a form built out of elements that answer for themselves alone pays nothing for
+ * the mechanism.
+ */
+let incompleteRecords = 0;
+
 export abstract class FieldBase<T = any> {
   /**
    * Vue's getTargetType answers INVALID for an object that carries __v_skip, so reactive() hands an element back
@@ -173,6 +180,82 @@ export abstract class FieldBase<T = any> {
   /** when member of a Group, fieldName specifies the name of this field. Written by the group, read-only after */
   get fieldName(): string | undefined {
     return this.#state.fieldName;
+  }
+
+  /**
+   * The element this one was declared as: itself for an element built from parameters, and the element it was
+   * cloned from for a clone - transitively, so a clone of a clone names the same one. Every row a `List` builds
+   * from an item template is a clone, so a row's member and the template's member it stands for answer with the
+   * same element, and an action registered on the template can tell the two apart.
+   */
+  get declaration(): FieldBase {
+    return this.#raw.declaration ?? this;
+  }
+
+  /** The elements this one holds: a Group's members, a List's rows, none for a leaf. */
+  protected get members(): FieldBase[] {
+    return [];
+  }
+
+  /**
+   * Every element in this element's subtree, this element included, that was declared as `declaration`. It answers
+   * the question a shared action asks when the record it changed in is not the record its targets live in - a form
+   * field that every row of a list reacts to - and it costs the subtree, so it is the path taken only when the
+   * cheaper one, resolving within a single record, does not apply.
+   */
+  bindingsOf(declaration: FieldBase): FieldBase[] {
+    const canonical = declaration.declaration;
+    const found: FieldBase[] = [];
+    const visit = (element: FieldBase) => {
+      if (element.declaration === canonical) found.push(element);
+      element.members.forEach(visit);
+    };
+    visit(this);
+    return found;
+  }
+
+  /** set while an eager pass over this element is waiting for the record the element belongs to */
+  declare protected _recordPending?: boolean;
+
+  /**
+   * States that an eager pass over this element reached an element it needs and did not find it, because the
+   * record this element belongs to was not assembled at the time: a `List` row is built member by member and its
+   * members are cloned before any of them holds the row, so a validator comparing two of them runs before the
+   * row exists. The container that finishes the record runs the pass again, and a pass that still reaches
+   * nothing says so again, so the next container above answers for it.
+   */
+  markRecordIncomplete(): void {
+    if (this._recordPending) return;
+    this._recordPending = true;
+    incompleteRecords++;
+  }
+
+  /**
+   * Runs the eager passes outstanding in `element`'s subtree, now that the record it belongs to is assembled. A
+   * container calls it where it has just made a record complete: a Group that has written its members, and a
+   * List that has taken a row, which is what gives the row's fields the form above it.
+   */
+  protected completeRecords(element: FieldBase = this): void {
+    if (incompleteRecords === 0) return;
+    transactional(() => {
+      const visit = (current: FieldBase) => {
+        if (current._recordPending) {
+          current._recordPending = false;
+          incompleteRecords--;
+          current.rerunEagerActions();
+        }
+        current.members.forEach(visit);
+      };
+      visit(element);
+    });
+  }
+
+  /** Runs this element's eager actions over the value it holds and re-forms the verdict they reach. */
+  private rerunEagerActions(): void {
+    transactional((tx) => {
+      this._actions?.triggerEager(this, this.value, this.value);
+      tx.markValidityDirty(this);
+    });
   }
 
   /**
@@ -466,6 +549,21 @@ export abstract class FieldBase<T = any> {
   }
 
   /**
+   * Brings a fresh clone of `source` into the state a clone is in: it records what it was declared as, takes on
+   * the actions `source` carries and runs the eager ones over the value it was built with. The actions are the
+   * very instances `source` holds - what a clone copies is data, not behaviour - and each is told about this
+   * element as it is taken on, so an action serving several clones knows all of them.
+   */
+  protected clonedFrom(source: FieldBase, newValue: any, oldValue: any): void {
+    this.#raw.declaration = source.declaration;
+    const actions = source._actions;
+    if (!actions) return;
+    this._actions = actions.clone();
+    this._actions.bindTo(this);
+    this._actions.triggerEager(this, newValue, oldValue);
+  }
+
+  /**
    * Registers the actions a constructor received in its parameters: registration without the eager trigger,
    * because a constructor ends with a single this.actions.triggerEager(...) over the finished value, and an
    * eager action registered here would otherwise also run once per registration, over a half-built field.
@@ -473,7 +571,7 @@ export abstract class FieldBase<T = any> {
   protected registerInitialActions(actions: FieldActionBase[]): void {
     actions.forEach((action) => {
       this.actions.register(action);
-      action.boundToField(this);
+      action.boundToBinding(this);
     });
   }
 
@@ -483,7 +581,7 @@ export abstract class FieldBase<T = any> {
       // enrolled to report that change, and moving the baseline to the value it now holds would erase the report
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
       this.actions.register(action);
-      action.boundToField(this);
+      action.boundToBinding(this);
       if (action.eager) {
         // When adding eager actions, execute them immediately
         this.actions.trigger(Object.getPrototypeOf(action).constructor, this, this.value, this.originalValue);
@@ -524,8 +622,10 @@ export abstract class FieldBase<T = any> {
         });
         this.actions = previous.cloneWithoutValidators();
         // releasing a validator's listeners is what a rollback could not take back, so it waits for the commit:
-        // until then the map the element carried is still the one a rollback puts back, validators and all
-        tx.whenCommitted(() => dropped.forEach((validator) => validator.unregister()));
+        // until then the map the element carried is still the one a rollback puts back, validators and all. The
+        // release names this element, because the same validator instance goes on serving every other element it
+        // was registered on
+        tx.whenCommitted(() => dropped.forEach((validator) => validator.unregisterFrom(this)));
       }
       this.errors = [];
       // the errors are gone before the recomputation, so the commit forms the verdict over the cleared state and

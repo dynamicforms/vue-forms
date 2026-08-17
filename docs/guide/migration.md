@@ -8,6 +8,72 @@ exists.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.10.0 (from v0.9.x)
+
+Actions and validators now answer for the element they fired for rather than for the element they were written
+against. Code that registers them and reads the results needs no change; code that writes its own action class, or
+that relied on a conditional action or a `CompareTo` inside a `List` being inert, does.
+
+### Cross-field rules inside a `List` start working
+
+A conditional action or a `CompareTo` registered on a `List`'s item template used to be dead or wrong in every row:
+the rows shared one result, and a comparison read the item template's field rather than the row's. Each row now
+answers for itself — a row holding exactly the values its template holds included — so a form that looked valid
+may now report the errors it always had, and a field that never appeared may now appear in the rows whose data
+calls for it.
+
+```typescript
+const row = new Group({ password: new Field(), confirmation: new Field() });
+row.fields.confirmation.registerAction(
+  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, 'Passwords must match'),
+);
+// every row of new List(row, …) compares its own two fields; before, they all compared the template's
+```
+
+`clearValidators()` on one row likewise stops affecting the others.
+
+### `CompareTo` accepts a name and a callback
+
+The first constructor argument is now `FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined)`.
+Passing a field keeps working and is resolved within the record being validated. The two new forms save you a
+reference to the template:
+
+```typescript
+new Validators.CompareTo<string>('password', (mine, other) => mine === other, 'Passwords must match');
+new Validators.CompareTo<number>((field) => field.parent?.fields.dateFrom, (to, from) => to >= from, '…');
+```
+
+### Custom actions: two renamed hooks
+
+`boundToField(field)` is `boundToBinding(binding)` and `unregister()` is `unregisterFrom(binding)`. Both are
+optional overrides, so an action that overrode neither needs no change; one that did keeps its body and takes the
+new name. `unregisterFrom` names the element the validator was dropped from, because the instance goes on serving
+the others.
+
+```typescript
+// before
+class MyAction extends FieldActionBase {
+  boundToField(field) { this.fields.add(field); }
+  unregister() { this.dead = true; }
+}
+
+// after
+class MyAction extends FieldActionBase {
+  private readonly elements = new WeakSet();
+  boundToBinding(binding) { this.elements.add(binding); }
+  unregisterFrom(binding) { this.elements.delete(binding); }
+}
+```
+
+`boundToBinding` runs once per element the action comes to serve — the element it was registered on, and every
+clone of that element as the clone takes it on — so the set an action keeps this way is the set of elements it
+actually drives, and a rule registered on one row of a `List` stays that row's rule. Keep the elements weakly:
+recording them in a `Set` grows without bound over a list that churns rows.
+
+An action instance is shared by every clone of the element it was registered on, so anything else it keeps on
+itself is shared by every row too. `protected state(key, init)` keeps it per element instead, and `unregisterFrom`
+is where a per-element release belongs.
+
 ## Upgrading to v0.9.0 (from v0.8.x)
 
 Only the `Action` class changes. Everything else — `Field`, `Group`, `List`, validators, transactions — keeps its

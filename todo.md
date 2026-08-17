@@ -16,34 +16,7 @@ still needs an empirical check before we act on it.
 These must be settled before the public surface is frozen. Most are bugs you patch; the rest are decisions
 about the shape of signatures and of the published package — after 1.0 those cost a 2.0.
 
-### A. Cloning and the action system
-
-- **[R] `ActionsMap.clone()` never calls `boundToField()`.** `registerAction` does two things (`register` +
-  `boundToField`), the clone only the first (`src/actions/actions-map.ts`).
-  Since `src/list.ts` builds every row with `_itemTemplate.clone()`, conditional actions are permanently
-  dead in every list row — a silent failure with no error.
-  Fix: have `clone()` take the new owner and call `boundToField(newField)` per action, or add a
-  `cloneFor(field)` hook on `FieldActionBase`.
-
-- **[R] `ConditionalStatementAction` shares one `lastResult` across all bound fields.**
-  `src/actions/conditional/conditional-statement-action.ts`. The same instance bound to `a`
-  and then `b` leaves them disagreeing. The same pattern also breaks a single binding when the source field
-  changes between constructing the action and `registerAction`: the constructor already registers a
-  `ValueChangedAction` on the source fields and moves `lastResult` while `boundFields` is still empty.
-  Contradicts `docs/api/actions.md`.
-  Fix: `Map<FieldBase, boolean | undefined>` instead of a single `lastResult`.
-
-### B. Validation
-
-- **[V] `CompareTo` binds to a field instance, so it points at the wrong field after any clone.**
-  `src/validators/validator-compare-to.ts`. Reproduced inverted: `pwd='a'`, `other='b'` gives
-  `pwd.valid === true`; `cloned='b'`, `other='b'` gives `cloned.valid === false`. Inside a `List` it is
-  worse — `otherField` points at the *template's* field, so a row with `a === 'x', b === 'x'` is marked
-  invalid. Password/confirm and date-from/date-to are the advertised use cases.
-  Fix: resolve the other field by name or callback at validation time. That changes the `CompareTo`
-  constructor, so after 1.0 it means 2.0.
-
-### C. Packaging
+### Packaging
 
 - **[V] `peerDependencies: vue ^3.4` but the types need >= 3.5.** With `vue@3.4.38` and
   `skipLibCheck: false`: `TS2707: Generic type 'DefineComponent' requires between 0 and 13 type arguments`
@@ -72,13 +45,17 @@ about the shape of signatures and of the published package — after 1.0 those c
   `Extendable` work below depends on it.
 - **`clone()` rebaselines `originalValue`** (`src/field.ts`, `src/group.ts`) — `List.remove()` returns
   a clone with its dirty state erased.
-- **`clearValidators()` on a clone kills validation on the original** (`src/actions/actions-map.ts`
-  plus `validator-compare-to.ts`): shared action instances, and `unregister()` mutates the shared
-  object. The form reports `valid` when it is not.
-- **There is no way to unregister an action** (`src/actions/field-action-base.ts` has an empty stub,
-  `ActionsMap` builds a closure chain). List rows leak handlers onto the shared source field permanently;
-  around 4565 handlers it hits a `RangeError`. `unregisterAction` can be added to `FieldBase` without
-  breaking anyone, but it needs the closure chain replaced by something that can drop a single handler.
+- **There is no way to unregister an action.** `ActionsMap` builds a closure chain, and `unregisterFrom()` tells
+  a validator to stop answering rather than taking it out of that chain. Registering the same action on one field
+  several thousand times nests a chain deep enough to hit a `RangeError` when it fires. `unregisterAction` can be
+  added to `FieldBase` without breaking anyone, but it needs the closure chain replaced by something that can drop
+  a single handler.
+- **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
+  Resolution answers within one record and reads an element belonging to any other as the element itself
+  (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather
+  than against the field of the enclosing row they sit in. The name form walks the containers of the field being
+  validated and does reach the enclosing row, so the two forms disagree on the same rule. What a rule written
+  against a field means is part of the surface being frozen.
 - **Async action handlers are neither awaited nor caught** — an `async` `ValueChangedAction` that throws
   ends as an unhandled rejection. Decide and document the contract, because changing it later (setters
   becoming async) is a 2.0.
@@ -124,6 +101,8 @@ about the shape of signatures and of the published package — after 1.0 those c
 `AbortEventHandlingException` does not veto `*Changing*` events (documented as it behaves) ·
 `enabled`/`visibility` fire events even without an actual change ·
 `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
+an action registered on an item template after a row was built never reaches that row, because a clone carries the
+actions its source held at the moment it was cloned ·
 `Operator.NOT` requires a dummy third argument · `parent` is `configurable: false` (documented) ·
 `Group.addField`/`List.length`/`items` are missing (additive) ·
 `Group`/`List` do not aggregate `validating` or `busy`, so a form cannot ask whether anything below it is
@@ -159,13 +138,14 @@ the cheap option in each case is also the one that keeps the other option availa
 **Clone per row** (what the code does): the item template is deep-copied for every row, actions included.
 *For:* rows have independent identity, so `v-for` keying and component reuse work with no extra machinery;
 per-event property access is direct. *Against:* every row rebuilds an `ActionsMap` and its closure chain,
-which is the dominant cost of creating a row; it is the root of the shared-action defects above; and
-`clone()` has to be public for `List` to use it.
+which is the dominant cost of creating a row; an action shared by the rows has to work out which row it is
+running over, and a row is validated before it exists as a record; and `clone()` has to be public for `List`
+to use it.
 
 **Bind to a shared definition**: the field definition (validators, actions, defaults) is extracted into a
 subobject that rows share, and each row holds only mutable state. `clone()` disappears; `bind(data)`
-replaces it. *For:* creating a row allocates state only; the shared-action defects cannot occur, because
-there is one action set and per-binding state; `CompareTo` resolves within the row for free. *Against:*
+replaces it. *For:* creating a row allocates state only; an action needs no search to tell one row from
+another, because a binding is the row; `CompareTo` resolves within the row for free. *Against:*
 `bind()` must recurse through nested structure and return stable objects, or `watch` over a field fires on
 every render; and `registerAction` on one row necessarily affects all rows, which needs documenting rather
 than solving — the closure chain has no defined composition order for a shared chain plus a per-row one.

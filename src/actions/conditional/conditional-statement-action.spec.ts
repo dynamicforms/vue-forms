@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import DisplayMode from '../../display-mode';
 import { Field } from '../../field';
 import { Group } from '../../group';
+import { List } from '../../list';
 
 import {
   ConditionalStatementAction,
@@ -165,6 +166,128 @@ describe('ConditionalValueAction', () => {
 
     // Value should not be changed
     expect(field.value).toBe('test value');
+  });
+});
+
+describe('Conditional actions over the rows of a List', () => {
+  const itemTemplate = () => {
+    const template = new Group({
+      kind: new Field<string>({ value: 'standard' }),
+      detail: new Field<string>({ value: '' }),
+    });
+    template.fields.detail.registerAction(
+      new ConditionalVisibilityAction(new Statement(template.fields.kind, Operator.EQUALS, 'other')),
+    );
+    return template;
+  };
+
+  it('answers for the row the change happened in and for no other', () => {
+    const list = new List(itemTemplate(), {
+      value: [
+        { kind: 'standard', detail: '' },
+        { kind: 'standard', detail: '' },
+      ],
+    });
+
+    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+
+    list.get(0)!.fields.kind.value = 'other';
+
+    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+  });
+
+  it('lets two rows hold opposite results at once', () => {
+    const list = new List(itemTemplate(), {
+      value: [
+        { kind: 'other', detail: 'first' },
+        { kind: 'standard', detail: '' },
+      ],
+    });
+
+    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+
+    // the two rows swap: each one answers over its own values, and neither carries the other's result
+    list.get(0)!.fields.kind.value = 'standard';
+    list.get(1)!.fields.kind.value = 'other';
+
+    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+  });
+
+  it('reaches every row from a field the whole form holds', () => {
+    const showDetails = new Field<boolean>({ value: false });
+    const template = new Group({ detail: new Field<string>({ value: '' }) });
+    template.fields.detail.registerAction(
+      new ConditionalVisibilityAction(new Statement(showDetails, Operator.EQUALS, true)),
+    );
+    const form = new Group({
+      showDetails,
+      lines: new List(template, { value: [{ detail: 'a' }, { detail: 'b' }] }),
+    });
+    const lines = form.fields.lines as List;
+
+    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+
+    form.fields.showDetails.value = true;
+
+    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+  });
+
+  it('drives the row it was registered on and no other', () => {
+    const template = new Group({ detail: new Field<string>({ value: '' }) });
+    const form = new Group({
+      showDetails: new Field<boolean>({ value: false }),
+      lines: new List(template, { value: [{ detail: 'a' }, { detail: 'b' }] }),
+    });
+    const lines = form.fields.lines as List;
+
+    lines
+      .get(0)!
+      .fields.detail.registerAction(
+        new ConditionalVisibilityAction(new Statement(form.fields.showDetails, Operator.EQUALS, true)),
+      );
+
+    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+
+    form.fields.showDetails.value = true;
+    form.fields.showDetails.value = false;
+
+    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+  });
+
+  it('evaluates a row added later over the record it joins', () => {
+    const showDetails = new Field<boolean>({ value: false });
+    const template = new Group({ detail: new Field<string>({ value: '' }) });
+    template.fields.detail.registerAction(
+      new ConditionalVisibilityAction(new Statement(showDetails, Operator.EQUALS, true)),
+    );
+    const lines = new List(template, { value: [{ detail: 'a' }] });
+    const form = new Group({ showDetails, lines });
+
+    form.fields.showDetails.value = true;
+    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+
+    // the row holds what the template holds, so no assignment reaches it: the statement is what decides it
+    lines.push({ detail: '' });
+
+    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+  });
+
+  it('holds one handler on the field it reads however many rows the list has', () => {
+    const list = new List(itemTemplate());
+    for (let row = 0; row < 5000; row += 1) list.push({ kind: 'standard', detail: '' });
+
+    // a handler registered per row would nest 5000 calls into the chain the write runs, which overflows the stack
+    list.get(4999)!.fields.kind.value = 'other';
+
+    expect(list.get(4999)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
   });
 });
 

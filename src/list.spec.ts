@@ -649,6 +649,30 @@ describe('List cloning', () => {
   });
 });
 
+describe('Rows and the element they were declared as', () => {
+  it('names the item template as the declaration of every row and of every member of one', () => {
+    const template = new Group({ name: new Field({ value: '' }) });
+    const list = new List(template, { value: [{ name: 'John' }, { name: 'Jane' }] });
+
+    expect(template.declaration).toBe(template);
+    expect(list.get(0)!.declaration).toBe(template);
+    expect(list.get(1)!.declaration).toBe(template);
+    expect(list.get(0)!.fields.name.declaration).toBe(template.fields.name);
+
+    // a clone of a clone names the element the whole family was declared as
+    expect(list.get(0)!.clone().declaration).toBe(template);
+  });
+
+  it('finds the rows a declaration stands for', () => {
+    const template = new Group({ name: new Field({ value: '' }) });
+    const list = new List(template, { value: [{ name: 'John' }, { name: 'Jane' }] });
+
+    expect(list.bindingsOf(template)).toEqual([list.get(0), list.get(1)]);
+    expect(list.bindingsOf(template.fields.name)).toEqual([list.get(0)!.fields.name, list.get(1)!.fields.name]);
+    expect(list.bindingsOf(new Field())).toEqual([]);
+  });
+});
+
 describe('List value caching', () => {
   it('answers a repeated read with the array it built last, and with a new one after a row changes', () => {
     const list = new List(new Group({ n: new Field({ value: 0 }) }), { value: [{ n: 1 }, { n: 2 }] });

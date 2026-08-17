@@ -1,5 +1,5 @@
 export * from './validator';
-export { default as CompareTo } from './validator-compare-to';
+export { default as CompareTo, type CompareToTarget } from './validator-compare-to';
 export { default as InAllowedValues } from './validator-in-allowed-values';
 export { default as Required } from './validator-required';
 export * from './validator-min-max-range';

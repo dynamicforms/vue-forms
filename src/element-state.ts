@@ -43,6 +43,12 @@ export interface ElementSlots<T = any> {
   fieldName: string | undefined;
   /** generation of the validators attached to the element; clearValidators() raises it */
   validationEpoch: number;
+  /**
+   * The element this one was cloned from, absent on an element that was declared rather than cloned. It is what
+   * lets an action shared by every clone work out which clone of a second element it means: `declaration` is the
+   * canonical one, so a clone of a clone names the element the whole family was declared as.
+   */
+  declaration: FieldBase | undefined;
 
   // the slots below are the element's own bookkeeping - nothing reads them inside an effect, and they are
   // therefore reached through raw
@@ -65,6 +71,7 @@ export function elementSlots<T = any>(): ElementSlots<T> {
     parent: undefined,
     fieldName: undefined,
     validationEpoch: 0,
+    declaration: undefined,
     valid: true,
     invalidChildren: 0,
   };

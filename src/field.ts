@@ -94,11 +94,7 @@ class Field<T = any> extends FieldBase<T> {
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
-    if (this._actions) {
-      const actions = this._actions.clone();
-      res._actions = actions;
-      actions.triggerEager(res, res.value, res.originalValue);
-    }
+    res.clonedFrom(this, res.value, res.originalValue);
     return res;
   }
 }

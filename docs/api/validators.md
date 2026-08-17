@@ -54,6 +54,12 @@ function separately from the `Validator` that wraps it.
 
 Validators are eager: they run once at field creation, over the value the constructor produced, immediately when passed to `registerAction()` on an existing field, and again on `field.validate(true)`. A field can therefore be `valid === false` before the user has interacted with it at all — use `touched` to decide when to actually display the errors.
 
+One validator instance validates every field it is registered on, the clones of that field included, so a validator
+on a `List`'s item template validates every row. What it remembers about a field it validated — its run sequence,
+and whatever a subclass adds — is held against that field: `protected bindingState(field)` answers with it, and
+`protected newBindingState()` is what a subclass overrides to widen it, returning `{ ...super.newBindingState(), … }`.
+The exported type of the record `Validator` itself keeps is `ValidatorBindingState`.
+
 ### Asynchronous validation
 
 When the validation function returns a `Promise`, `field.validating` becomes `true` right away (the field counts the
@@ -238,7 +244,7 @@ new Validators.InAllowedValues(['admin', 'user', 'guest'])
 
 ### `new Validators.CompareTo(otherField, isValidComparison, message)`
 
-Cross-field validator that re-validates whenever this field **or** `otherField` changes.
+Cross-field validator that re-validates whenever this field **or** the field it compares against changes.
 
 ```typescript
 new Validators.CompareTo(
@@ -250,9 +256,39 @@ new Validators.CompareTo(
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `otherField` | `FieldBase` | The field to compare against |
+| `otherField` | `CompareToTarget` | The field to compare against: a field, the name its container holds it under, or a callback receiving the field being validated |
 | `isValidComparison` | `(myValue: T, otherValue: T) => boolean` | Return `true` when valid |
 | `message` | `RenderContentRef` | Error message — required, there is no default |
+
+```typescript
+type CompareToTarget = FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined);
+```
+
+All three forms answer for the record the validation is running over, which is what makes one validator serve every
+row of a `List`: handed the item template's field, a row compares against **that row's** field, and a name is
+looked up in the row before the form the list sits in. A field belonging to no record of the validated field's —
+one the whole form holds — is compared against as it stands, by every row. Handed a field of an *enclosing* item
+template, that is the field itself as well: the rows of a nested list compare against the enclosing template's
+field rather than against the field of the enclosing row they sit in. Name it by name to reach that one — the
+lookup walks the containers the validated field has, so it finds the enclosing row.
+
+```typescript
+const row = new Group({ password: new Field(), confirmation: new Field() });
+row.fields.confirmation.registerAction(
+  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, 'Passwords must match'),
+);
+// every row of new List(row, …) now compares its own two fields
+
+// the same rule written against the name, which needs no reference to the template
+new Validators.CompareTo<string>('password', (mine, other) => mine === other, 'Passwords must match');
+```
+
+A record that does not hold the compared field yet — a row is validated as it is assembled, before it holds either
+of its own fields — makes the validator reach no verdict rather than report a pass. It says so, and the container
+that completes the record validates the field again over the record it then has: a row carries the verdict its own
+fields support from the moment the row exists, and a name that only the form holding the list answers to is
+resolved when the list takes the row into that form. A name nothing ever answers to leaves the field with no
+verdict from this validator at all.
 
 ## Error types
 

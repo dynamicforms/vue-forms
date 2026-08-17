@@ -4,6 +4,7 @@ import { ValueChangedAction } from './actions/value-changed-action';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { Group } from './group';
+import { List } from './list';
 import { transaction } from './transaction';
 import { Validators } from './validators';
 import { ValidationErrorText } from './validators/validation-error';
@@ -100,6 +101,59 @@ it('clears CompareTo validator and its cross-field references', () => {
   expect(field1.valid).toBe(true);
 });
 
+it('clears the validators of one field without silencing the same validator on another', () => {
+  const limit = new Field<number>({ value: 10 });
+  const shared = new Validators.CompareTo<number>(limit, (mine, max) => mine <= max, 'above the limit');
+  const first = new Field<number>({ value: 1 });
+  const second = new Field<number>({ value: 1 });
+  first.registerAction(shared);
+  second.registerAction(shared);
+
+  expect(first.errors.length).toBe(0);
+  expect(second.errors.length).toBe(0);
+
+  first.clearValidators();
+
+  // the same instance goes on serving the field that kept it, and answers to the compared field as before
+  limit.value = 0;
+  expect(first.errors.length).toBe(0);
+  expect(second.errors.length).toBe(1);
+});
+
+it('clears the validators of one row and leaves the other rows validating', () => {
+  const template = new Group({
+    from: new Field<number>({ value: 0 }),
+    to: new Field<number>({ value: 0 }),
+  });
+  template.fields.to.registerAction(
+    new Validators.CompareTo<number>(template.fields.from, (to, from) => to >= from, 'to precedes from'),
+  );
+
+  const list = new List(template, {
+    value: [
+      { from: 10, to: 1 },
+      { from: 10, to: 1 },
+    ],
+  });
+  expect(list.get(0)!.fields.to.errors.length).toBe(1);
+  expect(list.get(1)!.fields.to.errors.length).toBe(1);
+
+  list.get(0)!.fields.to.clearValidators();
+
+  expect(list.get(0)!.fields.to.errors.length).toBe(0);
+  expect(list.get(1)!.fields.to.errors.length).toBe(1);
+
+  // the row that kept its validators still answers to a change of the field it compares against
+  list.get(1)!.fields.from.value = 0;
+  expect(list.get(1)!.fields.to.errors.length).toBe(0);
+  list.get(1)!.fields.from.value = 20;
+  expect(list.get(1)!.fields.to.errors.length).toBe(1);
+
+  // and the row that dropped them stays out of it
+  list.get(0)!.fields.from.value = 20;
+  expect(list.get(0)!.fields.to.errors.length).toBe(0);
+});
+
 class TrackingAction extends ValueChangedAction {
   public boundTo: FieldBase | null = null;
 
@@ -115,8 +169,8 @@ class TrackingAction extends ValueChangedAction {
     return true;
   }
 
-  boundToField(field: FieldBase) {
-    this.boundTo = field;
+  boundToBinding(binding: FieldBase) {
+    this.boundTo = binding;
   }
 }
 
