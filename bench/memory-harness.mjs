@@ -3,7 +3,7 @@
  * validator runs one row costs while it is built.
  *
  * Run it through the build script, which bundles it and starts node with --expose-gc:
- *   node src/__bench__/build-harness.mjs
+ *   node bench/build-harness.mjs
  *
  * Retained heap is the difference in process.memoryUsage().heapUsed across a full collection before and after the
  * lists are built, over the number of fields they hold. Proxy counts come from the counting `reactive` the build
@@ -13,10 +13,10 @@ import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { List } from '../list';
-import { Validator } from '../validators/validator';
-import { Field } from '../field';
-import { Group } from '../group';
+import { List } from '../src/list';
+import { Validator } from '../src/validators/validator';
+import { Field } from '../src/field';
+import { Group } from '../src/group';
 
 import { createItemTemplate, createList, createRows, fieldNames, FIELD_COUNT, ROW_COUNT, variants } from './fixtures';
 import { proxyCount, resetProxyCount } from './vue-proxy-counter.mjs';

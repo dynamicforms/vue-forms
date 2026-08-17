@@ -6,7 +6,7 @@
  * `reactive()`; the counter module reaches the real package through the `vue-actual` specifier. Redirection
  * happens in the bundler, so the library source stays untouched.
  *
- *   node src/__bench__/build-harness.mjs [entry]
+ *   node bench/build-harness.mjs [entry]
  */
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
@@ -17,10 +17,10 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = path.resolve(here, '../..');
+const projectRoot = path.resolve(here, '..');
 const require = createRequire(import.meta.url);
 
-const entry = path.resolve(projectRoot, process.argv[2] ?? 'src/__bench__/memory-harness.mjs');
+const entry = path.resolve(projectRoot, process.argv[2] ?? 'bench/memory-harness.mjs');
 const outfile = path.join(projectRoot, 'node_modules/.cache/vue-forms-bench', `${path.parse(entry).name}.mjs`);
 
 const counterPath = path.join(here, 'vue-proxy-counter.mjs');

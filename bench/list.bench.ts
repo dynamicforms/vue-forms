@@ -1,6 +1,6 @@
 import { bench, describe } from 'vitest';
 
-import { List } from '../list';
+import { List } from '../src/list';
 
 import {
   createItemTemplate,

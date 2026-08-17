@@ -6,11 +6,11 @@
  * same write against both lists, so the S2a figure can be read with the condition it holds under.
  *
  * Run it through the build script, which bundles it and starts node:
- *   node src/__bench__/build-harness.mjs src/__bench__/listener-probe.mjs
+ *   node bench/build-harness.mjs bench/listener-probe.mjs
  */
 import process from 'node:process';
 
-import { ValueChangedAction } from '../actions/value-changed-action';
+import { ValueChangedAction } from '../src/actions/value-changed-action';
 
 import { createList, ROW_COUNT, TARGET_FIELD, TARGET_ROW } from './fixtures';
 

@@ -9,7 +9,7 @@
     "types": ["vitest/globals"],
     "skipLibCheck": true
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "bench/**/*"],
   "exclude": [
     "dist",
     "coverage",

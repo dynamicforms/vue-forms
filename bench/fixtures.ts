@@ -1,11 +1,11 @@
-import { ConditionalVisibilityAction } from '../actions/conditional/conditional-statement-action';
-import Operator from '../actions/conditional/operator';
-import { Statement } from '../actions/conditional/statement';
-import { ValueChangedAction } from '../actions/value-changed-action';
-import { Field } from '../field';
-import { Group } from '../group';
-import { List } from '../list';
-import Required from '../validators/validator-required';
+import { ConditionalVisibilityAction } from '../src/actions/conditional/conditional-statement-action';
+import Operator from '../src/actions/conditional/operator';
+import { Statement } from '../src/actions/conditional/statement';
+import { ValueChangedAction } from '../src/actions/value-changed-action';
+import { Field } from '../src/field';
+import { Group } from '../src/group';
+import { List } from '../src/list';
+import Required from '../src/validators/validator-required';
 
 /** number of fields one benchmark row carries */
 export const FIELD_COUNT = 8;
