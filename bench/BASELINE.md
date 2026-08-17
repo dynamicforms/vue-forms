@@ -103,5 +103,5 @@ mounted scenario and reports neither.
 bundles and runs `memory-harness.mjs`, substituting `vue-proxy-counter.mjs` for `vue`. None of it changes the
 library source.
 
-The directory holds no spec file, so `npx vitest run` collects the same 26 files and 360 tests as before. The
-coverage configuration includes `src/**/*`, so these files do appear in a coverage report as uncovered.
+The directory holds no spec file, so `npx vitest run` collects only what is under `src/`. The coverage
+configuration includes `src/**/*`, so these files do appear in a coverage report as uncovered.

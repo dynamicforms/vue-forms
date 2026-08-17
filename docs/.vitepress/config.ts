@@ -13,7 +13,8 @@ export default defineConfig({
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API', link: '/api/field' },
-      { text: 'Examples', link: '/examples/basic-form' }
+      { text: 'Examples', link: '/examples/basic-form' },
+      { text: 'Changelog', link: 'https://github.com/dynamicforms/vue-forms/blob/main/changelog.md' }
     ],
     sidebar: {
       '/guide/': [
@@ -21,6 +22,7 @@ export default defineConfig({
           text: 'Introduction',
           items: [
             { text: 'Getting Started', link: '/guide/getting-started' },
+            { text: 'The model', link: '/guide/model' },
           ]
         },
         {
@@ -31,6 +33,12 @@ export default defineConfig({
         }
       ],
       '/api/': [
+        {
+          text: 'Concepts',
+          items: [
+            { text: 'The model', link: '/guide/model' },
+          ]
+        },
         {
           text: 'API Reference',
           items: [
@@ -53,6 +61,7 @@ export default defineConfig({
             { text: 'List', link: '/examples/list' },
             { text: 'Validators', link: '/examples/validators' },
             { text: 'Conditional statements', link: '/examples/conditional-statement' },
+            { text: 'Action', link: '/examples/action' },
             { text: 'Messages widget', link: '/examples/messages-widget' },
           ]
         }

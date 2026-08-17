@@ -51,7 +51,7 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | reads `ListValue`, accepts `Record<string, any>[]` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items; the setter only accepts an array, so use `clear()` to empty the list |
+| `value` | reads `ListValue`, accepts `Record<string, any>[]` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items. The setter's declared type is an array, and `clear()` is what empties a list; a `null` reaching it — which is what `group.value = null` writes into a nested list — releases every row, and any other non-array value leaves the rows untouched |
 | `originalValue` | `ListValue` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the list itself and all items are valid |
@@ -170,4 +170,5 @@ Type alias for `List | null`.
 
 ---
 
-> See also: [Actions reference](/api/actions) for `ListItemAddedAction` and `ListItemRemovedAction`
+> See also: [The model](/guide/model#how-a-list-builds-rows) for how a row is built and what a record is,
+> [Actions reference](/api/actions) for `ListItemAddedAction` and `ListItemRemovedAction`

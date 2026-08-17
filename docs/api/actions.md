@@ -152,9 +152,9 @@ new ValidChangedAction((field, supr, newValue, oldValue) => {
 A `Group` and a `List` compose their validity from their members, so the action fires on the container whenever a
 member's verdict flips it — including when no value changed, as with an asynchronous validator settling or a
 `clearValidators()` that leaves a previously invalid member valid. Writing to `member.errors` from the outside
-announces nothing on its own: the array is a plain property, and it is the member's `validate()` that recomputes
-the verdict, fires the member's own `ValidChangedAction` and makes the container re-evaluate. The notification
-climbs no further than the first ancestor whose own validity stays the same.
+moves `valid` on the member and on every container above it at once, but announces nothing: the member's
+`validate()` is what announces the transition and makes the container announce its own. The notification climbs no
+further than the first ancestor whose own validity stays the same.
 
 Verdicts are announced when the [transaction](/api/transactions) carrying the change commits, and after the value
 changes of that same transaction: the deepest element first, so a container is heard from only once the member
@@ -188,6 +188,20 @@ field.triggerAction(ExecuteAction, { reason: 'submit' });
 ### The `Action` class
 
 `Action` is a `Field` whose value is an `ActionValue` (`{ label?, icon? }`) — it represents a button or menu entry that runs an `ExecuteAction` chain.
+
+::: tip Action is the one part of this library that is not UI-agnostic, deliberately
+Everything else here describes data and behaviour and says nothing about rendering. `Action` names a label and an
+icon because it exists as a *concept* — the element a form's submit, cancel and delete hang on — and that minimal
+pair is what makes the concept legible; without it, `Action` would be indistinguishable from `Field`.
+
+The shape is minimal because **a UI library is expected to extend it**. `Action<T extends ActionValue>` takes a
+wider value type, so a subclass adds accessors reading `this.value.X` and keeps everything the base class does.
+`@dynamicforms/vuetify-inputs` widens the value with render options and per-breakpoint variants and adds
+`renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes on top; its
+[df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows what that
+renders as. `busy` is form state on the same principle: the library counts the runs, and what that renders as
+stays yours.
+:::
 
 ```typescript
 import { Action, ExecuteAction } from '@dynamicforms/vue-forms';
@@ -243,6 +257,9 @@ catch to the promise an event handler returns and routes the error to `app.confi
 ```vue
 <button :disabled="!save.enabled || save.busy" @click="save.execute()">{{ save.label }}</button>
 ```
+
+An action declared, enabled by the form's validity, executed and reporting `busy` through an asynchronous submit is
+worked through end to end in the [Action example](/examples/action).
 
 ### `NullableAction`
 
@@ -345,6 +362,10 @@ three cases are told apart at evaluation time by `instanceof`.
 
 `collectFields(): Set<FieldBase>` is public: it walks the statement and its nested statements and returns the field
 instances themselves, which is useful when you want to attach your own handlers to the same set.
+
+`operand1Value` and `operand2Value` read the two operands the way `evaluate()` does — a nested statement is
+evaluated, a field contributes its `value`, a literal is itself — over the fields the statement was built from.
+Neither takes a record, so on a statement serving a `List` they answer for the item template.
 
 ### `Operator`
 
@@ -469,10 +490,16 @@ subtree that was declared as a given one.
 
 ### `ActionsMap`
 
-The chain container each field holds, keyed by `classIdentifier`. It is the type of `FieldBase`'s internal action
-store and is exported so that type can be named; `registerAction()`, `triggerAction()` and `clearValidators()` on
-the field are the supported way to drive it. Its own surface is `register()`, `trigger()`, `triggerEager()`,
-`validators`, `clone()`, `cloneWithoutValidators()` and `bindTo()`.
+The chain container each field holds, keyed by `classIdentifier`. It extends `Map<symbol, FieldActionExecute>`. It
+is the type of `FieldBase`'s internal action store and is exported so that type can be named; `registerAction()`,
+`triggerAction()` and `clearValidators()` on the field are the supported way to drive it. Its own surface is
+`register()`, `trigger()`, `triggerChain()`, `triggerEager()`, `willTrigger()`, `validators`, `clone()`,
+`cloneWithoutValidators()` and `bindTo()`.
+
+`trigger(ActionClass, field, ...params)` runs the chain registered under that class and, on the value-change
+identifier, the eager actions with it. `triggerChain(identifier, field, ...params)` runs one chain and nothing
+else, and `triggerEager(field, ...params)` runs the eager actions alone. `willTrigger(identifier)` answers whether
+either would run anything, so a caller that has to build the parameters first can skip building them.
 
 `clone()` returns a copy holding the same action instances, and `bindTo(owner)` tells each of them that it now
 serves `owner`. Cloning an element does both, which is what makes an action registered on an item template serve
@@ -508,4 +535,5 @@ DisplayMode.fromString('nonsense'); // → DisplayMode.FULL
 
 ---
 
-> See also: [Conditional statements example](/examples/conditional-statement), [Field API](/api/field)
+> See also: [The model](/guide/model), [Action example](/examples/action),
+> [Conditional statements example](/examples/conditional-statement), [Field API](/api/field)

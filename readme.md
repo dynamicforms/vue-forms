@@ -16,15 +16,15 @@ mechanism applies at every level of a nested form.
 
 - **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
-- **Reactive & Type-Safe**: Fields, groups and lists are Vue reactive objects, and a group's value type is inferred from the fields it holds, nested structures included.
+- **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read, and a group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
 - **Lightweight**: `vue` (^3.4) is the only peer dependency, and `lodash` and `lodash-es` — one per build — the only runtime ones.
 
 ## Features
 
 - **UI-agnostic**: Works with any Vue UI components or your custom ones
-- **Reactive**: Fields, groups and lists are Vue reactive objects — read and assign their properties directly, with
-  no `ref` to unwrap and no computed mirror to keep in sync
+- **Reactive**: every member of a field, group or list is a tracked read — assign a property directly, with no
+  `ref` to unwrap and no computed mirror to keep in sync
 - **Nested structures**: Support for complex data with nested fields and groups
 - **Event system**: Rich event handling for field changes, validation, and more
 - **Transactional**: every mutating operation is atomic — events are announced once, over the net change, and a
@@ -67,9 +67,10 @@ want plain text instead.
 ## Basic Usage Example
 
 Every form element is created with the constructor: `new Field({ ... })`, `new Action({ ... })`,
-`new Group({ ... })`, `new List(template)`. The instance is a Vue reactive object from that moment on, so reading
+`new Group({ ... })`, `new List(template)`. Every read through it is tracked from that moment on, so reading
 `field.value` in a template tracks it and `field.value = x` re-renders — there is no `ref` to unwrap and no
-computed mirror to maintain.
+computed mirror to maintain. The element itself is not a Vue proxy, so watch what you read:
+`watch(() => field.value, cb)`.
 
 Here's a simple example of how to create and use a form with fields and groups:
 
@@ -109,6 +110,11 @@ const saveAction = new Action({
 
 await saveAction.execute({ form: personForm });  // 'saving { form: ... }'; saveAction.busy until it settles
 ```
+
+`Action` is the one deliberate exception to "UI-agnostic": it names a label and an icon because it exists as the
+element a form's submit and cancel hang on, and that minimal pair is what makes the concept legible. The shape is
+minimal because a UI library is expected to extend it — [`@dynamicforms/vuetify-inputs`](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html)
+widens the value with render options and per-breakpoint variants on top of it.
 
 ## Events Example
 
@@ -422,9 +428,12 @@ function isDirty(field: FieldBase): boolean {
 
 For more detailed documentation and examples, check out the [documentation](https://docs.velis.si/dynamicforms/vue-forms).
 
-Upgrading from 0.5.x? The
-[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration) lists every breaking change with
-before/after code.
+[The model](https://docs.velis.si/dynamicforms/vue-forms/guide/model) is the whole library in one page: elements,
+declarations, transactions, where validity comes from and how a `List` builds its rows.
+
+Upgrading an existing project? The
+[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration) walks the journey from 0.6.1 to
+0.10.x, silent breaks first, and keeps a section per release for a project crossing one.
 
 ## Conclusion
 

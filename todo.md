@@ -1,6 +1,7 @@
 # todo
 
-Findings from the 1.0 readiness audit (August 2026, against 0.5.1), plus the pre-existing items.
+What stands between the current source and a frozen 1.0 surface, re-verified against 0.10.1, plus the
+pre-existing items.
 
 The same findings laid out for reading, with the measurement output and the reasoning behind each severity:
 <https://claude.ai/code/artifact/4527a232-fd57-431f-8aac-aacb244d42a7> (private link — visible to the repo
@@ -28,7 +29,7 @@ about the shape of signatures and of the published package — after 1.0 those c
   the lowest supported Vue.
 
 - **[V] Whether to keep shipping a CJS/UMD entry point at all.** The API is identity-based — `instanceof` in
-  17 places and 13 module-level `Symbol()` without `Symbol.for` — so two copies of the package in one graph
+  18 places and 15 module-level `Symbol()` without `Symbol.for` — so two copies of the package in one graph
   produce `Invalid fields object provided` / `Invalid action type`. ESM-only removes that hazard for good, and
   removes a working entry point with it, which is why it is a decision to take before the freeze rather than a
   patch: dropping the `require` condition after 1.0 costs a 2.0.
@@ -61,13 +62,13 @@ about the shape of signatures and of the published package — after 1.0 those c
   becoming async) is a 2.0.
 - **`Group.value` omits a disabled `List` but keeps a disabled `Group`** (`src/group.ts`; `List` does not
   extend `Group`) — payload shape.
-- **A non-array assigned to `List.value` is swallowed silently** (`src/list.ts`) — `setValueInternal` writes only
-  for an array, so a wrong type leaves the rows untouched with no error.
+- **A non-array assigned to `List.value` is swallowed silently** (`src/list.ts`) — `setValueInternal` writes for an
+  array and clears for `null`, so any other type leaves the rows untouched with no error.
 - **`List` alone does not fall back to `originalValue`** (`src/list.ts`): `new Field({originalValue: 5})` and
   `new Group({a}, {originalValue: {a: 7}})` start unchanged, while `new List(tpl, {originalValue: […]})` reports
   `isChanged` and reads back `null`, so a list built from a server baseline is dirty before anyone touches it.
 - **`DisplayMode`:** an invalid *string* silently becomes `FULL`, an invalid *number* throws
-  (`src/display-mode.ts:29-32`).
+  (`src/display-mode.ts:30-39`).
 - **`EmptyField` is a shared mutable singleton** (`src/field.ts`) — `visibility`/`enabled` can be
   overwritten with no warning.
 - **Validators are exported twice:** `Validator` is top-level *and* in `Validators`, while the concrete
@@ -89,10 +90,8 @@ about the shape of signatures and of the published package — after 1.0 those c
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
   request changes the setting for everyone. `FormsConfig`/`getConfig`/`setConfig` are not exported.
 - **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, and the rule that a disabled
-  child `Group` still serializes when its own value is non-empty. Nothing tests the built artifact or the export
-  list.
-- **Documentation:** there is no versioning/stability statement and no supported Vue/browser matrix, and the
-  sidebar has no changelog entry.
+  child `Group` still serializes when its own value is non-empty. CI checks that the rolled-up declarations are
+  non-empty and declare `Field`, but nothing imports the built artifact or asserts the export list.
 
 ---
 
@@ -103,7 +102,7 @@ about the shape of signatures and of the published package — after 1.0 those c
 `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
 an action registered on an item template after a row was built never reaches that row, because a clone carries the
 actions its source held at the moment it was cloned ·
-`Operator.NOT` requires a dummy third argument · `parent` is `configurable: false` (documented) ·
+`Operator.NOT` requires a dummy third argument ·
 `Group.addField`/`List.length`/`items` are missing (additive) ·
 `Group`/`List` do not aggregate `validating` or `busy`, so a form cannot ask whether anything below it is
 running · a rejection out of `Action.execute()` has nowhere to go but the caller: a call that neither awaits the
@@ -119,12 +118,14 @@ handler in a closure that calls the previous one, so a single registration canno
 error onto the field it was dropped from, because its listener is released at commit ·
 `InAllowedValues` freezes the list at
 construction · `ValidationError` has no machine-readable code · error object identity is not preserved
-across validations, and `Validator.claim()` copies an error another validator already owns, so the instance
-the field holds is not the one the validation function returned · `isSimpleComponentDef(null)` throws ·
+across validations: two runs producing the same message leave the field holding the newer instance, because the
+`isEqual` that would have kept the older one compares two `ValidationErrorRenderContent`s including the `computed`
+each carries. `Validator.claim()` copies an error another validator already owns, and `field.errors` reads back a
+Vue proxy of whatever instance the field holds, so `field.errors[0] === myError` is `false` either way
+(documented) · `isSimpleComponentDef(null)` throws ·
 `List.insert(item, index)` fills the gap position by position, so an index taken from an API response builds
 that many groups and fires that many events synchronously on the main thread ·
-`./style.css` is unreachable under node10 resolution · CI never packs and imports the artifact · no coverage
-thresholds.
+`./style.css` is unreachable under node10 resolution · no coverage thresholds.
 
 ---
 
@@ -135,12 +136,12 @@ the cheap option in each case is also the one that keeps the other option availa
 
 ### How a List gets its rows
 
-**Clone per row** (what the code does): the item template is deep-copied for every row, actions included.
+**Clone per row** is what the code does: the item template is copied for every row, action instances included,
+and `field.declaration` records what each copy was made from so a shared action can tell one row from another.
 *For:* rows have independent identity, so `v-for` keying and component reuse work with no extra machinery;
-per-event property access is direct. *Against:* every row rebuilds an `ActionsMap` and its closure chain,
-which is the dominant cost of creating a row; an action shared by the rows has to work out which row it is
-running over, and a row is validated before it exists as a record; and `clone()` has to be public for `List`
-to use it.
+per-event property access is direct. *Against:* every row rebuilds an `ActionsMap` and its closure chain, which
+is the dominant cost of creating a row; resolving a second element of a record is a path walk per evaluation
+rather than an index lookup; and `clone()` is public, documented and load-bearing for `List`.
 
 **Bind to a shared definition**: the field definition (validators, actions, defaults) is extracted into a
 subobject that rows share, and each row holds only mutable state. `clone()` disappears; `bind(data)`
@@ -150,9 +151,9 @@ another, because a binding is the row; `CompareTo` resolves within the row for f
 every render; and `registerAction` on one row necessarily affects all rows, which needs documenting rather
 than solving — the closure chain has no defined composition order for a shared chain plus a per-row one.
 
-The two are close enough in cost that the choice is about correctness, not performance. Binding stays
-reachable as long as `clone()` is not part of the public surface, which makes that the one question to
-answer now.
+The correctness half of the question is settled — declarations, records and `markRecordIncomplete()` answer it on
+the clone model — so what is left is cost and surface. Switching now removes `clone()`, which is a break; leaving
+it freezes two paths to one thing into 1.0. That is the decision, and it belongs before the freeze.
 
 ### How the action chain supports removal
 

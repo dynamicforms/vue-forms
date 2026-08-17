@@ -1,6 +1,10 @@
 # Field
 
-`Field<T>` represents a single typed form value. It is constructed with `new`, like `Action`, `Group` and `List`, and the instance is a Vue reactive object from that moment on.
+`Field<T>` represents a single typed form value. It is constructed with `new`, like `Action`, `Group` and `List`,
+and every read through it — `field.value`, `field.valid`, `field.errors` — is tracked by Vue from that moment on.
+
+New to the library? [The model](/guide/model) describes how the pieces fit together before this page names them
+one by one.
 
 ## Creating a field
 
@@ -77,15 +81,15 @@ const field = new Field(defaults);
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `T` | yes | Current value. The setter is a no-op on a disabled field, and for primitives also when the new value is `===` the current one. For object and array values every assignment fires `ValueChangedAction`, even with the same reference, because the value is held in a reactive slot and a read of it returns a proxy of the object. `isChanged` is separate and uses deep equality. |
+| `value` | `T` | yes | Current value. The setter is a no-op on a disabled field. Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
 | `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value` |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization |
-| `valid` | `boolean` | no | `true` when `errors` is empty |
+| `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while at least one async validator is pending. The library maintains it through `beginValidating()` / `endValidating()`, which validators call around a returned promise |
 | `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()`. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
-| `errors` | `ValidationError[]` | yes | Current validation errors. Writable, but normally managed by validators. Writing to it is a plain property write and recomputes nothing on its own — call `validate()` afterwards to have `valid`, `ValidChangedAction` and the parent container follow |
+| `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
 | `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `clone()`. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
@@ -140,11 +144,11 @@ when no action of that type is registered.
 
 ### `validate(revalidate?): void`
 
-Recalculates `valid` based on `errors`. Pass `revalidate: true` to re-trigger all eager validators from scratch.
-When the verdict changes, it fires `ValidChangedAction` and has the parent container recompute its own validity, so
-a field turning invalid on its own is reflected in the `Group` or `List` holding it. Called inside a
-[transaction](/api/transactions), it recomputes with everything else the transaction did and announces at the end
-of it.
+Announces the verdict the element's `errors` support. Pass `revalidate: true` to re-run every eager action —
+the validators among them — over the value the element holds first. When the verdict differs from the one last
+announced it fires `ValidChangedAction` and reports the change to the parent container, so a field turning invalid
+on its own is reflected in the `Group` or `List` holding it. Called inside a [transaction](/api/transactions), it
+settles with everything else the transaction did and announces at the end of it.
 
 ### `clearValidators(): void`
 
