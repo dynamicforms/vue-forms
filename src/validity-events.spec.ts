@@ -1,10 +1,11 @@
 import { vi } from 'vitest';
 
-import { ValidChangedAction } from './actions';
+import { ListItemAddedAction, ListItemRemovedAction, ValidChangedAction, ValueChangedAction } from './actions';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { GenericFieldsInterface, Group } from './group';
 import { List } from './list';
+import { transaction } from './transaction';
 import { ValidationErrorText } from './validators/validation-error';
 import { ValidationFunctionResult, Validator } from './validators/validator';
 
@@ -495,5 +496,317 @@ describe('Validity events that reach a parent whose own value did not change', (
     expect(seenList).toEqual([[true, false]]);
     expect(seenRoot).toEqual([[true, false]]);
     expect(root.valid).toBe(true);
+  });
+});
+
+/**
+ * Every mutating operation is a transaction, and a transaction announces what it did once, at its end. These tests
+ * therefore pin the whole ordered log of events an operation produces rather than a count per level: they fail on
+ * an event too many, on an event too few, and on one arriving before the change that causes it. The order the log
+ * records is the causal one - a value announced deepest first, then the verdicts formed over it, deepest first
+ * again.
+ */
+function log(elements: Record<string, FieldBase<any>>): string[] {
+  const seen: string[] = [];
+  Object.entries(elements).forEach(([name, element]) => {
+    element.registerAction(new ValueChangedAction(() => seen.push(`${name}.value`)));
+    element.registerAction(
+      new ValidChangedAction((f, supr, newValue: boolean) => seen.push(`${name}.valid=${newValue}`)),
+    );
+    element.registerAction(
+      new ListItemAddedAction((f, supr, item, index: number) => seen.push(`${name}.added@${index}`)),
+    );
+    element.registerAction(
+      new ListItemRemovedAction((f, supr, item, index: number) => seen.push(`${name}.removed@${index}`)),
+    );
+  });
+  return seen;
+}
+
+function peopleList() {
+  const list = new List(new Group({ name: new Field({ value: '', validators: [notEmpty()] }) }), {
+    value: [{ name: 'Janez' }],
+  });
+  const root = new Group({ list });
+  return { list, root };
+}
+
+describe('What one transaction announces', () => {
+  it('announces a single field write on the field and on the group above it', () => {
+    const a = new Field({ value: '', validators: [notEmpty()] });
+    const group = new Group({ a, b: new Field({ value: 'x' }) });
+    const seen = log({ a, group });
+
+    a.value = 'y';
+
+    expect(seen).toEqual(['a.value', 'group.value', 'a.valid=true', 'group.valid=true']);
+  });
+
+  it('announces a whole-group assignment once per member and once for the group', () => {
+    const a = new Field({ value: '', validators: [notEmpty()] });
+    const b = new Field({ value: '', validators: [notEmpty()] });
+    const group = new Group({ a, b });
+    const seen = log({ a, b, group });
+
+    group.value = { a: 'x', b: 'y' };
+
+    expect(seen).toEqual(['a.value', 'b.value', 'group.value', 'a.valid=true', 'b.valid=true', 'group.valid=true']);
+  });
+
+  it('announces a whole-list assignment once for the list and once per row member it changed', () => {
+    const { list, root } = peopleList();
+    const first = list.get(0)!.fields.name;
+    const seen = log({ first, list, root });
+
+    list.value = [{ name: 'Micka' }];
+
+    expect(seen).toEqual(['first.value', 'list.value', 'root.value']);
+  });
+
+  it('announces push as one addition, one value and one verdict per level', () => {
+    const { list, root } = peopleList();
+    const seen = log({ list, root });
+
+    list.push({ name: '' });
+
+    expect(seen).toEqual(['list.added@1', 'list.value', 'root.value', 'list.valid=false', 'root.valid=false']);
+  });
+
+  it('announces insert beyond the end as one addition per item, in the order the items landed', () => {
+    const { list } = peopleList();
+    const seen = log({ list });
+
+    list.insert({ name: 'Micka' }, 3);
+
+    expect(seen).toEqual(['list.added@1', 'list.added@2', 'list.added@3', 'list.value', 'list.valid=false']);
+  });
+
+  it('announces remove as one removal, one value and one verdict per level', () => {
+    const { list, root } = peopleList();
+    list.push({ name: '' });
+    const seen = log({ list, root });
+
+    list.remove(1);
+
+    expect(seen).toEqual(['list.removed@1', 'list.value', 'root.value', 'list.valid=true', 'root.valid=true']);
+  });
+
+  it('announces clear as one value change per level and says nothing on a list that is already empty', () => {
+    const { list, root } = peopleList();
+    const seen = log({ list, root });
+
+    list.clear();
+    expect(seen).toEqual(['list.value', 'root.value']);
+
+    seen.length = 0;
+    list.clear();
+    expect(seen).toEqual([]);
+  });
+
+  it('announces a group revalidation once, over the finished set', () => {
+    const first = { ok: false };
+    const second = { ok: false };
+    const a = new Field({ value: 'a', validators: [switchable(first)] });
+    const b = new Field({ value: 'b', validators: [switchable(second)] });
+    const group = new Group({ a, b });
+    const seen = log({ a, b, group });
+
+    first.ok = true;
+    second.ok = true;
+    group.validate(true);
+
+    expect(seen).toEqual(['a.valid=true', 'b.valid=true', 'group.valid=true']);
+  });
+
+  it('announces a list revalidation once, over the finished set', () => {
+    const state = { ok: false };
+    const list = new List(new Group({ a: new Field({ validators: [switchable(state)] }) }), {
+      value: [{ a: 'x' }, { a: 'y' }],
+    });
+    const first = list.get(0)!;
+    const second = list.get(1)!;
+    const seen = log({ first, second, list });
+
+    state.ok = true;
+    list.validate(true);
+
+    expect(seen).toEqual(['first.valid=true', 'second.valid=true', 'list.valid=true']);
+  });
+
+  it('shows a handler the list the operation finished on, not one it passed through', () => {
+    const { list } = peopleList();
+    const lengths: number[] = [];
+    list.registerAction(new ListItemAddedAction(() => lengths.push(list.value?.length ?? 0)));
+
+    // the insert pads the gap it leaves behind, so three items land; each addition is announced over the set of
+    // four the operation ended on rather than over the set that stood when that one item was pushed
+    list.insert({ name: 'Micka' }, 3);
+
+    expect(lengths).toEqual([4, 4, 4]);
+  });
+
+  it('joins a nested transaction into the outer one and commits once', () => {
+    const a = new Field({ value: '', validators: [notEmpty()] });
+    const b = new Field({ value: '', validators: [notEmpty()] });
+    const group = new Group({ a, b });
+    const seen = log({ a, b, group });
+
+    transaction(() => {
+      a.value = 'x';
+      transaction(() => {
+        b.value = 'y';
+      });
+    });
+
+    expect(seen).toEqual(['a.value', 'b.value', 'group.value', 'a.valid=true', 'b.valid=true', 'group.valid=true']);
+  });
+
+  it('says nothing about a value that ends the transaction where it started', () => {
+    const a = new Field({ value: 'a' });
+    const group = new Group({ a });
+    const seen = log({ a, group });
+
+    transaction(() => {
+      a.value = 'b';
+      a.value = 'a';
+    });
+
+    expect(seen).toEqual([]);
+    expect(a.value).toBe('a');
+  });
+
+  it('announces an asynchronous validator settling after the commit, in a transaction of its own', async () => {
+    let resolveFn: (result: ValidationFunctionResult) => void = () => {};
+    const pending = new Promise<ValidationFunctionResult>((resolve) => {
+      resolveFn = resolve;
+    });
+    const a = new Field({ value: 'a', validators: [new Validator(() => pending)] });
+    const group = new Group({ a });
+    const seen = log({ a, group });
+
+    // the write commits while the validator is still in flight, so nothing about the verdict is announced with it
+    a.value = 'b';
+    expect(seen).toEqual(['a.value', 'group.value']);
+
+    resolveFn([new ValidationErrorText('rejected by the service')]);
+    await vi.waitFor(() => {
+      expect(a.validating).toBe(false);
+    });
+
+    expect(seen).toEqual(['a.value', 'group.value', 'a.valid=false', 'group.valid=false']);
+  });
+});
+
+describe('What a transaction that does not commit leaves behind', () => {
+  it('puts the whole of an element back and announces nothing when the callback throws', () => {
+    const a = new Field({ value: 'a', validators: [notEmpty()] });
+    const b = new Field({ value: 'b' });
+    const group = new Group({ a, b });
+    const seen = log({ a, b, group });
+
+    expect(() =>
+      transaction(() => {
+        a.value = '';
+        b.touched = true;
+        b.enabled = false;
+        throw new Error('handler gave up');
+      }),
+    ).toThrow('handler gave up');
+
+    expect(seen).toEqual([]);
+    expect(a.value).toBe('a');
+    expect(a.errors).toEqual([]);
+    expect(a.valid).toBe(true);
+    expect(b.touched).toBe(false);
+    expect(b.enabled).toBe(true);
+    expect(group.value).toEqual({ a: 'a', b: 'b' });
+    expect(group.valid).toBe(true);
+  });
+
+  it('puts the whole of an element back and announces nothing on an explicit rollback', () => {
+    const a = new Field({ value: 'a' });
+    const group = new Group({ a });
+    const seen = log({ a, group });
+
+    const answer = transaction((tx) => {
+      a.value = 'b';
+      tx.rollback();
+      return 'unreachable';
+    });
+
+    expect(answer).toBeUndefined();
+    expect(seen).toEqual([]);
+    expect(a.value).toBe('a');
+  });
+
+  it('drops the rows a rolled-back transaction created and re-adopts the ones it removed', () => {
+    const { list } = peopleList();
+    const kept = list.get(0)!;
+    const seen = log({ list });
+
+    transaction((tx) => {
+      list.push({ name: 'Micka' });
+      list.remove(0);
+      tx.rollback();
+    });
+
+    expect(seen).toEqual([]);
+    expect(list.value).toEqual([{ name: 'Janez' }]);
+    expect(list.get(0)).toBe(kept);
+    expect(kept.parent).toBe(list);
+  });
+
+  it('rolls a nested transaction back whole: there are no savepoints', () => {
+    const a = new Field({ value: 'a' });
+    const b = new Field({ value: 'b' });
+    const group = new Group({ a, b });
+    const seen = log({ a, b, group });
+
+    expect(() =>
+      transaction(() => {
+        a.value = 'x';
+        transaction(() => {
+          b.value = 'y';
+          throw new Error('the inner one gave up');
+        });
+      }),
+    ).toThrow('the inner one gave up');
+
+    expect(seen).toEqual([]);
+    expect(group.value).toEqual({ a: 'a', b: 'b' });
+  });
+
+  it('leaves a group as it was when a handler throws in the middle of a whole-group assignment', () => {
+    const a = new Field({ value: 'a', validators: [notEmpty()] });
+    const b = new Field({ value: 'b', validators: [notEmpty()] });
+    const group = new Group({ a, b });
+    b.registerAction(
+      new ValueChangedAction(() => {
+        throw new Error('handler gave up');
+      }),
+    );
+
+    expect(() => {
+      group.value = { a: '', b: 'z' };
+    }).toThrow('handler gave up');
+
+    expect(group.value).toEqual({ a: 'a', b: 'b' });
+    expect(group.valid).toBe(true);
+    expect(a.valid).toBe(true);
+  });
+
+  it('refuses a callback that returns a thenable, and rolls back what it already did', () => {
+    const a = new Field({ value: 'a' });
+    const seen = log({ a });
+
+    expect(() =>
+      transaction(() => {
+        a.value = 'b';
+        return Promise.resolve();
+      }),
+    ).toThrow(TypeError);
+
+    expect(seen).toEqual([]);
+    expect(a.value).toBe('a');
   });
 });

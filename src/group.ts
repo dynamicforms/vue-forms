@@ -1,11 +1,10 @@
-import { isEmpty, isEqual } from 'lodash-es';
+import { isEmpty } from 'lodash-es';
 
-import { ValueChangedAction } from './actions';
-import { ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { type ContainerSlots, containerSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
+import { transactional } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
 // Utility type converting a field structure into the matching value structure.
@@ -39,34 +38,39 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     // the backing map has no prototype: a field may be named after an Object.prototype member, and on an
     // ordinary object a `__proto__` key would go to the inherited setter instead of becoming a field
     this._fields = Object.create(null) as T;
-    Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
 
-    if (params) {
-      const { value: paramValue, validators, actions, ...otherParams } = params;
-      // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
-      // guards them too
-      this.registerInitialActions([...(validators || []), ...(actions || [])]);
-      Object.assign(this, otherParams);
-      // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
-      // an optional property yields an undefined value, and assigning it would push null into every member and
-      // then baseline that emptied state as the original, so the group would report itself unchanged over values
-      // its members never held. An explicit null is a supplied value and does clear the members.
-      if (paramValue !== undefined) this.assignMembers(paramValue as GroupValueInput<T>);
-      else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
-    }
+    // construction is one transaction: the members are taken and written before anything is announced, and a
+    // member that refuses to be taken - one another container already holds - leaves behind no half-built group
+    transactional(() => {
+      Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
 
-    // reading value walks every member and builds an object, so it is read once here and the result serves
-    // every reader below
-    const constructedValue = this.value;
-    if (this.originalValue === undefined) this.originalValue = Group.baseline(constructedValue);
+      if (params) {
+        const { value: paramValue, validators, actions, ...otherParams } = params;
+        // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
+        // guards them too
+        this.registerInitialActions([...(validators || []), ...(actions || [])]);
+        Object.assign(this, otherParams);
+        // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
+        // an optional property yields an undefined value, and assigning it would push null into every member and
+        // then baseline that emptied state as the original, so the group would report itself unchanged over values
+        // its members never held. An explicit null is a supplied value and does clear the members.
+        if (paramValue !== undefined) this.assignMembers(paramValue as GroupValueInput<T>);
+        else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
+      }
 
-    // the value the ValueChangedAction reads as the old one starts at the constructed value, so the first change
-    // of a member reports what the group held before it instead of null
-    this.raw.announcedValue = constructedValue;
+      // reading value walks every member and builds an object, so it is read once here and the result serves
+      // every reader below
+      const constructedValue = this.value;
+      if (this.originalValue === undefined) this.originalValue = Group.baseline(constructedValue);
 
-    // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
-    this._actions?.triggerEager(this, constructedValue, this.originalValue);
-    this.validate();
+      // the value a construction ends on is the group's first statement about itself rather than a change of one:
+      // recording it as announced is what keeps the commit from reporting the members' assignment as a change of
+      // the group, and it is what the first later change of a member is reported against
+      this.raw.announcedValue = constructedValue;
+
+      this._actions?.triggerEager(this, constructedValue, this.originalValue);
+      this.validate();
+    });
   }
 
   /**
@@ -144,33 +148,25 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
   }
 
   /**
-   * Writes the members that the given value carries, without letting any single member announce the state in
-   * between: the group's own value notification and its own validation are both held back for the duration, so
-   * neither a ValueChangedAction nor a ValidChangedAction reports a verdict over a half-applied value. The
-   * caller decides what to announce once the whole value is in place. Both flags are restored to what they were,
-   * so a caller that is itself holding the group back stays in charge.
+   * Writes the members that the given value carries. The members are written one by one and the group says
+   * nothing in between: the transaction the assignment runs in measures the group's own value and its own verdict
+   * once, over the finished set, and announces each at most once.
    */
   private assignMembers(newValue: GroupValueInput<T>) {
-    const outerNotify = this.raw.suppressNotifyValueChanged;
-    const outerValidation = this.suppressValidation;
-    this.raw.suppressNotifyValueChanged = true;
-    this.suppressValidation = true;
-    try {
+    transactional(() => {
       Object.entries(this._fields).forEach(([name, field]) => {
         if (newValue == null || Object.hasOwn(newValue, name)) {
           field.value = newValue == null ? null : newValue[name];
         }
       });
-    } finally {
-      this.raw.suppressNotifyValueChanged = outerNotify;
-      this.suppressValidation = outerValidation;
-    }
+    });
   }
 
   set value(newValue: GroupValueInput<T>) {
-    this.assignMembers(newValue);
-    this.notifyValueChanged();
-    this.validate();
+    transactional((tx) => {
+      this.assignMembers(newValue);
+      tx.markValidityDirty(this);
+    });
   }
 
   /**
@@ -180,11 +176,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
    */
   protected resetTo(source: FieldBase, value: any): void {
     const template = source as Group<T>;
-    const outerNotify = this.raw.suppressNotifyValueChanged;
-    const outerValidation = this.suppressValidation;
-    this.raw.suppressNotifyValueChanged = true;
-    this.suppressValidation = true;
-    try {
+    transactional((tx) => {
+      tx.touch(this);
       if (this.errors.length) this.errors = [];
       Object.entries(this._fields).forEach(([name, field]) => {
         // a key the value does not carry leaves the member to the template; a null value clears every member,
@@ -194,14 +187,13 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         else if (value !== undefined && Object.hasOwn(value, name)) memberValue = value[name];
         this.resetChild(field, template.field(name) ?? field, memberValue);
       });
-    } finally {
-      this.raw.suppressNotifyValueChanged = outerNotify;
-      this.suppressValidation = outerValidation;
-    }
-    const built = this.value;
-    this.raw.announcedValue = built;
-    this.originalValue = Group.baseline(built);
-    super.validate(true);
+      const built = this.value;
+      // a group brought to the state a fresh one would be in makes no statement of its own about the change: the
+      // container that reset it announces the whole of it
+      this.raw.announcedValue = built;
+      this.originalValue = Group.baseline(built);
+      super.validate(true);
+    });
   }
 
   get touched(): boolean {
@@ -209,8 +201,10 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
   }
 
   set touched(touched: boolean) {
-    Object.values(this._fields).forEach((field) => {
-      field.touched = touched;
+    transactional(() => {
+      Object.values(this._fields).forEach((field) => {
+        field.touched = touched;
+      });
     });
   }
 
@@ -222,38 +216,23 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     return { ...value };
   }
 
+  /**
+   * Records that a member changed its value, so that the transaction in progress works out at commit what this
+   * group's own value became and announces it once. A mutation method calls it itself; you rarely need to.
+   */
   notifyValueChanged() {
-    if (this.raw.suppressNotifyValueChanged) return;
-    // the pair a ValueChangedAction carries is only built where something receives it: with no handler for it and
-    // no eager action riding along, walking the members would produce an object nobody reads. What still has to
-    // happen is the notification of the parent and this group's own recomputation - a member that changed its
-    // verdict has already corrected the tally the recomputation reads.
-    const actions = this._actions?.willTrigger(ValueChangedActionClassIdentifier) ? this._actions : undefined;
-    let newValue: GroupValue<T> = null;
-    let oldValue: GroupValue<T> = null;
-    if (actions) {
-      newValue = this.value;
-      if (isEqual(newValue, this.raw.announcedValue)) return;
-      oldValue = this.raw.announcedValue;
-      this.raw.announcedValue = newValue;
-    }
-    // the parent learns of the new value below and validates itself from there, over the whole value; a
-    // validator running on this group must therefore not send it a verdict of its own in the meantime
-    const outerClimb = this.suppressParentValidityClimb;
-    this.suppressParentValidityClimb = true;
-    try {
-      if (actions) actions.trigger(ValueChangedAction, this, newValue, oldValue);
-      if (this.parent) this.parent.notifyValueChanged();
-    } finally {
-      this.suppressParentValidityClimb = outerClimb;
-      this.validate();
-      // a parent whose own value did not change by this one returns from notifyValueChanged() without
-      // validating, so a validity change held back above still has to reach it. Both run even when a handler
-      // threw, or the parent would keep a verdict the members no longer support.
-      this.flushParentValidityClimb();
-    }
+    this.propagateValueChanged();
   }
 
+  protected get composesValue(): boolean {
+    return true;
+  }
+
+  /**
+   * A group with nothing listening for its value does not compose one at all, so the copy it holds is from before
+   * the changes nobody received. A registration that adds a listener brings it up to date here, and what the
+   * listener is then told about is the change that follows it.
+   */
   protected refreshPreviousValue(): void {
     this.raw.announcedValue = this.value;
   }
@@ -263,23 +242,17 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
   }
 
   protected composeValid(): boolean {
-    return this.errors.length === 0 && Object.values(this._fields).every((field) => field.valid);
+    return this.state.errors.length === 0 && Object.values(this._fields).every((field) => field.valid);
   }
 
   validate(revalidate: boolean = false) {
-    if (revalidate) {
-      // the members are revalidated with the group held back, so a member that turns valid while a later one is
-      // still to be checked cannot make the group announce a verdict over a half-revalidated set. The group forms
-      // its own verdict below, once, over the finished set.
-      const outerValidation = this.suppressValidation;
-      this.suppressValidation = true;
-      try {
-        Object.values(this._fields).forEach((field) => field.validate(true));
-      } finally {
-        this.suppressValidation = outerValidation;
-      }
-    }
-    super.validate(revalidate);
+    transactional(() => {
+      // the members are revalidated first and the group forms its own verdict afterwards, over the finished set:
+      // a member that turns valid while a later one is still to be checked announces nothing until the
+      // transaction closes, so the group never reports a verdict over a half-revalidated set
+      if (revalidate) Object.values(this._fields).forEach((field) => field.validate(true));
+      super.validate(revalidate);
+    });
   }
 
   clone(overrides?: Partial<IFieldConstructorParams<GroupValueInput<T>>>): Group<T> {

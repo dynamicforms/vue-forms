@@ -8,6 +8,56 @@ exists.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.8.0 (from v0.7.x)
+
+Nothing you call changes name or signature. What changes is **when** your handlers run and **how many times**,
+and what a form looks like after a handler throws. Read [Transactions](/api/transactions) for the model; this
+section is only the differences.
+
+### An operation announces once, at its end
+
+Every mutating operation is a transaction, and a transaction announces what it did when it finishes. A single
+write is a transaction of its own, so it still produces exactly one `ValueChangedAction` and at most one
+`ValidChangedAction` per level — that part is unchanged. Three things do change:
+
+- **Repeated changes to one element coalesce.** `list.value = rows` no longer announces a row member once per
+  intermediate state; an element that ends the operation holding what it started with announces nothing.
+- **Handlers see the finished state.** `insert(item, 5)` on a three-item list pads the gap and then announces
+  three `ListItemAddedAction`s. A handler reading `list.value` inside them now sees six items in all three,
+  where it used to see four, then five, then six. Additions and removals are still announced one by one, in
+  order, and are never compared away.
+- **The order within one operation is causal.** An element announces its value first and the verdict formed over
+  it second, and the deepest element announces before the container above it. A field carrying a validator used
+  to announce its new verdict *before* its new value; if you relied on that order — reading `field.value` from a
+  `ValidChangedAction` and expecting the old one — the value you read is now the new one.
+
+If you write several fields together and want one announcement rather than one per field, wrap them:
+
+```typescript
+import { transaction } from '@dynamicforms/vue-forms';
+
+transaction(() => {
+  form.fields.firstName.value = 'Janez';
+  form.fields.lastName.value = 'Novak';
+});
+```
+
+### A handler that throws now undoes the operation
+
+Previously, a `ValueChangedAction` that threw partway through `group.value = {...}` left the group half-applied:
+some members written, some not, and the group's own verdict never recomputed. The operation now rolls back —
+every element it modified goes back to what it held — and the error propagates as before.
+
+Handlers written to fail loudly on bad input therefore stop being a way to accept part of an assignment. If you
+wanted the writes to stand, catch inside the handler, or use `AbortEventHandlingException`, which still stops the
+handler chain without undoing anything.
+
+### A transaction cannot cross an `await`
+
+`transaction()` throws a `TypeError` the moment its callback returns a thenable. Do the awaiting outside and open
+a transaction for each synchronous part. An asynchronous validator settling later opens one of its own, so
+nothing about async validation needs changing.
+
 ## Upgrading to v0.7.0 (from v0.6.x)
 
 ### `watch(field, ...)` with a bare element as the source no longer fires, and `readonly(field)` no longer protects one

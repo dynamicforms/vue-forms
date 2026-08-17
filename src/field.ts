@@ -2,6 +2,7 @@ import { ValueChangedAction } from './actions';
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
+import { transactional } from './transaction';
 
 class Field<T = any> extends FieldBase<T> {
   protected get state(): FieldSlots<T> {
@@ -36,18 +37,23 @@ class Field<T = any> extends FieldBase<T> {
    * the moment the initializer runs.
    */
   protected init(params?: Partial<IFieldConstructorParams<T>>) {
-    if (params) {
-      const { value: paramValue, validators, actions, ...otherParams } = params;
-      // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
-      // guards them too
-      this.registerInitialActions([...(validators || []), ...(actions || [])]);
-      Object.assign(this, otherParams);
-      // an absent value falls back to originalValue, an explicit null does not: null is a value a caller means
-      this._value = paramValue !== undefined ? paramValue : this.originalValue;
-      if (this.originalValue === undefined) this.originalValue = this._value;
-    }
-    this._actions?.triggerEager(this, this.value, this.originalValue);
-    this.validate();
+    transactional(() => {
+      if (params) {
+        const { value: paramValue, validators, actions, ...otherParams } = params;
+        // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
+        // guards them too
+        this.registerInitialActions([...(validators || []), ...(actions || [])]);
+        Object.assign(this, otherParams);
+        // an absent value falls back to originalValue, an explicit null does not: null is a value a caller means
+        this._value = paramValue !== undefined ? paramValue : this.originalValue;
+        if (this.originalValue === undefined) this.originalValue = this._value;
+      }
+      // the value a construction ends on is the field's first statement about itself rather than a change of one,
+      // so it is recorded as announced and the commit that follows says nothing about it
+      this.raw.announcedValue = this._value;
+      this._actions?.triggerEager(this, this.value, this.originalValue);
+      this.validate();
+    });
   }
 
   get value() {
@@ -57,23 +63,16 @@ class Field<T = any> extends FieldBase<T> {
   set value(newValue: T) {
     const oldValue = this._value;
     if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
-    this._value = newValue;
-    this.bumpValueVersion();
-    // the parent learns of the new value from notifyValueChanged() and validates itself from there, over the whole
-    // value; a validator running on this field must therefore not send it a verdict of its own in the meantime
-    const outerClimb = this.suppressParentValidityClimb;
-    this.suppressParentValidityClimb = true;
-    try {
-      this._actions?.trigger(ValueChangedAction, this, this._value, oldValue);
-      if (this.parent) this.parent.notifyValueChanged();
-    } finally {
-      this.suppressParentValidityClimb = outerClimb;
-      this.validate();
-      // a parent whose own value did not change by this assignment returns from notifyValueChanged() without
-      // validating, so a validity change held back above still has to reach it. Both run even when a handler
-      // threw, or the parent would keep a verdict the members no longer support.
-      this.flushParentValidityClimb();
-    }
+    transactional((tx) => {
+      tx.touch(this);
+      this._value = newValue;
+      this.bumpValueVersion();
+      // the validators run here rather than at the announcement, because the verdict they reach is what the
+      // commit announces, and because they read the value that is being written and the one it replaces
+      this._actions?.triggerEager(this, newValue, oldValue);
+      // the handlers hear about the change once the transaction closes, over the value the field ends up holding
+      this.propagateValueChanged();
+    });
   }
 
   get touched(): boolean {
@@ -81,6 +80,7 @@ class Field<T = any> extends FieldBase<T> {
   }
 
   set touched(touched: boolean) {
+    this.touchState();
     this.state.touched = touched;
   }
 

@@ -4,6 +4,7 @@ import { isRef, unref } from 'vue';
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
+import { currentTransaction, transaction } from '../transaction';
 
 import { buildErrorMessage } from './error-message-builder';
 import {
@@ -59,26 +60,33 @@ export class Validator<T = any> extends ValueChangedAction {
       const run = (this.runs.get(field) ?? 0) + 1;
       this.runs.set(field, run);
       const epoch = field.validationEpoch;
-      // a result counts only while nothing newer has been decided for this field and the field still holds the
-      // validators it held when the run started
-      const isCurrent = () => this.runs.get(field) === run && field.validationEpoch === epoch;
+      // the transaction this run started in, so that a run reaching its verdict after that transaction was
+      // unwound says nothing: the value it examined is one the form never went on to hold
+      const startedIn = currentTransaction();
+      // a result counts only while nothing newer has been decided for this field, the field still holds the
+      // validators it held when the run started, and the change that prompted it still stands
+      const isCurrent = () => this.runs.get(field) === run && field.validationEpoch === epoch && !startedIn?.rolledBack;
 
       const errors = validationFn(newValue, oldValue, field) || [];
 
-      const processErrors = (err: ValidationFunctionResult) => {
-        const mine = err?.map((e) => this.claim(e)) ?? [];
-        for (let i = field.errors.length - 1; i >= 0; i--) {
-          const error = field.errors[i] as ValidationError & SourceProp;
-          if (error.source === this.source) {
-            const idx = mine.findIndex((e) => isEqual(e, error));
-            if (idx >= 0) mine.splice(idx, 1);
-            else field.errors.splice(i, 1);
+      // the swap of this validator's errors and the verdict that follows from it are one change: a run that
+      // settles after the operation that started it opens a transaction of its own here, and one that settles
+      // during it joins the transaction already open
+      const processErrors = (err: ValidationFunctionResult) =>
+        transaction(() => {
+          const mine = err?.map((e) => this.claim(e)) ?? [];
+          for (let i = field.errors.length - 1; i >= 0; i--) {
+            const error = field.errors[i] as ValidationError & SourceProp;
+            if (error.source === this.source) {
+              const idx = mine.findIndex((e) => isEqual(e, error));
+              if (idx >= 0) mine.splice(idx, 1);
+              else field.errors.splice(i, 1);
+            }
           }
-        }
 
-        if (mine.length > 0) field.errors.push(...mine);
-        field.validate(); // Update the field's valid state
-      };
+          if (mine.length > 0) field.errors.push(...mine);
+          field.validate(); // Update the field's valid state
+        });
 
       if (errors instanceof Promise) {
         field.beginValidating();

@@ -5,11 +5,23 @@ import ActionsMap from './actions/actions-map';
 import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
 import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
+import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
 import { IFieldConstructorParams } from './field.interface';
 import { type Group } from './group';
+import {
+  currentTransaction,
+  type Transaction,
+  TxAnnounceValue,
+  TxCapture,
+  TxRestore,
+  TxSettleValidity,
+  type TxSnapshot,
+  type TxStructuralEvent,
+  transactional,
+} from './transaction';
 import { ValidationError } from './validators/validation-error';
 
 /**
@@ -80,7 +92,42 @@ export abstract class FieldBase<T = any> {
   }
 
   set originalValue(newValue: T) {
+    this.touchState();
     this.#state.originalValue = newValue;
+  }
+
+  /**
+   * Takes this element into the record of the open transaction, where one is open. A write of a single slot that
+   * announces nothing calls it instead of opening a transaction of its own: on its own such a write is already
+   * atomic, and inside a transaction it has to be part of what a rollback puts back.
+   */
+  protected touchState(): void {
+    currentTransaction()?.touch(this);
+  }
+
+  /**
+   * Records the whole of this element's mutable state, so that a rolled-back transaction can put it back exactly
+   * as it found it. The errors array is copied because a validator writes into the array it is handed rather than
+   * replacing it, and a subclass copies whatever else it holds by reference the same way.
+   *
+   * What is not in the snapshot is the action map, which no write touches: an operation that replaces it hands
+   * the transaction its own undo instead, so this stays the one shape every element captures.
+   */
+  protected [TxCapture](): TxSnapshot {
+    return { ...this.#raw, errors: [...this.#raw.errors] };
+  }
+
+  /**
+   * Puts a captured state back. It writes through the tracked view, so an effect that ran on the state the
+   * transaction produced runs again on the state it is being returned to, and only for the slots that differ.
+   *
+   * validatingCount is the one slot the element keeps: it counts runs that are in flight, and a rollback cannot
+   * un-start one. Put back, the count would no longer match the endValidating calls still to come.
+   */
+  protected [TxRestore](snapshot: TxSnapshot): void {
+    const validating = this.#raw.validatingCount;
+    Object.assign(this.#state, snapshot);
+    this.#state.validatingCount = validating;
   }
 
   /** true while at least one asynchronous validator is still running for this field */
@@ -98,12 +145,18 @@ export abstract class FieldBase<T = any> {
     this.#state.validatingCount = Math.max(0, this.#state.validatingCount - 1);
   }
 
-  /** list of errors */
+  /**
+   * List of errors. The array handed out is the one the element holds, and a validator writes into it in place,
+   * so a transaction that is open takes the element into its record here: a rollback that put back everything
+   * except the errors would leave a state the form never held.
+   */
   get errors(): ValidationError[] {
+    this.touchState();
     return this.#state.errors;
   }
 
   set errors(newValue: ValidationError[]) {
+    this.touchState();
     this.#state.errors = newValue;
   }
 
@@ -150,21 +203,42 @@ export abstract class FieldBase<T = any> {
   /**
    * Marks the value of this element and of every ancestor as superseded. It walks the parent chain, so it costs
    * the nesting depth: an ancestor rebuilds its value the next time one is asked of it, instead of being walked
-   * here for a reader that may never come.
+   * here for a reader that may never come. The walk also brings each element into the open transaction, so a
+   * rollback puts the versions back and no reader is left holding a cache the tree no longer supports.
    */
   protected bumpValueVersion(): void {
-    this.#state.valueVersion++;
-    let ancestor: FieldBase | undefined = this.parent;
-    while (ancestor) {
-      ancestor.#state.valueVersion++;
-      ancestor = ancestor.parent;
-    }
+    transactional((tx) => {
+      tx.touch(this);
+      this.#state.valueVersion++;
+      let ancestor: FieldBase | undefined = this.parent;
+      while (ancestor) {
+        tx.touch(ancestor);
+        ancestor.#state.valueVersion++;
+        ancestor = ancestor.parent;
+      }
+    });
   }
 
   /**
-   * Re-reads the value that the next ValueChangedAction will report as the one it replaces. An element with
-   * nothing listening does not build its value at all, so the copy it holds is from before the changes nobody
-   * received; a registration that adds a listener refreshes it here.
+   * States that this element's value changed and that every container above it therefore holds a different value
+   * too. Nothing is announced here: the transaction works out at commit which of the elements enrolled actually
+   * ends up holding a different value, and announces those once each.
+   *
+   * `force` states that the caller already knows this element's value changed - one item more or fewer is a
+   * different list whatever the items compare as - so the commit announces it without composing a comparison.
+   */
+  protected propagateValueChanged(force: boolean = false): void {
+    transactional((tx) => {
+      tx.markValueChanged(this, force);
+      tx.markValidityDirty(this);
+      this.parent?.notifyValueChanged();
+    });
+  }
+
+  /**
+   * Re-reads the value that the next ValueChangedAction will report as the one it replaces. A leaf records what
+   * it announced at every announcement, so its copy is always current and there is nothing to re-read; a
+   * container that skipped composing a value nobody was listening for overrides this.
    */
   protected refreshPreviousValue(): void {}
 
@@ -175,7 +249,7 @@ export abstract class FieldBase<T = any> {
    * without a validate() call, which is the documented cost of pushing errors by hand.
    */
   protected get countedValid(): boolean {
-    return this.errors.length === 0 && this.#raw.invalidChildren === 0;
+    return this.#raw.errors.length === 0 && this.#raw.invalidChildren === 0;
   }
 
   /**
@@ -186,15 +260,23 @@ export abstract class FieldBase<T = any> {
    * writes the two slots through here rather than on the child.
    */
   protected takeChild(child: FieldBase, fieldName?: string): void {
-    if (child.parent) throw new TypeError('This element already belongs to a container - pass a clone() of it');
-    child.#state.fieldName = fieldName;
-    child.#state.parent = this;
-    this.adoptChild(child);
+    transactional((tx) => {
+      if (child.parent) throw new TypeError('This element already belongs to a container - pass a clone() of it');
+      tx.touch(child);
+      child.#state.fieldName = fieldName;
+      child.#state.parent = this;
+      this.adoptChild(child);
+    });
   }
 
   /** Takes a child into this element's invalid tally; a container calls it once the child's parent link exists. */
   protected adoptChild(child: FieldBase): void {
-    if (!child.#raw.valid) this.#raw.invalidChildren++;
+    transactional((tx) => {
+      tx.touch(this);
+      if (!child.#raw.valid) this.#raw.invalidChildren++;
+      // the tally moved, so the verdict this element carries may no longer be the one its members support
+      tx.markValidityDirty(this);
+    });
   }
 
   /**
@@ -203,8 +285,13 @@ export abstract class FieldBase<T = any> {
    * stands in the way of the element being taken by another container.
    */
   protected releaseChild(child: FieldBase): void {
-    if (!child.#raw.valid) this.#raw.invalidChildren--;
-    child.#state.parent = undefined;
+    transactional((tx) => {
+      tx.touch(this);
+      tx.touch(child);
+      if (!child.#raw.valid) this.#raw.invalidChildren--;
+      child.#state.parent = undefined;
+      tx.markValidityDirty(this);
+    });
   }
 
   /**
@@ -215,25 +302,19 @@ export abstract class FieldBase<T = any> {
    * that position.
    */
   protected resetTo(source: FieldBase, value: any): void {
-    const target = value === undefined ? source.value : value;
-    const outerValidation = this.suppressValidation;
-    this.suppressValidation = true;
-    let assigned: boolean;
-    let dropped: boolean;
-    try {
-      dropped = this.errors.length > 0;
+    transactional(() => {
+      const target = value === undefined ? source.value : value;
+      const dropped = this.errors.length > 0;
       if (dropped) this.errors = [];
       this.touched = false;
-      assigned = this.enabled && this.value !== target;
+      const assigned = this.enabled && this.value !== target;
       this.value = target;
       this.originalValue = this.value;
-    } finally {
-      this.suppressValidation = outerValidation;
-    }
-    // an assignment that went through ran the validators over the new value. Where it was a no-op they run here
-    // if there were errors to drop, and otherwise not at all: the verdict they reached over the value the field
-    // still holds is the one that stands.
-    this.validate(!assigned && dropped);
+      // an assignment that went through ran the validators over the new value. Where it was a no-op they run here
+      // if there were errors to drop, and otherwise not at all: the verdict they reached over the value the field
+      // still holds is the one that stands.
+      this.validate(!assigned && dropped);
+    });
   }
 
   /** Resets a member. It is what lets a container reach the reset of a child whose class it does not know. */
@@ -242,8 +323,8 @@ export abstract class FieldBase<T = any> {
   }
 
   /**
-   * Records a child's new verdict. The child reports it itself, from validate(), so the tally is right even while
-   * the climb that would otherwise carry the change is held back.
+   * Records a child's new verdict in this element's tally. The child reports it as it settles, and the commit
+   * settles the deepest element first, so the tally a container reads when its own turn comes is finished.
    */
   protected childValidityChanged(nowValid: boolean): void {
     this.#raw.invalidChildren += nowValid ? -1 : 1;
@@ -265,7 +346,7 @@ export abstract class FieldBase<T = any> {
 
   /** What validRead computes. A leaf answers over its own errors; a container adds its members. */
   protected composeValid(): boolean {
-    return this.errors.length === 0;
+    return this.#state.errors.length === 0;
   }
 
   // default property handlers
@@ -274,11 +355,16 @@ export abstract class FieldBase<T = any> {
   }
 
   set visibility(newValue: DisplayMode) {
-    const oldValue = this.#state.visibility;
-    const alteredValue = this._actions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
-    if (!DisplayMode.isDefined(alteredValue ?? newValue)) throw new Error('visibility must be a DisplayMode constant');
-    this.#state.visibility = DisplayMode.fromAny(alteredValue ?? newValue);
-    this._actions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
+    transactional((tx) => {
+      const oldValue = this.#state.visibility;
+      const alteredValue = this._actions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
+      if (!DisplayMode.isDefined(alteredValue ?? newValue)) {
+        throw new Error('visibility must be a DisplayMode constant');
+      }
+      tx.touch(this);
+      this.#state.visibility = DisplayMode.fromAny(alteredValue ?? newValue);
+      this._actions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
+    });
   }
 
   get enabled(): boolean {
@@ -286,80 +372,89 @@ export abstract class FieldBase<T = any> {
   }
 
   set enabled(newValue: boolean) {
-    const oldValue = this.#state.enabled;
-    const alteredValue = this._actions?.trigger(EnabledChangingAction, this, newValue, oldValue);
-    if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
-    this.#state.enabled = alteredValue ?? newValue;
-    // a disabled field is left out of the value its group serializes, so the switch changes the value of every
-    // container above it just as a write to the value itself would
-    if (this.#state.enabled !== oldValue) this.bumpValueVersion();
-    this._actions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
+    transactional((tx) => {
+      const oldValue = this.#state.enabled;
+      const alteredValue = this._actions?.trigger(EnabledChangingAction, this, newValue, oldValue);
+      if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
+      tx.touch(this);
+      this.#state.enabled = alteredValue ?? newValue;
+      // a disabled field is left out of the value its group serializes, so the switch changes the value of every
+      // container above it just as a write to the value itself would
+      if (this.#state.enabled !== oldValue) this.bumpValueVersion();
+      this._actions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
+    });
   }
 
   /**
-   * While true, validate() on this field does nothing at all: it neither recomputes _valid nor emits
-   * ValidChangedAction, and nothing climbs to the parent. A container that walks its members one by one - assigning
-   * them a value, or revalidating them - sets it for the duration of the walk, so a member's upward climb cannot
-   * announce the verdict of a half-applied value or of a half-revalidated set, and clears it in a finally block
-   * followed by its own validate(). That call recomputes over the finished state and emits the net transition, so
-   * the deferral cannot swallow a real change.
+   * True for an element whose value is composed of its members'. The commit builds such a value only where
+   * something receives it, compares it by content rather than by identity, and runs the element's own validators
+   * with the announcement: a container's validators read the composed value, which exists only once the members
+   * have been written. A leaf's validators have run at the write instead, so its announcement carries no eager
+   * pass of its own.
    */
-  protected get suppressValidation(): boolean {
-    return this.#raw.suppressValidation;
-  }
-
-  protected set suppressValidation(newValue: boolean) {
-    this.#raw.suppressValidation = newValue;
+  protected get composesValue(): boolean {
+    return false;
   }
 
   /**
-   * While true, a validity change is still recomputed and still announced on this field, but it is not passed up to
-   * the parent: the climb is only remembered and carried out by flushParentValidityClimb(). A setter that notifies
-   * the parent of the new value itself holds it over the notifying region, so the parent forms its verdict once,
-   * over the finished value, instead of once over the value being replaced and once over the value replacing it.
+   * Announces what this element's value became over the transaction. The pair carried is (value now, value at the
+   * last announcement), so a value that went A -> B -> A within the transaction says nothing, and the events an
+   * operation states rather than an element's state - an item added, an item removed - are emitted first, in the
+   * order the operations happened.
    */
-  protected get suppressParentValidityClimb(): boolean {
-    return this.#raw.suppressParentValidityClimb;
+  protected [TxAnnounceValue](tx: Transaction, dirty: boolean, force: boolean, structural?: TxStructuralEvent[]): void {
+    structural?.forEach((event) => this._actions?.trigger(event.actionClass, this, event.item, event.index));
+    if (!dirty) return;
+    const actions = this._actions;
+    // the pair a container carries is only composed where something receives it: with no ValueChangedAction and
+    // no eager action riding along, walking the members would produce an object nobody reads
+    if (this.composesValue && !actions?.willTrigger(ValueChangedActionClassIdentifier)) return;
+    const newValue = this.value;
+    const oldValue = this.#raw.announcedValue;
+    if (!force && (this.composesValue ? isEqual(newValue, oldValue) : newValue === oldValue)) return;
+    tx.touch(this);
+    // the record of what was announced is written before the event: a handler that changes something while it
+    // runs opens a change of its own, and that one is measured against this announcement
+    this.#raw.announcedValue = newValue;
+    if (this.composesValue) actions?.trigger(ValueChangedAction, this, newValue, oldValue);
+    else actions?.triggerChain(ValueChangedActionClassIdentifier, this, newValue, oldValue);
   }
 
-  protected set suppressParentValidityClimb(newValue: boolean) {
-    this.#raw.suppressParentValidityClimb = newValue;
-  }
-
-  /** Carries out the climb that a validity change made while suppressParentValidityClimb was held, if there was one. */
-  protected flushParentValidityClimb(): void {
-    if (!this.#raw.parentValidityClimbPending) return;
-    this.#raw.parentValidityClimbPending = false;
-    this.parent?.validate();
+  /**
+   * Forms the verdict this element ends the transaction with and announces a transition of it. The container is
+   * told first, so a handler reads a tally that already includes this verdict, and it is enrolled in the same
+   * transaction: its own verdict is composed of its members', so a member that moves without a value change - an
+   * asynchronous validator, an error pushed in by hand - is what makes the container re-form its own. The
+   * transaction settles the deepest element first, so a container is reached only once its members have decided.
+   */
+  protected [TxSettleValidity](tx: Transaction): void {
+    const oldValid = this.#raw.valid;
+    const newValid = this.countedValid;
+    if (newValid === oldValid) return;
+    tx.touch(this);
+    this.#raw.valid = newValid;
+    // the verdict goes to the container that holds this element, and a container that released it holds it no
+    // longer: the link is gone with the release, so a dropped row moves no tally
+    const container = this.parent;
+    if (container) {
+      tx.touch(container);
+      container.childValidityChanged(newValid);
+      tx.markValidityDirty(container);
+    }
+    this._actions?.trigger(ValidChangedAction, this, newValid, oldValid);
   }
 
   validate(revalidate: boolean = false) {
-    if (this.suppressValidation) return;
-    if (revalidate) this._actions?.triggerEager(this, this.value, this.value);
-    const oldValid = this.#raw.valid;
-    const newValid = this.countedValid;
-    this.#raw.valid = newValid;
-    if (newValid !== oldValid) {
-      // the verdict goes to the container that holds this element, and a container that released it holds it no
-      // longer: the link is gone with the release, so a dropped row moves no tally
-      const container = this.parent;
-      // the container's tally is corrected first, so a handler and the recomputation below it both read a count
-      // that already includes this verdict, and it is corrected even where the climb is held back or refused
-      container?.childValidityChanged(newValid);
-      this._actions?.trigger(ValidChangedAction, this, newValid, oldValid);
-      // a container's validity is composed of its members', so a member that changes it without a value change
-      // (asynchronous validator, externally pushed error) has to make the container re-evaluate. The call passes
-      // no revalidate, so it only recomputes, and it climbs no further than the first ancestor whose own
-      // validity stays the same.
-      if (container) {
-        if (this.suppressParentValidityClimb) this.#raw.parentValidityClimbPending = true;
-        else container.validate();
-      }
-    }
+    transactional((tx) => {
+      if (revalidate) this._actions?.triggerEager(this, this.value, this.value);
+      tx.markValidityDirty(this);
+    });
   }
 
   get valid() {
-    return this.errors.length === 0;
+    // the slot is read rather than the errors getter, which takes the element into an open transaction: reading a
+    // verdict changes nothing, and there is nothing for a rollback to put back
+    return this.#state.errors.length === 0;
   }
 
   get fullValue(): any {
@@ -383,13 +478,17 @@ export abstract class FieldBase<T = any> {
   }
 
   registerAction(action: FieldActionBase): this {
-    this.refreshPreviousValue();
-    this.actions.register(action);
-    action.boundToField(this);
-    if (action.eager) {
-      // When adding eager actions, execute them immediately
-      this.actions.trigger(Object.getPrototypeOf(action).constructor, this, this.value, this.originalValue);
-    }
+    transactional((tx) => {
+      // the baseline of a change the transaction has yet to announce stays where it is: the element is already
+      // enrolled to report that change, and moving the baseline to the value it now holds would erase the report
+      if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
+      this.actions.register(action);
+      action.boundToField(this);
+      if (action.eager) {
+        // When adding eager actions, execute them immediately
+        this.actions.trigger(Object.getPrototypeOf(action).constructor, this, this.value, this.originalValue);
+      }
+    });
     return this;
   }
 
@@ -411,11 +510,28 @@ export abstract class FieldBase<T = any> {
   }
 
   clearValidators(): void {
-    this.#state.validationEpoch++;
-    if (this._actions) this.actions = this._actions.cloneWithoutValidators();
-    this.errors = [];
-    // the errors are gone before the recomputation, so validate() sees the cleared state and routes the validity
-    // transition through the usual path: the ValidChangedAction fires and the parent re-evaluates
-    this.validate();
+    transactional((tx) => {
+      tx.touch(this);
+      this.#state.validationEpoch++;
+      if (this._actions) {
+        const previous = this._actions;
+        const dropped = previous.validators;
+        // the map is replaced rather than written, so the snapshot does not reach it: a rollback that put back
+        // every slot but this would leave the element without the validators the verdict it reports was reached
+        // with
+        tx.whenRolledBack(() => {
+          this._actions = previous;
+        });
+        this.actions = previous.cloneWithoutValidators();
+        // releasing a validator's listeners is what a rollback could not take back, so it waits for the commit:
+        // until then the map the element carried is still the one a rollback puts back, validators and all
+        tx.whenCommitted(() => dropped.forEach((validator) => validator.unregister()));
+      }
+      this.errors = [];
+      // the errors are gone before the recomputation, so the commit forms the verdict over the cleared state and
+      // routes the validity transition through the usual path: the ValidChangedAction fires and the parent
+      // re-evaluates
+      this.validate();
+    });
   }
 }

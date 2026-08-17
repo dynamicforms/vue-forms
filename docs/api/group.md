@@ -106,7 +106,9 @@ on the group.
 
 ### `notifyValueChanged()`
 
-Called internally when a child value changes. You rarely need to call this directly.
+Records that a member changed its value, so that the [transaction](/api/transactions) in progress works out at
+commit what this group's own value became and announces it once. Called internally when a child value changes; you
+rarely need to call this directly.
 
 ### `clone(overrides?): Group<T>`
 

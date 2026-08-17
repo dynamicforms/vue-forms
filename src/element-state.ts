@@ -28,6 +28,8 @@ import { ValidationError } from './validators/validation-error';
 export interface ElementSlots<T = any> {
   /** the value the element was given at construction; isChanged compares against it */
   originalValue: T;
+  /** the value the last ValueChangedAction reported; the next transaction measures its net change against it */
+  announcedValue: T;
   errors: ValidationError[];
   visibility: DisplayMode;
   enabled: boolean;
@@ -45,18 +47,16 @@ export interface ElementSlots<T = any> {
   // the slots below are the element's own bookkeeping - nothing reads them inside an effect, and they are
   // therefore reached through raw
 
-  /** the verdict the last validate() reached, which is what a change of validity is measured against */
+  /** the verdict the last commit announced, which is what a change of validity is measured against */
   valid: boolean;
-  /** number of direct children whose last validate() ended on an invalid verdict */
+  /** number of direct children whose last announced verdict was invalid */
   invalidChildren: number;
-  suppressValidation: boolean;
-  suppressParentValidityClimb: boolean;
-  parentValidityClimbPending: boolean;
 }
 
 export function elementSlots<T = any>(): ElementSlots<T> {
   return {
     originalValue: undefined!,
+    announcedValue: undefined!,
     errors: [],
     visibility: DisplayMode.FULL,
     enabled: true,
@@ -67,9 +67,6 @@ export function elementSlots<T = any>(): ElementSlots<T> {
     validationEpoch: 0,
     valid: true,
     invalidChildren: 0,
-    suppressValidation: false,
-    suppressParentValidityClimb: false,
-    parentValidityClimbPending: false,
   };
 }
 
@@ -84,15 +81,12 @@ export function fieldSlots<T = any>(): FieldSlots<T> {
 }
 
 /**
- * What a container holds beyond the common slots. `announcedValue` is the value that the next ValueChangedAction
- * will report as the one it replaces, and the cache pair is the object the value getter last built together with
- * the version of the tree it was built from.
+ * What a container holds beyond the common slots: the object the value getter last built, together with the
+ * version of the tree it was built from.
  */
 export interface ContainerSlots<T = any> extends ElementSlots<T> {
-  announcedValue: T;
   cachedValue: T;
   cachedValueVersion: number;
-  suppressNotifyValueChanged: boolean;
 }
 
 export function containerSlots<T = any>(): ContainerSlots<T> {
@@ -101,7 +95,6 @@ export function containerSlots<T = any>(): ContainerSlots<T> {
     announcedValue: null,
     cachedValue: null,
     cachedValueVersion: -1,
-    suppressNotifyValueChanged: false,
   } as ContainerSlots<T>;
 }
 

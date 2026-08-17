@@ -4,6 +4,7 @@ import { ValueChangedAction } from './actions/value-changed-action';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { Group } from './group';
+import { transaction } from './transaction';
 import { Validators } from './validators';
 import { ValidationErrorText } from './validators/validation-error';
 
@@ -51,6 +52,18 @@ it('clears all validators and resets errors', () => {
   field.value = '';
   expect(field.errors.length).toBe(0);
   expect(field.valid).toBe(true);
+});
+
+it('carries the actions that are not validators over to the new chain', () => {
+  const seen: string[] = [];
+  const field = new Field({ value: 'a', validators: [new Validators.Required('Required field')] });
+  field.registerAction(new ValueChangedAction((f, supr, newValue) => seen.push(String(newValue))));
+
+  field.clearValidators();
+
+  field.value = '';
+  expect(seen).toEqual(['']);
+  expect(field.errors.length).toBe(0);
 });
 
 it('clears CompareTo validator and its cross-field references', () => {
@@ -222,23 +235,10 @@ it('announces nothing when clearValidators leaves the validity unchanged', () =>
   expect(fires).toEqual([]);
 });
 
-class SuppressibleGroup<T extends Record<string, FieldBase>> extends Group<T> {
-  /** assigns members with this container's own validation deferred, exactly as a container's value setter does */
-  assignDeferred(assign: () => void) {
-    this.suppressValidation = true;
-    try {
-      assign();
-    } finally {
-      this.suppressValidation = false;
-    }
-    this.validate();
-  }
-}
-
-it('defers its own validation while suppressValidation is set and then reports the net change', () => {
+it('withholds the intermediate verdicts of a transaction and reports the net change', () => {
   const a = new Field({ value: '', validators: [new Validators.Required()] });
   const b = new Field({ value: 'x', validators: [new Validators.Required()] });
-  const group = new SuppressibleGroup({ a, b });
+  const group = new Group({ a, b });
 
   expect(group.valid).toBe(false);
 
@@ -249,9 +249,9 @@ it('defers its own validation while suppressValidation is set and then reports t
     }),
   );
 
-  // a becomes valid and b becomes invalid: without the deferral the intermediate all-valid verdict would be
-  // announced, although the assignment as a whole leaves the group invalid
-  group.assignDeferred(() => {
+  // a becomes valid and b becomes invalid: without the transaction the intermediate all-valid verdict would be
+  // announced, although the two writes together leave the group invalid
+  transaction(() => {
     a.value = 'x';
     b.value = '';
   });
@@ -259,8 +259,8 @@ it('defers its own validation while suppressValidation is set and then reports t
   expect(fires).toEqual([]);
   expect(group.valid).toBe(false);
 
-  // the deferral only withholds intermediate verdicts: a net transition is still announced once
-  group.assignDeferred(() => {
+  // only the intermediate verdicts are withheld: a net transition is still announced once
+  transaction(() => {
     b.value = 'y';
   });
 
