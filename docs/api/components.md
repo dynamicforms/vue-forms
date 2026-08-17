@@ -43,9 +43,11 @@ nested arrays are allowed, and the widget builds one internally.
 | `ValidationErrorRenderContent` | `new ValidationErrorRenderContent(content, classes?)` — content may be a `string` (plain), an `MdString` (markdown), a `SimpleComponentDef` (`{ componentName, componentProps?, componentVHtml? }`), a `Ref` of any of these, or a function returning one |
 | `RenderableValue` | Same as `ValidationErrorRenderContent`, named for content that is not an error (help, hints) |
 
-The content given to `ValidationErrorRenderContent` may be a `Ref` or a function returning the value; it is
-resolved on every read, which enables lazy / i18n resolution. The widget's `message` prop itself must be a
-`string` or a `ValidationError[]`.
+The content given to `ValidationErrorRenderContent` may be a `Ref`, a `computed` or a function returning the value;
+it is resolved on every read, so it stays reactive: changing what the reference holds changes the rendered message
+on the spot, without revalidating the field that carries the error. A validator message built as
+`computed(() => t('validation.required'))` therefore follows a locale switch. The widget's `message` prop itself
+must be a `string` or a `ValidationError[]`.
 
 ### Content types
 

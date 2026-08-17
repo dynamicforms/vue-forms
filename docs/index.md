@@ -10,7 +10,7 @@ hero:
       link: /guide/getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/velis74/dynamicforms-vue-forms
+      link: https://github.com/dynamicforms/vue-forms
 features:
   - title: UI-agnostic
     details: Works with any Vue UI components or your custom ones

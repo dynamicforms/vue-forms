@@ -49,12 +49,12 @@ describe('rendering a live form', () => {
 
     expect(wrapper.findAll('div')).toHaveLength(0);
 
-    form.errors.push(new ValidationErrorText('Vsaj en kontakt je obvezen'));
+    form.errors.push(new ValidationErrorText('At least one contact is required'));
     await nextTick();
 
     const divs = wrapper.findAll('div');
     expect(divs).toHaveLength(1);
-    expect(divs[0].text()).toBe('Vsaj en kontakt je obvezen');
+    expect(divs[0].text()).toBe('At least one contact is required');
     expect(divs[0].classes()).toContain('text-error');
 
     form.errors = [];

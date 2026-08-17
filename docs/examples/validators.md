@@ -197,6 +197,20 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 </template>
 ```
 
+## Asynchronous Validation in This Demo
+
+The email field carries an asynchronous validator with a one-second delay, which is longer than the interval between
+two keystrokes, so several runs are usually in flight at once. A run is applied only while it is the newest one for the
+field: the results belonging to the intermediate values are discarded as they arrive, the field ends with the verdict
+for the text actually in it, and `field.validating` — bound to the input's `loading` prop — is back to `false` once the
+last run has settled.
+
+The validator resolves in both outcomes and never rejects, which is the shape to copy. A rejected promise delivers no
+verdict: the errors that validator had placed on the field are withdrawn and the reason is logged with
+`console.error('Validation failed', reason)`, so a failed availability check would look to the user like an address
+that is free. Catch the network error inside the validation function and return an error of your own whenever the
+failure is something the user should see.
+
 ## API Reference
 
 - [Validators](/api/validators) — all built-in validators with signatures and placeholder list
@@ -210,6 +224,8 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 - **ValueInRange Validator**: Ensures a numeric value is within specified bounds
 - **InAllowedValues Validator**: Restricts input to a predefined set of values
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
+- **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, and the newest
+  run deciding the verdict
 - **Form-level Validation**: Tracking overall form validity based on individual field states
 - **Error Display**: Showing validation errors to the user
 

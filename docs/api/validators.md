@@ -18,6 +18,12 @@ Pass validators when creating a field — `new Field({ validators: [...] })`, `n
 
 Each validator only ever replaces its own errors when it re-runs; errors contributed by other validators or added from the outside (e.g. server-side errors) are left untouched.
 
+The same `ValidationError` instance may be returned by more than one validator, whether they sit on one field or on
+several. A validator reporting an instance another validator already owns contributes a copy of it, which keeps the
+prototype and every own property and therefore renders identically. Each validator withdraws only what it
+contributed, so two rules of one field reporting the same instance leave two entries in `field.errors` — report the
+message from a single rule if you want it to appear once.
+
 ## `new Validators.Validator(validationFn)`
 
 Base class for custom validators. Extend it or instantiate it directly for one-off rules.
@@ -46,9 +52,38 @@ type ValidationFunction<T = any> = (
 Return `null` or `[]` to indicate no errors. Import `ValidationFunction` when you write a reusable validation
 function separately from the `Validator` that wraps it.
 
-Validators are eager: they run immediately at field creation, immediately when passed to `registerAction()` on an existing field, and again on `field.validate(true)`. A field can therefore be `valid === false` before the user has interacted with it at all — use `touched` to decide when to actually display the errors.
+Validators are eager: they run once at field creation, over the value the constructor produced, immediately when passed to `registerAction()` on an existing field, and again on `field.validate(true)`. A field can therefore be `valid === false` before the user has interacted with it at all — use `touched` to decide when to actually display the errors.
 
-When the validation function returns a `Promise`, `field.validating` is set to `true` right away (the field counts concurrently running async validators) and `field.errors` / `field.valid` are only updated once the promise resolves, at which point `validating` goes back to `false`. UI should block submit while `validating === true` as well.
+### Asynchronous validation
+
+When the validation function returns a `Promise`, `field.validating` becomes `true` right away (the field counts the
+asynchronous runs it has in flight) and `field.errors` / `field.valid` are updated when the promise settles. UI should
+block submit while `validating === true` as well.
+
+Only the newest run of a validator decides that validator's verdict on a field. Every execution takes the next
+sequence number for that field, and a result is applied only while its run is still the newest one. A slow run
+therefore never overwrites the verdict of a faster run that started after it — the superseded result is
+discarded — so a user typing faster than the round trip ends with the verdict for the value that is actually in the
+field, and `validating` is back to `false` once every run has settled. Synchronous runs take a number from the same
+sequence, so a verdict reached without waiting also supersedes an asynchronous run that is still in flight.
+
+A rejected promise yields no verdict at all:
+
+- if the rejected run is still the current one, the errors this validator had placed on the field are withdrawn and
+  the reason is reported once as `console.error('Validation failed', reason)`;
+- a rejection from a superseded run is discarded silently, and nothing is logged.
+
+In both cases the run still counts as finished, so `validating` returns to `false` and the rejection never surfaces as
+an unhandled rejection. A check whose failure the user should see must not reject: catch inside the validation
+function and return an error of your own, e.g. `[new ValidationErrorRenderContent('Could not verify this value')]`.
+
+[`clearValidators()`](/api/field#methods) also cancels validation that is still in flight: it drops the validators,
+empties `field.errors` and recalculates the verdict over the emptied list, and a run that settles afterwards can no
+longer push its errors onto the field. A field that was invalid therefore fires `ValidChangedAction` and the `Group`
+or `List` holding it re-evaluates its own validity. `field.validationEpoch` is the read-only counter behind the
+cancellation — `clearValidators()` increments it, a run captures it when it starts, and a result whose epoch no
+longer matches is discarded. The cancelled run still ends its own bookkeeping, so `validating` returns to `false`
+when its promise settles.
 
 ### `buildErrorMessage(markdown)`
 
@@ -230,6 +265,13 @@ new ValidationErrorRenderContent(message, /* optional CSS classes */)
 ```
 
 Accepts a `RenderContentRef`: a `string`, an `MdString` (markdown), a `SimpleComponentDef` object, a `Ref` to any of those, or a function `() => string | MdString | SimpleComponentDef` (useful for reactive or translated messages — the function is evaluated on every render). The same type is used for the `message` parameter of every built-in validator. The consuming UI component reads `componentName`, `componentBindings`, `componentBody` and `extraClasses` to render it.
+
+A message given as a `Ref` or a `computed` keeps its reactivity all the way to the rendered output. The reference is
+resolved when the message is read, not when validation runs, and `{placeholder}` substitution happens at that same
+moment, so changing what the reference holds changes the displayed message with no need to revalidate the field. This
+is what carries the i18n path: pass `computed(() => t('validation.required'))` as the message and a locale switch
+retranslates the errors already sitting on the field. A `Ref` holding an `MdString` still renders as markdown, with
+its `options` and `plugins` preserved.
 
 `SimpleComponentDef`:
 

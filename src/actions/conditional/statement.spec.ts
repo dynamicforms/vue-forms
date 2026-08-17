@@ -2,6 +2,8 @@ import Operator from './operator';
 import { Statement } from './statement';
 
 import { Field } from '@/field';
+import { Group } from '@/group';
+import { List } from '@/list';
 
 describe('Statement', () => {
   it('evaluates simple comparison with literals', () => {
@@ -153,6 +155,103 @@ describe('Statement', () => {
     expect(statement.evaluate()).toBe(false);
 
     activeField.value = false;
+    expect(statement.evaluate()).toBe(true);
+  });
+});
+
+describe('Statement.evaluate return type', () => {
+  const operators: [string, Operator][] = [
+    ['NOT', Operator.NOT],
+    ['OR', Operator.OR],
+    ['AND', Operator.AND],
+    ['XOR', Operator.XOR],
+    ['NAND', Operator.NAND],
+    ['NOR', Operator.NOR],
+    ['EQUALS', Operator.EQUALS],
+    ['NOT_EQUALS', Operator.NOT_EQUALS],
+    ['GT', Operator.GT],
+    ['LT', Operator.LT],
+    ['GE', Operator.GE],
+    ['LE', Operator.LE],
+    ['IN', Operator.IN],
+    ['NOT_IN', Operator.NOT_IN],
+    ['INCLUDES', Operator.INCLUDES],
+    ['NOT_INCLUDES', Operator.NOT_INCLUDES],
+  ];
+
+  // Falsy values that are not `false` and truthy values that are not `true`: an implementation returning a
+  // raw operand passes a `=== false` / `=== true` check for none of them.
+  const operands: [string, any][] = [
+    ['0', 0],
+    ["''", ''],
+    ['null', null],
+    ['undefined', undefined],
+    ['NaN', NaN],
+    ["'x'", 'x'],
+    ['1', 1],
+    ['{}', {}],
+    ['[]', []],
+  ];
+
+  it.each(operators)('returns a boolean for %s over every operand pairing', (_name, operator) => {
+    for (const [label1, operand1] of operands) {
+      for (const [label2, operand2] of operands) {
+        const result = new Statement(operand1, operator, operand2).evaluate();
+        expect(typeof result, `${label1} ${_name} ${label2} produced ${String(result)}`).toBe('boolean');
+      }
+    }
+  });
+
+  it('reduces logical operators over non-boolean operands to their logical value', () => {
+    expect(new Statement(0, Operator.AND, true).evaluate()).toBe(false);
+    expect(new Statement(1, Operator.AND, 'x').evaluate()).toBe(true);
+    expect(new Statement('', Operator.OR, 'x').evaluate()).toBe(true);
+    expect(new Statement('', Operator.OR, NaN).evaluate()).toBe(false);
+    expect(new Statement(0, Operator.XOR, 'x').evaluate()).toBe(true);
+    expect(new Statement('x', Operator.XOR, 1).evaluate()).toBe(false);
+    expect(new Statement(null, Operator.XOR, undefined).evaluate()).toBe(false);
+  });
+
+  it('returns a boolean for IN when the container reports membership with a non-boolean', () => {
+    const container = { includes: (value: any) => (value === 'a' ? 1 : 0) };
+
+    expect(new Statement('a', Operator.IN, container).evaluate()).toBe(true);
+    expect(new Statement('b', Operator.IN, container).evaluate()).toBe(false);
+  });
+
+  it.each([
+    ['an array holding the operand', ['a', 'b'], true],
+    ['an array without the operand', ['x', 'y'], false],
+    ['an empty array', [], false],
+    ['a string holding the operand', 'abc', true],
+    ['a string without the operand', 'xyz', false],
+    ['a container reporting membership with a non-boolean', { includes: (v: any) => (v === 'a' ? 1 : 0) }, true],
+    ['null', null, false],
+    ['undefined', undefined, false],
+    ['an object without includes', {}, false],
+    ['a number', 0, false],
+  ])('evaluates NOT_IN as the exact negation of IN over %s', (name, operand2, inResult) => {
+    expect(new Statement('a', Operator.IN, operand2).evaluate()).toBe(inResult);
+    expect(new Statement('a', Operator.NOT_IN, operand2).evaluate()).toBe(!inResult);
+  });
+
+  it('reports membership in an unset field and an empty list as false and non-membership as true', () => {
+    const unset = new Field();
+    const empty = new List(new Group({ a: new Field() }));
+
+    expect(new Statement('a', Operator.IN, unset).evaluate()).toBe(false);
+    expect(new Statement('a', Operator.NOT_IN, unset).evaluate()).toBe(true);
+    expect(new Statement('a', Operator.IN, empty).evaluate()).toBe(false);
+    expect(new Statement('a', Operator.NOT_IN, empty).evaluate()).toBe(true);
+  });
+
+  it('returns a boolean when a Field holds a non-boolean value', () => {
+    const field = new Field<any>({ value: 0 });
+    const statement = new Statement(field, Operator.AND, true);
+
+    expect(statement.evaluate()).toBe(false);
+
+    field.value = 'x';
     expect(statement.evaluate()).toBe(true);
   });
 });

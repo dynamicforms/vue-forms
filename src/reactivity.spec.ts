@@ -225,7 +225,7 @@ describe('Group reactivity', () => {
     const errorCount = track(() => group.errors.length);
 
     // validate() exists to fire ValidChangedAction; rendering does not depend on it
-    group.errors.push(new ValidationErrorText('Vsaj en kontakt je obvezen'));
+    group.errors.push(new ValidationErrorText('At least one contact is required'));
     await nextTick();
 
     expect(valid).toEqual([true, false]);
@@ -377,20 +377,20 @@ describe('List reactivity', () => {
 
 describe('Action reactivity', () => {
   it('re-runs on a label change and on a whole-value assignment', async () => {
-    const action = new Action({ value: { label: 'Shrani', icon: 'save' } });
+    const action = new Action({ value: { label: 'Save', icon: 'save' } });
     const runs = track(() => action.label);
 
-    action.label = 'Prekliči';
+    action.label = 'Cancel';
     await nextTick();
-    expect(runs).toEqual(['Shrani', 'Prekliči']);
+    expect(runs).toEqual(['Save', 'Cancel']);
 
-    action.value = { label: 'Zapri', icon: 'close' };
+    action.value = { label: 'Close', icon: 'close' };
     await nextTick();
-    expect(runs).toEqual(['Shrani', 'Prekliči', 'Zapri']);
+    expect(runs).toEqual(['Save', 'Cancel', 'Close']);
   });
 
   it('re-runs on enabled', async () => {
-    const action = new Action({ value: { label: 'Shrani' } });
+    const action = new Action({ value: { label: 'Save' } });
     const runs = track(() => action.enabled);
 
     action.enabled = false;

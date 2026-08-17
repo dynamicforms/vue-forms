@@ -24,9 +24,12 @@ class Field<T = any> extends FieldBase<T> {
   protected init(params?: Partial<IFieldConstructorParams<T>>) {
     if (params) {
       const { value: paramValue, validators, actions, ...otherParams } = params;
-      [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
+      // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
+      // guards them too
+      this.registerInitialActions([...(validators || []), ...(actions || [])]);
       Object.assign(this, otherParams);
-      this._value = paramValue ?? this.originalValue;
+      // an absent value falls back to originalValue, an explicit null does not: null is a value a caller means
+      this._value = paramValue !== undefined ? paramValue : this.originalValue;
       if (this.originalValue === undefined) this.originalValue = this._value;
     }
     this.actions.triggerEager(this, this.value, this.originalValue);
@@ -41,9 +44,20 @@ class Field<T = any> extends FieldBase<T> {
     const oldValue = this._value;
     if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
     this._value = newValue;
-    this.actions.trigger(ValueChangedAction, this, this._value, oldValue);
-    if (this.parent) this.parent.notifyValueChanged();
+    // the parent learns of the new value from notifyValueChanged() and validates itself from there, over the whole
+    // value; a validator running on this field must therefore not send it a verdict of its own in the meantime
+    const outerClimb = this.suppressParentValidityClimb;
+    this.suppressParentValidityClimb = true;
+    try {
+      this.actions.trigger(ValueChangedAction, this, this._value, oldValue);
+      if (this.parent) this.parent.notifyValueChanged();
+    } finally {
+      this.suppressParentValidityClimb = outerClimb;
+    }
     this.validate();
+    // a parent whose own value did not change by this assignment returns from notifyValueChanged() without
+    // validating, so a validity change held back above still has to reach it
+    this.flushParentValidityClimb();
   }
 
   get touched(): boolean {
@@ -58,7 +72,8 @@ class Field<T = any> extends FieldBase<T> {
     // construction goes through this.constructor so that a subclass clones into its own type
     const Ctor = this.constructor as new (params?: Partial<IFieldConstructorParams<T>>) => this;
     const res = new Ctor({
-      value: overrides?.value ?? this.value,
+      // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
+      value: overrides?.value !== undefined ? (overrides.value as T) : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,

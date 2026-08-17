@@ -22,8 +22,8 @@ takes, with the group's value shape substituted.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `fields` | `GenericFieldsInterface` (`Record<string, FieldBase>`) | required | Map of field name → field/group/list instance |
-| `params.value` | `GroupValueInput<T>` (`Partial<FieldsToValues<T>> \| null`) | `null` | Initial values applied to matching fields; keys left out keep the value their field was created with |
-| `params.originalValue` | `GroupValueInput<T>` | same as `value` | Baseline for `isChanged` |
+| `params.value` | `GroupValueInput<T>` (`Partial<FieldsToValues<T>> \| null`) | not assigned | Initial values applied to matching fields; keys left out keep the value their field was created with. Parameters that carry no value assign nothing, and an explicitly `undefined` value counts as carrying none, so every child keeps the value it was created with; an explicit `null` clears all of them |
+| `params.originalValue` | `GroupValueInput<T>` | same as `value` | Baseline for `isChanged`. Passed without a value of its own — an explicitly `undefined` `value` included — it is also applied to the fields as their initial value |
 | `params.enabled` | `boolean` | `true` | Whether the group itself is enabled. Not propagated to child fields, and it does not remove the group from its parent's `value` — a disabled subgroup is still serialized as long as its own value is non-empty |
 | `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
 | `params.touched` | `boolean` | `false` | Initial interaction flag, propagated to every child |
@@ -31,9 +31,10 @@ takes, with the group's value shape substituted.
 | `params.validators` | `FieldActionBase[]` | `[]` | Group-level validators |
 | `params.actions` | `FieldActionBase[]` | `[]` | Group-level actions |
 
-::: warning
-If you pass a `params` object, always include `value` (or `originalValue`). The constructor assigns `params.value` to the group, and an undefined value resets every child field to `null`. Passing only `validators`, `actions`, `enabled` or `visibility` therefore wipes the values the child fields were created with. Omitting `params` entirely is safe.
-:::
+`validators` and `actions` are registered before the remaining parameters are applied, and registration fires
+nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here already guards the `enabled` and
+`visibility` the same object carries, and every eager action among them runs exactly once, over the finished group.
+`Field`, `Action` and `List` do the same — see [Field](/api/field) for the full description.
 
 The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you reuse a field instance that already belongs to another group or list — `parent` and `fieldName` are defined as non-configurable, so they cannot be redefined. Each group needs its own field instances (use `clone()`).
 
@@ -65,7 +66,7 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
 | `fields` | `T` | no | The typed map of child fields |
-| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of **enabled** field values; `null` if all fields are disabled. Reading it gives each field's own value type — for `Group<{ age: Field<number> }>`, `group.value!.age` is `number`. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
+| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of **enabled** field values; `null` when nothing serializes — a group without fields, or one every field of which the serialization rule below leaves out. Reading it gives each field's own value type — for `Group<{ age: Field<number> }>`, `group.value!.age` is `number`. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
 | `originalValue` | `GroupValueInput<T>` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the group itself and all child fields are valid |
@@ -77,7 +78,7 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | `fullValue` | `Record<string, any>` | no | Like `value` but includes disabled fields |
 
 ::: tip Serialization rule
-`Group.value` serializes only **enabled** fields. A disabled field is completely excluded from the output object. An exception applies to a disabled nested `Group`: it is still included if it is non-empty (i.e. it has at least one enabled child).
+`Group.value` serializes only **enabled** fields. A disabled field is completely excluded from the output object. An exception applies to a disabled nested `Group`: it is still included when its own value is non-empty, that is when at least one field inside it serializes. A disabled nested `List` has no such exception and is always excluded.
 :::
 
 ## Methods
@@ -96,7 +97,10 @@ Registers an action on the group itself (not on children). Returns `this`.
 
 ### `validate(revalidate?): void`
 
-Validates the group. Pass `revalidate: true` to cascade validation to all children.
+Validates the group. Pass `revalidate: true` to cascade validation to all children. The children are revalidated
+first and the group forms its own verdict afterwards, over the finished set, so it announces one net transition of
+its own validity at most — a child turning valid while a later one is still to be checked produces no notification
+on the group.
 
 ### `notifyValueChanged()`
 
@@ -106,7 +110,12 @@ Called internally when a child value changes. You rarely need to call this direc
 
 Returns a new `Group` with cloned children and actions. `overrides` is a
 `Partial<IFieldConstructorParams<GroupValueInput<T>>>`; of its keys, only `value`, `originalValue`, `enabled` and
-`visibility` are read, and they apply to the group itself — they are not forwarded to the children.
+`visibility` are read. `enabled` and `visibility` apply to the group itself and are not propagated to the children,
+while `value` reaches them exactly as it does through the constructor.
+
+`originalValue` is read by key presence and `value` by being anything other than `undefined`, so
+`clone({ value: null })` clones a group with every member cleared, while an `undefined` `value` counts as none
+supplied and the clone carries the current one.
 
 The clone is detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly in `overrides` — otherwise the clone's `originalValue` becomes its current value, so `isChanged` starts out `false`.
 

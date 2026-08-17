@@ -1,7 +1,7 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "0.6.0",
+  "version": "0.6.1",
   "type": "module",
   "description": "A lightweight Vue.js library for form state management with built-in validation, conditional logic, nested structures, and a rich event system. UI-agnostic and TypeScript-first.",
   "author": "Jure Erznožnik",
@@ -29,6 +29,7 @@
   ],
   "scripts": {
     "build": "vite build && node -e \"require('fs').copyFileSync('dist/index.d.ts', 'dist/index.d.cts')\"",
+    "prepack": "npm run build",
     "test": "vitest run --coverage",
     "lint": "eslint src --fix && vue-tsc --noEmit",
     "lint:ci": "eslint src && vue-tsc --noEmit",
@@ -52,13 +53,19 @@
   "homepage": "https://docs.velis.si/dynamicforms/vue-forms",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/velis74/dynamicforms-vue-forms.git"
+    "url": "git+https://github.com/dynamicforms/vue-forms.git"
   },
   "bugs": {
-    "url": "https://github.com/velis74/dynamicforms-vue-forms/issues"
+    "url": "https://github.com/dynamicforms/vue-forms/issues"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21",
+    "lodash-es": "^4.17.21"
   },
   "peerDependencies": {
-    "lodash-es": "^4.17.12",
     "vue": "^3.4"
   },
   "devDependencies": {

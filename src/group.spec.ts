@@ -1,7 +1,15 @@
 import { isEqual } from 'lodash-es';
 import { vi } from 'vitest';
 
-import { ValueChangedAction } from './actions';
+import {
+  EnabledChangedAction,
+  EnabledChangingAction,
+  ValidChangedAction,
+  ValueChangedAction,
+  VisibilityChangedAction,
+  VisibilityChangingAction,
+} from './actions';
+import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -183,6 +191,85 @@ describe('Group value initialization', () => {
     expect(group.fields.address.fields.city.value).toBe('Boston');
   });
 
+  it('keeps member values when the constructor parameters carry no value', () => {
+    const group = new Group(
+      {
+        name: new Field({ value: 'John' }),
+        age: new Field({ value: 30 }),
+      },
+      { visibility: DisplayMode.HIDDEN },
+    );
+
+    expect(group.value).toEqual({ name: 'John', age: 30 });
+    expect(group.fields.name.value).toBe('John');
+    expect(group.visibility).toBe(DisplayMode.HIDDEN);
+    expect(group.originalValue).toEqual({ name: 'John', age: 30 });
+    expect(group.isChanged).toBe(false);
+  });
+
+  it('takes the value from originalValue when only originalValue is given', () => {
+    const group = new Group({ name: new Field({ value: 'John' }) }, { originalValue: { name: 'Jane' } });
+
+    expect(group.value).toEqual({ name: 'Jane' });
+    expect(group.isChanged).toBe(false);
+  });
+
+  it('clears the members when the constructor value is explicitly null', () => {
+    const group = new Group({ name: new Field({ value: 'John' }) }, { value: null });
+
+    expect(group.value).toEqual({ name: null });
+  });
+
+  it('treats an explicitly undefined constructor value as no value at all', () => {
+    const group = new Group({ name: new Field({ value: 'John' }) }, { value: undefined });
+
+    expect(group.value).toEqual({ name: 'John' });
+    expect(group.originalValue).toEqual({ name: 'John' });
+    expect(group.isChanged).toBe(false);
+  });
+
+  it('reports the previous value on the first change of a member', () => {
+    const seen: [any, any][] = [];
+    const group = new Group({ a: new Field({ value: 1 }) }).registerAction(
+      new ValueChangedAction((field, supr, newValue, oldValue) => {
+        seen.push([newValue, oldValue]);
+      }),
+    );
+
+    group.fields.a.value = 2;
+
+    expect(seen).toEqual([[{ a: 2 }, { a: 1 }]]);
+  });
+
+  it('runs a constructor-supplied validator exactly once, over the constructed value', () => {
+    const seen: any[] = [];
+    const group = new Group(
+      { a: new Field({ value: 1 }) },
+      {
+        validators: [
+          new Validators.Validator((newValue) => {
+            seen.push(newValue);
+            return null;
+          }),
+        ],
+      },
+    );
+
+    expect(seen).toEqual([{ a: 1 }]);
+    expect(group.valid).toBe(true);
+    expect(group.errors).toHaveLength(0);
+  });
+
+  it('keeps the verdict of a constructor-supplied validator that rejects the constructed value', () => {
+    const group = new Group(
+      { a: new Field({ value: 1 }) },
+      { validators: [new Validators.Validator(() => [new ValidationErrorText('not allowed')])] },
+    );
+
+    expect(group.valid).toBe(false);
+    expect(group.errors).toHaveLength(1);
+  });
+
   it('handles originalValue correctly', () => {
     const fields = {
       name: new Field({ value: 'John' }),
@@ -304,7 +391,7 @@ describe('Cross-field validation with revalidate', () => {
       maxValue: new Field<number>({ value: 20 }),
     });
 
-    // Dodaj validator na maxValue, ki preverja, da je večji od minValue
+    // a validator on maxValue that requires it to be greater than minValue
     const crossFieldValidator = new Validators.Validator((newValue) => {
       const minVal = form.fields.minValue.value;
       if (newValue <= minVal) {
@@ -442,5 +529,79 @@ describe('Group field storage', () => {
     expect(() => JSON.stringify(outer)).not.toThrow();
     // isEqual walks the same enumerable properties, so it must terminate as well
     expect(() => isEqual(outer, outer.clone())).not.toThrow();
+  });
+});
+
+describe('Group validity announcements', () => {
+  function invalidGroup(seen: boolean[]) {
+    // a is empty and b is filled, so the group is invalid on account of a alone
+    return new Group({
+      a: new Field({ value: '', validators: [new Validators.Required()] }),
+      b: new Field({ value: 'y', validators: [new Validators.Required()] }),
+    }).registerAction(
+      new ValidChangedAction((field, supr, newValue: boolean) => {
+        seen.push(newValue);
+      }),
+    );
+  }
+
+  it('says nothing when an assignment leaves the group as invalid as it found it', () => {
+    const seen: boolean[] = [];
+    const group = invalidGroup(seen);
+    expect(group.valid).toBe(false);
+
+    // filling a makes the group momentarily valid and emptying b takes that back
+    group.value = { a: 'x', b: '' };
+
+    expect(seen).toEqual([]);
+    expect(group.valid).toBe(false);
+  });
+
+  it('announces the final verdict once when an assignment genuinely flips the group', () => {
+    const seen: boolean[] = [];
+    const group = invalidGroup(seen);
+
+    group.value = { a: 'x', b: 'z' };
+
+    expect(seen).toEqual([true]);
+    expect(group.valid).toBe(true);
+  });
+});
+
+describe('Group construction parameters', () => {
+  it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
+    const visibilitySeen: DisplayMode[] = [];
+    const enabledSeen: boolean[] = [];
+    const group = new Group(
+      { a: new Field({ value: 1 }) },
+      {
+        visibility: DisplayMode.HIDDEN,
+        enabled: false,
+        actions: [
+          new VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+          new VisibilityChangedAction((field, supr, newValue) => {
+            visibilitySeen.push(newValue);
+          }),
+          new EnabledChangingAction(() => true),
+          new EnabledChangedAction((field, supr, newValue) => {
+            enabledSeen.push(newValue);
+          }),
+        ],
+      },
+    );
+
+    expect(group.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(group.enabled).toBe(true);
+    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
+    expect(enabledSeen).toEqual([true]);
+  });
+
+  it('takes a clone value override only from a value the caller supplied', () => {
+    const group = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+
+    expect(group.clone().value).toEqual({ a: 1, b: 2 });
+    expect(group.clone({ value: undefined }).value).toEqual({ a: 1, b: 2 });
+    expect(group.clone({ value: null }).value).toEqual({ a: null, b: null });
+    expect(group.clone({ value: { a: 7 } }).value).toEqual({ a: 7, b: 2 });
   });
 });

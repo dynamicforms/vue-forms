@@ -42,6 +42,11 @@ with the list's value shape substituted.
 | `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
 | `params.actions` | `FieldActionBase[]` | `[]` | List-level actions |
 
+`validators` and `actions` are registered before the remaining parameters are applied, and registration fires
+nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here already guards the `enabled` and
+`visibility` the same object carries, and every eager action among them runs exactly once, over the finished list.
+`Field`, `Action` and `Group` do the same — see [Field](/api/field) for the full description.
+
 ## Properties
 
 | Property | Type | Writable | Description |
@@ -72,7 +77,7 @@ Returns the `Group` instance at `index`, or `undefined` if out of range.
 
 ### `push(item): number`
 
-Appends an item to the end of the list. `item` may be a plain object or an existing `Group`. Returns the new length of the list. Triggers `ListItemAddedAction`.
+Appends an item to the end of the list. `item` may be a plain object or an existing `Group`. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
 
 ```typescript
 list.push({ name: 'Charlie', score: 70 });
@@ -84,7 +89,16 @@ Removes the last item and returns a detached clone of it (`undefined` if the lis
 
 ### `insert(item, index): number`
 
-Inserts `item` at `index`. If `index` is beyond the current length, the gap is filled with clones of the item template — these carry the template's own values, not empty ones. (Without an item template the padding items are genuinely empty, since they go through `Group.createFromFormData(null)`.) Returns the actual insertion index. Triggers `ListItemAddedAction`.
+Inserts `item` at `index` and returns the position it ends up at. A negative `index` counts back from the end and
+stops at the front, exactly the way `Array.prototype.splice` reads it: on a three-item list `-1` inserts before the
+last item and returns `2`, and `-100` inserts at the front and returns `0`. A non-negative `index` is the position
+itself, so the return value is the number you passed. If `index` is beyond the current length, the gap is filled
+with clones of the item template — these carry the template's own values, not empty ones. (Without an item template
+the padding items are genuinely empty, since they go through `Group.createFromFormData(null)`.)
+
+`ListItemAddedAction` fires once per item that ends up in the list: once for each padding item, each with the index
+that item occupies, and finally for `item` at the position it occupies — the same number `insert()` returns, so a
+negative `index` is reported resolved there too.
 
 ### `remove(index): Group<T> | undefined`
 
@@ -100,7 +114,9 @@ Registers an action on the list. Returns `this`.
 
 ### `validate(revalidate?): void`
 
-Validates the list. Pass `revalidate: true` to cascade to all items.
+Validates the list. Pass `revalidate: true` to cascade to all items. The items are revalidated first and the list
+forms its own verdict afterwards, over the finished set, so it announces one net transition of its own validity at
+most — an item turning valid while a later one is still to be checked produces no notification on the list.
 
 ### `notifyValueChanged(): void`
 
@@ -112,6 +128,10 @@ and revalidates. The mutation methods call it themselves; you rarely need to.
 Returns a new `List` with a cloned item template, values and actions. `overrides` is a
 `Partial<IFieldConstructorParams<ListValue>>`; of its keys, only `value`, `originalValue`, `enabled` and
 `visibility` are read. Cloning an empty list gives an empty list.
+
+`originalValue` is read by key presence and `value` by being anything other than `undefined`, on `List`, `Group` and
+`Field` alike: an explicit `null` is a value the caller supplied, so `clone({ value: null })` gives an empty list,
+while an `undefined` `value` counts as none supplied and the clone keeps the current items.
 
 ## `NullableList`
 
