@@ -216,6 +216,84 @@ describe('Field construction', () => {
     expect(field.value).toBe('a');
   });
 
+  it('runs every constructor-supplied validator exactly once, over the constructed value', () => {
+    const runs: string[] = [];
+    const field = new Form.Field<string>({
+      value: 'good',
+      validators: [
+        new Form.Validators.Validator<string>((newValue) => {
+          runs.push(`first:${newValue}`);
+          return null;
+        }),
+        new Form.Validators.Validator<string>((newValue) => {
+          runs.push(`second:${newValue}`);
+          return null;
+        }),
+      ],
+    });
+
+    expect(runs.sort()).toEqual(['first:good', 'second:good']);
+    expect(field.valid).toBe(true);
+    expect(field.errors).toHaveLength(0);
+  });
+
+  it('keeps the verdict of a constructor-supplied validator that rejects the constructed value', () => {
+    const runs: unknown[] = [];
+    const field = new Form.Field<string>({
+      value: '',
+      validators: [
+        new Form.Validators.Validator<string>((newValue) => {
+          runs.push(newValue);
+          return newValue === '' ? [new ValidationErrorText('Required field')] : null;
+        }),
+      ],
+    });
+
+    expect(runs).toEqual(['']);
+    expect(field.valid).toBe(false);
+    expect(field.errors).toHaveLength(1);
+  });
+
+  it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
+    const visibilitySeen: DisplayMode[] = [];
+    const enabledSeen: boolean[] = [];
+    const field = new Form.Field({
+      value: 1,
+      visibility: DisplayMode.HIDDEN,
+      enabled: false,
+      actions: [
+        new Form.VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+        new Form.VisibilityChangedAction((f, supr, newValue) => {
+          visibilitySeen.push(newValue);
+        }),
+        new Form.EnabledChangingAction(() => true),
+        new Form.EnabledChangedAction((f, supr, newValue) => {
+          enabledSeen.push(newValue);
+        }),
+      ],
+    });
+
+    expect(field.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(field.enabled).toBe(true);
+    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
+    expect(enabledSeen).toEqual([true]);
+  });
+
+  it('falls back to originalValue for an undefined value and keeps an explicit null', () => {
+    expect(new Form.Field({ value: undefined, originalValue: 'orig' }).value).toBe('orig');
+    expect(new Form.Field({ originalValue: 'orig' }).value).toBe('orig');
+    expect(new Form.Field<string | null>({ value: null, originalValue: 'orig' }).value).toBeNull();
+  });
+
+  it('takes a clone value override only from a value the caller supplied', () => {
+    const field = new Form.Field<string | null | undefined>({ value: 'a' });
+
+    expect(field.clone().value).toBe('a');
+    expect(field.clone({ value: undefined }).value).toBe('a');
+    expect(field.clone({ value: null }).value).toBeNull();
+    expect(field.clone({ value: 'b' }).value).toBe('b');
+  });
+
   it('warns when EmptyField is written to', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {

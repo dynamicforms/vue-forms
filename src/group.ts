@@ -6,7 +6,7 @@ import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
-// Utility tip za pretvorbo field strukture v value strukturo.
+// Utility type converting a field structure into the matching value structure.
 // The indexed access reads each field's value getter, so a nested Group contributes its own value structure and
 // a List contributes its row array. Inferring from FieldBase<infer U> instead would pick up the value setter,
 // which is deliberately wider than the getter on Group.
@@ -37,12 +37,23 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
     if (params) {
       const { value: paramValue, validators, actions, ...otherParams } = params;
-      [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
+      // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
+      // guards them too
+      this.registerInitialActions([...(validators || []), ...(actions || [])]);
       Object.assign(this, otherParams);
-      this.value = paramValue ?? this.originalValue;
+      // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
+      // an optional property yields an undefined value, and assigning it would push null into every member and
+      // then baseline that emptied state as the original, so the group would report itself unchanged over values
+      // its members never held. An explicit null is a supplied value and does clear the members.
+      if (paramValue !== undefined) this.assignMembers(paramValue as GroupValueInput<T>);
+      else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
     }
 
     if (this.originalValue === undefined) this.originalValue = this.value;
+
+    // the cache the ValueChangedAction reads as the old value starts at the constructed value, so the first change
+    // of a member reports what the group held before it instead of null
+    this._value = this.value;
 
     // if (Object.keys(this._fields).length) console.log('group created', this, Error().stack);
     this.actions.triggerEager(this, this.value, this.originalValue);
@@ -107,8 +118,18 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     return isEmpty(val) ? null : ({ ...val } as FieldsToValues<T>);
   }
 
-  set value(newValue: GroupValueInput<T>) {
+  /**
+   * Writes the members that the given value carries, without letting any single member announce the state in
+   * between: the group's own value notification and its own validation are both held back for the duration, so
+   * neither a ValueChangedAction nor a ValidChangedAction reports a verdict over a half-applied value. The
+   * caller decides what to announce once the whole value is in place. Both flags are restored to what they were,
+   * so a caller that is itself holding the group back stays in charge.
+   */
+  private assignMembers(newValue: GroupValueInput<T>) {
+    const outerNotify = this.suppressNotifyValueChanged;
+    const outerValidation = this.suppressValidation;
     this.suppressNotifyValueChanged = true;
+    this.suppressValidation = true;
     try {
       Object.entries(this._fields).forEach(([name, field]) => {
         if (newValue == null || Object.hasOwn(newValue, name)) {
@@ -116,8 +137,13 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         }
       });
     } finally {
-      this.suppressNotifyValueChanged = false;
+      this.suppressNotifyValueChanged = outerNotify;
+      this.suppressValidation = outerValidation;
     }
+  }
+
+  set value(newValue: GroupValueInput<T>) {
+    this.assignMembers(newValue);
     this.notifyValueChanged();
     this.validate();
   }
@@ -146,9 +172,21 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     if (!isEqual(newValue, this._value)) {
       const oldValue = this._value;
       this._value = newValue;
-      this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
-      if (this.parent) this.parent.notifyValueChanged();
-      this.validate();
+      // the parent learns of the new value below and validates itself from there, over the whole value; a
+      // validator running on this group must therefore not send it a verdict of its own in the meantime
+      const outerClimb = this.suppressParentValidityClimb;
+      this.suppressParentValidityClimb = true;
+      try {
+        this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
+        if (this.parent) this.parent.notifyValueChanged();
+      } finally {
+        this.suppressParentValidityClimb = outerClimb;
+        this.validate();
+        // a parent whose own value did not change by this one returns from notifyValueChanged() without
+        // validating, so a validity change held back above still has to reach it. Both run even when a handler
+        // threw, or the parent would keep a verdict the members no longer support.
+        this.flushParentValidityClimb();
+      }
     }
   }
 
@@ -157,7 +195,18 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
   }
 
   validate(revalidate: boolean = false) {
-    if (revalidate) Object.values(this._fields).forEach((field) => field.validate(true));
+    if (revalidate) {
+      // the members are revalidated with the group held back, so a member that turns valid while a later one is
+      // still to be checked cannot make the group announce a verdict over a half-revalidated set. The group forms
+      // its own verdict below, once, over the finished set.
+      const outerValidation = this.suppressValidation;
+      this.suppressValidation = true;
+      try {
+        Object.values(this._fields).forEach((field) => field.validate(true));
+      } finally {
+        this.suppressValidation = outerValidation;
+      }
+    }
     super.validate(revalidate);
   }
 
@@ -167,7 +216,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
       newFields[name as keyof T] = field.clone() as any;
     });
     const res = new Group(newFields, {
-      value: overrides?.value ?? this.value,
+      // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
+      value: overrides?.value !== undefined ? overrides.value : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,

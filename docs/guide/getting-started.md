@@ -17,13 +17,18 @@ section or a list row behaves the same way a single field does — and rendering
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Fields, groups and lists are Vue reactive objects — assign a property and whatever read it re-renders. A group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
-- **Lightweight**: Depends on Vue and lodash-es, and nothing else.
+- **Lightweight**: `vue` (^3.4) is the only peer dependency, and `lodash` and `lodash-es` — one per build — the only runtime ones.
 
 ## Installation
 
 ```bash
 npm install @dynamicforms/vue-forms
 ```
+
+The package ships two builds of the same source: an ESM build that imports `lodash-es` and a CJS/UMD build that
+requires `lodash`. Both lodash packages are declared as dependencies and install with the package, so an `import`
+and a `require()` both resolve without further setup. Node 18 or newer is required, and `vue` (^3.4) is the only
+peer dependency.
 
 ### Stylesheet
 

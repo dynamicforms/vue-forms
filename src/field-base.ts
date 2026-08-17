@@ -87,11 +87,47 @@ export abstract class FieldBase<T = any> {
     this.actions.trigger(EnabledChangedAction, this, this._enabled, oldValue);
   }
 
+  /**
+   * While true, validate() on this field does nothing at all: it neither recomputes _valid nor emits
+   * ValidChangedAction, and nothing climbs to the parent. A container that walks its members one by one - assigning
+   * them a value, or revalidating them - sets it for the duration of the walk, so a member's upward climb cannot
+   * announce the verdict of a half-applied value or of a half-revalidated set, and clears it in a finally block
+   * followed by its own validate(). That call recomputes over the finished state and emits the net transition, so
+   * the deferral cannot swallow a real change.
+   */
+  protected suppressValidation: boolean = false;
+
+  /**
+   * While true, a validity change is still recomputed and still announced on this field, but it is not passed up to
+   * the parent: the climb is only remembered and carried out by flushParentValidityClimb(). A setter that notifies
+   * the parent of the new value itself holds it over the notifying region, so the parent forms its verdict once,
+   * over the finished value, instead of once over the value being replaced and once over the value replacing it.
+   */
+  protected suppressParentValidityClimb: boolean = false;
+
+  private parentValidityClimbPending: boolean = false;
+
+  /** Carries out the climb that a validity change made while suppressParentValidityClimb was held, if there was one. */
+  protected flushParentValidityClimb(): void {
+    if (!this.parentValidityClimbPending) return;
+    this.parentValidityClimbPending = false;
+    this.parent?.validate();
+  }
+
   validate(revalidate: boolean = false) {
+    if (this.suppressValidation) return;
     if (revalidate) this.actions.triggerEager(this, this.value, this.value);
     const oldValid = this._valid;
     this._valid = this.valid;
-    if (this._valid !== oldValid) this.actions.trigger(ValidChangedAction, this, this.valid, oldValid);
+    if (this._valid !== oldValid) {
+      this.actions.trigger(ValidChangedAction, this, this.valid, oldValid);
+      // a container's validity is composed of its members', so a member that changes it without a value change
+      // (asynchronous validator, externally pushed error) has to make the container re-evaluate. The call passes
+      // no revalidate, so it only recomputes, and it climbs no further than the first ancestor whose own
+      // validity stays the same.
+      if (this.suppressParentValidityClimb) this.parentValidityClimbPending = true;
+      else this.parent?.validate();
+    }
   }
 
   get valid() {
@@ -104,6 +140,18 @@ export abstract class FieldBase<T = any> {
 
   get isChanged(): boolean {
     return !isEqual(this.value, this.originalValue);
+  }
+
+  /**
+   * Registers the actions a constructor received in its parameters: registration without the eager trigger,
+   * because a constructor ends with a single this.actions.triggerEager(...) over the finished value, and an
+   * eager action registered here would otherwise also run once per registration, over a half-built field.
+   */
+  protected registerInitialActions(actions: FieldActionBase[]): void {
+    actions.forEach((action) => {
+      this.actions.register(action);
+      action.boundToField(this);
+    });
   }
 
   registerAction(action: FieldActionBase): this {
@@ -123,9 +171,23 @@ export abstract class FieldBase<T = any> {
     return this.actions.trigger(actionClass, this, ...params);
   }
 
+  private _validationEpoch: number = 0;
+
+  /**
+   * Generation counter of the validators attached to this field. A Validator reads it when a run starts and drops
+   * a result whose epoch no longer matches, so a validation still in flight when clearValidators() is called
+   * cannot push an error onto a field that no longer has the validator that produced it.
+   */
+  get validationEpoch(): number {
+    return this._validationEpoch;
+  }
+
   clearValidators(): void {
+    this._validationEpoch++;
     this.actions = this.actions.cloneWithoutValidators();
     this.errors = [];
-    this._valid = true;
+    // the errors are gone before the recomputation, so validate() sees the cleared state and routes the validity
+    // transition through the usual path: the ValidChangedAction fires and the parent re-evaluates
+    this.validate();
   }
 }

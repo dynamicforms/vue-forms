@@ -211,7 +211,7 @@ describe('MessagesWidget', () => {
 
     const wrapper = buildMockWrapper({ message: errors });
 
-    // Komponenta se renderira, ampak brez innerHTML
+    // the component renders, without innerHTML
     const customAlert = wrapper.find('.custom-alert-mock');
     expect(customAlert.exists()).toBe(true);
     expect(customAlert.attributes('type')).toBe('warning');

@@ -33,30 +33,7 @@ about the shape of signatures and of the published package — after 1.0 those c
   Contradicts `docs/api/actions.md`.
   Fix: `Map<FieldBase, boolean | undefined>` instead of a single `lastResult`.
 
-### B. Constructors and public types
-
-- **[V] `new Group(fields, params)` without `params.value` wipes every child.** `src/group.ts`.
-  `new Group({a: new Field({value: 1})}, {visibility: HIDDEN})` yields `value === {a: null}`, and
-  `originalValue` is rebaselined onto the wiped state so `isChanged` reports clean. `docs/api/group.md`
-  carries a `::: warning` about it, so it is known behaviour that 1.0 would freeze.
-  Fix: `if ('value' in params)`, the same guard `clone()` already uses for `originalValue`.
-
-### C. Validation
-
-- **[R] Validity does not propagate upwards.** `Group.validate()` is only reached through
-  `notifyValueChanged`, i.e. only on a value change (`src/field-base.ts`, `src/group.ts`).
-  When a child turns invalid by another route (async validator, externally pushed error), `g.valid` becomes
-  `false` but `ValidChangedAction` on the group fires zero times — which is exactly the documented
-  "enable the Submit button" pattern (`docs/api/actions.md`).
-  Fix: `parent?.notifyValidChanged()` in the `_valid !== oldValid` branch.
-
-- **[V] Async validators have no sequencing and no cancellation.** `src/validators/validator.ts` does
-  `errors.then(processErrors)` with no token and no `catch`. With a validator taking 150 ms for `'bad'` and
-  5 ms for `'good'`, setting `'bad'` then `'good'` ends at `value 'good'`, `valid false`,
-  `errors ['bad:bad']`, `validating false` — the field claims validation finished while holding the previous
-  value's verdict. The canonical remote-uniqueness example is therefore unreliable.
-  Fix: a monotonic token per run, discard everything but the latest. The `ValidationFunction` signature is
-  safe to freeze — an `AbortSignal` 4th argument would be additive.
+### B. Validation
 
 - **[V] `CompareTo` binds to a field instance, so it points at the wrong field after any clone.**
   `src/validators/validator-compare-to.ts`. Reproduced inverted: `pwd='a'`, `other='b'` gives
@@ -66,32 +43,22 @@ about the shape of signatures and of the published package — after 1.0 those c
   Fix: resolve the other field by name or callback at validation time. That changes the `CompareTo`
   constructor, so after 1.0 it means 2.0.
 
-### D. Packaging
-
-- **[V] The CJS/UMD artifact `require()`s `lodash-es`, which is ESM-only.** `vite.config.ts:53-56` externalizes
-  it in both formats. `node --no-experimental-require-module -e "require('./dist/…umd.cjs')"` gives
-  `ERR_REQUIRE_ESM`. Hits Jest with the default CJS transform and every Node < 20.19 / < 22.12;
-  `engines.node` is not declared.
-  The dual-package decision has to be made before the freeze because the API is identity-based —
-  `instanceof` in 17 places and 13 module-level `Symbol()` without `Symbol.for`. Two copies in one graph
-  produce `Invalid fields object provided` / `Invalid action type`.
-  Fix: do not externalize `lodash-es` in the CJS build (or drop the `require` condition and go ESM-only),
-  plus declare `engines`.
+### C. Packaging
 
 - **[V] `peerDependencies: vue ^3.4` but the types need >= 3.5.** With `vue@3.4.38` and
   `skipLibCheck: false`: `TS2707: Generic type 'DefineComponent' requires between 0 and 13 type arguments`
-  (`package.json:62`, `dist/index.d.ts:391`). The changelog explicitly promised `skipLibCheck: false`
+  (the `peerDependencies` entry in `package.json`, `DefineComponent` in `dist/index.d.ts`). The changelog
+  explicitly promised `skipLibCheck: false`
   support. CI cannot see it — `tsconfig.json:10` sets `skipLibCheck: true` and CI always installs the newest
   Vue. Narrowing `^3.4` to `^3.5` after 1.0 is breaking.
   Fix: raise the peer range (or hide `DefineComponent` behind a hand-written type), and add a CI job against
   the lowest supported Vue.
 
-- **[R] `List.insert()` emits wrong indexes in `ListItemAddedAction`.** `src/list.ts` uses
-  `this._value.push(itm)`, which returns the new *length*, not the index. `insert({a: 9}, 3)` on an empty
-  list emits `[1, 2, 3, 3]` for four elements — index 0 never announced, 3 announced twice. The only test
-  asserts `expect.any(Number)` (`src/list.spec.ts`), which cannot fail. The payload of a public,
-  documented event is frozen by 1.0.
-  Fix: one line (`- 1`) plus a real test.
+- **[V] Whether to keep shipping a CJS/UMD entry point at all.** The API is identity-based — `instanceof` in
+  17 places and 13 module-level `Symbol()` without `Symbol.for` — so two copies of the package in one graph
+  produce `Invalid fields object provided` / `Invalid action type`. ESM-only removes that hazard for good, and
+  removes a working entry point with it, which is why it is a decision to take before the freeze rather than a
+  patch: dropping the `require` condition after 1.0 costs a 2.0.
 
 ---
 
@@ -108,18 +75,6 @@ about the shape of signatures and of the published package — after 1.0 those c
 - **`clearValidators()` on a clone kills validation on the original** (`src/actions/actions-map.ts`
   plus `validator-compare-to.ts`): shared action instances, and `unregister()` mutates the shared
   object. The form reports `valid` when it is not.
-- **`clearValidators()` does not cancel in-flight async validation** — the field is left permanently invalid
-  with an error nobody can clear (`src/field-base.ts`).
-- **Validators run 2..N+1 times during construction, the first calls with `undefined`** — `Field.init()`
-  registers them before the `_value` assignment (`src/field.ts`).
-- **A shared `ValidationError` object throws** `TypeError: Cannot redefine property: source`
-  (`src/validators/validator.ts`, `configurable: false`).
-- **A `Ref` as a validator message silently loses reactivity** (`src/validators/validator.ts`
-  `unref`s at validation time) — i18n through `computed`/`t()` freezes in the language of the first
-  validation, even though the docs list `Ref` as a supported form.
-- **`Statement.evaluate()` returns operands instead of a boolean** for AND/OR
-  (`src/actions/conditional/statement.ts`) → conditional actions fire on non-transitions (`0` vs
-  `false`), and the callback receives a number where the docs promise `boolean`.
 - **There is no way to unregister an action** (`src/actions/field-action-base.ts` has an empty stub,
   `ActionsMap` builds a closure chain). List rows leak handlers onto the shared source field permanently;
   around 4565 handlers it hits a `RangeError`. `unregisterAction` can be added to `FieldBase` without
@@ -129,11 +84,11 @@ about the shape of signatures and of the published package — after 1.0 those c
   becoming async) is a 2.0.
 - **`Group.value` omits a disabled `List` but keeps a disabled `Group`** (`src/group.ts`; `List` does not
   extend `Group`) — payload shape.
-- **`Group.value = null` does not clear a nested `List`**, and a non-array value is swallowed silently
-  (`src/list.ts`).
-- **`Group`'s `_value` cache is not primed** — the first `ValueChangedAction` on a group always reports
-  `old = null` (`src/group.ts`); likewise the `List.value` setter leaves `_previousValue` stale
-  (`src/list.ts`).
+- **A non-array assigned to `List.value` is swallowed silently** (`src/list.ts`) — `setValueInternal` writes only
+  for an array, so a wrong type leaves the rows untouched with no error.
+- **`List` alone does not fall back to `originalValue`** (`src/list.ts`): `new Field({originalValue: 5})` and
+  `new Group({a}, {originalValue: {a: 7}})` start unchanged, while `new List(tpl, {originalValue: […]})` reports
+  `isChanged` and reads back `null`, so a list built from a server baseline is dirty before anyone touches it.
 - **`DisplayMode`:** an invalid *string* silently becomes `FULL`, an invalid *number* throws
   (`src/display-mode.ts:29-32`).
 - **`Action.label`/`icon` write into the value object behind the setter's back**: no `ValueChangedAction`
@@ -155,22 +110,12 @@ about the shape of signatures and of the published package — after 1.0 those c
   the whole 1.x line.
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
   request changes the setting for everyone. `FormsConfig`/`getConfig`/`setConfig` are not exported.
-- **`lodash-es` is a peerDependency** even though it does not leak into the public surface — move it to
-  `dependencies` or inline it. (Not an install burden — npm 7+ installs peers automatically — but it is the
-  wrong declaration and it interacts with the CJS blocker above.)
-- **No `prepack`/`prepublishOnly`, and `dist/` and `package-lock.json` are gitignored** — publishing from a
-  fresh clone ships an empty package, and CI cannot use `npm ci`.
-- **Test gaps on exactly the surface being frozen:** `touched` (zero tests, despite the documented
-  aggregation and its role in getting-started), `Group.field()`/`createFromFormData()`/`clone()`, the
-  disabled-subgroup serialization rule, `AbortEventHandlingException`,
-  `EnabledChangedAction`/`VisibilityChangedAction`, `clearValidators()` with non-validator actions, and
-  function-valued validator messages (the i18n path). Nothing tests the built artifact or the export list.
-- **Documentation:** there is no versioning/stability statement and no supported Vue/Node/browser matrix,
-  the sidebar has no changelog entry, and the docs home links to a GitHub repo that does not exist.
-- **Stale GitHub URLs in `package.json`.** `repository` and `bugs` (`package.json:56-61`) point at
-  `velis74/dynamicforms-vue-forms`, while the actual remote is `dynamicforms/vue-forms`. Cosmetic, not
-  broken — the old path answers 301 and redirects to the new one — but npm shows these on the package page,
-  so fold it into the documentation pass above rather than giving it its own commit.
+- **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, the rule that a disabled
+  child `Group` still serializes when its own value is non-empty, and `clearValidators()` with non-validator
+  actions — nothing asserts that an ordinary `ValueChangedAction` survives it. Nothing tests the built artifact
+  or the export list.
+- **Documentation:** there is no versioning/stability statement and no supported Vue/browser matrix, and the
+  sidebar has no changelog entry.
 
 ---
 
@@ -181,9 +126,15 @@ about the shape of signatures and of the published package — after 1.0 those c
 with a stale cache · `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
 `Operator.NOT` requires a dummy third argument · `parent` is `configurable: false` (documented) ·
 `Group.addField`/`List.length`/`items` are missing (additive) ·
-`Group`/`List` do not aggregate `validating` · `InAllowedValues` freezes the list at
+`Group`/`List` do not aggregate `validating` · a superseded asynchronous result is dropped, but the request
+behind it keeps running: `ValidationFunction` receives no `AbortSignal`, so nothing cancels the call at the
+network level and fast typing leaves a request in flight per keystroke — the fourth argument is additive ·
+`InAllowedValues` freezes the list at
 construction · `ValidationError` has no machine-readable code · error object identity is not preserved
-across validations · `isSimpleComponentDef(null)` throws · the UMD global is literally named `[name]` ·
+across validations, and `Validator.claim()` copies an error another validator already owns, so the instance
+the field holds is not the one the validation function returned · `isSimpleComponentDef(null)` throws ·
+`List.insert(item, index)` fills the gap position by position, so an index taken from an API response builds
+that many groups and fires that many events synchronously on the main thread ·
 `./style.css` is unreachable under node10 resolution · CI never packs and imports the artifact · no coverage
 thresholds.
 
@@ -251,10 +202,10 @@ shrinks enough that the flag alone would do.
     if (params) {
       const { value: paramValue, ...otherParams } = params;
 
-      // Nastavi osnovne lastnosti
+      // assign the base properties
       Object.assign(this, otherParams);
 
-      // Nastavi razširjene lastnosti
+      // assign the extended properties
       this.setExtendedValues(otherParams as Partial<TExtend>);
 
       this._value = paramValue ?? this.originalValue;
@@ -271,10 +222,10 @@ shrinks enough that the flag alone would do.
       visibility: overrides?.visibility ?? this.visibility,
     });
 
-    // Nastavi razširjene lastnosti na klonirani instanci
+    // assign the extended properties on the clone
     cloned.setExtendedValues(this as unknown as Partial<TExtend>);
 
-    // Prepiše z morebitnimi novimi vrednostmi
+    // overwrite them with the overrides, if any
     if (overrides) {
       cloned.setExtendedValues(overrides as unknown as Partial<TExtend>);
     }
@@ -284,8 +235,8 @@ shrinks enough that the flag alone would do.
 
   // In FieldBase:
   setExtendedValues(_values: Partial<any>): void {
-    // Osnovna implementacija je prazna
-    // Podrazredi, ki uporabljajo TExtend, bodo to prepisali
+    // the base implementation is empty
+    // subclasses using TExtend override it
   }
   ```
 

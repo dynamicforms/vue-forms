@@ -1,9 +1,11 @@
 import { vi } from 'vitest';
+import { ref } from 'vue';
 
 import { Field } from '../field';
 
-import { ValidationErrorText } from './validation-error';
+import { MdString, ValidationError, ValidationErrorRenderContent, ValidationErrorText } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
+import Required from './validator-required';
 
 describe('Validator', () => {
   it('adds validation errors to field.errors', () => {
@@ -146,6 +148,121 @@ describe('Validator', () => {
 
     // Error should be removed
     expect(field.errors.length).toBe(0);
+  });
+});
+
+describe('Shared ValidationError', () => {
+  const failWith = (errors: ValidationError[]) => new Validator((newValue) => (newValue === 'bad' ? errors : null));
+
+  it('accepts one error instance produced by two validators of the same field', () => {
+    const shared = new ValidationErrorText('Shared error');
+
+    const build = () =>
+      new Field({
+        value: 'x',
+        validators: [new Validator(() => [shared]), new Validator(() => [shared])],
+      });
+
+    expect(build).not.toThrow();
+    // each of the two validators reports a failure, so the field holds one error per validator
+    expect(build().errors.length).toBe(2);
+  });
+
+  it('lets both validators withdraw their error when the first field is cleared first', () => {
+    const shared = new ValidationErrorText('Shared error');
+    const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
+    const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
+
+    expect(field1.valid).toBe(false);
+    expect(field2.valid).toBe(false);
+
+    field1.value = 'ok';
+    expect(field1.errors.length).toBe(0);
+    expect(field1.valid).toBe(true);
+    expect(field2.errors.length).toBe(1);
+
+    field2.value = 'ok';
+    expect(field2.errors.length).toBe(0);
+    expect(field2.valid).toBe(true);
+  });
+
+  it('lets both validators withdraw their error when the second field is cleared first', () => {
+    const shared = new ValidationErrorText('Shared error');
+    const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
+    const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
+
+    field2.value = 'ok';
+    expect(field2.errors.length).toBe(0);
+    expect(field2.valid).toBe(true);
+    expect(field1.errors.length).toBe(1);
+
+    field1.value = 'ok';
+    expect(field1.errors.length).toBe(0);
+    expect(field1.valid).toBe(true);
+  });
+
+  it('does not repeat an unchanged error instance returned by the same validator twice', () => {
+    const shared = new ValidationErrorText('Shared error');
+    const field = new Field({ value: 'bad', validators: [failWith([shared])] });
+
+    expect(field.errors.length).toBe(1);
+
+    field.value = 'also bad';
+    field.value = 'bad';
+
+    expect(field.errors.length).toBe(1);
+    expect(field.errors[0].componentBody).toBe('Shared error');
+  });
+
+  it('renders the error a second validator receives exactly like the shared instance', () => {
+    const options = { html: true };
+    const plugins = [{ name: 'plugin' }];
+    const text = new ValidationErrorText('Shared text', 'text-class');
+    const content = new ValidationErrorRenderContent(new MdString('**shared**', options, plugins), 'content-class');
+    const shared = [text, content];
+
+    const field1 = new Field({ value: 'bad', validators: [failWith(shared)] });
+    const field2 = new Field({ value: 'bad', validators: [failWith(shared)] });
+
+    expect(field1.errors.length).toBe(2);
+    expect(field2.errors.length).toBe(2);
+    expect(field2.errors[0]).toBeInstanceOf(ValidationErrorText);
+    expect(field2.errors[1]).toBeInstanceOf(ValidationErrorRenderContent);
+
+    [text, content].forEach((original, idx) => {
+      expect(field2.errors[idx].componentName).toBe(original.componentName);
+      expect(field2.errors[idx].componentBody).toBe(original.componentBody);
+      expect(field2.errors[idx].componentBindings).toEqual(original.componentBindings);
+      expect(field2.errors[idx].extraClasses).toBe(original.extraClasses);
+    });
+  });
+});
+
+describe('Reference messages', () => {
+  it('resolves a Ref message on read, so a changed reference changes the message', () => {
+    const message = ref('Please enter a value');
+    const field = new Field({ value: '', validators: [new Required(message)] });
+
+    expect(field.errors.length).toBe(1);
+    expect(field.errors[0].componentBody).toBe('Please enter a value');
+
+    message.value = 'A value is required';
+
+    expect(field.errors[0].componentBody).toBe('A value is required');
+  });
+
+  it('keeps a Ref of MdString markdown, with its options and plugins', () => {
+    const plugins = [{ name: 'plugin' }];
+    const options = { html: true };
+    const message = ref(new MdString('**{newValue}** is not enough', options, plugins));
+    const field = new Field({ value: '', validators: [new Required(message)] });
+
+    expect(field.errors[0].componentName).toBe('vue-markdown');
+    expect(field.errors[0].componentBindings).toEqual({ source: '**** is not enough', options, plugins });
+
+    message.value = new MdString('_{newValue}_ is too short', options, plugins);
+
+    expect(field.errors[0].componentBindings).toEqual({ source: '__ is too short', options, plugins });
   });
 });
 

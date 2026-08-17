@@ -18,7 +18,7 @@ mechanism applies at every level of a nested form.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Fields, groups and lists are Vue reactive objects, and a group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
-- **Lightweight**: Depends on Vue and lodash-es, and nothing else.
+- **Lightweight**: `vue` (^3.4) is the only peer dependency, and `lodash` and `lodash-es` — one per build — the only runtime ones.
 
 ## Features
 
@@ -28,7 +28,8 @@ mechanism applies at every level of a nested form.
 - **Nested structures**: Support for complex data with nested fields and groups
 - **Event system**: Rich event handling for field changes, validation, and more
 - **TypeScript support**: Full type definitions for excellent developer experience
-- **Lightweight**: depends only on `vue` (^3.4) and `lodash-es` (^4.17)
+- **Lightweight**: `vue` (^3.4) is the only peer dependency; the runtime dependencies are `lodash` and `lodash-es`,
+  one for each of the two builds
 - **Field types**: Core field types (Field, Action, Group, List) to represent any data structure
 - **Validation**: Comprehensive validation system with built-in validators and extensible error handling
 - **Conditional logic**: Dynamic form behavior based on field values and conditions
@@ -39,6 +40,11 @@ mechanism applies at every level of a nested form.
 ```bash
 npm install @dynamicforms/vue-forms
 ```
+
+The package ships two builds of the same source: an ESM build that imports `lodash-es` and a CJS/UMD build that
+requires `lodash`. Both lodash packages are declared as dependencies and install with the package, so an `import` and
+a `require()` both resolve without further setup. Node 18 or newer is required, and `vue` (^3.4) is the only peer
+dependency. Type definitions ship for both entry points; the stylesheet is `@dynamicforms/vue-forms/style.css`.
 
 ## Setup
 
@@ -184,6 +190,12 @@ const validatedForm = new Group({
 
 Validators run eagerly — a field is validated the moment it is created, so a form built from empty required fields is
 invalid immediately. Use `field.touched` to decide when to show the errors in the UI.
+
+A validation function may return a `Promise`. `field.validating` is `true` while such a run is pending, and the
+verdict applied to the field is always the one belonging to the newest run, so a slow check cannot overwrite a faster
+one started after it. A validator message given as a `Ref` or `computed` is resolved when the message is rendered, so
+a translated message follows a locale switch without revalidating. `field.clearValidators()` drops the validators,
+empties the errors and cancels whatever validation is still in flight.
 
 ## Messages Widget Component
 

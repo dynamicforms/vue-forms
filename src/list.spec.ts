@@ -1,6 +1,16 @@
 import { vi } from 'vitest';
 
-import { ValueChangedAction, ListItemAddedAction, ListItemRemovedAction } from './actions';
+import {
+  EnabledChangedAction,
+  EnabledChangingAction,
+  ListItemAddedAction,
+  ListItemRemovedAction,
+  ValidChangedAction,
+  ValueChangedAction,
+  VisibilityChangedAction,
+  VisibilityChangingAction,
+} from './actions';
+import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -71,8 +81,23 @@ describe('List', () => {
       list,
       expect.any(Function),
       expect.any(Object), // The Group object
-      expect.any(Number), // Index
+      0, // Index
     );
+  });
+
+  it('announces every item added by insert with its own index', () => {
+    const indexes: number[] = [];
+    const list = new List().registerAction(
+      new ListItemAddedAction((field, supr, item, index: number) => {
+        indexes.push(index);
+      }),
+    );
+
+    // the three items padding the list up to index 3 are announced alongside the inserted one
+    expect(list.insert({ a: 9 }, 3)).toBe(3);
+
+    expect(indexes).toEqual([0, 1, 2, 3]);
+    expect(list.value?.length).toBe(4);
   });
 
   it('correctly handles push operation', () => {
@@ -131,6 +156,25 @@ describe('List', () => {
     expect(list.value).toEqual([{ name: 'First' }, { name: 'Middle' }, { name: 'Last' }]);
   });
 
+  it('inserts at a negative index and announces the position the item landed on', () => {
+    const indexes: number[] = [];
+    const list = new List(undefined, { value: [{ name: 'First' }, { name: 'Last' }] }).registerAction(
+      new ListItemAddedAction((field, supr, item, index: number) => {
+        indexes.push(index);
+      }),
+    );
+
+    // -1 counts one back from the end, so the item goes before the last one
+    expect(list.insert({ name: 'Middle' }, -1)).toBe(1);
+    expect(list.value).toEqual([{ name: 'First' }, { name: 'Middle' }, { name: 'Last' }]);
+
+    // an index reaching past the start stops at the start
+    expect(list.insert({ name: 'Before' }, -99)).toBe(0);
+    expect(list.value).toEqual([{ name: 'Before' }, { name: 'First' }, { name: 'Middle' }, { name: 'Last' }]);
+
+    expect(indexes).toEqual([1, 0]);
+  });
+
   it('handles insert at higher index than length', () => {
     const list = new List();
 
@@ -145,6 +189,21 @@ describe('List', () => {
 
     // Check length
     expect(list.value?.length).toBe(4);
+  });
+
+  it('pads with items carrying the template values when inserting past the end', () => {
+    const list = new List(new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) }), {
+      value: [{ a: 9, b: 9 }],
+    });
+
+    expect(list.insert({ a: 4, b: 4 }, 3)).toBe(3);
+
+    expect(list.value).toEqual([
+      { a: 9, b: 9 },
+      { a: 1, b: 2 },
+      { a: 1, b: 2 },
+      { a: 4, b: 4 },
+    ]);
   });
 
   it('removes items correctly', () => {
@@ -229,6 +288,50 @@ describe('List', () => {
     // Should use default value from template for missing fields
     expect(list.get(0)?.fields.name.value).toBe('John');
     expect(list.get(0)?.fields.age.value).toBe(18);
+  });
+
+  it('reports the previous value on every change following an assignment', () => {
+    const seen: [any, any][] = [];
+    const list = new List(new Group({ a: new Field() })).registerAction(
+      new ValueChangedAction((field, supr, newValue, oldValue) => {
+        seen.push([newValue, oldValue]);
+      }),
+    );
+
+    list.value = [{ a: 1 }];
+    list.get(0)!.fields.a.value = 2;
+
+    expect(seen).toEqual([
+      [[{ a: 1 }], null],
+      [[{ a: 2 }], [{ a: 1 }]],
+    ]);
+  });
+
+  it('runs a constructor-supplied validator exactly once, over the constructed value', () => {
+    const seen: any[] = [];
+    const list = new List(undefined, {
+      value: [{ a: 1 }],
+      validators: [
+        new Validators.Validator((newValue) => {
+          seen.push(newValue);
+          return null;
+        }),
+      ],
+    });
+
+    expect(seen).toEqual([[{ a: 1 }]]);
+    expect(list.valid).toBe(true);
+    expect(list.errors).toHaveLength(0);
+  });
+
+  it('keeps the verdict of a constructor-supplied validator that rejects the constructed value', () => {
+    const list = new List(undefined, {
+      value: [{ a: 1 }],
+      validators: [new Validators.Validator(() => [new ValidationErrorText('too short')])],
+    });
+
+    expect(list.valid).toBe(false);
+    expect(list.errors).toHaveLength(1);
   });
 
   it('handles parent relationship correctly', () => {
@@ -388,13 +491,13 @@ describe('List Validation', () => {
 
 describe('Cross-field validation with revalidate', () => {
   it('should revalidate list items with cross-field validation', () => {
-    // Setup - ustvari template za list item z dvema poljema
+    // an item template with two fields
     const itemTemplate = new Group({
       startDate: new Field(),
       endDate: new Field(),
     });
 
-    // Dodaj validator za endDate, da mora biti po startDate
+    // a validator on endDate that requires it to fall after startDate
     const dateValidator = new Validators.Validator((newValue, oldValue, field) => {
       const startDate = field.parent?.fields.startDate.value;
       if (startDate && newValue && new Date(newValue) <= new Date(startDate)) {
@@ -449,6 +552,79 @@ describe('Cross-field validation with revalidate', () => {
   });
 });
 
+describe('List validity announcements', () => {
+  function invalidList(seen: boolean[]) {
+    const list = new List(new Group({ a: new Field({ validators: [new Validators.Required()] }) }), {
+      value: [{ a: 'x' }, { a: '' }],
+    });
+    return list.registerAction(
+      new ValidChangedAction((field, supr, newValue: boolean) => {
+        seen.push(newValue);
+      }),
+    );
+  }
+
+  it('says nothing when an assignment leaves the list as invalid as it found it', () => {
+    const seen: boolean[] = [];
+    const list = invalidList(seen);
+    expect(list.valid).toBe(false);
+
+    list.value = [{ a: '' }, { a: 'y' }];
+
+    expect(seen).toEqual([]);
+    expect(list.valid).toBe(false);
+  });
+
+  it('announces the final verdict once when an assignment genuinely flips the list', () => {
+    const seen: boolean[] = [];
+    const list = invalidList(seen);
+
+    list.value = [{ a: 'x' }, { a: 'y' }];
+
+    expect(seen).toEqual([true]);
+    expect(list.valid).toBe(true);
+  });
+});
+
+describe('List construction parameters', () => {
+  it.each([
+    ['absent', undefined],
+    ['explicitly undefined', { value: undefined }],
+    ['explicitly null', { value: null }],
+  ])('starts empty when the constructor value is %s', (name, params) => {
+    const list = new List(new Group({ a: new Field({ value: 'template' }) }), params);
+
+    expect(list.value).toBeNull();
+    expect(list.get(0)).toBeUndefined();
+  });
+
+  it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
+    const visibilitySeen: DisplayMode[] = [];
+    const enabledSeen: boolean[] = [];
+    const list = new List(undefined, {
+      value: [{ a: 1 }],
+      visibility: DisplayMode.HIDDEN,
+      enabled: false,
+      actions: [
+        new VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+        new VisibilityChangedAction((field, supr, newValue) => {
+          visibilitySeen.push(newValue);
+        }),
+        new EnabledChangingAction(() => true),
+        new EnabledChangedAction((field, supr, newValue) => {
+          enabledSeen.push(newValue);
+        }),
+      ],
+    });
+
+    expect(list.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(list.enabled).toBe(true);
+    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
+    expect(enabledSeen).toEqual([true]);
+    expect(list.value).toEqual([{ a: 1 }]);
+  });
+});
+
 describe('List cloning', () => {
   it('clones an empty list', () => {
     const list = new List(new Group({ name: new Field({ value: 'template' }) }));
@@ -461,5 +637,14 @@ describe('List cloning', () => {
     copy.push({ name: 'John' });
     expect(copy.value).toEqual([{ name: 'John' }]);
     expect(list.value).toBeNull();
+  });
+
+  it('takes a clone value override only from a value the caller supplied', () => {
+    const list = new List(new Group({ name: new Field() }), { value: [{ name: 'John' }] });
+
+    expect(list.clone().value).toEqual([{ name: 'John' }]);
+    expect(list.clone({ value: undefined }).value).toEqual([{ name: 'John' }]);
+    expect(list.clone({ value: null }).value).toBeNull();
+    expect(list.clone({ value: [{ name: 'Jane' }] }).value).toEqual([{ name: 'Jane' }]);
   });
 });

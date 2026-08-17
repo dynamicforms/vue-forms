@@ -19,7 +19,9 @@ export class Action<T extends ActionValue = ActionValue> extends Field<T> {
     this._value = { label: undefined, icon: undefined } as T;
     if (params) {
       const { value: paramValue, originalValue, validators, actions, ...otherParams } = params;
-      [...(validators || []), ...(actions || [])].forEach((a) => this.registerAction(a));
+      // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
+      // guards them too
+      this.registerInitialActions([...(validators || []), ...(actions || [])]);
       Object.assign(this, otherParams);
       const val = isValEmpty(paramValue, this._value);
       const orgVal = Object.freeze({ label: originalValue?.label, icon: originalValue?.icon } as ActionValue);

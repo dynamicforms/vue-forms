@@ -86,6 +86,28 @@ const markdownError = new ValidationErrorRenderContent(
 
 See [Markdown Support](#markdown-support) for markdown options and plugins.
 
+#### Reactive and Translated Errors
+
+The content may also be a `Ref`, a `computed` or a function; it is resolved every time the message is read, so the
+rendered text follows the reference:
+
+```js
+import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
+import { Field, Validators } from '@dynamicforms/vue-forms';
+
+const { t } = useI18n();
+
+const field = new Field({
+  value: '',
+  validators: [new Validators.Required(computed(() => t('validation.required')))],
+});
+```
+
+Switching the locale retranslates the error already sitting on the field — the reference is read at render time, not
+at validation time, so nothing has to revalidate. Placeholders such as `{newValue}` are substituted at that same
+moment, and a reference holding an `MdString` still renders as markdown with its options and plugins.
+
 #### Custom Component Errors
 ```js
 import { ValidationErrorText } from '@dynamicforms/vue-forms';
@@ -195,10 +217,10 @@ import '@dynamicforms/vue-forms/style.css';
 
 ## Key Features
 
-- **Flexible Message Types**: Supports strings, validation errors, markdown, and custom components. The content of a 
-  `ValidationErrorRenderContent` may also be a function (or a `Ref`) returning the string / MdString / component 
-  definition, which enables lazy resolution such as i18n. The `message` prop itself must be a string or an array of 
-  `ValidationError`s. 
+- **Flexible Message Types**: Supports strings, validation errors, markdown, and custom components. The content of a
+  `ValidationErrorRenderContent` may also be a function, a `Ref` or a `computed` returning the string / MdString /
+  component definition, resolved on every read and therefore reactive — the i18n path. The `message` prop itself must
+  be a string or an array of `ValidationError`s. 
 - **Customizable Styling**: Multiple ways to apply CSS classes
 - **Markdown Support**: Rich text formatting when VueMarkdown is available
 - **Validation Integration**: Works seamlessly with form validation errors

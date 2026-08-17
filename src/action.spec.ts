@@ -1,7 +1,15 @@
 import { reactive } from 'vue';
 
 import { Action, ActionValue } from './action';
-import { ExecuteAction } from './actions';
+import {
+  EnabledChangedAction,
+  EnabledChangingAction,
+  ExecuteAction,
+  VisibilityChangedAction,
+  VisibilityChangingAction,
+} from './actions';
+import DisplayMode from './display-mode';
+import { Validators } from './validators';
 
 describe('Action', () => {
   it('correctly manages value, label and icon', () => {
@@ -109,6 +117,49 @@ describe('Action construction', () => {
     expect(action.value).toEqual({ label: undefined, icon: undefined });
     expect(action.label).toBeUndefined();
     expect(action.icon).toBeUndefined();
+  });
+
+  it('runs a constructor-supplied validator exactly once, over the shaped value', () => {
+    const seen: ActionValue[] = [];
+    const action = new Action({
+      value: { label: 'Save' },
+      validators: [
+        new Validators.Validator<ActionValue>((newValue) => {
+          seen.push({ label: newValue?.label, icon: newValue?.icon });
+          return null;
+        }),
+      ],
+    });
+
+    expect(seen).toEqual([{ label: 'Save', icon: undefined }]);
+    expect(action.label).toBe('Save');
+    expect(action.valid).toBe(true);
+  });
+
+  it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
+    const visibilitySeen: DisplayMode[] = [];
+    const enabledSeen: boolean[] = [];
+    const action = new Action({
+      value: { label: 'Save' },
+      visibility: DisplayMode.HIDDEN,
+      enabled: false,
+      actions: [
+        new VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+        new VisibilityChangedAction((field, supr, newValue) => {
+          visibilitySeen.push(newValue);
+        }),
+        new EnabledChangingAction(() => true),
+        new EnabledChangedAction((field, supr, newValue) => {
+          enabledSeen.push(newValue);
+        }),
+      ],
+    });
+
+    expect(action.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(action.enabled).toBe(true);
+    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
+    expect(enabledSeen).toEqual([true]);
+    expect(action.label).toBe('Save');
   });
 
   it('freezes originalValue derived from the constructor parameters', () => {

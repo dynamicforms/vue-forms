@@ -48,6 +48,29 @@ describe('ConditionalStatementAction', () => {
     expect(callbackFn).not.toHaveBeenCalled();
   });
 
+  it('does not execute the callback when a falsy source value changes to false', () => {
+    const source = new Field<any>({ value: 0 });
+    const statement = new Statement(source, Operator.AND, true);
+    const callbackFn = vi.fn();
+
+    const field = new Field();
+    field.registerAction(new ConditionalStatementAction(statement, callbackFn));
+
+    // The statement is false for value 0, and the callback reports it as a boolean
+    expect(callbackFn).toHaveBeenCalledTimes(1);
+    expect(callbackFn).toHaveBeenLastCalledWith(expect.anything(), false, undefined);
+    expect(typeof callbackFn.mock.calls[0][1]).toBe('boolean');
+
+    // 0 and false are the same logical value, so this is not a transition
+    source.value = false;
+    expect(callbackFn).toHaveBeenCalledTimes(1);
+
+    // ... while a real transition still reaches the callback
+    source.value = 'x';
+    expect(callbackFn).toHaveBeenCalledTimes(2);
+    expect(callbackFn).toHaveBeenLastCalledWith(expect.anything(), true, false);
+  });
+
   it('registers with correct class identifier', () => {
     const statement = new Statement(true, Operator.EQUALS, true);
     const action = new ConditionalStatementAction(statement, vi.fn());

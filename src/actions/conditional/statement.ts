@@ -45,16 +45,20 @@ export class Statement {
 
     switch (this.operator) {
       // logical operators
+      // `&&` and `||` evaluate to one of their operands, and the operands are of any type. Without the
+      // coercion evaluate() would hand out the operand itself, so `0` or `''` would reach callers that the
+      // signature promises a boolean, and consumers comparing results with !== would see a change where the
+      // logical value stayed the same.
       case Operator.AND:
-        return operand1 && operand2;
+        return Boolean(operand1 && operand2);
       case Operator.OR:
-        return operand1 || operand2;
+        return Boolean(operand1 || operand2);
       case Operator.NAND:
         return !(operand1 && operand2);
       case Operator.NOR:
         return !(operand1 || operand2);
       case Operator.XOR:
-        return XOR(operand1, operand2);
+        return XOR(Boolean(operand1), Boolean(operand2));
       case Operator.NOT:
         return !operand1;
 
@@ -72,9 +76,12 @@ export class Statement {
       case Operator.GT:
         return operand1 > operand2;
       case Operator.IN:
-        return operand2?.includes?.(operand1) ?? false;
+        // `includes` is called on an operand of any type, so its return value is not guaranteed to be a
+        // boolean; a missing or non-callable `includes` yields undefined and therefore false. NOT_IN negates
+        // exactly this, so a right operand that reports no membership at all is IN false and NOT_IN true.
+        return Boolean(operand2?.includes?.(operand1));
       case Operator.NOT_IN:
-        return !(operand2?.includes?.(operand1) ?? true);
+        return !operand2?.includes?.(operand1);
       case Operator.INCLUDES:
         return isString(operand1) && isString(operand2) && operand1.indexOf(operand2) >= 0;
       case Operator.NOT_INCLUDES:

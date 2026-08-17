@@ -60,6 +60,9 @@ new ValueChangedAction((field, supr, newValue, oldValue) => {
 | `newValue` | `T` | The new value |
 | `oldValue` | `T` | The previous value |
 
+On a `Group` or a `List` the two values are the container's own serialized value after and before the change, so
+the very first change of a member reports the value the container was constructed with as `oldValue`.
+
 ---
 
 ## Enabled events
@@ -123,6 +126,19 @@ new ValidChangedAction((field, supr, newValue, oldValue) => {
 })
 ```
 
+A `Group` and a `List` compose their validity from their members, so the action fires on the container whenever a
+member's verdict flips it — including when no value changed, as with an asynchronous validator settling or a
+`clearValidators()` that leaves a previously invalid member valid. Writing to `member.errors` from the outside
+announces nothing on its own: the array is a plain property, and it is the member's `validate()` that recomputes
+the verdict, fires the member's own `ValidChangedAction` and makes the container re-evaluate. The notification
+climbs no further than the first ancestor whose own validity stays the same.
+
+One assignment to a container's `value` produces at most one notification on that container: the members are
+written first and the container evaluates afterwards, so it announces the net transition and never the verdict of a
+half-applied value. The same holds for an assignment to a single member, which reaches the container once its new
+value is in place, and for `validate(true)` on a container, which revalidates the members first and forms its own
+verdict once over the finished set.
+
 ---
 
 ## Manual trigger
@@ -163,7 +179,7 @@ save.execute({ reason: 'toolbar' }); // triggers ExecuteAction, returns undefine
 
 | Member | Description |
 |--------|-------------|
-| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — a `Partial<IFieldConstructorParams<T>>` |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — a `Partial<IFieldConstructorParams<T>>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value |
 | `label` | Getter/setter for `value.label` |
 | `icon` | Getter/setter for `value.icon` |
 | `execute(params)` | Triggers `ExecuteAction` on this action; returns `undefined` |
@@ -201,6 +217,11 @@ new ListItemAddedAction((field, supr, item, index) => {
 })
 ```
 
+`index` is the position `item` occupies in the list, which is also what `insert()` returns. A negative index handed
+to `insert()` is resolved the way `Array.prototype.splice` resolves it and announced resolved, so it is never
+negative here. `insert()` past the end of the list pads it first, and each padding item is announced with its own
+index before the final trigger for the inserted item.
+
 ### `ListItemRemovedAction`
 
 Fires on a `List` when an item is removed via `pop()` or `remove()`.
@@ -220,7 +241,7 @@ new ListItemRemovedAction((field, supr, item, index) => {
 
 Conditional actions automatically toggle a field property when a `Statement` evaluates to a different boolean.
 
-Conditional actions are eager: `registerAction()` evaluates the statement immediately and sets the field property right away. After that, the executor only runs when the result of the statement changes (`true` → `false` or `false` → `true`), not on every value change. The executor is applied to the fields the action is bound to, not to the fields appearing in the statement.
+Conditional actions are eager: `registerAction()` evaluates the statement immediately and sets the field property right away. A conditional action handed to a constructor through `params.actions` does the same once the element is built, over its finished value. After that, the executor only runs when the result of the statement changes (`true` → `false` or `false` → `true`), not on every value change. The executor is applied to the fields the action is bound to, not to the fields appearing in the statement.
 
 ### `Statement`
 
@@ -233,6 +254,10 @@ const stmt = new Statement(activeField, Operator.EQUALS, true);
 // Nested statements
 const combined = new Statement(stmt, Operator.AND, new Statement(ageField, Operator.GE, 18));
 ```
+
+`evaluate(): boolean` always hands back a real boolean: the logical operators coerce their operands, so
+`new Statement(0, Operator.AND, true).evaluate()` is `false` and not `0`, and a conditional executor therefore
+always receives a boolean `currentResult`.
 
 `EQUALS` / `NOT_EQUALS` compare with loose `==`, so `'1'` and `1` are equal, and so are `null` and `undefined`.
 
@@ -253,8 +278,8 @@ Enum of supported operators:
 |-------|--------|
 | Logic | `NOT`, `OR`, `AND`, `XOR`, `NAND`, `NOR` |
 | Comparison | `EQUALS`, `NOT_EQUALS`, `LT`, `LE`, `GE`, `GT` |
-| Membership | `IN`, `NOT_IN` — evaluate `operand2.includes(operand1)` (array or string); `false` if `operand2` has no `includes` |
-| Substring | `INCLUDES`, `NOT_INCLUDES` — `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` |
+| Membership | `IN`, `NOT_IN` — evaluate `operand2.includes(operand1)` (array or string) and coerce its result to a boolean. `NOT_IN` is the negation of `IN`, so an `operand2` without a callable `includes` gives `IN` `false` and `NOT_IN` `true` |
+| Substring | `INCLUDES`, `NOT_INCLUDES` — `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` and `NOT_INCLUDES` `true` |
 
 Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`. Note that `DisplayMode.fromString` behaves differently — it silently returns `DisplayMode.FULL` for anything it does not recognise.
 

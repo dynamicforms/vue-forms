@@ -57,7 +57,7 @@ export default defineConfig({
       ]
     },
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/velis74/dynamicforms-vue-forms' }
+      { icon: 'github', link: 'https://github.com/dynamicforms/vue-forms' }
     ],
     footer: {
       message: 'Released under the MIT License.',

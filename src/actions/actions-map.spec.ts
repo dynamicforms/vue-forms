@@ -8,55 +8,55 @@ import { ValueChangedAction, VisibilityChangedAction } from '.';
 
 describe('Form actions', () => {
   it('correctly executes action chain', () => {
-    const klici: string[] = [];
+    const calls: string[] = [];
     const valueAction1 = vi.fn((field, supr, newValue, oldValue) => {
-      klici.push('valueAction1');
+      calls.push('valueAction1');
       return supr(field, newValue, oldValue);
     });
     const valueAction2 = vi.fn((field, supr, newValue, oldValue) => {
-      klici.push('valueAction2');
+      calls.push('valueAction2');
       return supr(field, newValue, oldValue);
     });
     const visibilityAction = vi.fn((field, supr, newValue, oldValue) => {
-      klici.push('visibilityAction');
+      calls.push('visibilityAction');
       return supr(field, newValue, oldValue);
     });
 
-    const field = new Field({ value: 'začetno' })
+    const field = new Field({ value: 'initial' })
       .registerAction(new ValueChangedAction(valueAction1))
       .registerAction(new ValueChangedAction(valueAction2))
       .registerAction(new VisibilityChangedAction(visibilityAction));
 
     const form = new Group({
       field1: field,
-      field2: new Field({ value: 'drugo polje' }),
+      field2: new Field({ value: 'second field' }),
     });
 
-    // Sprožimo ValueChangedAction
-    form.fields.field1.value = 'nova vrednost';
+    // trigger ValueChangedAction
+    form.fields.field1.value = 'new value';
 
-    // Preverimo vrstni red klicev
-    expect(klici).toEqual(['valueAction2', 'valueAction1']);
+    // the order the handlers ran in
+    expect(calls).toEqual(['valueAction2', 'valueAction1']);
     expect(valueAction1).toHaveBeenCalledTimes(1);
     expect(valueAction2).toHaveBeenCalledTimes(1);
     expect(visibilityAction).not.toHaveBeenCalled();
 
-    // Preverimo parametre klica
-    expect(valueAction2).toHaveBeenCalledWith(expect.anything(), expect.any(Function), 'nova vrednost', 'začetno');
+    // the parameters the handler received
+    expect(valueAction2).toHaveBeenCalledWith(expect.anything(), expect.any(Function), 'new value', 'initial');
   });
 
-  it('dovoli prekinjanje verige akcij', () => {
+  it('allows a handler to break the action chain', () => {
     const valueAction1 = vi.fn((field, supr, newValue, oldValue) => supr(field, newValue, oldValue));
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const valueAction2 = vi.fn((field, supr, newValue, oldValue) => {
-      // Ne kličemo supr, prekinemo verigo
+      // supr is not called, so the chain stops here
     });
 
-    const field = new Field({ value: 'začetno' })
+    const field = new Field({ value: 'initial' })
       .registerAction(new ValueChangedAction(valueAction1))
       .registerAction(new ValueChangedAction(valueAction2));
 
-    field.value = 'nova vrednost';
+    field.value = 'new value';
 
     expect(valueAction2).toHaveBeenCalled();
     expect(valueAction1).not.toHaveBeenCalled();
