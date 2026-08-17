@@ -11,6 +11,13 @@ enum DisplayMode {
 
 export const defaultDisplayMode = DisplayMode.FULL;
 
+// The reverse mapping of a numeric enum puts both the names and the numbers in Object.values, and both fromAny and
+// isDefined only ever test a number, so the numbers are all that has to be kept. Built once: the alternative is two
+// array allocations on every write to visibility.
+const displayModeValues: ReadonlySet<number> = new Set(
+  Object.values(DisplayMode).filter((entry): entry is number => typeof entry === 'number'),
+);
+
 // eslint-disable-next-line @typescript-eslint/no-namespace, no-redeclare
 namespace DisplayMode {
   export function fromString(mode: string): DisplayMode {
@@ -22,13 +29,13 @@ namespace DisplayMode {
 
   export function fromAny(mode: any): DisplayMode {
     const input = typeof mode === 'number' ? mode : DisplayMode.fromString(mode as string);
-    if (Object.values(DisplayMode).includes(input)) return input;
+    if (displayModeValues.has(input)) return input;
     return defaultDisplayMode;
   }
 
   export function isDefined(mode: number | string): boolean {
     const check = typeof mode === 'number' ? mode : DisplayMode.fromString(mode as string);
-    return Object.values(DisplayMode).includes(check);
+    return displayModeValues.has(check);
   }
 }
 

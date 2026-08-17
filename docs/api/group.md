@@ -36,7 +36,7 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 `visibility` the same object carries, and every eager action among them runs exactly once, over the finished group.
 `Field`, `Action` and `List` do the same — see [Field](/api/field) for the full description.
 
-The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you reuse a field instance that already belongs to another group or list — `parent` and `fieldName` are defined as non-configurable, so they cannot be redefined. Each group needs its own field instances (use `clone()`).
+The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you hand it a field instance that already belongs to another group or list: a field belongs to one container, and a container refuses one that is taken. Each group needs its own field instances (use `clone()`). A `List` releases the rows it drops, so those are free to be taken again; a `Group` never releases a field.
 
 Field names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`, `constructor`, `__proto__`, …) are accepted like any other: the map has no prototype, and both `value` and `fullValue` build their result the same way. The value setter likewise assigns only from the object's own keys, so `group.value = {}` leaves a field named `toString` untouched instead of handing it `Object.prototype.toString`. A name used twice in the same group throws `Error('Field <name> is already in this form')`.
 
@@ -66,8 +66,8 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
 | `fields` | `T` | no | The typed map of child fields |
-| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of **enabled** field values; `null` when nothing serializes — a group without fields, or one every field of which the serialization rule below leaves out. Reading it gives each field's own value type — for `Group<{ age: Field<number> }>`, `group.value!.age` is `number`. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
-| `originalValue` | `GroupValueInput<T>` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
+| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of **enabled** field values; `null` when nothing serializes — a group without fields, or one every field of which the serialization rule below leaves out. Reading it gives each field's own value type — for `Group<{ age: Field<number> }>`, `group.value!.age` is `number`. The object is built once per change and handed to every reader until the next one, and it is frozen: writing into it throws in strict mode and is silently dropped outside it. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
+| `originalValue` | `GroupValueInput<T>` | yes | Value at creation time, held as a copy of its own rather than as the object `value` reads back, and not frozen. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the group itself and all child fields are valid |
 | `validating` | `boolean` | no | `true` while an async validator registered on the group itself is pending. Unlike `valid`, it does **not** aggregate child fields — check the children individually |

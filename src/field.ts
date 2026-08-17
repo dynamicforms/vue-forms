@@ -32,7 +32,7 @@ class Field<T = any> extends FieldBase<T> {
       this._value = paramValue !== undefined ? paramValue : this.originalValue;
       if (this.originalValue === undefined) this.originalValue = this._value;
     }
-    this.actions.triggerEager(this, this.value, this.originalValue);
+    this._actions?.triggerEager(this, this.value, this.originalValue);
     this.validate();
   }
 
@@ -44,12 +44,13 @@ class Field<T = any> extends FieldBase<T> {
     const oldValue = this._value;
     if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
     this._value = newValue;
+    this.bumpValueVersion();
     // the parent learns of the new value from notifyValueChanged() and validates itself from there, over the whole
     // value; a validator running on this field must therefore not send it a verdict of its own in the meantime
     const outerClimb = this.suppressParentValidityClimb;
     this.suppressParentValidityClimb = true;
     try {
-      this.actions.trigger(ValueChangedAction, this, this._value, oldValue);
+      this._actions?.trigger(ValueChangedAction, this, this._value, oldValue);
       if (this.parent) this.parent.notifyValueChanged();
     } finally {
       this.suppressParentValidityClimb = outerClimb;
@@ -79,8 +80,11 @@ class Field<T = any> extends FieldBase<T> {
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
-    res.actions = this.actions.clone();
-    res.actions.triggerEager(res, res.value, res.originalValue);
+    if (this._actions) {
+      const actions = this._actions.clone();
+      res._actions = actions;
+      actions.triggerEager(res, res.value, res.originalValue);
+    }
     return res;
   }
 }

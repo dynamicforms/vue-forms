@@ -37,7 +37,7 @@ Those are the only accepted parameters: they are exactly the writable members of
 (`valid`, `validating`, `fullValue`, `isChanged`) and the container back-references (`parent`, `fieldName`) are
 rejected by the type checker. The derived members are getter-only, so assigning one throws a `TypeError`;
 `parent` and `fieldName` are installed by the container, and only throw once a `Group` or `List` has defined
-them as non-configurable accessors.
+them as getter-only accessors.
 
 The generic argument is inferred from `params.value`, so `new Field({ value: 'John' })` is a `Field<string>` and
 `new Field()` is a `Field<any>`. Pass it explicitly when the initial value does not pin the type you want:
@@ -87,7 +87,7 @@ const field = new Field(defaults);
 | `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()`. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, but normally managed by validators. Writing to it is a plain property write and recomputes nothing on its own — call `validate()` afterwards to have `valid`, `ValidChangedAction` and the parent container follow |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
-| `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container as a non-configurable accessor. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only |
+| `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container as a getter-only accessor and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `clone()`. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field` |
 

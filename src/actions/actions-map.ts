@@ -24,6 +24,17 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
     if (action.eager) this.eagerActions.add(action.classIdentifier);
   }
 
+  /**
+   * True when triggering this action would run something: a handler registered under the identifier, or - on the
+   * value change identifier, which trigger() answers with an eager pass as well - any eager action at all. A
+   * caller that has to build the parameters before it can trigger asks this first and skips building them when
+   * there is nothing to receive them.
+   */
+  willTrigger(identifier: symbol): boolean {
+    if (this.has(identifier)) return true;
+    return identifier === ValueChangedActionClassIdentifier && this.eagerActions.size > 0;
+  }
+
   trigger<T extends FieldActionBase>(
     ActionClass: (abstract new (...args: any[]) => T) & { classIdentifier: symbol },
     field: FieldBase,

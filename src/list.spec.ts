@@ -648,3 +648,453 @@ describe('List cloning', () => {
     expect(list.clone({ value: [{ name: 'Jane' }] }).value).toEqual([{ name: 'Jane' }]);
   });
 });
+
+describe('List value caching', () => {
+  it('answers a repeated read with the array it built last, and with a new one after a row changes', () => {
+    const list = new List(new Group({ n: new Field({ value: 0 }) }), { value: [{ n: 1 }, { n: 2 }] });
+
+    const first = list.value;
+    expect(list.value).toBe(first);
+
+    list.get(0)!.fields.n.value = 5;
+
+    const second = list.value;
+    expect(second).not.toBe(first);
+    expect(second).toEqual([{ n: 5 }, { n: 2 }]);
+    expect(list.value).toBe(second);
+    expect(first).toEqual([{ n: 1 }, { n: 2 }]);
+  });
+
+  it('does not build the value while nothing is registered to receive it', () => {
+    // the probe is never written, so every read of it is a member walk somebody made to build a value
+    let probeReads = 0;
+    class ProbeField extends Field<number> {
+      get value(): number {
+        probeReads += 1;
+        return super.value;
+      }
+
+      set value(newValue: number) {
+        super.value = newValue;
+      }
+    }
+
+    const template = new Group({ n: new Field({ value: 0 }), probe: new ProbeField({ value: 0 }) });
+    const list = new List(template, { value: [{ n: 1 }, { n: 2 }] });
+    const root = new Group({ list, other: new Field({ value: 'x' }) });
+    probeReads = 0;
+
+    list.get(0)!.fields.n.value = 5;
+
+    // no ValueChangedAction and no eager action stands anywhere above the field, so no level walks its members
+    expect(probeReads).toBe(0);
+    expect(list.value).toEqual([
+      { n: 5, probe: 0 },
+      { n: 2, probe: 0 },
+    ]);
+    expect(root.value).toEqual({
+      list: [
+        { n: 5, probe: 0 },
+        { n: 2, probe: 0 },
+      ],
+      other: 'x',
+    });
+  });
+
+  it('reports the change to a listener registered after the list had already changed', () => {
+    const seen: [any, any][] = [];
+    const list = new List(new Group({ a: new Field() }), { value: [{ a: 'x' }] });
+
+    // nothing was registered while this item was added, so the list never built the value it would have carried
+    list.push({ a: 'y' });
+
+    list.registerAction(
+      new ValueChangedAction((field, supr, newValue, oldValue) => {
+        seen.push([newValue, oldValue]);
+      }),
+    );
+    list.remove(1);
+
+    expect(seen).toEqual([[[{ a: 'x' }], [{ a: 'x' }, { a: 'y' }]]]);
+  });
+
+  it('fires the item event and one value event, in that order, on insert', () => {
+    const events: string[] = [];
+    const list = new List(new Group({ a: new Field({ value: '' }) }), { value: [{ a: 'x' }] })
+      .registerAction(
+        new ListItemAddedAction((field, supr, item, index: number) => {
+          events.push(`added:${index}`);
+        }),
+      )
+      .registerAction(
+        new ValueChangedAction((field, supr, newValue) => {
+          events.push(`value:${JSON.stringify(newValue)}`);
+        }),
+      );
+
+    list.insert({ a: 'y' }, 0);
+
+    expect(events).toEqual(['added:0', 'value:[{"a":"y"},{"a":"x"}]']);
+  });
+});
+
+describe('List validity reading', () => {
+  it('reports a list invalid over an error pushed into a row without any validate() call', () => {
+    const list = new List(new Group({ a: new Field({ value: '' }) }), { value: [{ a: 'x' }] });
+    const root = new Group({ list });
+    expect(root.valid).toBe(true);
+
+    list.get(0)!.fields.a.errors.push(new ValidationErrorText('pushed in'));
+
+    expect(list.get(0)!.valid).toBe(false);
+    expect(list.valid).toBe(false);
+    expect(root.valid).toBe(false);
+  });
+
+  it('announces validity through a list that has nothing listening for its value', () => {
+    const seen: boolean[] = [];
+    const list = new List(new Group({ a: new Field({ validators: [new Validators.Required()] }) }), {
+      value: [{ a: 'x' }],
+    });
+    const root = new Group({ list, b: new Field({ value: 'y' }) }).registerAction(
+      new ValidChangedAction((field, supr, newValue: boolean) => {
+        seen.push(newValue);
+      }),
+    );
+
+    list.push({ a: '' });
+
+    expect(seen).toEqual([false]);
+    expect(root.valid).toBe(false);
+
+    list.get(1)!.fields.a.value = 'filled';
+
+    expect(seen).toEqual([false, true]);
+    expect(root.valid).toBe(true);
+  });
+});
+
+describe('List whole-value assignment', () => {
+  it('writes a same-length assignment into the rows that are already there', () => {
+    const list = new List(new Group({ a: new Field(), b: new Field() }), {
+      value: [
+        { a: 1, b: 2 },
+        { a: 3, b: 4 },
+      ],
+    });
+    const first = list.get(0)!;
+    const second = list.get(1)!;
+
+    list.value = [
+      { a: 9, b: 8 },
+      { a: 7, b: 6 },
+    ];
+
+    expect(list.get(0)).toBe(first);
+    expect(list.get(1)).toBe(second);
+    expect(list.value).toEqual([
+      { a: 9, b: 8 },
+      { a: 7, b: 6 },
+    ]);
+  });
+
+  it('drops the surplus rows and builds only the missing ones', () => {
+    const list = new List(new Group({ a: new Field() }), { value: [{ a: 1 }, { a: 2 }, { a: 3 }] });
+    const first = list.get(0)!;
+
+    list.value = [{ a: 9 }];
+
+    expect(list.get(0)).toBe(first);
+    expect(list.get(1)).toBeUndefined();
+    expect(list.value).toEqual([{ a: 9 }]);
+
+    list.value = [{ a: 5 }, { a: 6 }];
+
+    expect(list.get(0)).toBe(first);
+    expect(list.get(1)).not.toBe(first);
+    expect(list.value).toEqual([{ a: 5 }, { a: 6 }]);
+
+    list.value = null as unknown as Record<string, any>[];
+
+    expect(list.value).toBeNull();
+    expect(list.get(0)).toBeUndefined();
+  });
+});
+
+describe('List membership of the rows it counts', () => {
+  const listWithOneRow = () => {
+    const template = new Group({ a: new Field({ value: 'x', validators: [new Validators.Required()] }) });
+    const list = new List(template);
+    const seen: boolean[] = [];
+    list.registerAction(
+      new ValidChangedAction((field, supr, newValue: boolean) => {
+        seen.push(newValue);
+      }),
+    );
+    list.push({ a: 'ok' });
+    return { list, seen };
+  };
+
+  it('ignores the verdict of a row that remove() took out of it', () => {
+    const { list, seen } = listWithOneRow();
+    const removed = list.get(0)!;
+
+    list.remove(0);
+    removed.fields.a.value = '';
+
+    expect(list.valid).toBe(true);
+    expect(seen).toEqual([]);
+
+    list.push({ a: '' });
+
+    expect(list.valid).toBe(false);
+    expect(seen).toEqual([false]);
+
+    list.get(0)!.fields.a.value = 'ok';
+
+    expect(list.valid).toBe(true);
+    expect(seen).toEqual([false, true]);
+  });
+
+  it('ignores the verdict of a row a shorter assignment dropped', () => {
+    const { list, seen } = listWithOneRow();
+    const dropped = list.get(0)!;
+
+    list.value = [];
+    dropped.fields.a.value = '';
+
+    expect(list.valid).toBe(true);
+    expect(seen).toEqual([]);
+
+    list.push({ a: '' });
+
+    expect(list.valid).toBe(false);
+    expect(seen).toEqual([false]);
+  });
+
+  it('ignores the verdict of a row clear() dropped', () => {
+    const { list, seen } = listWithOneRow();
+    const dropped = list.get(0)!;
+
+    list.clear();
+    dropped.fields.a.value = '';
+
+    expect(list.valid).toBe(true);
+    expect(seen).toEqual([]);
+
+    list.push({ a: '' });
+
+    expect(list.valid).toBe(false);
+    expect(seen).toEqual([false]);
+  });
+
+  it('takes the parent link away from every row it drops', () => {
+    const { list } = listWithOneRow();
+    const removed = list.get(0)!;
+    list.remove(0);
+    expect(removed.parent).toBeUndefined();
+
+    list.push({ a: 'ok' });
+    const truncated = list.get(0)!;
+    list.value = [];
+    expect(truncated.parent).toBeUndefined();
+
+    list.push({ a: 'ok' });
+    const cleared = list.get(0)!;
+    list.clear();
+    expect(cleared.parent).toBeUndefined();
+  });
+
+  it('refuses a row another list already holds', () => {
+    const { list } = listWithOneRow();
+    const other = new List(new Group({ a: new Field({ value: 'x' }) }));
+
+    expect(() => other.push(list.get(0)!)).toThrow(TypeError);
+    expect(other.value).toBeNull();
+    expect(list.value).toEqual([{ a: 'ok' }]);
+  });
+
+  it('hands a released row on to another list', () => {
+    const { list } = listWithOneRow();
+    const other = new List(new Group({ a: new Field({ value: 'x' }) }));
+    const removed = list.get(0)!;
+
+    list.remove(0);
+    other.push(removed);
+
+    expect(other.get(0)).toBe(removed);
+    expect(removed.parent).toBe(other);
+  });
+
+  it('counts a detached row again once it is pushed back in', () => {
+    const { list, seen } = listWithOneRow();
+    const removed = list.get(0)!;
+
+    list.remove(0);
+    removed.fields.a.value = '';
+    list.push(removed);
+
+    expect(list.valid).toBe(false);
+    expect(seen).toEqual([false]);
+
+    removed.fields.a.value = 'ok';
+
+    expect(list.valid).toBe(true);
+    expect(seen).toEqual([false, true]);
+  });
+});
+
+describe('List row reuse', () => {
+  it('gives a key the new item leaves out the template value, not the one the row held', () => {
+    const template = new Group({ a: new Field({ value: 'tplA' }), b: new Field({ value: 'tplB' }) });
+    const list = new List(template);
+
+    list.value = [{ a: 'a1', b: 'b1' }];
+    list.value = [{ a: 'a2' }];
+
+    expect(list.value).toEqual([{ a: 'a2', b: 'tplB' }]);
+  });
+
+  it('clears the same keys one level down as a fresh row would', () => {
+    const template = new Group({
+      inner: new Group({ a: new Field({ value: 'tplA' }), b: new Field({ value: 'tplB' }) }),
+    });
+    const list = new List(template);
+
+    list.value = [{ inner: { a: 'a1', b: 'b1' } }];
+    list.value = [{ inner: { a: 'a2' } }];
+
+    expect(list.value).toEqual([{ inner: { a: 'a2', b: 'tplB' } }]);
+  });
+
+  it('starts the change history of a reused row over', () => {
+    const list = new List(new Group({ a: new Field({ value: '' }) }));
+
+    list.value = [{ a: '1' }];
+    const row = list.get(0)!;
+    row.touched = true;
+
+    list.value = [{ a: '2' }];
+
+    expect(list.get(0)).toBe(row);
+    expect(row.touched).toBe(false);
+    expect(row.originalValue).toEqual({ a: '2' });
+    expect(row.isChanged).toBe(false);
+    expect(list.touched).toBe(false);
+  });
+
+  it('drops an error pushed by hand into a reused row', () => {
+    const list = new List(new Group({ a: new Field({ value: '' }) }));
+
+    list.value = [{ a: '1' }];
+    const row = list.get(0)!;
+    row.fields.a.errors.push(new ValidationErrorText('pushed in'));
+    row.errors.push(new ValidationErrorText('pushed onto the row'));
+
+    expect(list.valid).toBe(false);
+
+    list.value = [{ a: '2' }];
+
+    expect(row.fields.a.errors).toEqual([]);
+    expect(row.errors).toEqual([]);
+    expect(row.valid).toBe(true);
+    expect(list.valid).toBe(true);
+  });
+
+  it('re-establishes the errors of a reused row the assignment leaves the value of', () => {
+    const template = new Group({ a: new Field({ value: 'x', validators: [new Validators.Required()] }) });
+    const list = new List(template, { value: [{ a: '' }] });
+    const row = list.get(0)!;
+    row.fields.a.errors.push(new ValidationErrorText('pushed in'));
+
+    list.value = [{ a: '' }];
+
+    // the hand-pushed error is gone with the reset and the validator's verdict over the value the row now holds
+    // is the one that stands
+    expect(row.fields.a.errors.length).toBe(1);
+    expect(row.valid).toBe(false);
+    expect(list.valid).toBe(false);
+  });
+
+  it('leaves a reused row indistinguishable from the row a fresh list builds', () => {
+    const template = new Group({ a: new Field({ value: 'tplA' }), b: new Field({ value: 'tplB' }) });
+    const list = new List(template);
+
+    list.value = [{ a: 'a1', b: 'b1' }];
+    list.get(0)!.touched = true;
+    list.value = [{ a: 'a2' }];
+
+    const fresh = new List(template, { value: [{ a: 'a2' }] });
+
+    expect(list.value).toEqual(fresh.value);
+    expect(list.get(0)!.originalValue).toEqual(fresh.get(0)!.originalValue);
+    expect(list.get(0)!.isChanged).toBe(fresh.get(0)!.isChanged);
+    expect(list.get(0)!.touched).toBe(fresh.get(0)!.touched);
+    expect(list.get(0)!.errors).toEqual(fresh.get(0)!.errors);
+    expect(list.get(0)!.valid).toBe(fresh.get(0)!.valid);
+  });
+
+  it('re-runs the validators of a reused row over the value it ends up with', () => {
+    const template = new Group({ a: new Field({ value: 'x', validators: [new Validators.Required()] }) });
+    const list = new List(template, { value: [{ a: 'x' }] });
+
+    list.value = [{ a: '' }];
+
+    expect(list.get(0)!.valid).toBe(false);
+    expect(list.valid).toBe(false);
+
+    list.value = [{ a: 'y' }];
+
+    expect(list.get(0)!.valid).toBe(true);
+    expect(list.valid).toBe(true);
+  });
+});
+
+describe('List value during a whole-value assignment', () => {
+  it('is never read back with a row missing', () => {
+    let list: List | undefined;
+    const seen: any[][] = [];
+    const template = new Group({
+      a: new Field({
+        validators: [
+          new Validators.Validator(() => {
+            const rows = list?.value;
+            if (rows) seen.push([...rows]);
+            return null;
+          }),
+        ],
+      }),
+    });
+    list = new List(template, { value: [{ a: '1' }] });
+    seen.length = 0;
+
+    list.value = [{ a: '2' }, { a: '3' }, { a: '4' }];
+
+    expect(seen.length).toBeGreaterThan(0);
+    seen.forEach((rows) => {
+      rows.forEach((row) => expect(row).not.toBeUndefined());
+    });
+    expect(list.value).toEqual([{ a: '2' }, { a: '3' }, { a: '4' }]);
+  });
+});
+
+describe('List value object', () => {
+  it('is not the object originalValue holds', () => {
+    const list = new List(new Group({ a: new Field({ value: 1 }) }), { value: [{ a: 1 }] });
+
+    expect(list.value).not.toBe(list.originalValue);
+    expect(list.value).toEqual(list.originalValue);
+  });
+
+  it('is frozen, rows included', () => {
+    const list = new List(new Group({ a: new Field({ value: 1 }) }), { value: [{ a: 1 }] });
+    const value = list.value!;
+
+    expect(Object.isFrozen(value)).toBe(true);
+    expect(Object.isFrozen(value[0])).toBe(true);
+    expect(() => {
+      (value[0] as any).a = 99;
+    }).toThrow();
+    expect(list.value).toEqual([{ a: 1 }]);
+  });
+});

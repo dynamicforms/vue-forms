@@ -67,6 +67,31 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 Every mutation — `push()`, `insert()`, `remove()`, `pop()`, `clear()` and assigning `value` — is tracked by Vue, so
 a `v-for` over `list.value` re-renders on its own without any additional wiring.
 
+## Scale
+
+A `List` is meant to hold thousands of rows, and what an operation costs depends on what it touches rather than on
+how long the list is:
+
+| operation | cost |
+|---|---|
+| reading `value` or `valid` again with nothing changed in between | constant — both are cached |
+| writing one field of one row | that row, plus the depth of the nesting it sits in |
+| `push()`, `insert()`, `remove()`, `pop()` | one row |
+| reading `value` after a change | one array of the current length, plus a rebuild of the rows that changed |
+| assigning `value`, or `validate(true)` | the whole list — both are statements about every row |
+
+The caches are invalidated by the write itself, so nothing has to be refreshed by hand. `value` is rebuilt on the
+first read after a change and reused until the next one, which means two consecutive reads return the same object.
+That object is frozen, rows included: writing into it throws in strict mode and is silently dropped outside it, so
+assign a new value instead. `originalValue` is a copy of its own and is not frozen.
+
+An assignment reuses the row objects it already has, position by position, so `list.get(0)` survives
+`list.value = rows` when the new array is the same length. A keyed `v-for` over the rows therefore does not remount
+them on every assignment. A reused row is reset to the state the row built for that position would have been in:
+a member the new item carries no key for takes the item template's value, and `originalValue`, `isChanged`,
+`touched` and `errors` all start over. The new set is built beside the one in place and installed whole, so a
+validator that reads `list.value` while the assignment runs never sees a position that has yet to be filled.
+
 ## Methods
 
 ### `get(index): Group<T> | undefined`
@@ -104,9 +129,14 @@ negative `index` is reported resolved there too.
 
 Removes the item at `index` and returns a detached clone of it. Triggers `ListItemRemovedAction`.
 
+The row instance the list held is released as well: it loses its `parent`, stops counting towards the list's
+validity, and can be pushed into another list — or back into this one. It is the instance `list.get(index)`
+answered with before the call, not the clone returned here.
+
 ### `clear()`
 
-Removes all items and triggers a value-changed notification.
+Removes all items and triggers a value-changed notification. Every row is released, exactly as `remove()` releases
+the one it takes out.
 
 ### `registerAction(action): this`
 

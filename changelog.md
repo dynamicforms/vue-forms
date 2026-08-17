@@ -5,6 +5,31 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+- A `List` no longer walks itself to answer a change. Every mutation and every field edit anywhere inside a
+  list used to rebuild the whole list's value, deep-compare it with the previous one and re-check the
+  validity of every field of every row, so one `insert()` cost work proportional to the entire list and
+  filling a list was quadratic in its length. `Group.value` and `List.value` are now cached behind a version
+  that a write raises along its own branch, `valid` is read through a lazily built computed and maintained
+  for events as a tally, and a mutation that nothing listens to no longer builds a value at all. Measured on
+  1000 rows of 8 fields: filling by `push()` 13.1 s to 0.37 s, writing one field 33 ms to 0.017 ms, reading
+  `list.valid` 11.3 ms to 0.0006 ms, `remove()` 27 ms to 0.75 ms. `list.value = rows` reuses the row objects
+  positionally instead of rebuilding them, so a same-length assignment keeps each row's identity and a keyed
+  `v-for` stops remounting every row. A reused row is reset to the state the row built for that position would
+  have been in, down to `originalValue`, `isChanged`, `touched` and its errors, and the new set is installed
+  whole, so a validator reading `list.value` during the assignment sees the whole list at every point.
+- A `DisplayMode` lookup no longer rebuilds the enum's value list on every call, and a form element
+  allocates its action map only when it has an action to hold.
+- The object `Group.value` and `List.value` read back is frozen, rows included: the same object answers every
+  read until the next change, and writing into it throws in strict mode. Assign a new value instead.
+  `originalValue` holds a copy of its own, so it is never the object `value` reads back.
+- A `List` releases the rows it drops - `remove()`, `pop()`, `clear()` and an assignment that shortens the list.
+  A released row loses its `parent`, stops counting towards the list's validity and can be pushed into another
+  list or back into the one that held it. A container still refuses an element that belongs to one, with a
+  `TypeError`. `remove()` returns a clone of the row, as before.
+
 ## [0.6.1] - 2026-08-17
 
 ### Added

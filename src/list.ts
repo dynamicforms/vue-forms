@@ -1,6 +1,8 @@
 import { isEmpty, isEqual } from 'lodash-es';
+import { toRaw } from 'vue';
 
 import { ListItemAddedAction, ListItemRemovedAction, ValueChangedAction } from './actions';
+import { ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
 import { GenericFieldsInterface, Group } from './group';
@@ -11,9 +13,16 @@ export type ListValue = Record<string, any>[] | null;
 export class List<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase<ListValue> {
   private _value: Group<T>[] | null = null;
 
+  /** the array the value getter last built, together with the version of the tree it was built from */
+  private _cachedValue: ListValue = null;
+
+  private _cachedValueVersion: number = -1;
+
   private _itemTemplate?: Group<T>;
 
   private _previousValue: ListValue;
+
+  private suppressNotifyValueChanged: boolean = false;
 
   constructor(itemTemplate?: Group<T>, params?: Partial<IFieldConstructorParams<ListValue>>) {
     super();
@@ -32,11 +41,18 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       if (paramValue != null) this.setValueInternal(paramValue);
     }
 
-    if (this.originalValue === undefined) this.originalValue = this.value;
+    if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
     this._previousValue = this.value;
-    // if (Object.keys(this._fields).length) console.log('formGroup created', this, Error().stack);
-    this.actions.triggerEager(this, this.value, this.originalValue);
+    this._actions?.triggerEager(this, this.value, this.originalValue);
     this.validate();
+  }
+
+  /**
+   * The copy of a built value that serves as a baseline. The value getter hands out one array per version, and a
+   * baseline holding that same array would report every value as its own original.
+   */
+  private static baseline(value: ListValue): ListValue {
+    return value == null ? value : [...value];
   }
 
   private processSetValueItem(item: any): Group<T> {
@@ -47,7 +63,9 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     else if (this._itemTemplate) res = this._itemTemplate.clone({ value: item });
     else res = Group.createFromFormData(item) as Group<T>;
 
-    Object.defineProperty(res, 'parent', { get: () => this, configurable: false, enumerable: false });
+    // an item that already belongs to a container is refused here; one this list released earlier carries no
+    // link any more and is taken like any other
+    this.takeChild(res);
 
     return res;
   }
@@ -63,30 +81,97 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   private setValueInternal(newValue: any[]) {
     // null is the value that clears, the same one Group.value = null writes into every member; without this a
     // list nested in a group would keep its rows while every sibling field was emptied
-    if (newValue == null) this._value = null;
-    else if (Array.isArray(newValue)) {
-      this._value = newValue.map((item: any) => this.processSetValueItem(item));
+    if (newValue == null) {
+      this.releaseRows();
+      this._value = null;
+    } else if (Array.isArray(newValue)) {
+      // a row that takes the new item announces the change on its own and would carry it up here in the middle of
+      // the walk; the list makes its own statement once, over the finished set, and the caller announces it
+      const outerNotify = this.suppressNotifyValueChanged;
+      const outerValidation = this.suppressValidation;
+      this.suppressNotifyValueChanged = true;
+      this.suppressValidation = true;
+      try {
+        const previous = this._value ?? [];
+        // the new set is built beside the one in place and installed whole: writing a row runs its validators, and
+        // one reading this list in the middle of the walk must not be shown a position that has yet to be filled
+        const rows: Group<T>[] = new Array(newValue.length);
+        for (let index = 0; index < newValue.length; index++) {
+          const item = newValue[index];
+          const row = previous[index];
+          // a row already standing at this index takes the new item, so its identity survives the assignment and
+          // a keyed v-for keeps the component rendering it. It needs an item template: a list without one builds
+          // every row from its own data, so two rows need not carry the same members and writing one row's data
+          // into another's members would drop whatever they do not have in common. The row is reset rather than
+          // assigned, so it ends up as the row built for this position would have been.
+          if (row && this._itemTemplate && !(item instanceof Group)) {
+            this.resetChild(row, this._itemTemplate, item);
+            rows[index] = row;
+          } else {
+            if (row) this.releaseChild(row);
+            rows[index] = this.processSetValueItem(item);
+          }
+        }
+        for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
+        this._value = rows;
+      } finally {
+        this.suppressNotifyValueChanged = outerNotify;
+        this.suppressValidation = outerValidation;
+      }
     }
+    this.bumpValueVersion();
   }
 
   get value(): ListValue {
+    // the version is a tracked read and the cache is not, so a reader that is answered from the cache still
+    // depends on every write below this list without the walk over its rows being repeated for it
+    const version = this.valueVersion;
+    const cache = toRaw(this);
+    if (cache._cachedValueVersion === version) return cache._cachedValue;
+
     const value = this._value?.map((item) => item.value);
-    return isEmpty(value) ? null : <Record<string, any>[]>value;
+    // the array outlives the read that built it - the next reader is answered with the very same one - so it is
+    // frozen, as is every row object in it; a caller writing into either would change what the list reports
+    // without any row holding that value
+    const built = isEmpty(value) ? null : (Object.freeze(value) as Record<string, any>[]);
+    cache._cachedValue = built;
+    cache._cachedValueVersion = version;
+    return built;
   }
 
   set value(newValue: Record<string, any>[]) {
-    const oldValue = this._previousValue;
     this.setValueInternal(newValue);
-    const currentValue = this.value;
-    // the cache is refreshed before the event, exactly as notifyValueChanged() does it: an item that reports a
-    // change while the handlers run must compare against the value just assigned, not against the one replaced
-    this._previousValue = currentValue;
+    // an assignment is a statement about the whole list, and it is announced as one without being compared away
+    this.announceValueChanged(true);
+  }
+
+  /**
+   * Announces the value the list now holds, as the pair (value now, value at the previous announcement), and
+   * carries the change up to the parent. `forced` states that the caller already knows the set changed, so the
+   * comparison that would otherwise establish it is skipped.
+   *
+   * The pair is only built where something receives it: with no ValueChangedAction and no eager action riding
+   * along, walking the rows would produce an array nobody reads. The notification of the parent and this list's
+   * own recomputation still happen - the rows keep the tally the recomputation reads up to date themselves.
+   */
+  private announceValueChanged(forced: boolean) {
+    const actions = this._actions?.willTrigger(ValueChangedActionClassIdentifier) ? this._actions : undefined;
+    let newValue: ListValue = null;
+    let oldValue: ListValue = null;
+    if (actions) {
+      newValue = this.value;
+      if (!forced && isEqual(newValue, this._previousValue)) return;
+      oldValue = this._previousValue;
+      // the cache is refreshed before the event: an item that reports a change while the handlers run must
+      // compare against the value just assigned, not against the one replaced
+      this._previousValue = newValue;
+    }
     // the parent learns of the new value below and validates itself from there, over the whole value; a validator
     // running on this list must therefore not send it a verdict of its own in the meantime
     const outerClimb = this.suppressParentValidityClimb;
     this.suppressParentValidityClimb = true;
     try {
-      this.actions.trigger(ValueChangedAction, this, currentValue, oldValue);
+      if (actions) actions.trigger(ValueChangedAction, this, newValue, oldValue);
       if (this.parent) this.parent.notifyValueChanged();
     } finally {
       this.suppressParentValidityClimb = outerClimb;
@@ -96,6 +181,19 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       // parent would keep a verdict the members no longer support.
       this.flushParentValidityClimb();
     }
+  }
+
+  /**
+   * The rows are taken from `source` where the caller supplied no value of its own, so a list nested in a row that
+   * a whole-list assignment reuses ends up holding what the template gives it rather than what it held before.
+   */
+  protected resetTo(source: FieldBase, value: any): void {
+    if (this.errors.length) this.errors = [];
+    this.setValueInternal(value === undefined ? (source as List<T>).value : value);
+    const built = this.value;
+    this._previousValue = built;
+    this.originalValue = List.baseline(built);
+    super.validate(true);
   }
 
   get touched(): boolean {
@@ -116,31 +214,29 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
-    res.actions = this.actions.clone();
-    res.actions.triggerEager(res, res.value, res.originalValue);
+    if (this._actions) {
+      const actions = this._actions.clone();
+      res._actions = actions;
+      actions.triggerEager(res, res.value, res.originalValue);
+    }
     return res;
   }
 
   notifyValueChanged() {
-    const newValue = this.value;
-    if (!isEqual(newValue, this._previousValue)) {
-      const oldValue = this._previousValue;
-      this._previousValue = newValue;
-      const outerClimb = this.suppressParentValidityClimb;
-      this.suppressParentValidityClimb = true;
-      try {
-        this.actions.trigger(ValueChangedAction, this, newValue, oldValue);
-        if (this.parent) this.parent.notifyValueChanged();
-      } finally {
-        this.suppressParentValidityClimb = outerClimb;
-        this.validate();
-        this.flushParentValidityClimb();
-      }
-    }
+    if (this.suppressNotifyValueChanged) return;
+    this.announceValueChanged(false);
+  }
+
+  protected refreshPreviousValue(): void {
+    this._previousValue = this.value;
   }
 
   get valid() {
-    return super.valid && (this._value?.every((item) => item.valid) ?? true);
+    return this.validRead;
+  }
+
+  protected composeValid(): boolean {
+    return this.errors.length === 0 && (this._value?.every((item) => item.valid) ?? true);
   }
 
   validate(revalidate: boolean = false) {
@@ -177,12 +273,15 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     let removedItem = this._value.splice(index, 1)?.[0];
 
     if (removedItem) {
+      this.releaseChild(removedItem);
+      this.bumpValueVersion();
       // Remove parent reference
       removedItem = removedItem.clone();
 
       // Trigger events
-      this.actions.trigger(ListItemRemovedAction, this, removedItem, index);
-      this.notifyValueChanged();
+      this._actions?.trigger(ListItemRemovedAction, this, removedItem, index);
+      // one item fewer is a different set, so no comparison is needed to establish that the value changed
+      this.announceValueChanged(true);
     }
 
     return removedItem;
@@ -198,20 +297,31 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       const itm = this.createPaddingItem();
       // push returns the new length, while the event carries the index of the item that was added
       const idx = this._value.push(itm) - 1;
-      this.actions.trigger(ListItemAddedAction, this, itm, idx);
+      this.bumpValueVersion();
+      this._actions?.trigger(ListItemAddedAction, this, itm, idx);
     }
     const itm = this.processSetValueItem(item);
     this._value.splice(position, 0, itm);
+    this.bumpValueVersion();
 
-    this.actions.trigger(ListItemAddedAction, this, itm, position);
-    this.notifyValueChanged();
+    this._actions?.trigger(ListItemAddedAction, this, itm, position);
+    // one item more is a different set, so no comparison is needed to establish that the value changed
+    this.announceValueChanged(true);
 
     return position;
   }
 
+  /** Drops every row this list holds out of its tally, so a row that changes its verdict later is not counted. */
+  private releaseRows(): void {
+    this._value?.forEach((row) => this.releaseChild(row));
+  }
+
   clear() {
+    const hadItems = (this._value?.length ?? 0) > 0;
+    this.releaseRows();
     this._value = null;
-    this.notifyValueChanged();
+    this.bumpValueVersion();
+    this.announceValueChanged(hadItems);
   }
 }
 

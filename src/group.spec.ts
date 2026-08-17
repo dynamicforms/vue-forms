@@ -629,3 +629,108 @@ describe('Group value = null', () => {
     expect(group.clone({ value: null }).value).toEqual({ f: null, l: null });
   });
 });
+
+describe('Group value caching', () => {
+  it('answers a repeated read with the object it built last, and with a new one after a member changes', () => {
+    const group = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+
+    const first = group.value;
+    expect(group.value).toBe(first);
+
+    group.fields.a.value = 9;
+
+    const second = group.value;
+    expect(second).not.toBe(first);
+    expect(second).toEqual({ a: 9, b: 2 });
+    expect(group.value).toBe(second);
+    // the object handed out earlier keeps the value it was built from instead of being rewritten in place
+    expect(first).toEqual({ a: 1, b: 2 });
+  });
+
+  it('builds a new object when a member is disabled, because a disabled member stops serializing', () => {
+    const group = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+    const before = group.value;
+
+    group.fields.b.enabled = false;
+
+    expect(group.value).not.toBe(before);
+    expect(group.value).toEqual({ a: 1 });
+  });
+
+  it('supersedes the value of every ancestor when a leaf deep inside is written', () => {
+    const leaf = new Field({ value: 1 });
+    const inner = new Group({ leaf });
+    const rows = new List(new Group({ n: new Field({ value: 0 }) }), { value: [{ n: 1 }] });
+    const root = new Group({ inner, rows });
+
+    const innerBefore = inner.value;
+    const rootBefore = root.value;
+
+    leaf.value = 2;
+
+    expect(inner.value).not.toBe(innerBefore);
+    expect(root.value).not.toBe(rootBefore);
+    expect(root.value).toEqual({ inner: { leaf: 2 }, rows: [{ n: 1 }] });
+
+    const rowsBefore = rows.value;
+    const rootBetween = root.value;
+
+    rows.get(0)!.fields.n.value = 7;
+
+    expect(rows.value).not.toBe(rowsBefore);
+    expect(root.value).not.toBe(rootBetween);
+    expect(root.value).toEqual({ inner: { leaf: 2 }, rows: [{ n: 7 }] });
+  });
+});
+
+describe('Group validity reading', () => {
+  it('reports a group invalid over an error pushed into a member without any validate() call', () => {
+    const member = new Field({ value: 'x' });
+    const inner = new Group({ member });
+    const root = new Group({ inner });
+    expect(root.valid).toBe(true);
+
+    inner.fields.member.errors.push(new ValidationErrorText('pushed in'));
+
+    expect(inner.valid).toBe(false);
+    expect(root.valid).toBe(false);
+  });
+});
+
+describe('Group value object', () => {
+  it('is not the object originalValue holds', () => {
+    const group = new Group({ a: new Field({ value: 1 }) });
+
+    expect(group.value).not.toBe(group.originalValue);
+    expect(group.value).toEqual(group.originalValue);
+  });
+
+  it('is frozen, so the value the group reports cannot be rewritten behind its back', () => {
+    const group = new Group({ a: new Field({ value: 1 }) });
+    const value = group.value!;
+
+    expect(Object.isFrozen(value)).toBe(true);
+    expect(() => {
+      (value as any).a = 99;
+    }).toThrow();
+    expect(group.value).toEqual({ a: 1 });
+    expect(group.originalValue).toEqual({ a: 1 });
+  });
+});
+
+describe('Group field ownership', () => {
+  it('refuses a field another group already holds', () => {
+    const shared = new Field({ value: 1 });
+    const first = new Group({ shared });
+
+    expect(() => new Group({ shared })).toThrow(TypeError);
+    expect(shared.parent).toBe(first);
+    expect(first.value).toEqual({ shared: 1 });
+  });
+
+  it('refuses a field a list row already holds', () => {
+    const list = new List(new Group({ a: new Field({ value: 'x' }) }), { value: [{ a: 'y' }] });
+
+    expect(() => new Group({ borrowed: list.get(0)!.fields.a })).toThrow(TypeError);
+  });
+});

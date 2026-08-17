@@ -49,6 +49,7 @@ export default defineConfig({
           text: 'Examples',
           items: [
             { text: 'Basic Form', link: '/examples/basic-form' },
+            { text: 'List', link: '/examples/list' },
             { text: 'Validators', link: '/examples/validators' },
             { text: 'Conditional statements', link: '/examples/conditional-statement' },
             { text: 'Messages widget', link: '/examples/messages-widget' },
