@@ -341,9 +341,9 @@ describe('List', () => {
     // Check that item has parent reference
     const item = list.get(0);
     expect(item?.parent).toBe(list);
-    // the back-reference stays non-enumerable, so serializing the list does not walk back up into it
+    // the back-reference stays out of enumeration, so serializing the list does not walk back up into it
     expect(Object.keys(item!)).not.toContain('parent');
-    expect(Object.getOwnPropertyDescriptor(item!, 'parent')!.enumerable).toBe(false);
+    expect(JSON.stringify(item)).not.toContain('parent');
     expect(() => JSON.stringify(list)).not.toThrow();
 
     // When we pop, the parent link is removed via cloning

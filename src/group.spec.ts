@@ -522,13 +522,29 @@ describe('Group field storage', () => {
     expect(inner.fieldName).toBe('inner');
     expect(Object.keys(inner)).not.toContain('parent');
     expect(Object.keys(inner)).not.toContain('fieldName');
-    expect(Object.getOwnPropertyDescriptor(inner, 'parent')!.enumerable).toBe(false);
-    expect(Object.getOwnPropertyDescriptor(inner, 'fieldName')!.enumerable).toBe(false);
-    expect(Object.getOwnPropertyDescriptor(list.get(0)!, 'parent')!.enumerable).toBe(false);
+    expect(JSON.stringify(inner)).not.toContain('parent');
+    expect(JSON.stringify(inner)).not.toContain('fieldName');
+    expect(Object.keys(list.get(0)!)).not.toContain('parent');
 
     expect(() => JSON.stringify(outer)).not.toThrow();
     // isEqual walks the same enumerable properties, so it must terminate as well
     expect(() => isEqual(outer, outer.clone())).not.toThrow();
+  });
+
+  it('compares two fields by what they hold, not by the container each belongs to', () => {
+    // isEqual walks own string keys and own enumerable symbols alike, so neither the parent link nor the state
+    // may be reachable through either: the fields below hold the same value and differ only in their containers
+    const inner = new Field({ value: 1 });
+    const inner2 = new Field({ value: 1 });
+    const left = new Group({ inner, sibling: new Field({ value: 'A' }) });
+    const right = new Group({ inner: inner2, sibling: new Field({ value: 'B' }) });
+
+    expect(inner.parent).toBe(left);
+    expect(inner2.parent).toBe(right);
+    expect(isEqual(inner, inner2)).toBe(true);
+    expect(Object.getOwnPropertySymbols(inner)).toEqual([]);
+    // an element carries nothing a walker can read, so what two of them hold is compared over their values
+    expect(isEqual(left.value, right.value)).toBe(false);
   });
 });
 

@@ -5,9 +5,28 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [0.7.0] - 2026-08-17
 
 ### Changed
+- **Breaking:** `watch(field, cb)` and `watch([field], cb)`, with a form element passed directly as the watch
+  source, no longer fire. A form element is no longer a Vue proxy of itself - its mutable state is held in a
+  reactive object beside it, and the element carries `__v_skip` - so the deep traversal Vue starts for a reactive
+  source stops immediately and the watcher subscribes to nothing. Nothing is logged and nothing throws, so this
+  is worth searching for: `watch(() => field.value, cb)` is the replacement, and every other read is unchanged.
+  Templates, `computed`, `watchEffect` and a getter passed to `watch` all track field members exactly as before.
+  `toRaw(field)` now returns the field itself. A write the value setter refuses - the same value, or any value
+  on a disabled field - no longer re-runs the effects that read the value.
+- **Breaking:** `readonly(element)` no longer protects anything, and fails as silently as the watch above. Vue's
+  `readonly()` stops on `__v_skip` and hands the element straight back, so `readonly(field) === field`,
+  `isReadonly()` on the result is `false`, and a write through it reaches the field. Hand out the value -
+  `field.value` and `group.value` are frozen - or a `computed` over it.
+- **Breaking:** an element's state is held in private class fields, so nothing outside the element reaches it.
+  `parent` and `fieldName` are read-only accessors over that state instead of own properties - assigning either
+  yourself throws a `TypeError` rather than being silently accepted. `Object.keys(element)`,
+  `Object.getOwnPropertySymbols(element)`, `JSON.stringify(element)` and lodash `isEqual` see none of an
+  element's state: a structure that contains its own descendants' back-references is walked by all four without
+  climbing back up, and `isEqual` over two elements answers `true` for any two instances of the same class.
+  Compare `a.value` with `b.value` instead.
 - A `List` no longer walks itself to answer a change. Every mutation and every field edit anywhere inside a
   list used to rebuild the whole list's value, deep-compare it with the previous one and re-check the
   validity of every field of every row, so one `insert()` cost work proportional to the entire list and

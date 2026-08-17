@@ -1,14 +1,28 @@
 import { ValueChangedAction } from './actions';
+import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
 
 class Field<T = any> extends FieldBase<T> {
-  protected _value: T = undefined!;
+  protected get state(): FieldSlots<T> {
+    return super.state as FieldSlots<T>;
+  }
 
-  protected _touched: boolean = false;
+  protected get raw(): FieldSlots<T> {
+    return super.raw as FieldSlots<T>;
+  }
+
+  /** the value slot itself, without the notifications the value setter carries around a write */
+  protected get _value(): T {
+    return this.state.value;
+  }
+
+  protected set _value(newValue: T) {
+    this.state.value = newValue;
+  }
 
   constructor(params?: Partial<IFieldConstructorParams<T>>) {
-    super();
+    super(fieldSlots<T>());
     this.init(params);
   }
 
@@ -63,11 +77,11 @@ class Field<T = any> extends FieldBase<T> {
   }
 
   get touched(): boolean {
-    return this._touched;
+    return this.state.touched;
   }
 
   set touched(touched: boolean) {
-    this._touched = touched;
+    this.state.touched = touched;
   }
 
   clone(overrides?: Partial<IFieldConstructorParams<T>>): this {

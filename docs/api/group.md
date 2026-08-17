@@ -42,7 +42,9 @@ Field names are ordinary keys of the `fields` map, so names that collide with `O
 
 Each entry of `fields` is a non-configurable getter, so the map cannot be rewritten from outside: `group.fields.name = otherField` and `delete group.fields.name` both throw a `TypeError`. A field swapped in that way would never get `parent`, `fieldName` or change notifications. Build a new `Group` instead.
 
-`parent` and `fieldName` are non-enumerable, which keeps the parent link out of `Object.keys(field)`, `JSON.stringify(field)` and lodash `isEqual` — all three terminate on a group that contains its own descendants' back-references.
+`parent` and `fieldName` are read-only accessors over an element's state, and that state is held in private class fields — invisible to `Object.keys(field)`, `Object.getOwnPropertySymbols(field)`, `JSON.stringify(field)` and lodash `isEqual` alike. The parent link is therefore out of reach of all four, and a walk over a group that contains its own descendants' back-references terminates. The container writes both; assigning either yourself throws a `TypeError`.
+
+The same opacity means an element is not worth handing to a structural comparison: `isEqual(fieldA, fieldB)` reads nothing either field holds and answers `true` for any two instances of the same class. Compare `fieldA.value` with `fieldB.value` instead.
 
 ## Types
 

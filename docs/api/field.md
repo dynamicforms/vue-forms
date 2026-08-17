@@ -35,9 +35,9 @@ finished value.
 
 Those are the only accepted parameters: they are exactly the writable members of a field. Derived members
 (`valid`, `validating`, `fullValue`, `isChanged`) and the container back-references (`parent`, `fieldName`) are
-rejected by the type checker. The derived members are getter-only, so assigning one throws a `TypeError`;
-`parent` and `fieldName` are installed by the container, and only throw once a `Group` or `List` has defined
-them as getter-only accessors.
+rejected by the type checker. All six are getter-only, so assigning any of them throws a `TypeError` — on a field
+that belongs to no container as much as on one that does. The container installs `parent` and `fieldName`; there
+is no way to write either from outside.
 
 The generic argument is inferred from `params.value`, so `new Field({ value: 'John' })` is a `Field<string>` and
 `new Field()` is a `Field<any>`. Pass it explicitly when the initial value does not pin the type you want:
@@ -77,7 +77,7 @@ const field = new Field(defaults);
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `T` | yes | Current value. The setter is a no-op on a disabled field, and for primitives also when the new value is `===` the current one. For object and array values every assignment fires `ValueChangedAction`, even with the same reference, because the field is a `reactive()` instance and reads return a proxy. `isChanged` is separate and uses deep equality. |
+| `value` | `T` | yes | Current value. The setter is a no-op on a disabled field, and for primitives also when the new value is `===` the current one. For object and array values every assignment fires `ValueChangedAction`, even with the same reference, because the value is held in a reactive slot and a read of it returns a proxy of the object. `isChanged` is separate and uses deep equality. |
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
 | `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value` |
@@ -87,7 +87,7 @@ const field = new Field(defaults);
 | `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()`. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, but normally managed by validators. Writing to it is a plain property write and recomputes nothing on its own — call `validate()` afterwards to have `valid`, `ValidChangedAction` and the parent container follow |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
-| `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container as a getter-only accessor and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `clone()`. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only |
+| `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `clone()`. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field` |
 
@@ -168,9 +168,11 @@ It provides `originalValue`, `enabled`, `visibility`, `valid`, `errors`, `valida
 `clearValidators()`, `beginValidating()` and `endValidating()` — which is why those work the same way on every form
 element. `value`, `touched` and `clone()` are abstract and supplied by each subclass.
 
-Its constructor returns the Vue reactive proxy of the instance, which is what makes every form element reactive
-without a wrapper. A subclass constructor therefore operates on the proxy, and so does anything that reads `this`
-afterwards.
+It holds every mutable member of an element in a reactive state object beside it, which is what makes every form
+element reactive without a wrapper: reading `field.value` in a template or a `computed` subscribes to that one
+slot, and assigning it re-renders whatever read it. The element itself is not a proxy, so `toRaw(field)` is
+`field` — and `watch(field, cb)` with a bare element as the source never fires. Watch what you read:
+`watch(() => field.value, cb)`.
 
 `instanceof FieldBase` is both the recommended type guard and the runtime check the library itself performs:
 `new Group({...})` rejects a member that is not a `FieldBase` with `Error('Invalid fields object provided')`.

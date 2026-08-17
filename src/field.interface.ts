@@ -12,8 +12,8 @@ export interface IFieldConstructorActionsList {
  * Parameters accepted by field constructors and by clone overrides.
  *
  * Only writable members are listed. valid, validating, fullValue and isChanged are getter-only, so assigning
- * them throws a TypeError. parent and fieldName are set by the container: until a Group or List installs them
- * as non-configurable accessors, assigning them is silently accepted, which is why the type rejects them.
+ * them throws a TypeError. So are parent and fieldName: a container writes the slots behind them when it takes
+ * an element, and nobody else can, which is why the type rejects them.
  */
 export type IFieldConstructorParams<T = any> = {
   value: T;
