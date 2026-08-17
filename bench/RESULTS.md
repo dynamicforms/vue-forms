@@ -85,3 +85,55 @@ the library, which cannot be observed without changing its source. Retained byte
 
 Re-render counts and `[Vue warn]` counts need a mounted component; this harness has none. Those live in
 `src/reactivity-render.spec.ts`, which passes unedited.
+
+---
+
+# 0.9.0
+
+Same machine, same fixtures and same commands. The 0.8.0 column is carried over from the table above rather than
+re-measured, so this comparison crosses sessions and is not the controlled one that pair is. Two full runs of
+0.9.0; every cell is the lower of the two run means.
+
+The fixtures build lists of `Group`s of `Field`s and contain no `Action`, so this release changes nothing they
+exercise. The point of the run is that it says so.
+
+## Wall clock
+
+| id | scenario | variant | 0.8.0 | 0.9.0 |
+|---|---|---|---:|---:|
+| S1a | `new List(tpl, { value: rows })`, 1000 rows | plain | 192.8 ms | 188.3 ms |
+| S1a | | conditional | 199.9 ms | 196.2 ms |
+| S1b | 1000 × `push()` | plain | 186.4 ms | 186.9 ms |
+| S1b | | conditional | 191.3 ms | 190.0 ms |
+| S2a | write one field in row 500 | plain | 0.0097 ms | 0.0100 ms |
+| S2a | | conditional | 0.0100 ms | 0.0118 ms |
+| S3 | `remove(500)` | plain | 0.5524 ms | 0.5587 ms |
+| S3 | | conditional | 0.5264 ms | 0.5006 ms |
+| S4a | `list.value = rows`, same length | plain | 24.33 ms | 24.22 ms |
+| S4a | | conditional | 24.00 ms | 24.45 ms |
+| S4b | `list.value = rows`, different length | plain | 23.73 ms | 24.57 ms |
+| S4b | | conditional | 23.96 ms | 24.26 ms |
+| S6 | read `list.valid` | plain | 0.0002 ms | 0.0003 ms |
+| S6 | | conditional | 0.0003 ms | 0.0003 ms |
+| S6 | write one field, then read `list.valid` | plain | 0.0129 ms | 0.0114 ms |
+| S6 | | conditional | 0.0097 ms | 0.0117 ms |
+
+Every cell is inside the run-to-run spread the 0.8.0 section records for it, and the microsecond scenarios carry
+the widest of it: S2a and the S6 write are the same operation measured twice, and they move in opposite
+directions here.
+
+## Memory and structure
+
+| | 0.8.0 | 0.9.0 |
+|---|---:|---:|
+| retained bytes per field, plain | 1463.4 | 1463.3 |
+| retained bytes per field, conditional | 1499.0 | 1499.0 |
+| retained KiB per 1000-row list, plain | 11 432.7 | 11 432.2 |
+| retained KiB per 1000-row list, conditional | 11 710.9 | 11 711.1 |
+| Vue proxies per row | 9 | 9 |
+| validator runs per field, `new Field({ value, validators })` | 1 | 1 |
+| validator runs per row | 16 | 16 |
+
+`busy` allocates a Vue ref per action, in a `WeakMap` outside the action, and only for an action somebody
+executes or reads the flag on. No element gains a byte until then, which is what the unchanged per-field figures
+say.

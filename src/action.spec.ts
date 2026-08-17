@@ -1,14 +1,16 @@
-import { reactive } from 'vue';
+import { nextTick, reactive, watchEffect } from 'vue';
 
 import { Action, ActionValue } from './action';
 import {
   EnabledChangedAction,
   EnabledChangingAction,
   ExecuteAction,
+  ValueChangedAction,
   VisibilityChangedAction,
   VisibilityChangingAction,
 } from './actions';
 import DisplayMode from './display-mode';
+import { Group } from './group';
 import { Validators } from './validators';
 
 describe('Action', () => {
@@ -53,43 +55,91 @@ describe('Action', () => {
     expect(action.icon).toBe('plus');
   });
 
-  it('should maintain reactivity of input ActionValue object', () => {
-    // Arrange
+  it('keeps reading a value object the caller goes on to write', () => {
     const reactiveValue = reactive({ label: 'Initial', icon: 'start' });
     const action = new Action({ value: reactiveValue });
 
-    // Act - change original reactive object
     reactiveValue.label = 'Modified';
 
-    // Assert - action should reflect the change
     expect(action.label).toBe('Modified');
     expect(action.value.label).toBe('Modified');
-    // expect(changeCount).toBe(1);
+  });
 
-    // Act - change via action setter
+  it('replaces the value object rather than writing into it', () => {
+    const supplied = reactive({ label: 'Initial', icon: 'start' });
+    const action = new Action({ value: supplied });
+
     action.icon = 'new-icon';
 
-    // Assert - original reactive object should also change
-    expect(reactiveValue.icon).toBe('new-icon');
+    expect(action.icon).toBe('new-icon');
+    expect(action.label).toBe('Initial');
+    expect(action.value).not.toBe(supplied);
+    expect(supplied.icon).toBe('start');
   });
 
-  it('should lose maintain reactivity when input object is incomplete', () => {
-    // Arrange
-    const reactiveValue = reactive({ label: 'Initial' } as ActionValue); // missing icon
-    const action = new Action({ value: reactiveValue });
+  it('announces a label or icon written through the setter', () => {
+    const seen: ActionValue[] = [];
+    const action = new Action({ value: { label: 'Save', icon: 'save' } });
+    action.registerAction(new ValueChangedAction((field, supr, newValue) => seen.push(newValue)));
 
-    // Act - change original reactive object
-    action.icon = 'icon';
+    expect(action.isChanged).toBe(false);
 
-    // Assert - action should reflect the change
-    expect(reactiveValue.label).toBe('Initial');
-    expect(reactiveValue.icon).toBe('icon');
+    action.label = 'Submit';
 
-    action.label = 'Modified';
-    expect(reactiveValue.label).toBe('Modified');
+    expect(seen).toEqual([{ label: 'Submit', icon: 'save' }]);
+    expect(action.isChanged).toBe(true);
   });
 
-  it('should execute action with ExecuteAction', () => {
+  it('says nothing when the label written is the one already held', () => {
+    const seen: ActionValue[] = [];
+    const action = new Action({ value: { label: 'Save', icon: 'save' } });
+    action.registerAction(new ValueChangedAction((field, supr, newValue) => seen.push(newValue)));
+
+    action.label = 'Save';
+    action.icon = 'save';
+
+    expect(seen).toEqual([]);
+    expect(action.isChanged).toBe(false);
+  });
+
+  it('leaves the value of every container above intact when the label written is the one already held', () => {
+    const action = new Action({ value: { label: 'Save', icon: 'save' } });
+    const outer = new Group({ inner: new Group({ act: action }) });
+    const before = outer.value;
+
+    action.label = 'Save';
+
+    expect(outer.value).toBe(before);
+  });
+
+  it('clears a member without carrying an undefined key into the value', () => {
+    const action = new Action({ value: { label: 'Save' } });
+
+    action.icon = 'save';
+    action.icon = undefined;
+
+    expect(Object.keys(action.value)).toEqual(['label']);
+    expect(action.isChanged).toBe(false);
+  });
+
+  it('reports no change for a member cleared that was never set', () => {
+    const action = new Action({ value: { label: 'Save' } });
+
+    action.icon = undefined;
+
+    expect(Object.keys(action.value)).toEqual(['label']);
+    expect(action.isChanged).toBe(false);
+  });
+
+  it('refuses a label written on a disabled action', () => {
+    const action = new Action({ value: { label: 'Save' }, enabled: false });
+
+    action.label = 'Submit';
+
+    expect(action.label).toBe('Save');
+  });
+
+  it('should execute action with ExecuteAction', async () => {
     // Arrange
     let executedParams: any;
     const executeAction = new ExecuteAction((field, supr, params) => {
@@ -103,10 +153,96 @@ describe('Action', () => {
 
     // Act
     const params = { data: 'test-data' };
-    action.execute(params);
+    const running = action.execute(params);
 
-    // Assert
+    // Assert - the chain is entered synchronously, so the handler has already seen the parameters
     expect(executedParams).toEqual(params);
+    await running;
+  });
+});
+
+describe('Action execution', () => {
+  it('answers what the handler returned', async () => {
+    const action = new Action({ actions: [new ExecuteAction(() => 'saved')] });
+
+    await expect(action.execute()).resolves.toBe('saved');
+  });
+
+  it('answers null when nothing is registered', async () => {
+    await expect(new Action().execute()).resolves.toBeNull();
+  });
+
+  it('leaves an action nothing was registered on without an actions map', async () => {
+    const action = new Action({ value: { label: 'Save' } });
+
+    await action.execute();
+
+    expect((action as unknown as { _actions?: unknown })._actions).toBeUndefined();
+  });
+
+  it('is busy for as long as an asynchronous handler runs', async () => {
+    let settle: (value: string) => void = () => null;
+    const action = new Action({
+      actions: [new ExecuteAction(() => new Promise<string>((resolve) => (settle = resolve)))],
+    });
+
+    expect(action.busy).toBe(false);
+
+    const running = action.execute();
+    expect(action.busy).toBe(true);
+
+    settle('done');
+    await expect(running).resolves.toBe('done');
+    expect(action.busy).toBe(false);
+  });
+
+  it('clears busy when the handler rejects, and rejects with what it threw', async () => {
+    const action = new Action({
+      actions: [
+        new ExecuteAction(() => {
+          throw new Error('submit failed');
+        }),
+      ],
+    });
+
+    await expect(action.execute()).rejects.toThrow('submit failed');
+    expect(action.busy).toBe(false);
+  });
+
+  it('counts overlapping runs, so busy stands until the last of them settles', async () => {
+    const pending: ((value: unknown) => void)[] = [];
+    const action = new Action({
+      actions: [new ExecuteAction(() => new Promise((resolve) => pending.push(resolve)))],
+    });
+
+    const first = action.execute();
+    const second = action.execute();
+    expect(action.busy).toBe(true);
+
+    pending[0](null);
+    await first;
+    expect(action.busy).toBe(true);
+
+    pending[1](null);
+    await second;
+    expect(action.busy).toBe(false);
+  });
+
+  it('re-renders a reader of busy as the flag moves', async () => {
+    let settle: (value: unknown) => void = () => null;
+    const action = new Action({
+      actions: [new ExecuteAction(() => new Promise((resolve) => (settle = resolve)))],
+    });
+    const seen: boolean[] = [];
+    watchEffect(() => seen.push(action.busy));
+
+    const running = action.execute();
+    await nextTick();
+    settle(null);
+    await running;
+    await nextTick();
+
+    expect(seen).toEqual([false, true, false]);
   });
 });
 

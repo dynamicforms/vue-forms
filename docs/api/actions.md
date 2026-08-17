@@ -165,7 +165,7 @@ field.registerAction(new ExecuteAction((field, supr, params) => {
 field.triggerAction(ExecuteAction, { reason: 'submit' });
 ```
 
-`triggerAction()` returns whatever the chain returns, or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action, but discards the result — use `triggerAction(ExecuteAction, params)` when you need the returned value.
+`triggerAction()` returns whatever the chain returns, or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and answers the same value, wrapped in a promise.
 
 ### The `Action` class
 
@@ -176,20 +176,21 @@ import { Action, ExecuteAction } from '@dynamicforms/vue-forms';
 
 const save = new Action({ value: { label: 'Save', icon: 'save' } });
 
-save.registerAction(new ExecuteAction((field, supr, params) => {
-  submitForm(params);
+save.registerAction(new ExecuteAction(async (field, supr, params) => {
+  await submitForm(params);
   return supr(field, params);
 }));
 
-save.execute({ reason: 'toolbar' }); // triggers ExecuteAction, returns undefined
+await save.execute({ reason: 'toolbar' }); // save.busy is true until this settles
 ```
 
 | Member | Description |
 |--------|-------------|
 | `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — a `Partial<IFieldConstructorParams<T>>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value |
-| `label` | Getter/setter for `value.label` |
-| `icon` | Getter/setter for `value.icon` |
-| `execute(params)` | Triggers `ExecuteAction` on this action; returns `undefined` |
+| `label` | Reads `value.label`; writing it assigns a new value object carrying the new label |
+| `icon` | Reads `value.icon`; writing it assigns a new value object carrying the new icon |
+| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise |
+| `busy` | `true` from the call to `execute()` until the run it started settles |
 
 `ActionValue` is the exported shape of the value: `{ label?: string; icon?: string }`. `Action<T extends
 ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members is inferred from
@@ -201,9 +202,29 @@ empty and is replaced — by `params.originalValue` if you passed one, otherwise
 `params.originalValue` is copied into a frozen `{ label, icon }` object; passing only `value` makes `originalValue`
 that same value object, so `isChanged` starts out `false`.
 
+`label` and `icon` write through the value setter, so each is an ordinary value change: `ValueChangedAction` fires,
+`isChanged` answers over it, and a disabled action refuses the write. The value object the action holds is replaced
+rather than written into, so an object you passed as `params.value` and kept a reference to no longer follows the
+action once either setter has run. Writing the value the action already holds is not a change: it announces
+nothing and leaves the value of every container above untouched. Assigning `undefined` clears the member out of
+the value object rather than leaving a key holding `undefined`, so an action whose icon was never set reads as
+unchanged after `action.icon = undefined`.
+
+`execute()` is asynchronous. The chain is entered synchronously — a handler has already run by the time `execute()`
+returns — and the promise settles with what the chain produced, awaiting it where the handler returned a promise of
+its own. `busy` stands for that whole span, on the action rather than in its value, and is cleared whether the run
+resolves or rejects; overlapping runs are counted, so it stands until the last of them settles.
+
 ::: warning
-Setting `label` or `icon` mutates the existing value object in place, so it does **not** fire `ValueChangedAction`.
+A handler that throws rejects the promise instead of throwing out of the `execute()` call, so a caller that
+neither awaits the answer nor attaches a `.catch()` leaves the rejection unhandled — which under node's default
+settings ends the process. A template handler such as `@click="save.execute()"` is safe: Vue attaches its own
+catch to the promise an event handler returns and routes the error to `app.config.errorHandler`.
 :::
+
+```vue
+<button :disabled="!save.enabled || save.busy" @click="save.execute()">{{ save.label }}</button>
+```
 
 ### `NullableAction`
 

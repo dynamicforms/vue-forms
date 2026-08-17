@@ -91,9 +91,6 @@ about the shape of signatures and of the published package — after 1.0 those c
   `isChanged` and reads back `null`, so a list built from a server baseline is dirty before anyone touches it.
 - **`DisplayMode`:** an invalid *string* silently becomes `FULL`, an invalid *number* throws
   (`src/display-mode.ts:29-32`).
-- **`Action.label`/`icon` write into the value object behind the setter's back**: no `ValueChangedAction`
-  fires, `isChanged` is structurally always `false`, and `new Action({}).label = 'X'` throws on the
-  frozen object (`src/action.ts`).
 - **`EmptyField` is a shared mutable singleton** (`src/field.ts`) — `visibility`/`enabled` can be
   overwritten with no warning.
 - **Validators are exported twice:** `Validator` is top-level *and* in `Validators`, while the concrete
@@ -129,7 +126,10 @@ about the shape of signatures and of the published package — after 1.0 those c
 `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
 `Operator.NOT` requires a dummy third argument · `parent` is `configurable: false` (documented) ·
 `Group.addField`/`List.length`/`items` are missing (additive) ·
-`Group`/`List` do not aggregate `validating` · a superseded asynchronous result is dropped, but the request
+`Group`/`List` do not aggregate `validating` or `busy`, so a form cannot ask whether anything below it is
+running · a rejection out of `Action.execute()` has nowhere to go but the caller: a call that neither awaits the
+answer nor attaches a `.catch()` leaves it unhandled, and the library offers no configured error handler to
+route it to · a superseded asynchronous result is dropped, but the request
 behind it keeps running: `ValidationFunction` receives no `AbortSignal`, so nothing cancels the call at the
 network level and fast typing leaves a request in flight per keystroke — the fourth argument is additive, and it
 is also what a rolled-back transaction would need to stop a validation it started, which today runs to the end
