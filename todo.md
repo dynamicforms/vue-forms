@@ -114,10 +114,9 @@ about the shape of signatures and of the published package — after 1.0 those c
   the whole 1.x line.
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
   request changes the setting for everyone. `FormsConfig`/`getConfig`/`setConfig` are not exported.
-- **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, the rule that a disabled
-  child `Group` still serializes when its own value is non-empty, and `clearValidators()` with non-validator
-  actions — nothing asserts that an ordinary `ValueChangedAction` survives it. Nothing tests the built artifact
-  or the export list.
+- **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, and the rule that a disabled
+  child `Group` still serializes when its own value is non-empty. Nothing tests the built artifact or the export
+  list.
 - **Documentation:** there is no versioning/stability statement and no supported Vue/browser matrix, and the
   sidebar has no changelog entry.
 
@@ -126,13 +125,19 @@ about the shape of signatures and of the published package — after 1.0 those c
 ## Can wait (non-breaking to add later)
 
 `AbortEventHandlingException` does not veto `*Changing*` events (documented as it behaves) ·
-`enabled`/`visibility` fire events even without an actual change · an exception from a handler leaves parents
-with a stale cache · `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
+`enabled`/`visibility` fire events even without an actual change ·
+`Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
 `Operator.NOT` requires a dummy third argument · `parent` is `configurable: false` (documented) ·
 `Group.addField`/`List.length`/`items` are missing (additive) ·
 `Group`/`List` do not aggregate `validating` · a superseded asynchronous result is dropped, but the request
 behind it keeps running: `ValidationFunction` receives no `AbortSignal`, so nothing cancels the call at the
-network level and fast typing leaves a request in flight per keystroke — the fourth argument is additive ·
+network level and fast typing leaves a request in flight per keystroke — the fourth argument is additive, and it
+is also what a rolled-back transaction would need to stop a validation it started, which today runs to the end
+with its verdict discarded ·
+a rollback does not un-register the actions registered while the transaction was open: `ActionsMap` nests each
+handler in a closure that calls the previous one, so a single registration cannot be taken back · between
+`clearValidators()` and the end of the operation it ran in, a dropped `CompareTo` can still fire and push an
+error onto the field it was dropped from, because its listener is released at commit ·
 `InAllowedValues` freezes the list at
 construction · `ValidationError` has no machine-readable code · error object identity is not preserved
 across validations, and `Validator.claim()` copies an error another validator already owns, so the instance

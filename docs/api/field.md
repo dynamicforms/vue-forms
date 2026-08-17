@@ -114,7 +114,9 @@ when no action of that type is registered.
 
 Recalculates `valid` based on `errors`. Pass `revalidate: true` to re-trigger all eager validators from scratch.
 When the verdict changes, it fires `ValidChangedAction` and has the parent container recompute its own validity, so
-a field turning invalid on its own is reflected in the `Group` or `List` holding it.
+a field turning invalid on its own is reflected in the `Group` or `List` holding it. Called inside a
+[transaction](/api/transactions), it recomputes with everything else the transaction did and announces at the end
+of it.
 
 ### `clearValidators(): void`
 
@@ -122,7 +124,9 @@ Removes the validators registered on this element, empties `errors` and recalcul
 including ones no validator contributed — errors pushed in from the outside, such as server-side ones. The verdict
 goes through the same path as any other: a field that was invalid fires `ValidChangedAction` and its container
 re-evaluates its own validity. A validation still in flight is dropped when it settles, so it cannot push an error
-onto a field that no longer carries the validator that produced it.
+onto a field that no longer carries the validator that produced it. A validator that installed a listener
+elsewhere — `CompareTo`, on the field it compares against — has that listener released once the operation the call
+ran in has finished, so an operation that unwinds leaves the validators exactly as it found them.
 
 It does not descend into members. A `Group` or a `List` composes `valid` from its members as well, so
 `group.clearValidators()` leaves `group.valid` at `false` while any member is still invalid — call

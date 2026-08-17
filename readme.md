@@ -27,6 +27,8 @@ mechanism applies at every level of a nested form.
   no `ref` to unwrap and no computed mirror to keep in sync
 - **Nested structures**: Support for complex data with nested fields and groups
 - **Event system**: Rich event handling for field changes, validation, and more
+- **Transactional**: every mutating operation is atomic — events are announced once, over the net change, and a
+  handler that throws leaves the form exactly as it was
 - **TypeScript support**: Full type definitions for excellent developer experience
 - **Lightweight**: `vue` (^3.4) is the only peer dependency; the runtime dependencies are `lodash` and `lodash-es`,
   one for each of the two builds
@@ -140,6 +142,21 @@ const form = new Group({
 
 Assigning `field.errors` directly replaces the whole array, including errors owned by validators — prefer a
 `Validator` (see below) when all you want is to add a validation rule.
+
+Events are announced when the operation carrying them finishes, over the net change. Wrap several writes in a
+`transaction()` and they announce as one:
+
+```typescript
+import { transaction } from '@dynamicforms/vue-forms';
+
+// one ValueChangedAction on the form, not two
+transaction(() => {
+  form.fields.email.value = 'janez@example.com';
+  form.fields.username.value = 'janez';
+});
+```
+
+A throw out of the callback rolls the whole transaction back and rethrows, so a form is never left half-applied.
 
 ## Built-in Validators
 

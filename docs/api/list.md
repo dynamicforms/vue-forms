@@ -150,8 +150,9 @@ most — an item turning valid while a later one is still to be checked produces
 
 ### `notifyValueChanged(): void`
 
-Recomputes `value`, and if it differs from the previously seen one fires `ValueChangedAction`, notifies the parent
-and revalidates. The mutation methods call it themselves; you rarely need to.
+Records that a row changed its value, so that the [transaction](/api/transactions) in progress works out at commit
+what this list's own value became, fires `ValueChangedAction` where it differs from the value last announced, and
+re-forms the verdict. The mutation methods call it themselves; you rarely need to.
 
 ### `clone(overrides?): List<T>`
 

@@ -42,6 +42,15 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
   ): any {
     const identifier = ActionClass.classIdentifier;
     if (identifier === ValueChangedActionClassIdentifier) this.triggerEager(field, ...params);
+    return this.triggerChain(identifier, field, ...params);
+  }
+
+  /**
+   * Runs the chain registered under one identifier and nothing else. A caller that has already run the eager
+   * pass - a transaction runs it at the write, so that the validators have decided before it commits - reaches
+   * the handlers through here, so the eager actions are not run a second time at the announcement.
+   */
+  triggerChain(identifier: symbol, field: FieldBase, ...params: any[]): any {
     const execute = this.get(identifier);
     try {
       if (execute) return execute(field, ...params);
@@ -62,17 +71,26 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
     }
   }
 
+  /** the validators registered in this map, in registration order */
+  get validators(): Validator[] {
+    return this.registeredActions.filter((action): action is Validator => action instanceof Validator);
+  }
+
   clone(): ActionsMap {
     const newActions = new ActionsMap();
     this.registeredActions.forEach((action) => newActions.register(action));
     return newActions;
   }
 
+  /**
+   * A copy of this map carrying everything but the validators. It only leaves them out: releasing what a
+   * validator installed elsewhere is the caller's to do, and only once the transaction that dropped them has
+   * committed, because a rollback puts this map back with its validators in it.
+   */
   cloneWithoutValidators(): ActionsMap {
     const newActions = new ActionsMap();
     this.registeredActions.forEach((action) => {
-      if (action instanceof Validator) action.unregister();
-      else newActions.register(action);
+      if (!(action instanceof Validator)) newActions.register(action);
     });
     return newActions;
   }

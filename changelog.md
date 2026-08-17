@@ -5,6 +5,53 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-08-17
+
+### Added
+- `transaction(fn)` runs several writes as one atomic change. The events they produce are announced once, at the
+  end, over the net result: two writes to two members of a group announce one `ValueChangedAction` on the group
+  instead of two, and a value that goes `A` -> `B` -> `A` inside one transaction announces nothing at all. A
+  nested call joins the transaction it found. The callback must be synchronous - `transaction()` throws a
+  `TypeError` the moment it returns a thenable - so a transaction structurally cannot cross an `await`.
+- A transaction can be undone. `tx.rollback()` unwinds it without an error and the call answers `undefined`, and
+  **a throw out of the callback rolls back and rethrows**. A rollback puts back the whole of every element the
+  transaction modified - `value`, `originalValue`, `touched`, `errors`, `enabled`, `visibility`, the validators a
+  `clearValidators()` dropped, and a `List`'s rows, with the rows the transaction created dropped and the ones it
+  removed re-adopted at their old positions - and announces nothing. An asynchronous validation started inside a
+  transaction that was rolled back runs to the end and its verdict is discarded, so a field is never left invalid
+  over a value the form never held. What a rollback cannot undo are side effects - a handler that called a server
+  already did - and actions registered while it was open, which stay registered.
+- The handle `transaction(fn)` hands its callback is usable only for the duration of that call. Calling
+  `rollback()` on a handle kept beyond it throws a `TypeError` rather than unwinding whatever transaction happens
+  to be open at the time.
+
+### Changed
+- **Breaking:** events are announced when the operation carrying them finishes rather than as it runs, and each
+  is announced once. Every mutating operation is a transaction; where you open none, the operation is the
+  transaction, so a single write still announces exactly one change. What moves is the timing and the count for
+  everything else:
+  - an operation that changed one element several times announces the net change, and announces nothing where
+    the element ends where it started;
+  - a handler is never shown a half-applied state. `insert()` past the end of a list pads the gap first and
+    announces each addition over the set the operation ended on, where it used to announce each over the set that
+    stood at the time;
+  - the order within one operation is now the causal one: an element announces its value before the verdict
+    formed over it, and the deepest element announces before the container above it. A field carrying a validator
+    used to announce its new verdict *before* its new value.
+- **Breaking:** a handler that throws no longer leaves a container half-applied. The operation rolls back and the
+  throw propagates, so `group.value = {...}` whose members' handlers fail partway leaves the group exactly as it
+  was, with its verdict and its value caches intact. `AbortEventHandlingException` is unchanged and still stops
+  the chain without undoing anything.
+- Validators run at the write that triggers them, which is inside the transaction, so a validator reading a
+  sibling sees the sibling's working value. Their verdict is what the commit announces.
+- **Breaking:** `ActionsMap.cloneWithoutValidators()` returns the copy without releasing the validators it left
+  out; `unregister()` on each of them is now the caller's to make, and the new `ActionsMap.validators` lists
+  them. `clearValidators()` on a field is unchanged for a caller: it still releases them, once the operation it
+  ran in has finished rather than as it runs, so an operation that unwinds leaves the field's validators intact.
+- Measured on 1000 rows of 8 fields, against 0.7.0: a whole-list assignment 18.8 ms to 24.3 ms, one field write
+  0.0081 ms to 0.0097 ms, `remove()` and `push()`-filling within a few per cent. The added cost is the record a
+  rollback restores from, taken once per element an operation modifies, plus the commit's own bookkeeping.
+
 ## [0.7.0] - 2026-08-17
 
 ### Changed

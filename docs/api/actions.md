@@ -38,13 +38,18 @@ field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) =>
 }));
 ```
 
-Note that `ValueChangedAction` fires *after* the new value has already been stored, so aborting stops further event handling — it does not roll the change back.
+Note that `ValueChangedAction` fires *after* the new value has already been stored, so aborting stops further event handling — it does not roll the change back. To undo the change as well, throw an ordinary error instead: a throw out of a handler rolls the whole [transaction](/api/transactions) back and rethrows.
 
 ## Value events
 
 ### `ValueChangedAction`
 
 Fires when `field.value` changes (after the new value is set). Also fires on `Group` and `List` when any descendant changes.
+
+It fires when the [transaction](/api/transactions) carrying the change commits, over the value the element ends
+that transaction holding: `oldValue` is what the element last announced, so a value that goes `A → B → A` within
+one transaction announces nothing at all. An operation you open no transaction around is a transaction of its own,
+so a single write announces exactly one change, as it always has.
 
 ```typescript
 new ValueChangedAction((field, supr, newValue, oldValue) => {
@@ -133,10 +138,12 @@ announces nothing on its own: the array is a plain property, and it is the membe
 the verdict, fires the member's own `ValidChangedAction` and makes the container re-evaluate. The notification
 climbs no further than the first ancestor whose own validity stays the same.
 
-One assignment to a container's `value` produces at most one notification on that container: the members are
-written first and the container evaluates afterwards, so it announces the net transition and never the verdict of a
-half-applied value. The same holds for an assignment to a single member, which reaches the container once its new
-value is in place, and for `validate(true)` on a container, which revalidates the members first and forms its own
+Verdicts are announced when the [transaction](/api/transactions) carrying the change commits, and after the value
+changes of that same transaction: the deepest element first, so a container is heard from only once the member
+that caused the change has spoken. One assignment to a container's `value` therefore produces at most one
+notification on that container — the members are written first and the container evaluates afterwards, so it
+announces the net transition and never the verdict of a half-applied value. The same holds for an assignment to a
+single member, and for `validate(true)` on a container, which revalidates the members first and forms its own
 verdict once over the finished set.
 
 ---
@@ -221,6 +228,11 @@ new ListItemAddedAction((field, supr, item, index) => {
 to `insert()` is resolved the way `Array.prototype.splice` resolves it and announced resolved, so it is never
 negative here. `insert()` past the end of the list pads it first, and each padding item is announced with its own
 index before the final trigger for the inserted item.
+
+Additions and removals state operations rather than states, so they have no net over a
+[transaction](/api/transactions) and are never compared away: every one of them is announced, in the order the
+operations happened, before the value change they add up to. A handler reading `list.value` therefore sees the set
+the transaction finished on, not the one that stood when its own item was added.
 
 ### `ListItemRemovedAction`
 
@@ -357,14 +369,19 @@ Optional overrides:
 |--------|-------------|
 | `get eager()` | Return `true` to have the action executed immediately on `registerAction()`, and on every `ValueChangedAction` trigger and `validate(true)`. Defaults to `false` |
 | `boundToField(field)` | Called when the action is registered on a field; use it to keep track of the fields the action serves |
-| `unregister()` | Called by `clearValidators()` on each dropped action that is a `Validator`, in place of carrying it over to the new chain. Override it to release listeners the validator installed on other fields — `CompareTo` does exactly that. A non-validator action is carried over instead, so its `unregister()` never runs |
+| `unregister()` | Called by `clearValidators()` on each dropped action that is a `Validator`, once the operation that dropped it has finished. Override it to release listeners the validator installed on other fields — `CompareTo` does exactly that. A non-validator action is carried over to the new chain instead, so its `unregister()` never runs |
 
 ### `ActionsMap`
 
 The chain container each field holds, keyed by `classIdentifier`. It is the type of `FieldBase`'s internal action
 store and is exported so that type can be named; `registerAction()`, `triggerAction()` and `clearValidators()` on
 the field are the supported way to drive it. Its own surface is `register()`, `trigger()`, `triggerEager()`,
-`clone()` and `cloneWithoutValidators()`.
+`validators`, `clone()` and `cloneWithoutValidators()`.
+
+`cloneWithoutValidators()` returns a copy carrying everything but the validators, and does nothing else: calling
+`unregister()` on the validators it left out is the caller's to do, and `validators` lists them. `clearValidators()`
+on a field does both, and releases them only once the operation it ran in has finished — a rollback puts the map
+back with its validators still live.
 
 ---
 

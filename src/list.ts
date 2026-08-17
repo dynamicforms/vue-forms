@@ -1,11 +1,11 @@
-import { isEmpty, isEqual } from 'lodash-es';
+import { isEmpty } from 'lodash-es';
 
-import { ListItemAddedAction, ListItemRemovedAction, ValueChangedAction } from './actions';
-import { ValueChangedActionClassIdentifier } from './actions/value-changed-action';
+import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { IFieldConstructorParams } from './field.interface';
 import { GenericFieldsInterface, Group } from './group';
+import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 /** what List.value reads back: one plain object per item, or null when the list is empty */
 export type ListValue = Record<string, any>[] | null;
@@ -26,22 +26,33 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
 
     this._itemTemplate = itemTemplate;
 
-    if (params) {
-      const { value: paramValue, validators, actions, ...otherParams } = params;
-      // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
-      // guards them too
-      this.registerInitialActions([...(validators || []), ...(actions || [])]);
-      Object.assign(this, otherParams);
+    // construction is one transaction, so the rows are all in place before anything is announced
+    transactional(() => {
+      if (params) {
+        const { value: paramValue, validators, actions, ...otherParams } = params;
+        // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
+        // guards them too
+        this.registerInitialActions([...(validators || []), ...(actions || [])]);
+        Object.assign(this, otherParams);
 
-      // the items are installed directly, so nothing is announced over a list that is only partly built; a value
-      // that is undefined or null leaves the list empty, which is the state it starts in
-      if (paramValue != null) this.setValueInternal(paramValue);
-    }
+        // a value that is undefined or null leaves the list empty, which is the state it starts in
+        if (paramValue != null) this.setValueInternal(paramValue);
+      }
 
-    if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
-    this.raw.announcedValue = this.value;
-    this._actions?.triggerEager(this, this.value, this.originalValue);
-    this.validate();
+      if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
+      // the set a construction ends on is the list's first statement about itself rather than a change of one, so
+      // the commit that closes the construction says nothing about it
+      this.raw.announcedValue = this.value;
+      this._actions?.triggerEager(this, this.value, this.originalValue);
+      this.validate();
+    });
+  }
+
+  /** The row array is copied as well: a rollback puts back the set the list held, not the array it went on to hold. */
+  protected [TxCapture](): TxSnapshot {
+    const captured = super[TxCapture]();
+    captured.rows = this.raw.rows ? [...this.raw.rows] : this.raw.rows;
+    return captured;
   }
 
   /**
@@ -76,19 +87,14 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   private setValueInternal(newValue: any[]) {
-    // null is the value that clears, the same one Group.value = null writes into every member; without this a
-    // list nested in a group would keep its rows while every sibling field was emptied
-    if (newValue == null) {
-      this.releaseRows();
-      this.state.rows = null;
-    } else if (Array.isArray(newValue)) {
-      // a row that takes the new item announces the change on its own and would carry it up here in the middle of
-      // the walk; the list makes its own statement once, over the finished set, and the caller announces it
-      const outerNotify = this.raw.suppressNotifyValueChanged;
-      const outerValidation = this.suppressValidation;
-      this.raw.suppressNotifyValueChanged = true;
-      this.suppressValidation = true;
-      try {
+    transactional((tx) => {
+      tx.touch(this);
+      // null is the value that clears, the same one Group.value = null writes into every member; without this a
+      // list nested in a group would keep its rows while every sibling field was emptied
+      if (newValue == null) {
+        this.releaseRows();
+        this.state.rows = null;
+      } else if (Array.isArray(newValue)) {
         const previous = this.state.rows ?? [];
         // the new set is built beside the one in place and installed whole: writing a row runs its validators, and
         // one reading this list in the middle of the walk must not be shown a position that has yet to be filled
@@ -111,12 +117,9 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
         }
         for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
         this.state.rows = rows;
-      } finally {
-        this.raw.suppressNotifyValueChanged = outerNotify;
-        this.suppressValidation = outerValidation;
       }
-    }
-    this.bumpValueVersion();
+      this.bumpValueVersion();
+    });
   }
 
   get value(): ListValue {
@@ -136,47 +139,11 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   set value(newValue: Record<string, any>[]) {
-    this.setValueInternal(newValue);
-    // an assignment is a statement about the whole list, and it is announced as one without being compared away
-    this.announceValueChanged(true);
-  }
-
-  /**
-   * Announces the value the list now holds, as the pair (value now, value at the previous announcement), and
-   * carries the change up to the parent. `forced` states that the caller already knows the set changed, so the
-   * comparison that would otherwise establish it is skipped.
-   *
-   * The pair is only built where something receives it: with no ValueChangedAction and no eager action riding
-   * along, walking the rows would produce an array nobody reads. The notification of the parent and this list's
-   * own recomputation still happen - the rows keep the tally the recomputation reads up to date themselves.
-   */
-  private announceValueChanged(forced: boolean) {
-    const actions = this._actions?.willTrigger(ValueChangedActionClassIdentifier) ? this._actions : undefined;
-    let newValue: ListValue = null;
-    let oldValue: ListValue = null;
-    if (actions) {
-      newValue = this.value;
-      if (!forced && isEqual(newValue, this.raw.announcedValue)) return;
-      oldValue = this.raw.announcedValue;
-      // the cache is refreshed before the event: an item that reports a change while the handlers run must
-      // compare against the value just assigned, not against the one replaced
-      this.raw.announcedValue = newValue;
-    }
-    // the parent learns of the new value below and validates itself from there, over the whole value; a validator
-    // running on this list must therefore not send it a verdict of its own in the meantime
-    const outerClimb = this.suppressParentValidityClimb;
-    this.suppressParentValidityClimb = true;
-    try {
-      if (actions) actions.trigger(ValueChangedAction, this, newValue, oldValue);
-      if (this.parent) this.parent.notifyValueChanged();
-    } finally {
-      this.suppressParentValidityClimb = outerClimb;
-      this.validate();
-      // a parent whose own value did not change by this one returns from notifyValueChanged() without validating,
-      // so a validity change held back above still has to reach it. Both run even when a handler threw, or the
-      // parent would keep a verdict the members no longer support.
-      this.flushParentValidityClimb();
-    }
+    transactional(() => {
+      this.setValueInternal(newValue);
+      // an assignment is a statement about the whole list, and it is announced as one without being compared away
+      this.propagateValueChanged(true);
+    });
   }
 
   /**
@@ -184,12 +151,17 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
    * a whole-list assignment reuses ends up holding what the template gives it rather than what it held before.
    */
   protected resetTo(source: FieldBase, value: any): void {
-    if (this.errors.length) this.errors = [];
-    this.setValueInternal(value === undefined ? (source as List<T>).value : value);
-    const built = this.value;
-    this.raw.announcedValue = built;
-    this.originalValue = List.baseline(built);
-    super.validate(true);
+    transactional((tx) => {
+      tx.touch(this);
+      if (this.errors.length) this.errors = [];
+      this.setValueInternal(value === undefined ? (source as List<T>).value : value);
+      const built = this.value;
+      // a list brought to the state a fresh one would be in makes no statement of its own: the container that
+      // reset it announces the whole of it
+      this.raw.announcedValue = built;
+      this.originalValue = List.baseline(built);
+      super.validate(true);
+    });
   }
 
   get touched(): boolean {
@@ -197,8 +169,10 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   set touched(touched: boolean) {
-    this.state.rows?.forEach((item) => {
-      item.touched = touched;
+    transactional(() => {
+      this.state.rows?.forEach((item) => {
+        item.touched = touched;
+      });
     });
   }
 
@@ -218,11 +192,23 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     return res;
   }
 
+  /**
+   * Records that a row changed its value, so that the transaction in progress works out at commit what this
+   * list's own value became and announces it once. The mutation methods call it themselves; you rarely need to.
+   */
   notifyValueChanged() {
-    if (this.raw.suppressNotifyValueChanged) return;
-    this.announceValueChanged(false);
+    this.propagateValueChanged();
   }
 
+  protected get composesValue(): boolean {
+    return true;
+  }
+
+  /**
+   * A list with nothing listening for its value does not compose one at all, so the copy it holds is from before
+   * the changes nobody received. A registration that adds a listener brings it up to date here, and what the
+   * listener is then told about is the change that follows it.
+   */
   protected refreshPreviousValue(): void {
     this.raw.announcedValue = this.value;
   }
@@ -232,23 +218,17 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   protected composeValid(): boolean {
-    return this.errors.length === 0 && (this.state.rows?.every((item) => item.valid) ?? true);
+    return this.state.errors.length === 0 && (this.state.rows?.every((item) => item.valid) ?? true);
   }
 
   validate(revalidate: boolean = false) {
-    if (revalidate) {
-      // the items are revalidated with the list held back, so an item that turns valid while a later one is still
-      // to be checked cannot make the list announce a verdict over a half-revalidated set. The list forms its own
-      // verdict below, once, over the finished set.
-      const outerValidation = this.suppressValidation;
-      this.suppressValidation = true;
-      try {
-        this.state.rows?.forEach((item) => item.validate(true));
-      } finally {
-        this.suppressValidation = outerValidation;
-      }
-    }
-    super.validate(revalidate);
+    transactional(() => {
+      // the items are revalidated first and the list forms its own verdict afterwards, over the finished set: an
+      // item that turns valid while a later one is still to be checked announces nothing until the transaction
+      // closes, so the list never reports a verdict over a half-revalidated set
+      if (revalidate) this.state.rows?.forEach((item) => item.validate(true));
+      super.validate(revalidate);
+    });
   }
 
   get(index: number): Group<T> | undefined {
@@ -264,45 +244,54 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   remove(index: number): Group<T> | undefined {
-    if (this.state.rows == null || index < 0 || this.state.rows.length <= index) return undefined;
+    let removedItem: Group<T> | undefined;
+    transactional((tx) => {
+      if (this.state.rows == null || index < 0 || this.state.rows.length <= index) return;
 
-    let removedItem = this.state.rows.splice(index, 1)?.[0];
+      // the row array is recorded before the splice, so a rollback puts back the set the list held
+      tx.touch(this);
+      const row = this.state.rows.splice(index, 1)?.[0];
+      if (!row) return;
 
-    if (removedItem) {
-      this.releaseChild(removedItem);
+      this.releaseChild(row);
       this.bumpValueVersion();
       // Remove parent reference
-      removedItem = removedItem.clone();
+      removedItem = row.clone();
 
-      // Trigger events
-      this._actions?.trigger(ListItemRemovedAction, this, removedItem, index);
+      // an item removed is a fact about an operation and has no net over a transaction, so it is queued in order
+      // rather than compared away, and the commit emits it before the value the removal left behind
+      tx.recordStructural(this, { actionClass: ListItemRemovedAction, item: removedItem, index });
       // one item fewer is a different set, so no comparison is needed to establish that the value changed
-      this.announceValueChanged(true);
-    }
+      this.propagateValueChanged(true);
+    });
 
     return removedItem;
   }
 
   insert(item: any, index: number): number {
-    if (this.state.rows == null) this.state.rows = [];
-    // a negative index counts back from the end and stops at the start, the way splice reads it, so the
-    // position announced and returned is the one the item actually occupies
-    const position = index < 0 ? Math.max(this.state.rows.length + index, 0) : index;
-    while (this.state.rows.length < position) {
-      // if the index is too large for current array size, we add as many as necessary
-      const itm = this.createPaddingItem();
-      // push returns the new length, while the event carries the index of the item that was added
-      const idx = this.state.rows.push(itm) - 1;
-      this.bumpValueVersion();
-      this._actions?.trigger(ListItemAddedAction, this, itm, idx);
-    }
-    const itm = this.processSetValueItem(item);
-    this.state.rows.splice(position, 0, itm);
-    this.bumpValueVersion();
+    let position = 0;
+    transactional((tx) => {
+      tx.touch(this);
+      if (this.state.rows == null) this.state.rows = [];
+      // a negative index counts back from the end and stops at the start, the way splice reads it, so the
+      // position announced and returned is the one the item actually occupies
+      position = index < 0 ? Math.max(this.state.rows.length + index, 0) : index;
+      while (this.state.rows.length < position) {
+        // if the index is too large for current array size, we add as many as necessary
+        const itm = this.createPaddingItem();
+        // push returns the new length, while the event carries the index of the item that was added
+        const idx = this.state.rows.push(itm) - 1;
+        this.bumpValueVersion();
+        tx.recordStructural(this, { actionClass: ListItemAddedAction, item: itm, index: idx });
+      }
+      const itm = this.processSetValueItem(item);
+      this.state.rows.splice(position, 0, itm);
 
-    this._actions?.trigger(ListItemAddedAction, this, itm, position);
-    // one item more is a different set, so no comparison is needed to establish that the value changed
-    this.announceValueChanged(true);
+      tx.recordStructural(this, { actionClass: ListItemAddedAction, item: itm, index: position });
+      // one item more is a different set, so no comparison is needed to establish that the value changed
+      this.bumpValueVersion();
+      this.propagateValueChanged(true);
+    });
 
     return position;
   }
@@ -313,11 +302,14 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   clear() {
-    const hadItems = (this.state.rows?.length ?? 0) > 0;
-    this.releaseRows();
-    this.state.rows = null;
-    this.bumpValueVersion();
-    this.announceValueChanged(hadItems);
+    transactional((tx) => {
+      const hadItems = (this.state.rows?.length ?? 0) > 0;
+      tx.touch(this);
+      this.releaseRows();
+      this.state.rows = null;
+      this.bumpValueVersion();
+      this.propagateValueChanged(hadItems);
+    });
   }
 }
 

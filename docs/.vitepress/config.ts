@@ -39,6 +39,7 @@ export default defineConfig({
             { text: 'List', link: '/api/list' },
             { text: 'Validators', link: '/api/validators' },
             { text: 'Actions', link: '/api/actions' },
+            { text: 'Transactions', link: '/api/transactions' },
             { text: 'Components', link: '/api/components' },
             { text: 'Configuration', link: '/api/config' },
           ]
