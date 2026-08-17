@@ -25,6 +25,24 @@ type FieldActionExecute<T = any> = (field: FieldBase<T>, ...params: any[]) => an
 
 At the end of every chain sits a handler that returns `null`, so `supr` is always a function.
 
+### One action, many elements
+
+An action instance is registered on an element, and every clone of that element carries the same instance — so an
+action registered on a `List`'s item template fires for **every row of the list**. The element the executor
+receives as its first argument is the one it fired for, and it is what a handler that cares about a single row
+checks. The same holds for validators, which are actions: one `Required` instance validates every row's field, and
+`clearValidators()` on one row leaves the instance validating the others.
+
+An action drives the elements it was registered on and their clones, and no others. Registered on one row of a
+`List`, it stays that row's action: the other rows never took it on, and neither a change of the field a
+`CompareTo` compares against nor a change of a field a `Statement` reads reaches them. A row built **before** the
+registration never took it on either — a clone carries the actions the element it was cloned from held at the
+moment it was cloned — so an action meant for every row is registered on the item template before the rows are
+built.
+
+An action that has to remember something between runs keeps it against the element it ran over, not on itself —
+see [Writing custom actions](#custom-actions). Anything it keeps on itself is shared by every row.
+
 ### `AbortEventHandlingException`
 
 Throwing `AbortEventHandlingException` from a handler aborts the rest of the chain. `ActionsMap` catches it, so it never escapes the setter and `triggerAction()` returns `null` for that trigger. All other exceptions propagate to the caller.
@@ -276,6 +294,23 @@ Conditional actions automatically toggle a field property when a `Statement` eva
 
 Conditional actions are eager: `registerAction()` evaluates the statement immediately and sets the field property right away. A conditional action handed to a constructor through `params.actions` does the same once the element is built, over its finished value. After that, the executor only runs when the result of the statement changes (`true` → `false` or `false` → `true`), not on every value change. The executor is applied to the fields the action is bound to, not to the fields appearing in the statement.
 
+Registered on a `List`'s item template, a conditional action serves every row, and **each row holds a result of its
+own**. A statement built from the template's fields reads the fields of the row it is evaluated over, so two rows
+disagreeing about the condition show two different verdicts, and a change in one row reaches that row alone. A
+field outside the rows — one the whole form holds — is read where it stands, and a change to it re-evaluates every
+row.
+
+```typescript
+const row = new Group({ kind: new Field({ value: 'standard' }), detail: new Field({ value: '' }) });
+row.fields.detail.registerAction(
+  new ConditionalVisibilityAction(new Statement(row.fields.kind, Operator.EQUALS, 'other')),
+);
+
+const lines = new List(row, { value: [{ kind: 'other' }, { kind: 'standard' }] });
+lines.get(0).fields.detail.visibility; // DisplayMode.FULL
+lines.get(1).fields.detail.visibility; // DisplayMode.SUPPRESS
+```
+
 ### `Statement`
 
 A logical or comparison expression built from fields, constants, and an `Operator`.
@@ -288,9 +323,17 @@ const stmt = new Statement(activeField, Operator.EQUALS, true);
 const combined = new Statement(stmt, Operator.AND, new Statement(ageField, Operator.GE, 18));
 ```
 
-`evaluate(): boolean` always hands back a real boolean: the logical operators coerce their operands, so
+`evaluate(scope?): boolean` always hands back a real boolean: the logical operators coerce their operands, so
 `new Statement(0, Operator.AND, true).evaluate()` is `false` and not `0`, and a conditional executor therefore
 always receives a boolean `currentResult`.
+
+`scope` names an element whose record the field operands are read in — a row of a `List`, or the form itself.
+`statement.evaluate(list.get(1))` reads the second row's fields even where the statement was built from the item
+template's, which is what makes one statement serve every row. An operand belonging to another record is read
+where it stands, so a form-level field compared against a row's field means the same field for every row, and an
+operand taken from an *enclosing* item template is that template's own field rather than the field of the
+enclosing row a nested list sits in. Called without an argument, the statement reads exactly the fields it was
+built from.
 
 `EQUALS` / `NOT_EQUALS` compare with loose `==`, so `'1'` and `1` are equal, and so are `null` and `undefined`.
 
@@ -298,7 +341,7 @@ Each operand has the exported type `OperandType` — a nested `Statement`, a `Fi
 compared, or a literal of any type. Because the union includes `any`, the type checker accepts anything there; the
 three cases are told apart at evaluation time by `instanceof`.
 
-`Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on any field.
+`Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on any field. One handler is registered per field however many rows read it, and the handler re-evaluates the record the change happened in.
 
 `collectFields(): Set<FieldBase>` is public: it walks the statement and its nested statements and returns the field
 instances themselves, which is useful when you want to attach your own handlers to the same set.
@@ -389,20 +432,56 @@ Optional overrides:
 | Member | Description |
 |--------|-------------|
 | `get eager()` | Return `true` to have the action executed immediately on `registerAction()`, and on every `ValueChangedAction` trigger and `validate(true)`. Defaults to `false` |
-| `boundToField(field)` | Called when the action is registered on a field; use it to keep track of the fields the action serves |
-| `unregister()` | Called by `clearValidators()` on each dropped action that is a `Validator`, once the operation that dropped it has finished. Override it to release listeners the validator installed on other fields — `CompareTo` does exactly that. A non-validator action is carried over to the new chain instead, so its `unregister()` never runs |
+| `boundToBinding(binding)` | Called once for every element this action comes to serve: the element it is registered on, and every clone of that element as the clone takes the action on. Use it to record the elements the action answers for |
+| `unregisterFrom(binding)` | Called by `clearValidators()` on each dropped action that is a `Validator`, once the operation that dropped it has finished, and names the element it was dropped from. Override it to release what the validator installed for that element — `CompareTo` stops answering for it. A non-validator action is carried over to the new chain instead, so its `unregisterFrom()` never runs |
+
+State an action keeps between runs belongs to the element it ran over, because the instance is shared by every
+clone of the element it was registered on. `protected state<S>(key, init): S` holds it: the key is the element, or
+the record the element belongs to where the fact is about the whole record, and the entry is released with the key.
+
+```typescript
+class CountingAction extends ValueChangedAction {
+  static get classIdentifier() { return CountingActionClassIdentifier; }
+
+  constructor() {
+    super((field, supr, newValue, oldValue) => {
+      const counter = this.state(field, () => ({ writes: 0 }));
+      counter.writes += 1;
+      return supr(field, newValue, oldValue);
+    });
+  }
+}
+```
+
+### Reading a second element of the record
+
+An eager action that reads a second element — a validator comparing two fields, a statement over another field of
+the row — can run before the record it reads exists: a `List` row is built by cloning the item template member by
+member, and a member's eager pass runs while the member is still on its own. Where the lookup reaches nothing,
+call `field.markRecordIncomplete()` and reach no verdict. The container that finishes the record runs the pass
+again over the record it then has, and a pass that still reaches nothing says so again, so the container above —
+the `List` taking the row into the form — answers for it in turn. `CompareTo` and the conditional actions do
+exactly this, which is how a row that holds the very values its template holds still carries its own verdict.
+
+`element.declaration` and `container.bindingsOf(declaration)` are what such an action resolves with: the first
+tells a row's field from the item template's field it was declared as, the second answers with every element of a
+subtree that was declared as a given one.
 
 ### `ActionsMap`
 
 The chain container each field holds, keyed by `classIdentifier`. It is the type of `FieldBase`'s internal action
 store and is exported so that type can be named; `registerAction()`, `triggerAction()` and `clearValidators()` on
 the field are the supported way to drive it. Its own surface is `register()`, `trigger()`, `triggerEager()`,
-`validators`, `clone()` and `cloneWithoutValidators()`.
+`validators`, `clone()`, `cloneWithoutValidators()` and `bindTo()`.
+
+`clone()` returns a copy holding the same action instances, and `bindTo(owner)` tells each of them that it now
+serves `owner`. Cloning an element does both, which is what makes an action registered on an item template serve
+every row.
 
 `cloneWithoutValidators()` returns a copy carrying everything but the validators, and does nothing else: calling
-`unregister()` on the validators it left out is the caller's to do, and `validators` lists them. `clearValidators()`
-on a field does both, and releases them only once the operation it ran in has finished — a rollback puts the map
-back with its validators still live.
+`unregisterFrom()` on the validators it left out is the caller's to do, and `validators` lists them.
+`clearValidators()` on a field does both, and releases them only once the operation it ran in has finished — a
+rollback puts the map back with its validators still live.
 
 ---
 

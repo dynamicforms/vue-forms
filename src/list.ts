@@ -74,6 +74,9 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     // an item that already belongs to a container is refused here; one this list released earlier carries no
     // link any more and is taken like any other
     this.takeChild(res);
+    // the row now reaches the form this list stands in, so a rule of its own that names a field up there - one no
+    // record below could answer - is run over it here
+    this.completeRecords(res);
 
     return res;
   }
@@ -184,11 +187,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
-    if (this._actions) {
-      const actions = this._actions.clone();
-      res._actions = actions;
-      actions.triggerEager(res, res.value, res.originalValue);
-    }
+    res.clonedFrom(this, res.value, res.originalValue);
     return res;
   }
 
@@ -229,6 +228,10 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       if (revalidate) this.state.rows?.forEach((item) => item.validate(true));
       super.validate(revalidate);
     });
+  }
+
+  protected get members(): FieldBase[] {
+    return this.raw.rows ?? [];
   }
 
   get(index: number): Group<T> | undefined {

@@ -28,6 +28,11 @@ interface SourceProp {
   source: symbol;
 }
 
+/** What a validator remembers about one field it is registered on; a subclass widens it. */
+export interface ValidatorBindingState {
+  run: number;
+}
+
 const ValidatorClassIdentifier = Symbol('Validator');
 
 /**
@@ -44,28 +49,20 @@ export class Validator<T = any> extends ValueChangedAction {
   private readonly source: symbol;
 
   /**
-   * Sequence number of the newest run of this validator, per field. Every execution takes the next number, and a
-   * result is applied only while its number is still the newest one, so a slow run cannot overwrite the verdict of
-   * a faster one that started after it. The key is the field because one validator instance may be registered on
-   * several fields, each with a sequence of its own.
-   */
-  private readonly runs = new WeakMap<FieldBase<any>, number>();
-
-  /**
    * Creates a new validator
    * @param validationFn Function that validates the field value and returns errors or null
    */
   constructor(validationFn: ValidationFunction<T>) {
     const executor = (field: FieldBase<T>, supr: FieldActionExecute<T>, newValue: T, oldValue: T) => {
-      const run = (this.runs.get(field) ?? 0) + 1;
-      this.runs.set(field, run);
+      const runs = this.bindingState(field);
+      const run = ++runs.run;
       const epoch = field.validationEpoch;
       // the transaction this run started in, so that a run reaching its verdict after that transaction was
       // unwound says nothing: the value it examined is one the form never went on to hold
       const startedIn = currentTransaction();
       // a result counts only while nothing newer has been decided for this field, the field still holds the
       // validators it held when the run started, and the change that prompted it still stands
-      const isCurrent = () => this.runs.get(field) === run && field.validationEpoch === epoch && !startedIn?.rolledBack;
+      const isCurrent = () => runs.run === run && field.validationEpoch === epoch && !startedIn?.rolledBack;
 
       const errors = validationFn(newValue, oldValue, field) || [];
 
@@ -147,6 +144,24 @@ export class Validator<T = any> extends ValueChangedAction {
 
   get eager() {
     return true;
+  }
+
+  /**
+   * What this validator remembers about one of the fields it validates. One instance may be registered on several
+   * fields - every row of a list carries the instances the item template carries - so each field has a record of
+   * its own. A subclass that remembers more widens the record by overriding `newBindingState`.
+   */
+  protected bindingState(field: FieldBase<any>): ValidatorBindingState {
+    return this.state(field, () => this.newBindingState());
+  }
+
+  /**
+   * The record a field starts with. `run` is the sequence number of the newest run over that field: every
+   * execution takes the next one and a result is applied only while its number is still the newest, so a slow run
+   * cannot overwrite the verdict of a faster one that started after it.
+   */
+  protected newBindingState(): ValidatorBindingState {
+    return { run: 0 };
   }
 
   protected replacePlaceholdersFunction(text: RenderContentRef, replace: Record<string, any>): RenderContentRef {

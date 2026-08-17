@@ -89,6 +89,7 @@ const field = new Field(defaults);
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
 | `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `clone()`. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
+| `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element it was cloned from for a clone — transitively, so a clone of a clone answers with the same element. Every row a `List` builds from an item template is a clone, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field` |
 
 ## Methods
@@ -103,6 +104,33 @@ field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) =>
   return supr(field, newValue, oldValue);
 }));
 ```
+
+An action instance registered on an element is carried by every clone of that element, so **an action registered on
+a `List`'s item template fires for every row**. The first argument the executor receives is the element it fired
+for, which is how a handler that cares about one row tells them apart:
+
+```typescript
+template.fields.amount.registerAction(new ValueChangedAction((field, supr, newValue) => {
+  if (field.parent === list.get(0)) console.log('the first row changed to', newValue);
+  return supr(field, newValue);
+}));
+```
+
+Anything an action remembers between runs belongs to the element it ran over rather than to the action — see
+[Writing custom actions](/api/actions#custom-actions).
+
+### `bindingsOf(declaration): FieldBase[]`
+
+Every element in this element's subtree, this element included, whose `declaration` is the one given. It answers
+which rows a declared element stands for: `list.bindingsOf(template.fields.a)` is the `a` field of every row.
+
+### `markRecordIncomplete(): void`
+
+States that an eager action running over this element looked for a second element of the record and did not find
+it, because the record was not assembled yet — a `List` row's members are cloned before any of them holds the row.
+The container that completes the record runs this element's eager actions again, and a container that takes the
+record in afterwards does the same. Only an action implementation calls it; see
+[Reading a second element of the record](/api/actions#reading-a-second-element-of-the-record).
 
 ### `triggerAction(actionClass, ...params): any`
 
@@ -126,7 +154,9 @@ goes through the same path as any other: a field that was invalid fires `ValidCh
 re-evaluates its own validity. A validation still in flight is dropped when it settles, so it cannot push an error
 onto a field that no longer carries the validator that produced it. A validator that installed a listener
 elsewhere — `CompareTo`, on the field it compares against — has that listener released once the operation the call
-ran in has finished, so an operation that unwinds leaves the validators exactly as it found them.
+ran in has finished, so an operation that unwinds leaves the validators exactly as it found them. The release names
+this element only: the same validator instance goes on validating every other element it was registered on, so
+clearing the validators of one row of a `List` leaves the other rows validating.
 
 It does not descend into members. A `Group` or a `List` composes `valid` from its members as well, so
 `group.clearValidators()` leaves `group.valid` at `false` while any member is still invalid — call

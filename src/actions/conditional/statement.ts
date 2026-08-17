@@ -1,6 +1,7 @@
 import { isString } from 'lodash-es';
 import { unref } from 'vue';
 
+import { resolveInScope } from '../../binding/resolve';
 import { FieldBase } from '../../field-base';
 
 import Operator from './operator';
@@ -27,21 +28,36 @@ export class Statement {
     this.operand2 = operand2;
   }
 
+  /**
+   * The value an operand contributes. A field operand names a field of the record the statement is evaluated in:
+   * the same statement over a `List` reads row 3's field while row 3 is the record, and a field belonging to no
+   * record of the statement's own - a form field above the list - is read where it stands. A record that does not
+   * hold the field yet contributes undefined, which is what a half-built row answers with.
+   */
+  private static valueOf(operand: OperandType, scope?: FieldBase) {
+    if (operand instanceof Statement) return operand.evaluate(scope);
+    if (operand instanceof FieldBase) {
+      const field = scope ? resolveInScope(operand, scope) : operand;
+      return field ? unref(field.value) : undefined;
+    }
+    return operand; // any
+  }
+
   get operand1Value() {
-    if (this.operand1 instanceof Statement) return this.operand1.evaluate();
-    if (this.operand1 instanceof FieldBase) return unref(this.operand1.value);
-    return this.operand1; // any
+    return Statement.valueOf(this.operand1);
   }
 
   get operand2Value() {
-    if (this.operand2 instanceof Statement) return this.operand2.evaluate();
-    if (this.operand2 instanceof FieldBase) return unref(this.operand2.value);
-    return this.operand2; // any
+    return Statement.valueOf(this.operand2);
   }
 
-  evaluate(): boolean {
-    const operand1 = this.operand1Value;
-    const operand2 = this.operand2Value;
+  /**
+   * The result of the statement, over the record `scope` belongs to where one is given and over the fields the
+   * statement was built from where it is not.
+   */
+  evaluate(scope?: FieldBase): boolean {
+    const operand1 = Statement.valueOf(this.operand1, scope);
+    const operand2 = Statement.valueOf(this.operand2, scope);
 
     switch (this.operator) {
       // logical operators

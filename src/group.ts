@@ -58,6 +58,10 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
       }
 
+      // the members are in place and hold their values, so this is the record they were promised: a member whose
+      // eager pass ran before the group existed - every member of a cloned group - gets it here
+      this.completeRecords();
+
       // reading value walks every member and builds an object, so it is read once here and the result serves
       // every reader below
       const constructedValue = this.value;
@@ -118,6 +122,10 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
   get fields(): T {
     return this._fields;
+  }
+
+  protected get members(): FieldBase[] {
+    return Object.values(this._fields);
   }
 
   get value(): GroupValue<T> {
@@ -267,12 +275,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     });
-    if (this._actions) {
-      const actions = this._actions.clone();
-      res._actions = actions;
-      // the constructor primed announcedValue with the value the members ended up holding, and nothing has run since
-      actions.triggerEager(res, res.raw.announcedValue, res.originalValue);
-    }
+    // the constructor primed announcedValue with the value the members ended up holding, and nothing has run since
+    res.clonedFrom(this, res.raw.announcedValue, res.originalValue);
     return res;
   }
 }

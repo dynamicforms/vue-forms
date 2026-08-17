@@ -137,3 +137,80 @@ directions here.
 `busy` allocates a Vue ref per action, in a `WeakMap` outside the action, and only for an action somebody
 executes or reads the flag on. No element gains a byte until then, which is what the unchanged per-field figures
 say.
+
+---
+
+# 0.10.0
+
+Same machine, same fixtures and same commands. The 0.9.0 column is carried over from the table above rather than
+re-measured, so this comparison crosses sessions. Two full runs of 0.10.0; every cell is the lower of the two run
+means.
+
+The fixtures carry no `CompareTo`, so the plain variant exercises none of this release: its item template holds
+eight `Required`s and one `ValueChangedAction`, none of which reads a second element. The conditional variant is
+where the release shows, because a `ConditionalVisibilityAction` on `f1` driven by `f0` is exactly the rule that
+cannot be answered while a row is still a set of loose clones.
+
+## Wall clock
+
+| id | scenario | variant | 0.9.0 | 0.10.0 |
+|---|---|---|---:|---:|
+| S1a | `new List(tpl, { value: rows })`, 1000 rows | plain | 188.3 ms | 196.1 ms |
+| S1a | | conditional | 196.2 ms | 223.4 ms |
+| S1b | 1000 × `push()` | plain | 186.9 ms | 195.5 ms |
+| S1b | | conditional | 190.0 ms | 210.3 ms |
+| S2a | write one field in row 500 | plain | 0.0100 ms | 0.0107 ms |
+| S2a | | conditional | 0.0118 ms | 0.0098 ms |
+| S3 | `remove(500)` | plain | 0.5587 ms | 0.5129 ms |
+| S3 | | conditional | 0.5006 ms | 0.5412 ms |
+| S4a | `list.value = rows`, same length | plain | 24.22 ms | 24.70 ms |
+| S4a | | conditional | 24.45 ms | 25.37 ms |
+| S4b | `list.value = rows`, different length | plain | 24.57 ms | 25.37 ms |
+| S4b | | conditional | 24.26 ms | 26.29 ms |
+| S6 | read `list.valid` | plain | 0.0003 ms | 0.0002 ms |
+| S6 | | conditional | 0.0003 ms | 0.0003 ms |
+| S6 | write one field, then read `list.valid` | plain | 0.0114 ms | 0.0110 ms |
+| S6 | | conditional | 0.0117 ms | 0.0099 ms |
+
+The two build scenarios are the ones that move, and only for the conditional variant: 1.14× and 1.11× the 0.9.0
+figures. Every other cell is inside the spread its own run reports — S1a itself carries ±9 % to ±16 % across
+samples, so read the build pair as the measurement and the rest as noise.
+
+## What the second eager pass costs
+
+The conditional row is built by cloning `f1` before it holds either its siblings or its row, so the pass that
+applies the condition reaches nothing and is run again once the row is assembled. Re-running the build with that
+second pass suppressed, in the same session:
+
+| | S1a conditional | S1b conditional |
+|---|---:|---:|
+| second pass suppressed | 216.6 ms | 209.6 ms |
+| 0.10.0 | 223.4 ms | 210.3 ms |
+
+About 3 % of building a 1000-row list, and nothing measurable on the `push` path. It is paid once per element
+that asked for it and never by an element that answered on its first pass — a form whose rules all resolve where
+they are declared reads a counter and walks nothing.
+
+## Memory and structure
+
+| | 0.9.0 | 0.10.0 |
+|---|---:|---:|
+| retained bytes per field, plain | 1463.3 | 1509.8 |
+| retained bytes per field, conditional | 1499.0 | 1564.1 |
+| retained KiB per 1000-row list, plain | 11 432.2 | 11 795.2 |
+| retained KiB per 1000-row list, conditional | 11 711.1 | 12 219.9 |
+| Vue proxies per row | 9 | 9 |
+| validator runs per field, `new Field({ value, validators })` | 1 | 1 |
+| validator runs per row | 16 | 16 |
+
+The per-field growth is what an element and its actions now hold per element rather than per instance: a slot
+recording what the element was declared as, in the state object every element already carries, and the record a
+validator keeps about a field, which is an object where it was a number. That is the 3 % in the plain column. The
+conditional column adds what the conditional action keeps about each row and the entry saying which elements it
+drives.
+
+Proxies per row are unchanged, and so are the validator runs the harness counts: the template it counts them over
+carries validators only, none of which reads a second element, so nothing in it asks for a second pass. Where an
+element does ask — `f1` of the conditional variant — the second pass re-runs that element's eager actions, its own
+validators included. That is what the build column measures, and it is per element that asked rather than per
+element.

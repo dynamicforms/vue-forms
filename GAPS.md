@@ -324,3 +324,126 @@ catches the rejection. Its five `watch()` calls all take a ref.
 What the split does require of that package is a narrowed dependency range: code written against declarations and
 bindings does not run against a version that builds rows by cloning, so its release for 0.10.0 has to exclude
 every earlier one.
+
+---
+
+## D-014 — Actions per record ship before the declaration/binding split, and 0.10.0 carries them
+
+**Version:** 0.10.0
+
+The plan pairs step 5 (actions per binding) with step 4 (the declaration/binding split) and says step 5 must ship
+with it. It ships first instead, against a tree that still builds rows by cloning. D-010 gave 0.10.0 to the split;
+0.10.0 is this release, and the split takes the number after it.
+
+**Why it does not wait.** The three defects step 5 closes — a conditional action dead in every row, `CompareTo`
+comparing against the item template, `clearValidators()` on one row silencing the validator in every row — are
+defects of the *clone* model as it stands, and every one of them is reachable today. They need what the split was
+going to provide, which is a way for a shared action to tell one row's field from another's, but they do not need
+the whole of it: **a clone recording the element it was made from is enough**, and that is one slot and one
+accessor rather than `BindingScope`, slot arrays and a new construction path.
+
+**What replaces the binding.** `field.declaration` is the canonical element a clone was made from, and the *record*
+an element belongs to is derived from the container chain: the `List` row that holds it, or the top of the chain
+where no row does — a container names every member it holds except a row, so the element its container gave no name
+to is where a record begins. An action resolves a second element by walking that element's path down from the
+record, and confirms the answer by its declaration. When the split lands, the record becomes the `BindingScope` and
+the path walk becomes a slot offset; what the actions ask for does not change.
+
+**What it costs against doing both together.** The resolution is a short path walk per evaluation rather than an
+index lookup, and the one case that has no cheap answer — an element declared in one record whose copies live in
+records below it, which is a form field every row of a list reads — is a walk of the subtree. Both are on the path
+of a value change of a field a rule reads, not of every write.
+
+**Rejected: implementing step 4 first.** It is the largest step in the plan and it cannot be verified in halves —
+D-010 already records that the split's suite is not green until the whole of it lands. Holding three reachable
+defects behind it buys nothing, and the work here is not thrown away by it.
+
+---
+
+## D-015 — A cross-field listener is installed once per compared element, not once per row
+
+**Version:** 0.10.0
+
+`CompareTo` installs a `ValueChangedAction` on the field it compares against, so that a change there re-runs the
+comparison. It installs it once, on the first element that resolves to it, and every clone of that element carries
+the listener with it. The listener then re-runs the comparison over the fields of *the record the change happened
+in*, rather than over the field that installed it.
+
+**Rejected: one listener per row.** The plan's wording — move `listenerSet` into per-binding state — reads as one
+installation per row. A thousand rows would then nest a thousand handlers into one chain, and `ActionsMap` builds a
+chain as nested closures, so a row cloned late would carry a chain deep enough to overflow the stack when it fires.
+It is also the shape `todo.md` records as the source of a `RangeError`.
+
+**What is per binding.** The values the last run saw and the flag `clearValidators()` sets. Both are facts about
+one element, and the flag is what makes clearing the validators of one row leave the others validating.
+
+**What it costs.** A clone made *before* the declaration ever validated carries no listener, and would install one
+of its own — which is correct, if redundant. That cannot arise for a row, because a row that has the validator was
+cloned from an element that already had it, and a validator validates the element it is registered on at
+registration.
+
+---
+
+## D-016 — An eager pass that reaches nothing is run again when the record is complete
+
+**Version:** 0.10.0
+
+A `List` row is built by cloning the item template: every member is cloned on its own, the clones are handed to a
+`Group`, and the group is then handed the row's data. A member's eager actions run at the moment it is cloned, when
+it holds neither its siblings nor its row, so a rule reading a second element of the record reaches nothing there.
+Where that happens, the element records it — `markRecordIncomplete()` — and the container that completes the record
+runs its eager actions again: the `Group` once it has written its members, and the `List` once it has taken the row
+into the form. A pass that still reaches nothing records it again, so the next container above answers for it.
+
+**What forced it.** Reaching nothing has to read as *no verdict*, not as a pass, and the pass that would have
+corrected it never comes: the value setter drops an assignment of the value the field already holds, so a row
+holding exactly what its template holds is never validated a second time. That is not a corner case — an item the
+list builds to fill a gap and the group `remove()` hands back carry the template's values by construction, and a
+list of default rows is ordinary.
+
+**Rejected: revalidate every member at the end of the clone.** One line in the `Group` constructor, and it doubles
+the validator runs of every row of every list, which is the path the whole performance plan is about. Measured at
+about 3 % of building a 1000-row list for the pass as it stands, where it runs only for the elements that asked.
+
+**Rejected: a static "this action needs the record" flag on the action class.** It cannot tell the pass that
+answered from the pass that did not — a rule comparing against a field the form above holds resolves at clone time
+and would be run twice for nothing — and it makes every author of a cross-field action declare a property that only
+matters in one construction path.
+
+**Rejected: leaving it to the next write.** It is what the state before this release did, and the verdict a form
+reports until the user touches a row is exactly the verdict that matters: a submit button reads `form.valid`.
+
+**What it costs.** A process-wide counter of elements waiting for a record, read before any walk, so a form built
+out of elements that answer for themselves alone pays nothing. An element whose record never completes — a field
+cloned out of its group, a name nothing in the tree answers to — stays counted, and every container completed after
+it therefore walks its own subtree. The walk is bounded by the construction it is part of, so it is a constant
+factor on a path that is already linear in the same subtree.
+
+---
+
+## D-017 — An action drives the elements it was registered on, not every element its declaration stands for
+
+**Version:** 0.10.0
+
+An action shared by every row has to find, from the element that changed, the elements it applies to. It searches
+by declaration — one entry stands for a thousand rows — and then keeps the elements of that search **that took the
+action on**, which is recorded per element in a `WeakSet`.
+
+**What forced it.** Without the second half, a rule registered on one row of a list applies to every row: the field
+it compares against pushes an error onto rows that do not carry the validator, and a row with no validator has
+nothing that can withdraw it, so the form is invalid for good. `registerAction` on one row is ordinary — a row the
+user is editing under a rule the others are not — and a `List` is not the only place a declaration stands for
+several elements.
+
+**Rejected: recording the elements themselves in a `Set`.** It is the direct reading, and it grows without bound:
+every row of every list registers as it is cloned, and a list churning rows never gives an entry back. The pair
+kept here is bounded — one declaration per registration site, and weak references for the rest.
+
+**Rejected: a flag in the per-element state a validator already keeps.** It works for `CompareTo`, whose state is
+keyed by the element it validates, but not for a conditional action, which keys its state by the *record*: a rule
+on a bare field has the field for its own record, and the two entries would be the same object.
+
+**What it also settles.** `unregisterFrom(binding)` deletes the entry, and registering again puts it back, so a
+validator registered on a field that had `clearValidators()` called listens to the compared field again. The state
+before this release set a flag that nothing ever cleared, and the field stayed half-armed: validating its own
+writes, deaf to the field it compared against.
