@@ -5,6 +5,48 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-08-17
+
+Documentation only. No behaviour changes, and no source under `src/` was touched.
+
+### Added
+- **[The model](https://docs.velis.si/dynamicforms/vue-forms/guide/model)**, a new guide page placed ahead of the
+  API reference. It states the whole design in one place — elements, declarations and clones, how a `List` builds
+  rows, what a record is and how a shared rule resolves within one, when each event fires, where validity comes
+  from and where a value comes from — for a reader who has never used the library. The reference pages carry the
+  per-symbol truth; this is the shape they belong to.
+- **[An `Action` example](https://docs.velis.si/dynamicforms/vue-forms/examples/action)**, showing an action end
+  to end: declared with a label and an icon, enabled by the form's validity through a `ConditionalEnabledAction`,
+  executed, and reporting `busy` through an asynchronous submit that can fail. It says plainly why `Action` is the
+  one deliberate exception to the library being UI-agnostic and that a UI library is expected to extend it, and it
+  cross-links to `@dynamicforms/vuetify-inputs`.
+- **A single upgrade path from 0.6.1 to 0.10.x** at the top of the migration guide, leading with the three breaks
+  that fail with nothing in the console — `watch(field, cb)`, `readonly(field)` and `isEqual` over two elements —
+  and ending in a checklist. The per-release sections stay below it for a project crossing one release.
+- **A versioning and support statement** in Getting Started: what a `0.x` minor means, and the supported Vue, Node,
+  module-format and browser matrix. The changelog is now reachable from the site navigation.
+
+### Fixed
+- `Field.value` no longer claims that assigning an object fires `ValueChangedAction` even for the same reference.
+  Values are compared by identity: a new object announces a change even when it is deeply equal to the old one, and
+  the very object the field already holds announces nothing. Mutate a copy and assign it.
+- `field.errors` is documented as it behaves. `valid` follows an error pushed into the array immediately, on the
+  field and on every container above it; what waits for `validate()` is the `ValidChangedAction` announcing the
+  transition. The array is reactive, so `field.errors[0] === myError` is `false` for the error a validator
+  returned — compare by content, or unwrap with `toRaw()`.
+- The reactivity claims are corrected everywhere they appeared. A form element has not been a Vue proxy of itself
+  since 0.7.0; every read through it is tracked, and the watch form to use is `watch(() => field.value, cb)`.
+- `List.value`'s setter is described as it behaves: an array assigns, a `null` — which is what `group.value = null`
+  writes into a nested list — releases every row, and any other value leaves the rows untouched.
+- `ActionsMap`'s documented surface lists `triggerChain()` and `willTrigger()`, which it has always had, and
+  `Statement`'s `operand1Value` / `operand2Value` are documented.
+- A hand-written validator that reads a sibling is shown calling `field.markRecordIncomplete()`, which is what a
+  `List` row needs to carry its own verdict from the moment it exists. The `List` example no longer revalidates
+  each row from a `ListItemAddedAction`, which covered `push()` and `insert()` and missed every other way a row is
+  built.
+- `MessagesWidget` renders a `componentName` directly only for the common HTML tag names; every other name,
+  including an uncommon tag, is resolved as a globally registered component.
+
 ## [0.10.0] - 2026-08-17
 
 ### Added

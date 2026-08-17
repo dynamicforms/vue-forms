@@ -41,7 +41,7 @@ personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValu
 }));
 ```
 
-Every form element — [`Field`](/api/field), `Action`, [`Group`](/api/group), [`List`](/api/list) — is created with `new`, as are the action classes such as `ValueChangedAction`. The instances are Vue reactive objects, so the template below binds `personForm.fields.firstName.value` directly, and the output block that reads `personForm.value` re-renders on every change.
+Every form element — [`Field`](/api/field), `Action`, [`Group`](/api/group), [`List`](/api/list) — is created with `new`, as are the action classes such as `ValueChangedAction`. Every read through an element is tracked, so the template below binds `personForm.fields.firstName.value` directly, and the output block that reads `personForm.value` re-renders on every change.
 
 ### Vue Template
 

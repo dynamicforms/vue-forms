@@ -89,10 +89,16 @@ const lineItem = new Group({
 });
 
 // A validator on a template field also runs in every row. Inside a row, field.parent is that row's Group,
-// so the lookup below reads the quantity of the same row.
+// so the lookup below reads the quantity of the same row. A row is built member by member, so the first run
+// happens before the member has a row at all: reaching nothing is no verdict, and markRecordIncomplete() is
+// what asks for the run to be repeated once the row exists.
 lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, oldValue, field) => {
-  const quantity = field.parent?.fields.quantity.value;
-  if (quantity > 0 && (newValue === null || newValue === '')) {
+  const row = field.parent;
+  if (!row) {
+    field.markRecordIncomplete();
+    return null;
+  }
+  if (row.fields.quantity.value > 0 && (newValue === null || newValue === '')) {
     return [new ValidationErrorText('Unit price is required when quantity is above zero')];
   }
   return null;
@@ -121,9 +127,6 @@ const lineItems = new List(lineItem, {
   actions: [
     new ListItemAddedAction((field, supr, item, index) => {
       logEvent(`item added at index ${index}`);
-      // the cross-field rule reads a sibling, and a row has one only once it is a row, so the values the row
-      // arrived with are put through the validators here
-      item.validate(true);
       return supr(field, item, index);
     }),
     new ListItemRemovedAction((field, supr, item, index) => {

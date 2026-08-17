@@ -15,7 +15,7 @@ features:
   - title: UI-agnostic
     details: Works with any Vue UI components or your custom ones
   - title: Reactive
-    details: Fields, groups and lists are Vue reactive objects — read and assign properties directly, no ref to unwrap
+    details: Every member of a field, group or list is a tracked read — assign a property directly, no ref to unwrap
   - title: TypeScript Support
     details: Full type definitions for an excellent developer experience
   - title: Nested Structures

@@ -447,3 +447,113 @@ on a bare field has the field for its own record, and the two entries would be t
 validator registered on a field that had `clearValidators()` called listens to the compared field again. The state
 before this release set a flag that nothing ever cleared, and the field stayed half-armed: validating its own
 writes, deaf to the field it compared against.
+
+---
+
+## D-018 — The model is written down as one page, ahead of the reference
+
+**Version:** 0.10.1
+
+`docs/guide/model.md` states the whole design in one place: elements, declarations and clones, how a `List`
+builds rows, what a record is, when events fire, where validity comes from and where a value comes from. It is
+listed first in the API sidebar as well as in the guide sidebar, so a reader who arrives at the reference meets
+it before the first symbol.
+
+**What forced it.** Six releases added six mechanisms — value version counters, a validity computed beside a
+validity tally, transactions, declarations, records, per-element action state — and each was documented where it
+belonged, on the page of the symbol it touched. A reader assembling the shape from those pages has to read all
+of them and infer what they have in common. Complexity that arrives one release at a time is complexity nobody
+reviews as a whole, and the page is what makes it reviewable.
+
+**What it is not allowed to be.** The reference pages carry the per-symbol truth — every signature, default,
+unit and thrown error — and the model page carries none of it. A duplicated signature is a signature that goes
+stale on one of the two pages, and the one it goes stale on is the one nobody edits when the code changes.
+
+**Rejected: growing `getting-started.md` instead.** That page has a different job — install, bind an input,
+render an error — and it is read once, in a hurry. The model is read when a form does something the reader did
+not expect, which is a different moment and a different length.
+
+**Rejected: a concepts section at the top of each reference page.** It puts the same explanation in five places
+and still never states what the five have in common, which is the whole content of the page.
+
+---
+
+## D-019 — The migration guide carries the journey and the per-release sections both
+
+**Version:** 0.10.1
+
+`docs/guide/migration.md` opens with one pass from 0.6.1 to 0.10.x, ordered by how likely a change is to bite
+rather than by which release produced it, and keeps the per-release sections below it unchanged.
+
+**Why both.** The two readers are different. A project upgrading across four releases wants the silent breaks
+first — `watch(field, cb)`, `readonly(field)`, `isEqual` over elements — because those fail with nothing in the
+console and nothing in the type checker; which release introduced each is of no use to them. A project crossing
+one release wants exactly that release and nothing else.
+
+**What it costs.** The same change is described twice, in two orderings. The journey is a summary with a
+checklist and the per-release section is the full account, so the two are not copies; but a future release adds
+its section and has to be folded into the journey as well, and a release that is not folded in leaves the
+journey silently incomplete.
+
+**Rejected: replacing the per-release sections.** Their headings are what a changelog entry and a release note
+can link to, and a consumer crossing one release would have to read four releases' worth of prose to find their
+own.
+
+---
+
+## D-020 — `Action`'s exception to UI-agnosticism is stated, not hedged
+
+**Version:** 0.10.1
+
+The documentation says outright that `Action` is the one part of the library that is not UI-agnostic, on the
+design-goal line in `readme.md` and `getting-started.md`, in a callout in `docs/api/actions.md`, and at length
+in `docs/examples/action.md`. The cross-link points at `@dynamicforms/vuetify-inputs`'s `df-actions` and
+responsive-render-options pages, which is where that package documents what an action renders as; it has no page
+for the `Action` subclass itself, so there is nothing closer to link to.
+
+**Why it is said rather than left alone.** "UI-agnostic" is the first design goal on both front pages, and
+`{ label, icon }` contradicts it in the reader's eyes. An unexplained inconsistency reads as an oversight, and a
+reader who takes it for one designs around it — reimplementing the label on their own class rather than widening
+the value the way the shape invites.
+
+**Why it is not softened into a general-purpose name.** Renaming the members to something domain-neutral would
+hide the exception rather than remove it, and would take away the affordance that makes `Action` a concept
+instead of a `Field` with extra steps.
+
+---
+
+## D-021 — A hand-written cross-field validator is documented as calling `markRecordIncomplete()`
+
+**Version:** 0.10.1
+
+The `List` example and the validators reference both show a validator that reads a sibling answering
+`field.markRecordIncomplete()` and returning `null` while `field.parent` is absent, rather than the containing
+list revalidating each row from a `ListItemAddedAction`.
+
+**Why.** Reaching nothing has to read as *no verdict*, and the container that completes the record is the one
+that can run the pass again — which is exactly what `markRecordIncomplete()` asks for. Revalidating from
+`ListItemAddedAction` covers `push()` and `insert()` and misses every other way a row comes into being: the
+initial `value`, a whole-list assignment, the padding items an out-of-range `insert()` creates.
+
+**What it costs.** A hand-written rule has to say so explicitly, where `CompareTo` and the conditional actions
+do it themselves. The alternative — treating an absent container as a signal on its own — cannot tell a rule
+that legitimately has no container from one whose record is still being built.
+
+---
+
+## D-022 — `field.errors` reads back Vue proxies, and that is documented rather than unwrapped
+
+**Version:** 0.10.1
+
+An element's state is a `reactive` object, so `field.errors` is a reactive array and its members are proxies of
+the `ValidationError` instances a validator produced. `field.errors[0] === myError` is therefore `false` for the
+very error that validator returned. `docs/api/field.md` and `docs/api/validators.md` say so and name `toRaw()`.
+
+**Why not unwrap in the getter.** The tracked read is the point: a template rendering `error.componentBody` must
+re-render when the message behind a `Ref` changes, and handing out raw instances would take that away. Unwrapping
+only the array and not its members would leave the same trap one level down.
+
+**What it leaves open.** Two runs of one validator that produce the same message leave the field holding the
+newer instance, because the `isEqual` that would have kept the older one compares two
+`ValidationErrorRenderContent` objects including the `computed` each carries. Recorded in `todo.md`; error
+identity across validations is not something the library promises today.

@@ -9,7 +9,7 @@ net transitions are measured against what the elements last announced, and each 
 ```typescript
 import { transaction } from '@dynamicforms/vue-forms';
 
-// two writes, one ValueChangedAction on the group, one ValidChangedAction on each level
+// two writes, one ValueChangedAction on the group instead of two
 transaction(() => {
   form.fields.firstName.value = 'Janez';
   form.fields.lastName.value = 'Novak';
@@ -125,3 +125,7 @@ first time it is written. A whole-list assignment over 1000 rows of 8 fields rec
 whole assignment measures at 24 ms against 19 ms for the same fixture without transactions — most of that
 difference being the commit's own bookkeeping rather than the record. There is no way to switch the record off,
 and none is needed at that ratio.
+
+---
+
+> See also: [The model](/guide/model) for where transactions sit among the rest of the library

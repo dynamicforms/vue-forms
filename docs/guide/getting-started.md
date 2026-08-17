@@ -13,9 +13,9 @@ section or a list row behaves the same way a single field does — and rendering
 
 ### Design Goals
 
-- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The only component the library ships is the optional `MessagesWidget` for rendering validation errors.
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The only component the library ships is the optional `MessagesWidget` for rendering validation errors, and the one deliberate exception is [`Action`](/examples/action#why-action-is-not-ui-agnostic), whose value is a label and an icon.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
-- **Reactive & Type-Safe**: Fields, groups and lists are Vue reactive objects — assign a property and whatever read it re-renders. A group's value type is inferred from the fields it holds, nested structures included.
+- **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read — assign a property and whatever read it re-renders, with no `ref` to unwrap. A group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
 - **Lightweight**: `vue` (^3.4) is the only peer dependency, and `lodash` and `lodash-es` — one per build — the only runtime ones.
 
@@ -57,9 +57,10 @@ const personForm = new Group({
 });
 ```
 
-Every form element — `Field`, `Action`, `Group` and `List` — is created with `new`, and the instance is a Vue
-reactive object from that moment on: reading `personForm.value` or `personForm.fields.age.enabled` in a template
-tracks it, and plain assignment re-renders.
+Every form element — `Field`, `Action`, `Group` and `List` — is created with `new`, and every read through it is
+tracked from that moment on: reading `personForm.value` or `personForm.fields.age.enabled` in a template, in a
+`computed` or in a `watchEffect` subscribes to it, and plain assignment re-renders. The element itself is not a Vue
+proxy, so watch what you read — `watch(() => field.value, cb)` — rather than passing the element as the source.
 
 ## Using with Vue Components
 
@@ -131,9 +132,27 @@ app.use(forms, { useMarkdownInValidators: false });
 By default the built-in validators produce markdown messages, which `MessagesWidget` renders through a globally
 registered `vue-markdown` component. Set `useMarkdownInValidators` to `false` if you don't have one.
 
+## Versioning and support
+
+The package is in `0.x`, where a breaking change goes in the **minor** version: `0.9.0` → `0.10.0` may break your
+code, `0.10.0` → `0.10.1` does not. Every such change is listed in the
+[migration guide](/guide/migration) with before/after code and in the
+[changelog](https://github.com/dynamicforms/vue-forms/blob/main/changelog.md). The public surface is not frozen
+until 1.0.
+
+| | Supported |
+|---|---|
+| Vue | `^3.4` as declared, `>= 3.5` if you type-check the package's declarations with `skipLibCheck: false` |
+| Node | 18 or newer |
+| Module formats | ESM and CJS/UMD, both with type definitions |
+| Browsers | whatever your bundler targets — the build is `es2015` and uses no browser API of its own |
+
 ## Next Steps
 
-Check out the [Examples](/examples/basic-form) section to see more advanced usage patterns, or read the API reference:
-[Field](/api/field), [Group](/api/group), [Validators](/api/validators) and [Configuration](/api/config).
+[The model](/guide/model) is the whole library in one page — elements, declarations, transactions, validity, and
+how a `List` builds its rows. After that, the [Examples](/examples/basic-form) section shows the patterns in
+context and the API reference names every member: [Field](/api/field), [Group](/api/group),
+[Validators](/api/validators) and [Configuration](/api/config).
 
-Coming from 0.5.x? The [migration guide](/guide/migration) lists the breaking changes with before/after code.
+Upgrading an existing project? The [migration guide](/guide/migration) walks the whole journey from 0.6.1 to
+0.10.x, silent breaks first.

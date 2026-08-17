@@ -130,9 +130,9 @@ class CustomAlertError extends ValidationErrorText {
 }
 ```
 
-`componentName` must be either a plain HTML tag or the name of a **globally registered** component
-(`app.component('v-alert', VAlert)`) — MessagesWidget resolves it with `resolveComponent()` in its own scope, so
-locally imported components are not visible.
+`componentName` must be either one of the common HTML tag names or the name of a **globally registered** component
+(`app.component('v-alert', VAlert)`) — MessagesWidget resolves everything else with `resolveComponent()` in its own
+scope, so locally imported components are not visible.
 
 For custom components the `componentBody` is passed as the `innerHTML` prop (not as slot content), so it is rendered
 as raw HTML — never put untrusted input there.

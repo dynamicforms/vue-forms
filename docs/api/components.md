@@ -58,7 +58,8 @@ must be a `string` or a `ValidationError[]`.
 | `RenderContent` | `RenderContentNonCallable \| RenderContentCallable` |
 | `RenderContentRef` | `RenderContent \| Ref<RenderContent>` — the type accepted by `ValidationErrorRenderContent` and by every built-in validator's `message` parameter |
 
-A `componentName` that is a plain HTML tag name is rendered directly; any other name is resolved as a globally
+A `componentName` that is one of the common HTML tag names — the block, text, list, table and form elements — is
+rendered as that element directly. Every other name, an uncommon HTML tag included, is resolved as a globally
 registered component.
 
 For developers writing their own renderers, the type guards `isSimpleComponentDef(content)` and

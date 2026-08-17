@@ -37,10 +37,16 @@ const lineItem = new Group({
 });
 
 // A validator on a template field also runs in every row. Inside a row, field.parent is that row's Group,
-// so the lookup below reads the quantity of the same row.
+// so the lookup below reads the quantity of the same row. A row is built member by member, so the first run
+// happens before the member has a row at all: reaching nothing is no verdict, and markRecordIncomplete() is
+// what asks for the run to be repeated once the row exists.
 lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, oldValue, field) => {
-  const quantity = field.parent?.fields.quantity.value;
-  if (quantity > 0 && (newValue === null || newValue === '')) {
+  const row = field.parent;
+  if (!row) {
+    field.markRecordIncomplete();
+    return null;
+  }
+  if (row.fields.quantity.value > 0 && (newValue === null || newValue === '')) {
     return [new ValidationErrorText('Unit price is required when quantity is above zero')];
   }
   return null;
@@ -69,9 +75,6 @@ const lineItems = new List(lineItem, {
   actions: [
     new ListItemAddedAction((field, supr, item, index) => {
       logEvent(`item added at index ${index}`);
-      // the cross-field rule reads a sibling, and a row has one only once it is a row, so the values the row
-      // arrived with are put through the validators here
-      item.validate(true);
       return supr(field, item, index);
     }),
     new ListItemRemovedAction((field, supr, item, index) => {
@@ -192,15 +195,22 @@ completely before building the list from it.
 
 ## Reaching a Sibling Field
 
-Inside a row, `field.parent` is the row's own `Group`, which is what makes `field.parent?.fields.quantity` the
-quantity of the row being validated rather than the template's. The same expression written on the template
-resolves per row, because the field the validator receives is the row's field, not the one the template holds.
+Inside a row, `field.parent` is the row's own `Group`, which is what makes `row.fields.quantity` the quantity of
+the row being validated rather than the template's. The same expression written on the template resolves per row,
+because the field the validator receives is the row's field, not the one the template holds.
+
+A row is built member by member — every member is cloned on its own, the clones are handed to a `Group`, and the
+group is then handed the row's data — so this validator's first run happens while the unit price still has no
+`parent`. Reaching nothing there is *no verdict*, not a pass: `field.markRecordIncomplete()` says so, and the
+container that completes the record runs the validator again over the row it then has. That is why a row created
+with a quantity above zero and no unit price is invalid from the moment it exists, without anything revalidating
+it by hand.
 
 A validator runs when its own field changes, so the unit price rule fires when the unit price is edited. The other
 half of the rule is the quantity, and a change there has to send the unit price through its validators again:
 `field.parent?.fields.unitPrice.validate(true)` does that from a `ValueChangedAction` on the quantity, with the
-same sibling lookup. `validate(true)` re-runs the field's validators; `validate()` alone only recomputes the
-verdict from the errors already recorded.
+same sibling lookup. `validate(true)` re-runs the field's eager actions, its validators among them;
+`validate()` alone announces the verdict the errors already recorded support.
 
 ## List Validity
 

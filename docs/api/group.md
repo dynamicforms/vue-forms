@@ -129,4 +129,5 @@ Type alias for `Group | null`.
 
 ---
 
-> See also: [Basic Form example](/examples/basic-form), [Conditional statements example](/examples/conditional-statement)
+> See also: [The model](/guide/model), [Basic Form example](/examples/basic-form),
+> [Conditional statements example](/examples/conditional-statement)

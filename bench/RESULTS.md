@@ -214,3 +214,71 @@ carries validators only, none of which reads a second element, so nothing in it 
 element does ask — `f1` of the conditional variant — the second pass re-runs that element's eager actions, its own
 validators included. That is what the build column measures, and it is per element that asked rather than per
 element.
+
+---
+
+# 0.6.1 to 0.10.x, in one table
+
+Every figure below is carried over from the section that measured it; nothing here is a fresh run. **0.10.1
+changes no source under `src/`, so it carries 0.10.0's figures.**
+
+Two caveats decide how far the columns can be compared:
+
+- **0.6.1 was taken on a different machine** and reads about twice as slow for the same code. Treat its column
+  as the shape of the change — a complexity class, not a factor.
+- **0.7.0 and 0.8.0 are the one controlled pair**, measured back to back in a single session. Every later column
+  crosses a session boundary, so a difference of a few per cent between neighbours is below what the method
+  resolves.
+
+## Wall clock, milliseconds, lower is better
+
+| id | scenario | variant | 0.6.1 | 0.7.0 | 0.8.0 | 0.9.0 | 0.10.x |
+|---|---|---|---:|---:|---:|---:|---:|
+| S1a | `new List(tpl, { value: rows })`, 1000 rows | plain | 509.5 | 183.9 | 192.8 | 188.3 | 196.1 |
+| S1a | | conditional | 521.8 | 179.9 | 199.9 | 196.2 | 223.4 |
+| S1b | 1000 × `push()` | plain | 13 132.3 | 183.3 | 186.4 | 186.9 | 195.5 |
+| S1b | | conditional | 13 955.0 | 185.9 | 191.3 | 190.0 | 210.3 |
+| S2a | write one field in row 500 | plain | 32.95 | 0.0081 | 0.0097 | 0.0100 | 0.0107 |
+| S2a | | conditional | 33.06 | 0.0075 | 0.0100 | 0.0118 | 0.0098 |
+| S3 | `remove(500)` | plain | 27.07 | 0.5163 | 0.5524 | 0.5587 | 0.5129 |
+| S3 | | conditional | 30.20 | 0.5070 | 0.5264 | 0.5006 | 0.5412 |
+| S4a | `list.value = rows`, same length | plain | 476.9 | 18.76 | 24.33 | 24.22 | 24.70 |
+| S4a | | conditional | 461.2 | 18.98 | 24.00 | 24.45 | 25.37 |
+| S4b | `list.value = rows`, different length | plain | 461.0 | 20.19 | 23.73 | 24.57 | 25.37 |
+| S4b | | conditional | 464.9 | 19.07 | 23.96 | 24.26 | 26.29 |
+| S6 | read `list.valid` | plain | 11.30 | 0.0003 | 0.0002 | 0.0003 | 0.0002 |
+| S6 | | conditional | 10.77 | 0.0003 | 0.0003 | 0.0003 | 0.0003 |
+| S6 | write one field, then read `list.valid` | plain | 44.27 | 0.0084 | 0.0129 | 0.0114 | 0.0110 |
+| S6 | | conditional | 42.25 | 0.0070 | 0.0097 | 0.0117 | 0.0099 |
+
+Against 0.6.1, on the plain variant: `push`-filling a 1000-row list is **67× faster**, a single-field write is
+**3080× faster**, `remove()` is **53× faster**, a whole-list assignment is **19× faster** and reading
+`list.valid` is **56 000× faster**. The plan's acceptance figures were 20×, 50× and 10× for the first three.
+
+The two axes that carry the whole shape: `push`-filling changed complexity class, from `O(R²·N)` to `O(R·N)`,
+and a single-field write stopped depending on the length of the list. What went the other way is a whole-list
+assignment, 18.8 ms to 24.7 ms, which is the transaction's own bookkeeping plus the record a rollback restores
+from, over the 9001 elements such an assignment modifies.
+
+## Memory and structure
+
+| | 0.6.1 | 0.7.0 | 0.8.0 | 0.9.0 | 0.10.x |
+|---|---:|---:|---:|---:|---:|
+| retained bytes per field, plain | 2642 | 1489.8 | 1463.4 | 1463.3 | 1509.8 |
+| retained bytes per field, conditional | 2678 | 1525.5 | 1499.0 | 1499.0 | 1564.1 |
+| retained KiB per 1000-row list, plain | 20 643 | 11 638.8 | 11 432.7 | 11 432.2 | 11 795.2 |
+| retained KiB per 1000-row list, conditional | 20 922 | 11 918.4 | 11 710.9 | 11 711.1 | 12 219.9 |
+| Vue proxies per row | 9 | 9 | 9 | 9 | 9 |
+| validator runs per field, `new Field({ value, validators })` | 1 | 1 | 1 | 1 | 1 |
+| validator runs per row | 16 | 16 | 16 | 16 | 16 |
+
+A field costs **43 % less RAM** than at 0.6.1, which is the state object replacing per-instance property
+descriptors, less the slot and the per-element action record the later releases added back.
+
+## What is still not captured
+
+Allocations per row, for the reason `BASELINE.md` gives: counting them means counting constructor calls inside
+the library, which cannot be observed without changing its source. Retained bytes per field stands in.
+
+Re-render counts and `[Vue warn]` counts need a mounted component, which this harness has none of. They live in
+`src/reactivity-render.spec.ts`, which has passed unedited through every release in the table.
