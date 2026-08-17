@@ -52,13 +52,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   container - each of which walks the members one at a time. The container now forms its verdict once, over
   the finished state: one event when the operation flips its validity, none when it leaves it where it found
   it, and the same at every level of nesting. Each member still announces its own transition.
+- `Group.value = null` clears a nested `List`. A `List` ignored an assignment that was not an array, so a list
+  nested in a group kept its rows while every sibling field was emptied, and `group.clone({ value: null })`
+  cloned it with its rows intact.
 - `ValueChangedAction` carries the real previous value. The first change of a `Group` member, and every
   change of a `List` after an assignment, reported `null` as the previous value.
 - Asynchronous validators are sequenced per field. A verdict from a run that a newer run has superseded is
   discarded instead of overwriting the newer one, and a rejected validation promise no longer surfaces as an
-  unhandled rejection: if its run is still the current one it withdraws the errors that validator had placed
-  on the field and reports the reason once as `console.error('Validation failed', reason)`, and if it has
-  been superseded it is dropped silently. `field.validating` returns to `false` in every case.
+  unhandled rejection: if its run is still the current one, the validator replaces its own errors on the
+  field with a single `Validation could not be completed` error and reports the reason once as
+  `console.error('Validation failed', reason)`; if it has been superseded it is dropped silently, with
+  nothing logged. A validator that cannot reach its server therefore produces a failed validation and not a
+  passing one, so a value that was never checked cannot be submitted. The failure error is an ordinary error
+  of that validator: the next successful run of the same validator withdraws it. `field.validating` returns
+  to `false` in every case.
 - `clearValidators()` cancels validation that is still in flight. A result arriving from a cleared validator
   is dropped, leaving the field with no errors, `valid === true` and `validating === false`.
 - `clearValidators()` announces the validity it produces. It set `valid` silently, so no `ValidChangedAction`

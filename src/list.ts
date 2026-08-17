@@ -61,7 +61,10 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
   }
 
   private setValueInternal(newValue: any[]) {
-    if (Array.isArray(newValue)) {
+    // null is the value that clears, the same one Group.value = null writes into every member; without this a
+    // list nested in a group would keep its rows while every sibling field was emptied
+    if (newValue == null) this._value = null;
+    else if (Array.isArray(newValue)) {
       this._value = newValue.map((item: any) => this.processSetValueItem(item));
     }
   }
@@ -87,11 +90,12 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
       if (this.parent) this.parent.notifyValueChanged();
     } finally {
       this.suppressParentValidityClimb = outerClimb;
+      this.validate();
+      // a parent whose own value did not change by this one returns from notifyValueChanged() without validating,
+      // so a validity change held back above still has to reach it. Both run even when a handler threw, or the
+      // parent would keep a verdict the members no longer support.
+      this.flushParentValidityClimb();
     }
-    this.validate();
-    // a parent whose own value did not change by this one returns from notifyValueChanged() without validating, so
-    // a validity change held back above still has to reach it
-    this.flushParentValidityClimb();
   }
 
   get touched(): boolean {
@@ -129,9 +133,9 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
         if (this.parent) this.parent.notifyValueChanged();
       } finally {
         this.suppressParentValidityClimb = outerClimb;
+        this.validate();
+        this.flushParentValidityClimb();
       }
-      this.validate();
-      this.flushParentValidityClimb();
     }
   }
 

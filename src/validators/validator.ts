@@ -5,6 +5,7 @@ import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
 
+import { buildErrorMessage } from './error-message-builder';
 import {
   isCallableFunction,
   isSimpleComponentDef,
@@ -12,6 +13,7 @@ import {
   RenderContentNonCallable,
   RenderContentRef,
   ValidationError,
+  ValidationErrorRenderContent,
 } from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
@@ -26,6 +28,12 @@ interface SourceProp {
 }
 
 const ValidatorClassIdentifier = Symbol('Validator');
+
+/**
+ * Message shown when a validation run rejects. It is built per rejection because the markdown setting it reads is
+ * a runtime configuration value.
+ */
+const validationFailedMessage = (): RenderContentRef => buildErrorMessage('Validation could not be completed');
 
 /**
  * Validator is a specialized action that performs validation when a field's value changes.
@@ -80,15 +88,21 @@ export class Validator<T = any> extends ValueChangedAction {
               if (isCurrent()) processErrors(err);
             },
             (reason) => {
-              // a rejection yields no verdict: the errors this validator had placed on the field are withdrawn
-              // and the reason is reported, so a failed check never leaves a stale message behind
+              // a rejection reaches no verdict, and no verdict may not read as a pass: this validator's errors are
+              // replaced by the single failure error, so the field is invalid while the value is unchecked and the
+              // form cannot be submitted on it. The error carries this validator's own source stamp, so the next
+              // successful run of the same validator withdraws it like any other error of its own. The reason never
+              // reaches the user, whose message says only that the check did not complete, so it is logged.
               if (isCurrent()) {
-                processErrors(null);
+                processErrors([new ValidationErrorRenderContent(validationFailedMessage())]);
                 console.error('Validation failed', reason);
               }
             },
           )
-          .finally(() => field.endValidating());
+          .finally(() => field.endValidating())
+          // applying a verdict fires ValidChangedAction, so a handler that throws would leave this chain
+          // rejected with nowhere to report it
+          .catch((error) => console.error('Validation failed', error));
       } else processErrors(errors);
       return supr(field, newValue, oldValue); // Continue the action chain
     };

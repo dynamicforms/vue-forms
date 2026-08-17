@@ -605,3 +605,27 @@ describe('Group construction parameters', () => {
     expect(group.clone({ value: { a: 7 } }).value).toEqual({ a: 7, b: 2 });
   });
 });
+
+describe('Group value = null', () => {
+  it('clears a nested List along with the plain fields', () => {
+    const template = new Group({ a: new Field({ value: '' }) });
+    const group = new Group({
+      f: new Field({ value: 'x' }),
+      l: new List(template, { value: [{ a: '1' }, { a: '2' }] }),
+    });
+
+    group.value = null;
+
+    expect(group.value).toEqual({ f: null, l: null });
+  });
+
+  it('clears a nested List through a clone that supplies null', () => {
+    const template = new Group({ a: new Field({ value: '' }) });
+    const group = new Group({
+      f: new Field({ value: 'x' }),
+      l: new List(template, { value: [{ a: '1' }] }),
+    });
+
+    expect(group.clone({ value: null }).value).toEqual({ f: null, l: null });
+  });
+});

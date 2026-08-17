@@ -67,23 +67,33 @@ discarded — so a user typing faster than the round trip ends with the verdict 
 field, and `validating` is back to `false` once every run has settled. Synchronous runs take a number from the same
 sequence, so a verdict reached without waiting also supersedes an asynchronous run that is still in flight.
 
-A rejected promise yields no verdict at all:
+A rejected promise reaches no verdict, and no verdict does not count as a pass:
 
-- if the rejected run is still the current one, the errors this validator had placed on the field are withdrawn and
-  the reason is reported once as `console.error('Validation failed', reason)`;
-- a rejection from a superseded run is discarded silently, and nothing is logged.
+- if the rejected run is still the current one, this validator's errors on the field are replaced by a single error
+  reading `Validation could not be completed`, so the field is invalid while its value is unchecked and a form
+  cannot be submitted over it. The message is built with `buildErrorMessage()` at the moment of the rejection, so
+  it reads [`useMarkdownInValidators`](/api/config) as it stands then, where a built-in validator captures that
+  setting when it is constructed. The error belongs to this validator like any other it contributes: the next
+  successful run of the same validator withdraws it. The rejection reason never reaches the user; it is reported
+  once as `console.error('Validation failed', reason)`;
+- a rejection from a superseded run is discarded silently — no error is placed and nothing is logged.
 
 In both cases the run still counts as finished, so `validating` returns to `false` and the rejection never surfaces as
-an unhandled rejection. A check whose failure the user should see must not reject: catch inside the validation
-function and return an error of your own, e.g. `[new ValidationErrorRenderContent('Could not verify this value')]`.
+an unhandled rejection.
+
+Nothing re-runs a validator on its own once the value has settled: assigning the value it already holds is a no-op,
+so a failure error survives until something starts a new run. Call `field.validate(true)` — on the field or on the
+`Group` above it — to retry after the service is back. The failure message names no cause, because the validator has none to name. When the user
+should read something more specific, catch inside the validation function and return an error of your own, e.g.
+`[new ValidationErrorRenderContent('Could not verify this value')]`.
 
 [`clearValidators()`](/api/field#methods) also cancels validation that is still in flight: it drops the validators,
-empties `field.errors` and recalculates the verdict over the emptied list, and a run that settles afterwards can no
-longer push its errors onto the field. A field that was invalid therefore fires `ValidChangedAction` and the `Group`
-or `List` holding it re-evaluates its own validity. `field.validationEpoch` is the read-only counter behind the
-cancellation — `clearValidators()` increments it, a run captures it when it starts, and a result whose epoch no
-longer matches is discarded. The cancelled run still ends its own bookkeeping, so `validating` returns to `false`
-when its promise settles.
+empties `field.errors` and recalculates the verdict over the emptied list, and a run that settles afterwards — with a
+verdict or with a rejection — can no longer push errors onto the field. A field that was invalid therefore fires
+`ValidChangedAction` and the `Group` or `List` holding it re-evaluates its own validity. `field.validationEpoch` is
+the read-only counter behind the cancellation — `clearValidators()` increments it, a run captures it when it starts,
+and a result whose epoch no longer matches is discarded. The cancelled run still ends its own bookkeeping, so
+`validating` returns to `false` when its promise settles.
 
 ### `buildErrorMessage(markdown)`
 

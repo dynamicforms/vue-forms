@@ -181,11 +181,12 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         if (this.parent) this.parent.notifyValueChanged();
       } finally {
         this.suppressParentValidityClimb = outerClimb;
+        this.validate();
+        // a parent whose own value did not change by this one returns from notifyValueChanged() without
+        // validating, so a validity change held back above still has to reach it. Both run even when a handler
+        // threw, or the parent would keep a verdict the members no longer support.
+        this.flushParentValidityClimb();
       }
-      this.validate();
-      // a parent whose own value did not change by this one returns from notifyValueChanged() without validating,
-      // so a validity change held back above still has to reach it
-      this.flushParentValidityClimb();
     }
   }
 

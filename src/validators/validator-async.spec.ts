@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 import { Field } from '../field';
 
-import { ValidationErrorText } from './validation-error';
+import { ValidationError, ValidationErrorRenderContent, ValidationErrorText } from './validation-error';
 import { ValidationFunctionResult, Validator } from './validator';
 
 const delay = (ms: number) =>
@@ -13,6 +13,17 @@ const delay = (ms: number) =>
 const settled = (field: Field) =>
   vi.waitFor(() => {
     expect(field.validating).toBe(false);
+  });
+
+/** the text an error renders, whichever of the two error classes carries it */
+const messageOf = (error: ValidationError) =>
+  error instanceof ValidationErrorRenderContent ? String(error.resolvedText) : error.componentBody;
+
+/** a remote check: 'bad' is refused, 'unreachable' cannot be reached, anything else is accepted */
+const remoteCheck = () =>
+  new Validator(async (newValue: string) => {
+    if (newValue === 'unreachable') throw new Error('validation service is down');
+    return newValue === 'bad' ? [new ValidationErrorText('bad value')] : null;
   });
 
 describe('Asynchronous validation sequencing', () => {
@@ -53,13 +64,9 @@ describe('Asynchronous validation sequencing', () => {
     expect(field.valid).toBe(true);
   });
 
-  it('withdraws its errors and reports the reason once when the validation promise rejects', async () => {
+  it('replaces its errors with the failure error and reports the reason once when the promise rejects', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const validator = new Validator(async (newValue: string) => {
-      if (newValue === 'unreachable') throw new Error('validation service is down');
-      return newValue === 'bad' ? [new ValidationErrorText('bad value')] : null;
-    });
-    const field = new Field({ value: 'initial', validators: [validator] });
+    const field = new Field({ value: 'initial', validators: [remoteCheck()] });
     await settled(field);
 
     field.value = 'bad';
@@ -69,9 +76,56 @@ describe('Asynchronous validation sequencing', () => {
     field.value = 'unreachable';
     await settled(field);
 
+    expect(field.errors.length).toBe(1);
+    expect(messageOf(field.errors[0])).toBe('Validation could not be completed');
+    expect(field.valid).toBe(false);
+    expect(field.validating).toBe(false);
+    expect(consoleError).toHaveBeenCalledTimes(1);
+    consoleError.mockRestore();
+  });
+
+  it('withdraws the failure error when the same validator next completes successfully', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const field = new Field({ value: 'unreachable', validators: [remoteCheck()] });
+    await settled(field);
+    expect(field.valid).toBe(false);
+
+    field.value = 'good';
+    await settled(field);
+
     expect(field.errors.length).toBe(0);
     expect(field.valid).toBe(true);
-    expect(consoleError).toHaveBeenCalledTimes(1);
+    expect(field.validating).toBe(false);
+    consoleError.mockRestore();
+  });
+
+  it('leaves the newer verdict untouched and logs nothing when a superseded run rejects', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let rejectFn: (reason: unknown) => void = () => {};
+    const unreachable = new Promise<ValidationFunctionResult>((_resolve, reject) => {
+      rejectFn = reject;
+    });
+    const validator = new Validator((newValue: string) => {
+      if (newValue === 'unreachable') return unreachable;
+      return Promise.resolve(newValue === 'bad' ? [new ValidationErrorText('bad value')] : null);
+    });
+    const field = new Field({ value: 'initial', validators: [validator] });
+    await settled(field);
+
+    field.value = 'unreachable';
+    field.value = 'bad';
+    await vi.waitFor(() => {
+      expect(field.errors.length).toBe(1);
+    });
+
+    rejectFn(new Error('validation service is down'));
+    await settled(field);
+
+    expect(field.errors.length).toBe(1);
+    expect(messageOf(field.errors[0])).toBe('bad value');
+    expect(field.valid).toBe(false);
+    expect(field.validating).toBe(false);
+    expect(consoleError).not.toHaveBeenCalled();
     consoleError.mockRestore();
   });
 
@@ -90,5 +144,28 @@ describe('Asynchronous validation sequencing', () => {
     expect(field.errors.length).toBe(0);
     expect(field.valid).toBe(true);
     expect(field.validating).toBe(false);
+  });
+
+  it('keeps the failure error off a field whose validators were cleared mid-flight', async () => {
+    let reject: (reason: Error) => void = () => {};
+    const validator = new Validator(
+      () =>
+        new Promise<ValidationFunctionResult>((_resolve, rej) => {
+          reject = rej;
+        }),
+    );
+    const field = new Field({ value: 'x', validators: [validator] });
+    expect(field.validating).toBe(true);
+
+    const reported = vi.spyOn(console, 'error').mockImplementation(() => {});
+    field.clearValidators();
+    reject(new Error('validation service is down'));
+    await settled(field);
+
+    expect(field.errors).toEqual([]);
+    expect(field.valid).toBe(true);
+    expect(field.validating).toBe(false);
+    expect(reported).not.toHaveBeenCalled();
+    reported.mockRestore();
   });
 });

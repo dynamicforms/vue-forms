@@ -205,11 +205,11 @@ field: the results belonging to the intermediate values are discarded as they ar
 for the text actually in it, and `field.validating` — bound to the input's `loading` prop — is back to `false` once the
 last run has settled.
 
-The validator resolves in both outcomes and never rejects, which is the shape to copy. A rejected promise delivers no
-verdict: the errors that validator had placed on the field are withdrawn and the reason is logged with
-`console.error('Validation failed', reason)`, so a failed availability check would look to the user like an address
-that is free. Catch the network error inside the validation function and return an error of your own whenever the
-failure is something the user should see.
+The validator here resolves in both outcomes and never rejects, because the delay it awaits cannot fail. A real
+availability check talks to a server and can: an unreachable server is not read as an address that is free — the
+rejected run puts a single `Validation could not be completed` error on the field, which leaves it invalid and the
+submit button disabled, and the reason is logged with `console.error('Validation failed', reason)`. Catch the network
+error inside the validation function only when the user should read something more specific than that message.
 
 ## API Reference
 

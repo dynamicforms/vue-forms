@@ -84,8 +84,11 @@ about the shape of signatures and of the published package — after 1.0 those c
   becoming async) is a 2.0.
 - **`Group.value` omits a disabled `List` but keeps a disabled `Group`** (`src/group.ts`; `List` does not
   extend `Group`) — payload shape.
-- **`Group.value = null` does not clear a nested `List`**, and a non-array value is swallowed silently
-  (`src/list.ts`).
+- **A non-array assigned to `List.value` is swallowed silently** (`src/list.ts`) — `setValueInternal` writes only
+  for an array, so a wrong type leaves the rows untouched with no error.
+- **`List` alone does not fall back to `originalValue`** (`src/list.ts`): `new Field({originalValue: 5})` and
+  `new Group({a}, {originalValue: {a: 7}})` start unchanged, while `new List(tpl, {originalValue: […]})` reports
+  `isChanged` and reads back `null`, so a list built from a server baseline is dirty before anyone touches it.
 - **`DisplayMode`:** an invalid *string* silently becomes `FULL`, an invalid *number* throws
   (`src/display-mode.ts:29-32`).
 - **`Action.label`/`icon` write into the value object behind the setter's back**: no `ValueChangedAction`
@@ -123,9 +126,15 @@ about the shape of signatures and of the published package — after 1.0 those c
 with a stale cache · `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
 `Operator.NOT` requires a dummy third argument · `parent` is `configurable: false` (documented) ·
 `Group.addField`/`List.length`/`items` are missing (additive) ·
-`Group`/`List` do not aggregate `validating` · `InAllowedValues` freezes the list at
+`Group`/`List` do not aggregate `validating` · a superseded asynchronous result is dropped, but the request
+behind it keeps running: `ValidationFunction` receives no `AbortSignal`, so nothing cancels the call at the
+network level and fast typing leaves a request in flight per keystroke — the fourth argument is additive ·
+`InAllowedValues` freezes the list at
 construction · `ValidationError` has no machine-readable code · error object identity is not preserved
-across validations · `isSimpleComponentDef(null)` throws ·
+across validations, and `Validator.claim()` copies an error another validator already owns, so the instance
+the field holds is not the one the validation function returned · `isSimpleComponentDef(null)` throws ·
+`List.insert(item, index)` fills the gap position by position, so an index taken from an API response builds
+that many groups and fires that many events synchronously on the main thread ·
 `./style.css` is unreachable under node10 resolution · CI never packs and imports the artifact · no coverage
 thresholds.
 
