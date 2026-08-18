@@ -24,6 +24,20 @@ export type IFieldConstructorParams<T = any> = {
   errors: ValidationError[];
 } & IFieldConstructorActionsList;
 
+/**
+ * What an element's constructor and its clone() accept: the parameters the element answers for itself, together
+ * with the extended properties its X parameter declares.
+ *
+ * X is left out of inference, so an element built without a type argument carries no extended properties and a
+ * parameter object naming one is rejected as an excess property. A caller that wants them states them:
+ * `new Field<string, { label: string }>({ value: 'a', label: 'Name' })`.
+ *
+ * The two halves are made partial separately. `Partial<A & X>` is a mapped type over an intersection, which is
+ * what T is inferred through, and inference through it answers with one constituent of a union rather than the
+ * union: `new Field({ value: someStringOrNumber })` would be a Field<string>.
+ */
+export type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
+
 export class AbortEventHandlingException extends Error {}
 
 export type FieldActionExecute<T = any> = (field: FieldBase<T>, ...params: any[]) => any;

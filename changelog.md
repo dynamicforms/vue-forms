@@ -5,6 +5,45 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-08-18
+
+### Added
+- **Extended properties.** Every form element now carries whatever properties your application declares for it
+  beyond the members of its class — a label, a hint, a css class, a permission flag — so a form whose shape
+  arrives from a server has somewhere to put them and a UI layer has somewhere to read them from. Declare them as
+  the element's second type argument, pass them to the constructor alongside everything else, read them through
+  `extra` and write them with `setExtendedValues()`:
+
+  ```typescript
+  interface Presentation { label: string; hint?: string }
+
+  const name = new Field<string, Presentation>({ value: 'John', label: 'First name' });
+  name.extra.label;                                    // 'First name'
+  name.setExtendedValues({ hint: 'as in your passport' });  // label stays as it was
+  ```
+
+  `Field<T, X>`, `Action<T, X>`, `Group<Fields, X>` and `List<Fields, X>` all take it, `X` defaults to `{}` and is
+  never inferred, so existing code compiles unchanged and an element that declared no extended properties still
+  rejects one. The read is tracked like every other read through an element, so a template rendering
+  `field.extra.label` re-renders when the property is written, and a write inside a `transaction()` that rolls
+  back is put back with it. `clone()` carries them over, and overrides it is given are written over them — which
+  also gives every row a `List` builds the properties its item template carries.
+
+  `extra` reads back as `Readonly<Partial<X>>`: a parameter object carries as few of them as it likes and
+  `setExtendedValues()` writes as few as it likes, so a property is there once something has put it there.
+- **`IFieldParams<T, X>`**, the exported type of the parameter object taken by every constructor and every
+  `clone()`. `IFieldConstructorParams<T>` goes on naming the members every element takes.
+
+### Changed
+- A constructor parameter naming something the element's class does not declare is now an extended property
+  rather than a property written onto the element itself. It was already a compile error to pass one; code that
+  passed one past the type system with `as any` and read it back as `field.myProp` now reads it as
+  `field.extra.myProp`. Parameters naming a member the class does declare are unaffected: `enabled` still sets
+  `enabled`, `valid` still throws a `TypeError`, and an `Action`'s `label` and `icon` still reach its value. A
+  subclass of your own is a member the class declares when it declares an accessor; a class field is defined on
+  the instance after the base constructor has applied the parameters, so a parameter of that name becomes an
+  extended property and the field keeps its initializer.
+
 ## [0.10.1] - 2026-08-17
 
 Documentation only. No behaviour changes, and no source under `src/` was touched.

@@ -187,6 +187,22 @@ describe('Field reactivity', () => {
   });
 });
 
+describe('extended property reactivity', () => {
+  it('re-runs on a write of an extended property, on a field and on a group', async () => {
+    const field = new Field<number, { label: string }>({ value: 1, label: 'Name' });
+    const group = new Group<{ a: Field<number> }, { label: string }>({ a: new Field({ value: 1 }) }, { label: 'Form' });
+    const fieldRuns = track(() => field.extra.label);
+    const groupRuns = track(() => group.extra.label);
+
+    field.setExtendedValues({ label: 'Full name' });
+    group.setExtendedValues({ label: 'Address' });
+    await nextTick();
+
+    expect(fieldRuns).toEqual(['Name', 'Full name']);
+    expect(groupRuns).toEqual(['Form', 'Address']);
+  });
+});
+
 describe('parent reactivity', () => {
   it('re-runs when a group takes a field', async () => {
     const field = new Field({ value: 1 });

@@ -557,3 +557,90 @@ only the array and not its members would leave the same trap one level down.
 newer instance, because the `isEqual` that would have kept the older one compares two
 `ValidationErrorRenderContent` objects including the `computed` each carries. Recorded in `todo.md`; error
 identity across validations is not something the library promises today.
+
+---
+
+## D-023 — Extended properties live in one tracked slot, are merged on write, and are routed by declaration
+
+**Version:** 0.10.2
+
+`FieldBase<T, X extends object = {}>` carries whatever a consumer declares beyond the members of the class:
+`extra` reads them, `setExtendedValues(values)` writes them, the constructor and `clone()` take them in the same
+parameter object as everything else, and `Field`, `Action`, `Group` and `List` thread `X` through. The default
+`{}` is what keeps every existing annotation compiling and what makes `new Field({ value: 1, label: 'x' })` an
+excess-property error for an element that declared none.
+
+**They are reactive.** The properties are one slot of the element's state object, so a read inside a render
+effect subscribes to it and a write re-runs the effect: a template binding `field.extra.label` follows a label
+that arrives with the form's description or changes later. The alternative weighed was a plain untracked
+property, which costs nothing and makes exactly the case the feature exists for — a UI layer rendering off the
+field — silently stale. One slot in an object every element already carries is the whole cost; nothing per
+element is allocated, because the empty set is one frozen object shared by every element that has none.
+
+**A write merges, and replaces the object rather than writing into it.** `setExtendedValues` takes a `Partial<X>`,
+so a call naming one property must leave the rest standing — replacing would leave the properties `X` declares as
+required holding `undefined` while the type says they are there. The merged set is frozen and installed as a new
+object: that is what the transaction snapshot captured, so a rollback puts the previous set back, and a caller
+cannot write behind the element's back through the object `extra` handed out.
+
+**What counts as an extended property is what the class does not declare.** A parameter key is assigned to the
+element when the element answers for it (`key in this`, minus what only `Object.prototype` answers for) and
+becomes an extended property otherwise. This keeps `valid`, `parent` and the other derived members throwing a
+`TypeError` for a caller that types them away, and it needs no list of member names to be kept in step with the
+classes. Its one consequence is that a property named after a member of the class it is declared on reaches that
+member: `Action` declares `label` and `icon`, so an `Action`'s extended properties may not use those two names.
+The alternative — an explicit set of base parameter names — would have made the collision legal at the price of a
+list that every subclass has to extend, and a subclass's own members would then be silently shadowed instead.
+
+What the element answers for is read where the parameters are applied, which is inside the base constructor, and
+`useDefineForClassFields` is pinned true: a class field a subclass declares is defined on the instance only once
+that constructor has returned. A parameter named after one is therefore an extended property and the field keeps
+its initializer, while a parameter named after an accessor the subclass declares reaches the accessor. Nothing
+readable at that moment names a field that does not exist yet, so the rule a subclass follows is that a member
+the parameters may reach is declared as an accessor.
+
+`validators` and `actions` are named explicitly rather than routed. They state what to register on the element
+instead of what it carries; a constructor takes them out of the parameter object before it applies the rest, but
+`clone()` hands its overrides over whole, so a `clone({ validators: [v] })` — which the parameter type accepts and
+`clone()` ignores — would otherwise attach the array as an extended property and carry it into every further
+clone.
+
+The set the routing accumulates into is prototype-less, and ownership in it is tested with `Object.hasOwn`. A
+parameter object parsed out of JSON — the case the feature exists for — can carry a `__proto__` key, and a plain
+`{}` accumulator would take that key through the setter `Object.prototype` holds: the accumulator's prototype
+would be replaced instead of a property created, and the ownership test would then answer for keys nothing put
+there, leaving an explicitly supplied `enabled` or `visibility` unassigned. `Group` already builds its fields map
+the same way, for the same key.
+
+**The parameter type is `Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>`.** The shape planned in
+`todo.md` was `Partial<IFieldConstructorParams<T> & X>`. Both accept the same objects, but `T` is inferred
+through this type, and inference through a mapped type over an intersection answers with one constituent of a
+union rather than the union: `new Field({ value: stringOrNumber })` came out a `Field<string>`, which the
+`Required` validator's spec caught. `NoInfer` is what keeps `X` out of inference, so an element that declared no
+extended properties rejects one instead of inferring it from the parameter object.
+
+**What it leaves open.** A validator's callback receives its field as `FieldBase<T>`, so reading `field.extra`
+inside one answers `Readonly<{}>` and needs a cast. Threading `X` through `ValidationFunction` and
+`FieldActionExecute` would reach every action class and every signature that takes an element; the elements
+themselves carry the type, and an action written against a specific field type can state it.
+
+---
+
+## D-024 — `extra` reads back as `Readonly<Partial<X>>`
+
+**Version:** 0.10.2
+
+The parameter object makes every extended property optional and `setExtendedValues` takes a `Partial<X>`, so
+nothing on the way in guarantees that a property `X` declares as required is present. The read type says so: a
+member of `X` reads as `T | undefined`, and a consumer that renders one handles its absence.
+
+The alternative that keeps `Readonly<X>` honest is to require the required members of `X` where an element is
+constructed. It does not close the hole and costs a great deal to reach: `params` is optional on every
+constructor, so `new Field<string, Presentation>()` would go on producing an element whose `extra` is `{}` while
+the type promises a label, and making the parameter conditionally required is a second parameter type for
+`clone()` — which must go on accepting a partial set — plus a variadic signature on all four classes and on the
+`init` hook a subclass overrides.
+
+The cost of the type chosen is that `X` declaring a member required states an intention rather than a guarantee.
+`setExtendedValues` never takes a property away, so a property is present from the write that put it there
+onwards.

@@ -1,8 +1,9 @@
 import { expectTypeOf } from 'vitest';
 
-import { Action } from './action';
+import { Action, type ActionValue } from './action';
 import DisplayMode from './display-mode';
 import { Field } from './field';
+import { FieldBase } from './field-base';
 import { Group } from './group';
 import { List } from './list';
 
@@ -63,6 +64,78 @@ describe('constructor inference', () => {
     expectTypeOf(action.label).toEqualTypeOf<string | undefined>();
     expectTypeOf(action.icon).toEqualTypeOf<string | undefined>();
     expectTypeOf(new Action().value.label).toEqualTypeOf<string | undefined>();
+  });
+});
+
+describe('extended properties', () => {
+  interface Presentation {
+    label: string;
+    hint: string;
+  }
+
+  it('carries the type the element was declared with', () => {
+    const field = new Field<string, Presentation>({ value: 'a', label: 'Name', hint: 'in full' });
+    expectTypeOf(field).toEqualTypeOf<Field<string, Presentation>>();
+    expectTypeOf(field.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
+    expectTypeOf(field.value).toEqualTypeOf<string>();
+
+    const group = new Group<{ a: Field<number> }, Presentation>({ a: new Field({ value: 1 }) }, { label: 'Address' });
+    expectTypeOf(group.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
+    const list = new List<{ a: Field<number> }, Presentation>(undefined, { label: 'Rows' });
+    expectTypeOf(list.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
+    const action = new Action<ActionValue, Presentation>({ hint: 'saves the form' });
+    expectTypeOf(action.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
+  });
+
+  it('is empty on an element declared without one, and rejects a property it never declared', () => {
+    const field = new Field({ value: 1 });
+    expectTypeOf(field.extra).toEqualTypeOf<Readonly<{}>>();
+
+    const rejected = () => [
+      // @ts-expect-error an element with no extended properties declared takes none
+      new Field({ value: 1, label: 'Name' }),
+      // @ts-expect-error the same for a clone override
+      field.clone({ label: 'Name' }),
+      // @ts-expect-error and for a property the declaration does not carry
+      new Field<number, Presentation>({ value: 1, placeholder: 'Name' }),
+    ];
+    expect(rejected).toBeInstanceOf(Function);
+  });
+
+  it('reads back as possibly absent, because nothing has to supply one', () => {
+    // every extended property is optional in the parameter object, and setExtendedValues writes as few as it is
+    // given, so a property the declaration states as required is present only once something wrote it
+    const field = new Field<string, Presentation>({ value: 'a' });
+    expectTypeOf(field.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
+    expectTypeOf(field.extra.label).toEqualTypeOf<string | undefined>();
+  });
+
+  it('reads back as read-only and is written through setExtendedValues', () => {
+    const field = new Field<string, Presentation>({ value: 'a', label: 'Name', hint: 'in full' });
+    field.setExtendedValues({ label: 'Full name' });
+
+    const rejected = () => [
+      // @ts-expect-error the object handed out is frozen; setExtendedValues is the write path
+      (field.extra.label = 'Full name'),
+      // @ts-expect-error a property the declaration does not carry is refused there too
+      field.setExtendedValues({ placeholder: 'Name' }),
+    ];
+    expect(rejected).toBeInstanceOf(Function);
+  });
+
+  it('leaves an element with extended properties usable wherever a plain one is', () => {
+    const field = new Field<string, Presentation>({ value: 'a', label: 'Name', hint: 'in full' });
+    const base: FieldBase = field;
+    const group = new Group({ name: field });
+
+    expectTypeOf(base.extra).toEqualTypeOf<Readonly<{}>>();
+    expectTypeOf(group.field('name')).toEqualTypeOf<Field<string, Presentation> | null>();
+    expectTypeOf(field.clone()).toEqualTypeOf<Field<string, Presentation>>();
+  });
+
+  it('infers the value type over a union of value types', () => {
+    const value = [1, 'a'][0] as string | number;
+    expectTypeOf(new Field({ value })).toEqualTypeOf<Field<string | number>>();
   });
 });
 

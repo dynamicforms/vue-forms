@@ -17,7 +17,8 @@ const age  = new Field<number>({ value: 30 });
 
 ## `new Field<T>(params?)`
 
-`params` is a `Partial<IFieldConstructorParams<T>>`, and omitting it entirely is allowed.
+`params` is an `IFieldParams<T, X>`, and omitting it entirely is allowed. It carries the members below, plus the
+[extended properties](#extended-properties) the field's second type argument declares.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -43,14 +44,15 @@ rejected by the type checker. All six are getter-only, so assigning any of them 
 that belongs to no container as much as on one that does. The container installs `parent` and `fieldName`; there
 is no way to write either from outside.
 
-The generic argument is inferred from `params.value`, so `new Field({ value: 'John' })` is a `Field<string>` and
-`new Field()` is a `Field<any>`. Pass it explicitly when the initial value does not pin the type you want:
-`new Field<number | null>({ value: null })`.
+The first generic argument is inferred from `params.value`, so `new Field({ value: 'John' })` is a `Field<string>`
+and `new Field()` is a `Field<any>`. Pass it explicitly when the initial value does not pin the type you want:
+`new Field<number | null>({ value: null })`. The second one is never inferred — see
+[extended properties](#extended-properties).
 
 ### `IFieldConstructorParams<T>`
 
-The exported type of the parameter object, shared by `new Field`, `new Action`, `new Group`, `new List` and every
-`clone()`:
+The exported type of the members every form element takes, which `IFieldParams<T, X>` makes partial and adds the
+extended properties to:
 
 ```typescript
 type IFieldConstructorParams<T = any> = {
@@ -77,6 +79,70 @@ const defaults: Partial<IFieldConstructorParams<string>> = { value: '', enabled:
 const field = new Field(defaults);
 ```
 
+### Extended properties
+
+A field carries whatever properties you declare for it beyond the members above — a label, a hint, a css class, a
+permission flag — so that a form whose shape arrives from a server has somewhere to put them and a UI layer has
+somewhere to read them from. They are declared as the second type argument and reached through `extra`:
+
+```typescript
+interface Presentation {
+  label: string;
+  hint?: string;
+}
+
+const name = new Field<string, Presentation>({ value: 'John', label: 'First name', hint: 'as in your passport' });
+
+name.extra.label;                                 // 'First name'
+name.setExtendedValues({ label: 'Given name' });  // hint stays as it was
+```
+
+The declaration is what makes them legal: `X` is left out of type inference, so `new Field({ value: 1 })` is a
+`Field<number, {}>` and `new Field({ value: 1, label: 'x' })` is rejected as an excess property. State both
+arguments to declare properties — `new Field<string, Presentation>(…)` — and the parameter object then accepts
+exactly the members of `Presentation` alongside the ones every field takes.
+
+A parameter naming a member the class itself declares is that member and not an extended property. `enabled` sets
+`enabled`, and `valid` still throws a `TypeError`, on a field with extended properties as much as on one without.
+`Action` declares `label` and `icon`, so those two reach an action's value; name presentation properties on an
+`Action` something else. In a subclass of your own, an accessor is such a member and a class field is not: class
+fields are defined on the instance after the base constructor has applied the parameters, so a parameter named
+after one becomes an extended property while the field keeps its initializer. Declare the member as an accessor
+where a parameter of its name should reach it.
+
+`validators` and `actions` state what to register on the element rather than what it carries, so neither becomes
+an extended property — in a constructor or in a `clone()` override.
+
+`extra` is read-only and the object it hands out is frozen: `setExtendedValues(values)` is the write path, and it
+merges — a call naming one property leaves the others standing. The read is tracked like every other read through
+an element, so a template rendering `field.extra.label` re-renders when the property is written, and a write inside
+a `transaction()` that rolls back is put back with everything else.
+
+Its type is `Readonly<Partial<X>>`, so a property reads as possibly `undefined` whatever `X` declares: a parameter
+object carries as few of them as it likes, `setExtendedValues()` writes as few as it likes, and a property is there
+once something has put it there.
+
+```typescript
+const bare = new Field<string, Presentation>({ value: 'John' }); // legal: every extended property is optional
+bare.extra.label; // string | undefined
+```
+
+`Group`, `List` and `Action` take the same argument in the same position: `Group<Fields, X>`, `List<Fields, X>`,
+`Action<Value, X>`.
+
+### `IFieldParams<T, X>`
+
+The exported type of the parameter object itself, taken by `new Field`, `new Action`, `new Group`, `new List` and
+every `clone()`:
+
+```typescript
+type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
+```
+
+The two halves are made partial separately rather than as `Partial<IFieldConstructorParams<T> & X>`, because `T`
+is inferred through this type: inference through a mapped type over an intersection answers with one constituent
+of a union rather than the union, and `new Field({ value: stringOrNumber })` would be a `Field<string>`.
+
 ## Properties
 
 | Property | Type | Writable | Description |
@@ -95,6 +161,7 @@ const field = new Field(defaults);
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
 | `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element it was cloned from for a clone — transitively, so a clone of a clone answers with the same element. Every row a `List` builds from an item template is a clone, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field` |
+| `extra` | `Readonly<Partial<X>>` | no | The [extended properties](#extended-properties) the field carries, `{}` where none were declared. The object is frozen; write through `setExtendedValues()` |
 
 ## Methods
 
@@ -172,13 +239,26 @@ Raise and lower the async-validation counter that backs `validating`. `Validator
 function that returns a promise; call them yourself only if you run asynchronous validation outside a `Validator`.
 The counter floors at zero, so an unmatched `endValidating()` leaves it there.
 
+### `setExtendedValues(values): void`
+
+Writes [extended properties](#extended-properties). `values` is a `Partial<X>` and is merged over the ones the
+field carries, so a call naming one property leaves the rest standing and none of them is ever taken away. The merged set replaces the frozen object
+`extra` hands out, which is what makes the write reactive and what lets a rolled-back transaction put the previous
+set back.
+
+```typescript
+field.setExtendedValues({ label: 'Given name' });
+```
+
 ### `clone(overrides?): Field<T>`
 
-Returns a new reactive field with the same registered actions. `overrides` is a
-`Partial<IFieldConstructorParams<T>>`; of its keys, only `value`, `originalValue`, `enabled` and `visibility` are
-read — the rest are ignored. `originalValue` is read by key presence and `value` by being anything other than
-`undefined`, so `clone({ value: null })` gives a clone holding `null`, while an `undefined` `value` counts as none
-supplied and the clone keeps the current one.
+Returns a new reactive field with the same registered actions and the same extended properties. `overrides` is an
+`IFieldParams<T, X>`; of the members every field takes, only `value`, `originalValue`, `enabled` and `visibility`
+are read — the rest, `validators` and `actions` included, are ignored and none of them reaches the clone's
+extended properties. Extended properties it names are written over the ones the clone carries from the field it
+was cloned from, and they are in place before the clone's eager actions run. `originalValue` is read by key
+presence and `value` by being anything other than `undefined`, so `clone({ value: null })` gives a clone holding
+`null`, while an `undefined` `value` counts as none supplied and the clone keeps the current one.
 
 The clone is constructed through `this.constructor`, so a subclass of `Field` clones into its own class. It is
 detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly in
@@ -199,11 +279,13 @@ form element": every library signature that takes a field — action executors, 
 `Group`'s `fields` map, `CompareTo`'s `otherField` — is typed `FieldBase`.
 
 `T` is the type of `value`, and each subclass passes its own through: `Field<T>` and `Action<T>` extend
-`FieldBase<T>`, `Group<T>` extends `FieldBase<GroupValue<T>>`, and `List<T>` extends `FieldBase<ListValue>`.
+`FieldBase<T>`, `Group<T>` extends `FieldBase<GroupValue<T>>`, and `List<T>` extends `FieldBase<ListValue>`. `X`
+is the second argument every one of them takes, the [extended properties](#extended-properties) the element
+carries; it defaults to `{}`, which is what makes `FieldBase` on its own the type of any form element.
 
 It provides `originalValue`, `enabled`, `visibility`, `valid`, `errors`, `validating`, `validationEpoch`,
-`isChanged`, `fullValue`, `parent`, `fieldName`, `registerAction()`, `triggerAction()`, `validate()`,
-`clearValidators()`, `beginValidating()` and `endValidating()` — which is why those work the same way on every form
+`isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `triggerAction()`, `validate()`,
+`clearValidators()`, `setExtendedValues()`, `beginValidating()` and `endValidating()` — which is why those work the same way on every form
 element. `value`, `touched` and `clone()` are abstract and supplied by each subclass.
 
 It holds every mutable member of an element in a reactive state object beside it, which is what makes every form

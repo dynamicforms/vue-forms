@@ -20,7 +20,10 @@ row of a list. Everything below applies at every level.
 
 Every element carries the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
 `enabled`, `visibility`, `touched`, `validating`, `isChanged`, `parent` and `fieldName`. A container adds its own —
-`fields` and `field()` on a `Group`, `get()`, `push()`, `insert()`, `remove()` and `clear()` on a `List`.
+`fields` and `field()` on a `Group`, `get()`, `push()`, `insert()`, `remove()` and `clear()` on a `List`. Anything
+your application needs an element to carry beyond those goes in `extra`, the element's
+[extended properties](/api/field#extended-properties): declared as its second type argument, given at
+construction, written with `setExtendedValues()` and read like every other member.
 
 ```typescript
 import { Field, Group, List } from '@dynamicforms/vue-forms';
@@ -56,9 +59,9 @@ what something is — its validators, its actions, its defaults. `clone()` produ
 class from it.
 
 What a clone copies is **data, not behaviour**. It takes on the action and validator *instances* the element it
-was cloned from holds — the very same objects — and its own `value`, `enabled` and `visibility`. It starts
-detached: no `parent`, no `fieldName`, and `originalValue` rebaselined to the value it was built with, so
-`isChanged` is `false`.
+was cloned from holds — the very same objects — and its own `value`, `enabled`, `visibility` and extended
+properties. It starts detached: no `parent`, no `fieldName`, and `originalValue` rebaselined to the value it was
+built with, so `isChanged` is `false`.
 
 ```typescript
 const template = new Field({ value: '', validators: [new Validators.Required()] });

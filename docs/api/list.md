@@ -27,8 +27,11 @@ const list2 = new List(itemTemplate, {
 
 ## `new List(itemTemplate?, params?)`
 
-`params` is a `Partial<IFieldConstructorParams<ListValue>>` — the same parameter type every form element takes,
-with the list's value shape substituted.
+`params` is an `IFieldParams<ListValue, X>` — the same parameter type every form element takes, with the list's
+value shape substituted. A list takes [extended properties](/api/field#extended-properties) like every other
+element: declare them as the second type argument, `new List<Fields, Presentation>(template, { label: … })`, and
+read them back through `list.extra`. Every row the item template builds is a clone of it, so the template's
+members carry theirs into each row.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -156,9 +159,10 @@ re-forms the verdict. The mutation methods call it themselves; you rarely need t
 
 ### `clone(overrides?): List<T>`
 
-Returns a new `List` with a cloned item template, values and actions. `overrides` is a
-`Partial<IFieldConstructorParams<ListValue>>`; of its keys, only `value`, `originalValue`, `enabled` and
-`visibility` are read. Cloning an empty list gives an empty list.
+Returns a new `List` with a cloned item template, values, actions and extended properties. `overrides` is an
+`IFieldParams<ListValue, X>`; of the members every element takes, only `value`, `originalValue`, `enabled` and
+`visibility` are read, and extended properties it names are written over the ones carried from the source.
+Cloning an empty list gives an empty list.
 
 `originalValue` is read by key presence and `value` by being anything other than `undefined`, on `List`, `Group` and
 `Field` alike: an explicit `null` is a value the caller supplied, so `clone({ value: null })` gives an empty list,

@@ -400,18 +400,30 @@ const prefs: { darkMode: boolean; notifications: boolean } | null = values.prefe
 
 The value shape is derived from the fields map by the exported `FieldsToValues<T>`, with `GroupValue<T>` and
 `GroupValueInput<T>` as the group's read and write types, and `ListValue` for lists. Constructor parameters have
-their own exported type, `IFieldConstructorParams<T>`, shared by all four element classes and by `clone()`:
+their own exported type, `IFieldParams<T, X>`, shared by all four element classes and by `clone()`:
 
 ```typescript
-import { Field, IFieldConstructorParams } from '@dynamicforms/vue-forms';
+import { Field, IFieldParams } from '@dynamicforms/vue-forms';
 
-const defaults: Partial<IFieldConstructorParams<string>> = { value: '', enabled: false };
+const defaults: IFieldParams<string> = { value: '', enabled: false };
 const field = new Field(defaults);
 ```
 
 It admits only the writable members — `value`, `originalValue`, `enabled`, `visibility`, `touched`, `errors`,
-`validators` and `actions`. Derived members such as `valid` and `isChanged` are getters, and passing one is a
-compile error.
+`validators` and `actions`, listed by `IFieldConstructorParams<T>`. Derived members such as `valid` and
+`isChanged` are getters, and passing one is a compile error.
+
+`X` is what an element carries beyond those: declare it, and the parameter object takes those properties too,
+`extra` reads them back and `setExtendedValues()` writes them. It is how a form built from a server's description
+carries the label, hint or css class a UI layer binds to its inputs:
+
+```typescript
+interface Presentation { label: string; hint?: string }
+
+const name = new Field<string, Presentation>({ value: 'John', label: 'First name' });
+name.extra.label; // 'First name', and a template reading it re-renders when it is written
+name.setExtendedValues({ hint: 'as in your passport' });
+```
 
 `FieldBase<T>` is the abstract base of `Field`, `Action`, `Group` and `List`, and the type to use in your own
 signatures whenever you accept any form element:

@@ -3,14 +3,17 @@ import { isEmpty } from 'lodash-es';
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
-import { IFieldConstructorParams } from './field.interface';
+import { IFieldParams } from './field.interface';
 import { GenericFieldsInterface, Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 /** what List.value reads back: one plain object per item, or null when the list is empty */
 export type ListValue = Record<string, any>[] | null;
 
-export class List<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase<ListValue> {
+export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X extends object = {}> extends FieldBase<
+  ListValue,
+  X
+> {
   protected get state(): ListSlots<T> {
     return super.state as ListSlots<T>;
   }
@@ -21,7 +24,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
 
   private _itemTemplate?: Group<T>;
 
-  constructor(itemTemplate?: Group<T>, params?: Partial<IFieldConstructorParams<ListValue>>) {
+  constructor(itemTemplate?: Group<T>, params?: IFieldParams<ListValue, X>) {
     super(listSlots<T>());
 
     this._itemTemplate = itemTemplate;
@@ -33,7 +36,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
         // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
         // guards them too
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        Object.assign(this, otherParams);
+        this.assignParams(otherParams);
 
         // a value that is undefined or null leaves the list empty, which is the state it starts in
         if (paramValue != null) this.setValueInternal(paramValue);
@@ -179,15 +182,15 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface> ext
     });
   }
 
-  clone(overrides?: Partial<IFieldConstructorParams<ListValue>>): List<T> {
-    const res = new List(this._itemTemplate?.clone(), {
+  clone(overrides?: IFieldParams<ListValue, X>): List<T, X> {
+    const res = new List<T, X>(this._itemTemplate?.clone(), {
       // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
       value: [...((overrides?.value !== undefined ? overrides.value : this.value) ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
-    });
-    res.clonedFrom(this, res.value, res.originalValue);
+    } as IFieldParams<ListValue, X>);
+    res.clonedFrom(this, res.value, res.originalValue, overrides);
     return res;
   }
 

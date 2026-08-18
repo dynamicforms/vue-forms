@@ -39,18 +39,36 @@ about the shape of signatures and of the published package — after 1.0 those c
 ## Recommended before 1.0
 
 - **`clone()` semantics.** `Group.clone()`/`List.clone()` hardcode `new Group`/`new List` instead of
-  `this.constructor`, so a subclass of either clones into the base class, and `clone()` drops every extra
-  property (`label`, `placeholder`, …). It also takes the full `IFieldConstructorParams` while forwarding
-  only `value`, `originalValue`, `enabled` and `visibility`, so `f.clone({errors: […]})` and
-  `f.clone({touched: true})` compile and are silently ignored. This has to be decided now, because the
-  `Extendable` work below depends on it.
+  `this.constructor`, so a subclass of either clones into the base class. `clone()` also takes the full
+  `IFieldParams` while forwarding only `value`, `originalValue`, `enabled`, `visibility` and the extended
+  properties, so `f.clone({errors: […]})` and `f.clone({touched: true})` compile and are silently ignored.
 - **`clone()` rebaselines `originalValue`** (`src/field.ts`, `src/group.ts`) — `List.remove()` returns
   a clone with its dirty state erased.
-- **There is no way to unregister an action.** `ActionsMap` builds a closure chain, and `unregisterFrom()` tells
-  a validator to stop answering rather than taking it out of that chain. Registering the same action on one field
-  several thousand times nests a chain deep enough to hit a `RangeError` when it fires. `unregisterAction` can be
-  added to `FieldBase` without breaking anyone, but it needs the closure chain replaced by something that can drop
-  a single handler.
+- **There is no way to unregister an action, and the chain that prevents it costs more than that.**
+  `ActionsMap.register()` wraps each handler in a closure that calls the previous one, so the successor holds its
+  predecessor and a link cannot be dropped; `registeredActions` is only a record for copying, not the executor.
+  Four consequences are already visible in the code: `clearValidators()` has to replace the whole map, which is
+  why `clearValidators` needs a `whenRolledBack` hook to survive a rollback; `triggerChain()` had to be split out
+  of `trigger()` so a transaction can run handlers without a second eager pass; `willTrigger()` carries a special
+  case for the value-change identifier because `trigger()` also runs the eager pass; and `eager` is tracked per
+  *identifier* (`eagerActions: Set<symbol>`) rather than per action, so one eager action makes every action under
+  that identifier eager. Registering several thousand handlers on one field nests deeply enough to hit a
+  `RangeError` when it fires.
+
+  Fix: one structure, `Map<symbol, FieldActionBase[]>`, walked by index rather than composed into closures —
+  `step(list, i)` hands each handler a `supr` that continues at `i - 1`, from the end backwards so the LIFO order
+  `actions-map.spec.ts` pins is preserved, and an action can still refuse to call `supr` or transform its result.
+  One closure per level reached, at call time, instead of one per registration held forever; no composed chain
+  means no cache to invalidate. `unregister()` replaces the array rather than splicing it, so a walk already in
+  flight finishes on the array it started with and an unregistration takes effect from the next trigger.
+  `eager` becomes a property of the action, and `trigger()` stops running the eager pass on the quiet, which
+  removes `triggerChain()` and the special case in `willTrigger()`.
+
+  It closes `unregisterAction` on `FieldBase`, lets `clearValidators()` drop its validators instead of rebuilding
+  the map, removes the `whenRolledBack` hook, retires the `RangeError` as a class of failure, and makes an action
+  registered inside a transaction reversible (`GAPS.md` D-006). Net code is about flat and one concept goes away.
+  Measure `S2a` before and after: the closures move from registration time to trigger time, and a field write
+  triggers on every keystroke.
 - **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
   Resolution answers within one record and reads an element belonging to any other as the element itself
   (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather
@@ -173,64 +191,5 @@ If rows come to share one definition, actions are registered once rather than pe
 shrinks enough that the flag alone would do.
 
 ## Pre-existing items
-
-- Make fields extendable so that the programmer may add any number of additional properties
-  to the Field / Group. The `@dynamicforms/vuetify-inputs` module should then have a mechanism to bind such
-  properties to the inputs themselves.
-
-  Note: adding a `TExtend` generic parameter to `FieldBase`/`Field`/`Group` after 1.0 changes published
-  signatures, so this belongs before the freeze — and it depends on the `clone()` semantics decision above.
-
-  ```typescript
-  // In field.interface.ts
-  export interface Extendable {
-    setExtendedValues(values: Partial<typeof this>): void;
-  }
-
-  // In Field, which would become Field<T = any, TExtend extends Extendable = Extendable>
-  protected init(params?: Partial<IFieldConstructorParams<T> & TExtend>) {
-    if (params) {
-      const { value: paramValue, ...otherParams } = params;
-
-      // assign the base properties
-      Object.assign(this, otherParams);
-
-      // assign the extended properties
-      this.setExtendedValues(otherParams as Partial<TExtend>);
-
-      this._value = paramValue ?? this.originalValue;
-      if (this.originalValue === undefined) this.originalValue = this._value;
-    }
-  }
-
-  clone(overrides?: Partial<IFieldConstructorParams<T> & TExtend>): Field<T, TExtend> {
-    const cloned = new Field<T, TExtend>({
-      value: overrides?.value ?? this.value,
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : { }),
-      errors: [...(overrides?.errors ?? this.errors)],
-      enabled: overrides?.enabled ?? this.enabled,
-      visibility: overrides?.visibility ?? this.visibility,
-    });
-
-    // assign the extended properties on the clone
-    cloned.setExtendedValues(this as unknown as Partial<TExtend>);
-
-    // overwrite them with the overrides, if any
-    if (overrides) {
-      cloned.setExtendedValues(overrides as unknown as Partial<TExtend>);
-    }
-
-    return cloned;
-  }
-
-  // In FieldBase:
-  setExtendedValues(_values: Partial<any>): void {
-    // the base implementation is empty
-    // subclasses using TExtend override it
-  }
-  ```
-
-  Most likely `FieldBase` would have to implement a constructor and the clone method, catering for the
-  common scenarios.
 
 - More coverage in unit tests (see the test-gap list above for where it actually matters).

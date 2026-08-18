@@ -44,6 +44,12 @@ export interface ElementSlots<T = any> {
   /** generation of the validators attached to the element; clearValidators() raises it */
   validationEpoch: number;
   /**
+   * The extended properties the element carries, typed by the element's own X parameter. A write replaces the
+   * object rather than writing into it, so an effect that read the slot re-runs on the write, and the object a
+   * transaction captured is the one a rollback puts back.
+   */
+  extra: object;
+  /**
    * The element this one was cloned from, absent on an element that was declared rather than cloned. It is what
    * lets an action shared by every clone work out which clone of a second element it means: `declaration` is the
    * canonical one, so a clone of a clone names the element the whole family was declared as.
@@ -59,6 +65,9 @@ export interface ElementSlots<T = any> {
   invalidChildren: number;
 }
 
+/** what an element's extended properties start as: one frozen object for all of them, since a write replaces it */
+const noExtra = Object.freeze({});
+
 export function elementSlots<T = any>(): ElementSlots<T> {
   return {
     originalValue: undefined!,
@@ -72,6 +81,7 @@ export function elementSlots<T = any>(): ElementSlots<T> {
     fieldName: undefined,
     validationEpoch: 0,
     declaration: undefined,
+    extra: noExtra,
     valid: true,
     invalidChildren: 0,
   };

@@ -1,10 +1,10 @@
 import { ValueChangedAction } from './actions';
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
-import { IFieldConstructorParams } from './field.interface';
+import { IFieldParams } from './field.interface';
 import { transactional } from './transaction';
 
-class Field<T = any> extends FieldBase<T> {
+class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
   protected get state(): FieldSlots<T> {
     return super.state as FieldSlots<T>;
   }
@@ -22,7 +22,7 @@ class Field<T = any> extends FieldBase<T> {
     this.state.value = newValue;
   }
 
-  constructor(params?: Partial<IFieldConstructorParams<T>>) {
+  constructor(params?: IFieldParams<T, X>) {
     super(fieldSlots<T>());
     this.init(params);
   }
@@ -36,14 +36,14 @@ class Field<T = any> extends FieldBase<T> {
    * subclass initializes read as undefined inside it, and anything it writes to such a member is overwritten
    * the moment the initializer runs.
    */
-  protected init(params?: Partial<IFieldConstructorParams<T>>) {
+  protected init(params?: IFieldParams<T, X>) {
     transactional(() => {
       if (params) {
         const { value: paramValue, validators, actions, ...otherParams } = params;
         // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
         // guards them too
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        Object.assign(this, otherParams);
+        this.assignParams(otherParams);
         // an absent value falls back to originalValue, an explicit null does not: null is a value a caller means
         this._value = paramValue !== undefined ? paramValue : this.originalValue;
         if (this.originalValue === undefined) this.originalValue = this._value;
@@ -84,17 +84,17 @@ class Field<T = any> extends FieldBase<T> {
     this.state.touched = touched;
   }
 
-  clone(overrides?: Partial<IFieldConstructorParams<T>>): this {
+  clone(overrides?: IFieldParams<T, X>): this {
     // construction goes through this.constructor so that a subclass clones into its own type
-    const Ctor = this.constructor as new (params?: Partial<IFieldConstructorParams<T>>) => this;
+    const Ctor = this.constructor as new (params?: IFieldParams<T, X>) => this;
     const res = new Ctor({
       // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
       value: overrides?.value !== undefined ? (overrides.value as T) : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
-    });
-    res.clonedFrom(this, res.value, res.originalValue);
+    } as IFieldParams<T, X>);
+    res.clonedFrom(this, res.value, res.originalValue, overrides);
     return res;
   }
 }
