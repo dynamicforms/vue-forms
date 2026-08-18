@@ -46,13 +46,11 @@ jobs:
 
       - name: Verify declaration output
         run: |
-          for f in dist/index.d.ts dist/index.d.cts; do
-            size=$(wc -c < "$f")
-            if [ "$size" -lt 10000 ]; then
-              echo "::error::$f is only $size bytes - declarations were rolled up empty"
-              exit 1
-            fi
-          done
+          size=$(wc -c < dist/index.d.ts)
+          if [ "$size" -lt 10000 ]; then
+            echo "::error::dist/index.d.ts is only $size bytes - declarations were rolled up empty"
+            exit 1
+          fi
           grep -q 'declare class Field' dist/index.d.ts
 
       - name: Build docs
@@ -71,3 +69,63 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pr-number: ${{ github.event.pull_request.number }}
         if: github.event_name == 'pull_request'
+
+  vue-floor:
+    name: Type-check declarations against the lowest declared Vue
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Use Node.js lts/*
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build library
+        run: npm run build
+
+      - name: Read the declared Vue floor
+        id: floor
+        run: |
+          floor=$(node -p "require('./package.json').peerDependencies.vue.replace(/^[^0-9]*/, '')")
+          echo "version=$floor" >> "$GITHUB_OUTPUT"
+          echo "Declared floor: $floor"
+
+      - name: Type-check the emitted declarations against that Vue
+        run: |
+          work=$(mktemp -d)
+          cp dist/index.d.ts "$work/lib.d.ts"
+          cd "$work"
+          cat > package.json <<'JSON'
+          { "name": "vue-floor-probe", "private": true, "version": "1.0.0", "type": "module" }
+          JSON
+          cat > tsconfig.json <<'JSON'
+          {
+            "compilerOptions": {
+              "target": "ES2020",
+              "module": "ESNext",
+              "moduleResolution": "bundler",
+              "strict": true,
+              "skipLibCheck": false,
+              "noEmit": true,
+              "types": []
+            },
+            "files": ["lib.d.ts", "probe.ts"]
+          }
+          JSON
+          cat > probe.ts <<'TS'
+          import { Field, Group, List, MessagesWidget, Validators } from './lib.js';
+          export const widget = MessagesWidget;
+          export const field = new Field({ value: 1, validators: [new Validators.Required()] });
+          export const group = new Group({ field });
+          export const list = new List(group);
+          TS
+          npm install --no-audit --no-fund typescript@5 vue@${{ steps.floor.outputs.version }}
+          ./node_modules/.bin/tsc -p tsconfig.json

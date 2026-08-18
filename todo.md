@@ -12,30 +12,6 @@ still needs an empirical check before we act on it.
 
 ---
 
-## Blockers for 1.0
-
-These must be settled before the public surface is frozen. Most are bugs you patch; the rest are decisions
-about the shape of signatures and of the published package — after 1.0 those cost a 2.0.
-
-### Packaging
-
-- **[V] `peerDependencies: vue ^3.4` but the types need >= 3.5.** With `vue@3.4.38` and
-  `skipLibCheck: false`: `TS2707: Generic type 'DefineComponent' requires between 0 and 13 type arguments`
-  (the `peerDependencies` entry in `package.json`, `DefineComponent` in `dist/index.d.ts`). The changelog
-  explicitly promised `skipLibCheck: false`
-  support. CI cannot see it — `tsconfig.json:10` sets `skipLibCheck: true` and CI always installs the newest
-  Vue. Narrowing `^3.4` to `^3.5` after 1.0 is breaking.
-  Fix: raise the peer range (or hide `DefineComponent` behind a hand-written type), and add a CI job against
-  the lowest supported Vue.
-
-- **[V] Whether to keep shipping a CJS/UMD entry point at all.** The API is identity-based — `instanceof` in
-  18 places and 15 module-level `Symbol()` without `Symbol.for` — so two copies of the package in one graph
-  produce `Invalid fields object provided` / `Invalid action type`. ESM-only removes that hazard for good, and
-  removes a working entry point with it, which is why it is a decision to take before the freeze rather than a
-  patch: dropping the `require` condition after 1.0 costs a 2.0.
-
----
-
 ## Recommended before 1.0
 
 - **`bind()` semantics.** `Group.bind()`/`List.bind()` hardcode `new Group`/`new List` instead of
@@ -67,6 +43,16 @@ about the shape of signatures and of the published package — after 1.0 those c
   registered inside a transaction reversible (`GAPS.md` D-006). Net code is about flat and one concept goes away.
   Measure `S2a` before and after: the closures move from registration time to trigger time, and a field write
   triggers on every keystroke.
+
+  Two things the array makes possible that the chain did not, and that belong in the same work:
+  - **A rollback unregisters what its transaction registered.** Today they stay, because registration cannot be
+    taken back; once it can, "a transaction undoes everything it did" is a rule without an exception, which is
+    cheaper to hold than "everything except registrations".
+  - **Ordering control.** With a list rather than nested closures, an action can be placed rather than only
+    appended: `registerActionBefore(action, before)`, or an index. Registration order is observable — it decides
+    which handler wraps which, and `actions-map.spec.ts` pins LIFO — so today the only way to sit inside an
+    existing handler is to have registered first, which a consumer adding an action to a form it did not build
+    cannot arrange.
 - **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
   Resolution answers within one record and reads an element belonging to any other as the element itself
   (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather

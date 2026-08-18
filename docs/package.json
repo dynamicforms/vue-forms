@@ -10,7 +10,7 @@
     "docs:preview": "vitepress preview"
   },
   "dependencies": {
-    "vue": "^3.4.19",
+    "vue": "^3.5.2",
     "vue-markdown-render": "^2.3.0",
     "markdown-it-attrs": "^4.3.1",
     "vuetify": "^3.7.15"

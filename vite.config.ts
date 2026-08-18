@@ -52,21 +52,10 @@ export default defineConfig({
         'lodash-es',
         'vue',
       ],
-      // lodash-es is ESM-only, so the CJS/UMD artifact cannot require() it; 'lodash' is the CJS packaging of
-      // the same source. external is an input option and cannot differ per format, so the substitution lives
-      // in the UMD output's paths. Both packages are declared in dependencies.
       output: [
         {
           format: 'es',
           entryFileNames: 'dynamicforms-vue-forms.js',
-        },
-        {
-          format: 'umd',
-          entryFileNames: 'dynamicforms-vue-forms.umd.cjs',
-          name: 'DynamicFormsVueForms',
-          exports: 'named',
-          paths: { 'lodash-es': 'lodash' },
-          globals: { 'lodash-es': '_', vue: 'Vue' },
         },
       ],
     },

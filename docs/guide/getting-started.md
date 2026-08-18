@@ -17,7 +17,7 @@ section or a list row behaves the same way a single field does — and rendering
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read — assign a property and whatever read it re-renders, with no `ref` to unwrap. A group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
-- **Lightweight**: `vue` (^3.4) is the only peer dependency, and `lodash` and `lodash-es` — one per build — the only runtime ones.
+- **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one.
 
 ## Installation
 
@@ -25,10 +25,9 @@ section or a list row behaves the same way a single field does — and rendering
 npm install @dynamicforms/vue-forms
 ```
 
-The package ships two builds of the same source: an ESM build that imports `lodash-es` and a CJS/UMD build that
-requires `lodash`. Both lodash packages are declared as dependencies and install with the package, so an `import`
-and a `require()` both resolve without further setup. Node 18 or newer is required, and `vue` (^3.4) is the only
-peer dependency.
+The package is ESM-only: it ships one build, which imports `lodash-es`, its only runtime dependency. Node 22 or
+newer is required, and `vue` (^3.5.2) is the only peer dependency. A CommonJS consumer reaches it through
+`require()` of an ES module, which Node supports.
 
 ### Stylesheet
 
@@ -142,9 +141,9 @@ until 1.0.
 
 | | Supported |
 |---|---|
-| Vue | `^3.4` as declared, `>= 3.5` if you type-check the package's declarations with `skipLibCheck: false` |
-| Node | 18 or newer |
-| Module formats | ESM and CJS/UMD, both with type definitions |
+| Vue | `^3.5.2` |
+| Node | 22 or newer |
+| Module formats | ESM, with type definitions |
 | Browsers | whatever your bundler targets — the build is `es2015` and uses no browser API of its own |
 
 ## Next Steps

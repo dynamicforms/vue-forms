@@ -743,3 +743,63 @@ of creating one, and resolving a second element of a record is a path walk per e
 lookup. `bind()` names the operation the model rests on (D-025), and `rebind()` covers what the split was reached
 for last — recycling one row across records — without moving where state lives.
 
+
+---
+
+## D-028 — The package ships one format: ESM
+
+**Version:** 0.12.0
+
+`exports` resolves a single build with a single set of declarations. The `require` condition, `main`, the UMD
+artifact and its map, and the `index.d.cts` copy the build script produced with `copyFileSync` are all gone,
+together with the `paths: { 'lodash-es': 'lodash' }` and `globals` mapping the UMD output needed. `lodash` leaves
+`dependencies`; `lodash-es` remains as the only runtime dependency. `engines.node` moves from `>=18` to `>=22`.
+
+**What forced it.** The library establishes identity two ways that a duplicated module graph breaks: 24
+`instanceof` sites, and 20 module-level `Symbol()` calls without `Symbol.for`. A program that loads both the ESM
+and the CJS build — an ESM application whose test runner or SSR path requires the CJS one — holds two of every
+class and two of every symbol, so a `Field` built by one half fails the `instanceof` in the other and surfaces as
+`Invalid fields object provided` on a value that is correct. The message names nothing that would lead a consumer
+to the duplication. Making the two builds interchangeable would mean routing every identity check through
+`Symbol.for` keys and a registry, which is a permanent tax on the hot path of a library whose whole job is
+identity between elements.
+
+The price of carrying it was also visible without the failure: the `require` half was 327 kB of the package's
+731 kB, and `lodash` sat in `dependencies` — 1.4 MB installed for every consumer — only because the UMD artifact
+cannot `require()` the ESM-only `lodash-es`.
+
+**What the CJS consumer does now.** `require()` of an ES module, which Node supports from 20.19 and 22.12. That
+is why the `engines` floor moves in the same change: `>=18` claimed support for a Node that neither has
+`require(esm)` nor is maintained — Node 18 reached end of life in April 2025 — so leaving it would have been a
+claim the package cannot honour.
+
+**Alternative not taken.** Keeping CJS and dropping only the UMD global would have kept the duplication hazard,
+which is the reason the change exists; the size is the lesser half of it.
+
+---
+
+## D-029 — The Vue peer floor is 3.5.2, and CI type-checks the declarations against it
+
+**Version:** 0.12.0
+
+`peerDependencies.vue` is `^3.5.2`, narrowed from `^3.4`. A CI job installs exactly that version — read out of
+`package.json`, so the job and the declared range cannot drift — and type-checks the built `dist/index.d.ts` with
+`skipLibCheck: false`.
+
+**Where the floor comes from.** Not the source. Every Vue API the library imports (`reactive`, `computed`, `ref`,
+`unref`, `toRaw`, `h`, `watchEffect`, `effectScope`, `isReactive`, `isRef`, `nextTick`, `readonly`,
+`resolveComponent`, `Ref`, and the `__v_skip` flag) is Vue 3.0. The floor comes from one emitted line: `vue-tsc`
+writes `MessagesWidget` as a `DefineComponent` with 20 type arguments, and `DefineComponent` takes 19 parameters
+through Vue 3.5.1 and 20 from 3.5.2, which added `TypeEl`. Below the floor a consumer compiling with
+`skipLibCheck: false` gets `TS2707` on that line; runtime is unaffected at any 3.x.
+
+**How 3.5.2 was established.** Empirically, one version at a time: the built `index.d.ts` plus a file importing
+`Field`, `Group`, `List`, `Validators` and `MessagesWidget` from it, compiled under `skipLibCheck: false` against
+each candidate Vue. 3.5.0 and 3.5.1 report `TS2707`; 3.5.2 and every version tested above it compile clean. The
+`DefineComponent` signature in `@vue/runtime-core` confirms the boundary.
+
+**Alternative not taken.** Hand-writing the type of `MessagesWidget` to keep a `^3.0` range. It is the only export
+that pulls `DefineComponent`, `ComponentOptionsMixin`, `PublicProps` and `ComponentProvideOptions` into the public
+declarations, so one hand-written type would free the whole range — at the cost of prop inference on that
+component, and of a range spanning releases nothing has been run against. A declared range is a promise, not a
+mechanism; the narrow one is the promise CI can keep.
