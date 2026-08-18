@@ -108,6 +108,16 @@ about the shape of signatures and of the published package — after 1.0 those c
 - **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, and the rule that a disabled
   child `Group` still serializes when its own value is non-empty. CI checks that the rolled-up declarations are
   non-empty and declare `Field`, but nothing imports the built artifact or asserts the export list.
+- **24 open Dependabot alerts** — 18 high, 5 moderate, 1 low — visible since `package-lock.json` became
+  tracked. **None is in the published package's dependency tree**: it declares `lodash` and `lodash-es` as its
+  only dependencies and `vue` as its only peer, and ships `dist/*`. The flagged packages are the build chain
+  (`brace-expansion`, `fast-uri`, `js-yaml`, `immutable`, `ws`, `esbuild`, `vite`) and the documentation site's
+  own runtime (`linkify-it`, `nanoid`, `markdown-it`, `postcss`); the latter are reported under `runtime` scope
+  because they are runtime dependencies *of `docs/`*, which shares the lockfile, and nothing under `src/`
+  imports any of them. Build and docs-site exposure, not a consumer one, so it does not gate 1.0.
+  Needs: `npm audit` with the tree bumped where a fix exists, an `npm outdated` pass now that the lockfile
+  pins what CI installs, and a decision on whether to enable Dependabot pull requests — with the lockfile
+  tracked they arrive as reviewable diffs instead of silent drift.
 
 ---
 
