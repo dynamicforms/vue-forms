@@ -5,6 +5,25 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-08-18
+
+### Changed
+- **Breaking:** the package is ESM-only. The `require` condition, the `main` field, the UMD artifact
+  (`dynamicforms-vue-forms.umd.cjs` and its map) and the `index.d.cts` copy of the declarations are gone; `exports`
+  resolves one build with one set of types. A CommonJS consumer reaches the library through `require()` of an ES
+  module, which Node supports from 20.19 and 22.12. `lodash` leaves `dependencies` — it was there only so the UMD
+  artifact could require the CJS packaging of `lodash-es` — leaving `lodash-es` as the single runtime dependency.
+  Shipping one format also removes the failure a mixed graph produced: the library compares elements with
+  `instanceof` and keys its internals with module-level `Symbol()`, so a program holding both copies rejected a
+  valid `Field` with `Invalid fields object provided`.
+- **Breaking:** `engines.node` is `>=22`, up from `>=18`. Node 18 reached end of life in April 2025, and
+  `require()` of an ES module — what a CommonJS consumer now relies on — is stable from 22.12.
+- **Breaking:** the `vue` peer range is `^3.5.2`, down from `^3.4`. The declarations `vue-tsc` emits write
+  `MessagesWidget` as a `DefineComponent` with 20 type arguments; the type takes 19 through Vue 3.5.1 and 20 from
+  3.5.2, so anything below that floor reports `TS2707` in a consumer type-checking with `skipLibCheck: false`.
+  Nothing in the source needs a Vue newer than 3.0 — the range states what the shipped artifact is known to work
+  against, and CI now type-checks the emitted declarations against exactly that floor on every run.
+
 ## [0.11.0] - 2026-08-18
 
 ### Changed

@@ -8,18 +8,11 @@
   "files": [
     "dist/*"
   ],
-  "main": "dist/dynamicforms-vue-forms.umd.cjs",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/dynamicforms-vue-forms.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/dynamicforms-vue-forms.umd.cjs"
-      }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/dynamicforms-vue-forms.js"
     },
     "./style.css": "./dist/dynamicforms-vue-forms.css",
     "./package.json": "./package.json"
@@ -28,7 +21,7 @@
     "docs"
   ],
   "scripts": {
-    "build": "vite build && node -e \"require('fs').copyFileSync('dist/index.d.ts', 'dist/index.d.cts')\"",
+    "build": "vite build",
     "prepack": "npm run build",
     "test": "vitest run --coverage",
     "lint": "eslint src --fix && vue-tsc --noEmit",
@@ -59,14 +52,13 @@
     "url": "https://github.com/dynamicforms/vue-forms/issues"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
-    "lodash": "^4.17.21",
     "lodash-es": "^4.17.21"
   },
   "peerDependencies": {
-    "vue": "^3.4"
+    "vue": "^3.5.2"
   },
   "devDependencies": {
     "@types/lodash-es": "^4.17.12",

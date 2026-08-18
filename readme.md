@@ -18,7 +18,7 @@ mechanism applies at every level of a nested form.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read, and a group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
-- **Lightweight**: `vue` (^3.4) is the only peer dependency, and `lodash` and `lodash-es` — one per build — the only runtime ones.
+- **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one.
 
 ## Features
 
@@ -30,8 +30,7 @@ mechanism applies at every level of a nested form.
 - **Transactional**: every mutating operation is atomic — events are announced once, over the net change, and a
   handler that throws leaves the form exactly as it was
 - **TypeScript support**: Full type definitions for excellent developer experience
-- **Lightweight**: `vue` (^3.4) is the only peer dependency; the runtime dependencies are `lodash` and `lodash-es`,
-  one for each of the two builds
+- **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one
 - **Field types**: Core field types (Field, Action, Group, List) to represent any data structure
 - **Validation**: Comprehensive validation system with built-in validators and extensible error handling
 - **Conditional logic**: Dynamic form behavior based on field values and conditions
@@ -43,10 +42,10 @@ mechanism applies at every level of a nested form.
 npm install @dynamicforms/vue-forms
 ```
 
-The package ships two builds of the same source: an ESM build that imports `lodash-es` and a CJS/UMD build that
-requires `lodash`. Both lodash packages are declared as dependencies and install with the package, so an `import` and
-a `require()` both resolve without further setup. Node 18 or newer is required, and `vue` (^3.4) is the only peer
-dependency. Type definitions ship for both entry points; the stylesheet is `@dynamicforms/vue-forms/style.css`.
+The package is ESM-only: it ships one build, which imports `lodash-es`, its only runtime dependency. Node 22 or newer
+is required, and `vue` (^3.5.2) is the only peer dependency. A CommonJS consumer reaches it through `require()` of an
+ES module, which Node supports. Type definitions ship with the build; the stylesheet is
+`@dynamicforms/vue-forms/style.css`.
 
 ## Setup
 

@@ -8,9 +8,9 @@ release.
 This is the only page that names superseded APIs; everywhere else in this documentation only the current one
 exists.
 
-## The whole journey: 0.6.1 to 0.11.x
+## The whole journey: 0.6.1 to 0.12.x
 
-Five releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
+Six releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
 
 ### 1. The three silent breaks — do these first
 
@@ -209,8 +209,54 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
    value event that caused it.
 7. Load every form that contains a `List` whose item template carries a `CompareTo` or a conditional action: those
    rules now apply, and the verdicts are the ones the data always called for.
+8. Move onto Node 22 and Vue 3.5.2 or newer, and drop any bundler or test-runner configuration that pointed at
+   the CJS build — the package is ESM-only.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
+
+## Upgrading to v0.12.0 (from v0.11.x)
+
+Both breaks are about the shape of the published package. Neither touches the API.
+
+### The package is ESM-only
+
+One build ships, with one set of type definitions. The `require` condition of `exports`, the `main` field, the
+UMD artifact and the `index.d.cts` copy of the declarations are gone, and so is the `DynamicFormsVueForms`
+global the UMD build exposed. `lodash` leaves `dependencies`; `lodash-es` is the only runtime dependency left.
+
+An `import` needs no change. A CommonJS consumer keeps working through `require()` of an ES module, which Node
+supports from 20.19 and 22.12:
+
+```javascript
+const { Field, Group } = require('@dynamicforms/vue-forms');
+```
+
+A script tag that read the library off `window.DynamicFormsVueForms` has no replacement in the package. Load the
+ESM build as a module instead:
+
+```html
+<script type="module">
+  import { Field } from '/node_modules/@dynamicforms/vue-forms/dist/dynamicforms-vue-forms.js';
+</script>
+```
+
+If a bundler or test runner was configured to reach for the CJS build — a Jest `moduleNameMapper` entry, a
+`transformIgnorePatterns` exception, a Vite `resolve.alias` — remove that configuration. It now resolves to
+nothing, and while it worked it was the way a program ended up holding two copies of the library, which made
+`instanceof` answer `false` between them and produced `Invalid fields object provided` for a valid `Field`.
+
+### Node 22 and Vue 3.5.2 are the floors
+
+`engines.node` is `>=22` and the `vue` peer range is `^3.5.2`.
+
+Node 18 has been end of life since April 2025, and `require()` of an ES module — what a CommonJS consumer now
+depends on — is stable from 22.12.
+
+The Vue floor is what the shipped declarations need, not what the source needs: `MessagesWidget` is emitted as a
+`DefineComponent` with 20 type arguments, and the type accepts 19 through Vue 3.5.1. Below 3.5.2 a consumer
+type-checking with `skipLibCheck: false` gets `TS2707` on that line; a consumer with `skipLibCheck: true`, and
+anything at runtime, is unaffected either way.
+
 
 ## Upgrading to v0.11.0 (from v0.10.x)
 
