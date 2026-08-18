@@ -23,6 +23,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3.5.2, so anything below that floor reports `TS2707` in a consumer type-checking with `skipLibCheck: false`.
   Nothing in the source needs a Vue newer than 3.0 — the range states what the shipped artifact is known to work
   against, and CI now type-checks the emitted declarations against exactly that floor on every run.
+- **Breaking:** `ActionsMap` holds the actions of one identifier as a list rather than composing them into nested
+  closures, and no longer extends `Map<symbol, FieldActionExecute>`. `triggerChain()` and
+  `cloneWithoutValidators()` are gone — `trigger()` is the one way to run a group and no longer runs the eager pass
+  on the quiet, and `clearValidators()` unregisters its validators instead of rebuilding the map. `unregister()`,
+  `triggerEagerFor()` and `hasEager` are new. The order handlers run in is unchanged: newest registration first,
+  reaching the ones before it through `supr`.
+- **Breaking:** `eager` is read per action instead of per `classIdentifier`. A lazy action standing under the same
+  identifier as an eager one was previously dragged into every eager pass; now only the eager ones run.
+- `unregisterFrom(binding)` runs inside the operation that drops the registration rather than after it commits, so
+  an operation that unwinds puts back both the registration and what the action released.
+
+### Added
+- `unregisterAction(action)` on every element drops one action and answers whether the element held it. The
+  instance goes on serving every other element it was registered on, so unregistering a validator from one row of a
+  `List` leaves the other rows validating. A `Validator` withdraws the errors it put on the element as it goes, so
+  the element cannot be left invalid on an error no validator is around to take back.
+- `registerActionBefore(action, before)` puts `action` inside a handler already registered: `before` wraps it and
+  reaches it through `supr`. Registration order alone could not arrange that, so an action added to a form someone
+  else built could only ever become the outermost handler.
+- A rollback takes back the actions its transaction registered and puts back the ones it unregistered, so
+  "a transaction undoes everything it did" holds without an exception for registrations.
 
 ## [0.11.0] - 2026-08-18
 

@@ -74,8 +74,9 @@ transaction(() => {
 
 The first time a transaction modifies an element it records the whole of that element's mutable state —
 `value`, `originalValue`, `touched`, `errors`, `enabled`, `visibility`, and for a `List` its row array. A
-rollback puts all of it back, together with the validators a `clearValidators()` dropped, and **announces
-nothing**: from an observer's point of view the transaction never happened.
+rollback puts all of it back, together with the actions the transaction registered or unregistered — including
+the validators a `clearValidators()` dropped — and **announces nothing**: from an observer's point of view the
+transaction never happened.
 
 **A throw rolls back and rethrows.** This is what makes atomicity real: a handler that fails halfway through a
 whole-group assignment leaves the group exactly as it was rather than half-applied.

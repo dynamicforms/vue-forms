@@ -7,9 +7,6 @@ The same findings laid out for reading, with the measurement output and the reas
 <https://claude.ai/code/artifact/4527a232-fd57-431f-8aac-aacb244d42a7> (private link — visible to the repo
 owner only, so treat this file as the authoritative copy).
 
-Legend: **[V]** reproduced with an executed test in this repo · **[R]** derived from reading the code only,
-still needs an empirical check before we act on it.
-
 ---
 
 ## Recommended before 1.0
@@ -18,41 +15,6 @@ still needs an empirical check before we act on it.
   `this.constructor`, so a subclass of either binds into the base class. The override object also takes the full
   `IBindParams` while forwarding only `originalValue`, `enabled`, `visibility` and the extended properties, so
   `f.bind(v, {errors: […]})` and `f.bind(v, {touched: true})` compile and are silently ignored.
-- **There is no way to unregister an action, and the chain that prevents it costs more than that.**
-  `ActionsMap.register()` wraps each handler in a closure that calls the previous one, so the successor holds its
-  predecessor and a link cannot be dropped; `registeredActions` is only a record for copying, not the executor.
-  Four consequences are already visible in the code: `clearValidators()` has to replace the whole map, which is
-  why `clearValidators` needs a `whenRolledBack` hook to survive a rollback; `triggerChain()` had to be split out
-  of `trigger()` so a transaction can run handlers without a second eager pass; `willTrigger()` carries a special
-  case for the value-change identifier because `trigger()` also runs the eager pass; and `eager` is tracked per
-  *identifier* (`eagerActions: Set<symbol>`) rather than per action, so one eager action makes every action under
-  that identifier eager. Registering several thousand handlers on one field nests deeply enough to hit a
-  `RangeError` when it fires.
-
-  Fix: one structure, `Map<symbol, FieldActionBase[]>`, walked by index rather than composed into closures —
-  `step(list, i)` hands each handler a `supr` that continues at `i - 1`, from the end backwards so the LIFO order
-  `actions-map.spec.ts` pins is preserved, and an action can still refuse to call `supr` or transform its result.
-  One closure per level reached, at call time, instead of one per registration held forever; no composed chain
-  means no cache to invalidate. `unregister()` replaces the array rather than splicing it, so a walk already in
-  flight finishes on the array it started with and an unregistration takes effect from the next trigger.
-  `eager` becomes a property of the action, and `trigger()` stops running the eager pass on the quiet, which
-  removes `triggerChain()` and the special case in `willTrigger()`.
-
-  It closes `unregisterAction` on `FieldBase`, lets `clearValidators()` drop its validators instead of rebuilding
-  the map, removes the `whenRolledBack` hook, retires the `RangeError` as a class of failure, and makes an action
-  registered inside a transaction reversible (`GAPS.md` D-006). Net code is about flat and one concept goes away.
-  Measure `S2a` before and after: the closures move from registration time to trigger time, and a field write
-  triggers on every keystroke.
-
-  Two things the array makes possible that the chain did not, and that belong in the same work:
-  - **A rollback unregisters what its transaction registered.** Today they stay, because registration cannot be
-    taken back; once it can, "a transaction undoes everything it did" is a rule without an exception, which is
-    cheaper to hold than "everything except registrations".
-  - **Ordering control.** With a list rather than nested closures, an action can be placed rather than only
-    appended: `registerActionBefore(action, before)`, or an index. Registration order is observable — it decides
-    which handler wraps which, and `actions-map.spec.ts` pins LIFO — so today the only way to sit inside an
-    existing handler is to have registered first, which a consumer adding an action to a form it did not build
-    cannot arrange.
 - **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
   Resolution answers within one record and reads an element belonging to any other as the element itself
   (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather
@@ -95,8 +57,8 @@ still needs an empirical check before we act on it.
   child `Group` still serializes when its own value is non-empty. CI checks that the rolled-up declarations are
   non-empty and declare `Field`, but nothing imports the built artifact or asserts the export list.
 - **24 open Dependabot alerts** — 18 high, 5 moderate, 1 low — visible since `package-lock.json` became
-  tracked. **None is in the published package's dependency tree**: it declares `lodash` and `lodash-es` as its
-  only dependencies and `vue` as its only peer, and ships `dist/*`. The flagged packages are the build chain
+  tracked. **None is in the published package's dependency tree**: it declares `lodash-es` as its
+  only dependency and `vue` as its only peer, and ships `dist/*`. The flagged packages are the build chain
   (`brace-expansion`, `fast-uri`, `js-yaml`, `immutable`, `ws`, `esbuild`, `vite`) and the documentation site's
   own runtime (`linkify-it`, `nanoid`, `markdown-it`, `postcss`); the latter are reported under `runtime` scope
   because they are runtime dependencies *of `docs/`*, which shares the lockfile, and nothing under `src/`

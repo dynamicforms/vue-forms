@@ -12,7 +12,7 @@ exists.
 
 Six releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
 
-### 1. The three silent breaks — do these first
+### 1. The four silent breaks — do these first
 
 Nothing is logged and nothing throws for any of them. Code that used them keeps compiling and simply stops
 working, so they are the ones to search for before you upgrade rather than after.
@@ -60,6 +60,10 @@ if (isEqual(rowA, rowB)) …
 // after
 if (isEqual(rowA.value, rowB.value)) …
 ```
+
+**A lazy action under an eager action's identifier is no longer run by the eager pass.** `eager` used to be
+tracked per `classIdentifier`, so one eager action carried every action registered under that identifier into
+every eager run. A custom action that relied on it declares `get eager() { return true; }` for itself.
 
 ### 2. Three breaks the type checker finds for you
 
@@ -216,7 +220,8 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 ## Upgrading to v0.12.0 (from v0.11.x)
 
-Both breaks are about the shape of the published package. Neither touches the API.
+Two of the breaks are about the shape of the published package. The third is the action store, and it only
+reaches code that used `ActionsMap` directly.
 
 ### The package is ESM-only
 
@@ -256,6 +261,47 @@ The Vue floor is what the shipped declarations need, not what the source needs: 
 `DefineComponent` with 20 type arguments, and the type accepts 19 through Vue 3.5.1. Below 3.5.2 a consumer
 type-checking with `skipLibCheck: false` gets `TS2707` on that line; a consumer with `skipLibCheck: true`, and
 anything at runtime, is unaffected either way.
+
+### `ActionsMap` is no longer a `Map`
+
+It groups the actions of one identifier in a list and walks them, instead of composing them into nested closures.
+`registerAction()`, `triggerAction()` and `clearValidators()` on an element are unchanged, and so is the order
+handlers run in — newest registration first, reaching the ones before it through `supr`. Only code holding an
+`ActionsMap` and calling into it is affected:
+
+| before | after |
+|---|---|
+| `map.get(identifier)` | `map.willTrigger(identifier)` answers whether anything stands there; there is no executor to fetch |
+| `map.triggerChain(identifier, field, ...params)` | `map.trigger(ActionClass, field, ...params)` — `trigger()` no longer runs the eager pass with it |
+| `map.cloneWithoutValidators()` | `field.clearValidators()`, or `map.unregister()` per validator from `map.validators` |
+| `map.has(identifier)`, `map.set(...)`, iteration | `map.register()` / `map.unregister()` |
+
+**`eager` is read per action.** It used to be tracked per `classIdentifier`, so a lazy action registered under the
+same identifier as an eager one ran in every eager pass along with it. Now only the eager actions run. A custom
+action that relied on being carried along has to declare `get eager() { return true; }` itself.
+
+**`unregisterFrom(binding)` runs earlier.** It used to run once the operation that dropped the registration had
+committed; it now runs inside that operation, and an operation that unwinds puts back both the registration and
+whatever the action released. An override that only removes bookkeeping needs no change.
+
+### New: dropping and placing an action
+
+Neither was possible while a registration was a closure wrapping the one before it.
+
+```typescript
+const required = new Validators.Required();
+const field = new Field({ value: '', validators: [required] });
+
+field.unregisterAction(required);   // true; the error it put there goes with it
+field.valid;                        // true
+
+// the audit handler already registered now wraps this one and sees the trimmed value
+field.registerActionBefore(new ValueChangedAction((f, supr, v, old) => supr(f, v.trim(), old)), audit);
+```
+
+`unregisterAction()` names one element: the same instance goes on serving every other element it was registered
+on, so dropping a validator from one row of a `List` leaves the other rows validating. A rollback puts back what a
+transaction registered or unregistered.
 
 
 ## Upgrading to v0.11.0 (from v0.10.x)

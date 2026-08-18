@@ -452,9 +452,9 @@ Optional overrides:
 
 | Member | Description |
 |--------|-------------|
-| `get eager()` | Return `true` to have the action executed immediately on `registerAction()`, and on every `ValueChangedAction` trigger and `validate(true)`. Defaults to `false` |
+| `get eager()` | Return `true` to have the action executed immediately on `registerAction()`, and on every `ValueChangedAction` trigger and `validate(true)`. Defaults to `false`, and it is read per instance: a lazy action standing under the same `classIdentifier` as an eager one is not run by the eager pass |
 | `boundToBinding(binding)` | Called once for every element this action comes to serve: the element it is registered on, and every binding of that element as the binding takes the action on. Use it to record the elements the action answers for |
-| `unregisterFrom(binding)` | Called by `clearValidators()` on each dropped action that is a `Validator`, once the operation that dropped it has finished, and names the element it was dropped from. Override it to release what the validator installed for that element — `CompareTo` stops answering for it. A non-validator action is carried over to the new chain instead, so its `unregisterFrom()` never runs |
+| `unregisterFrom(binding)` | Called by `unregisterAction()` and by `clearValidators()`, naming the element the action was dropped from. Override it to release what the action installed for that element — `CompareTo` stops answering for it, and `Validator` withdraws the errors it put there. It runs inside the operation that dropped the registration, so a rollback puts back both the registration and what this took back |
 
 State an action keeps between runs belongs to the element it ran over, because the instance is shared by every
 binding of the element it was registered on. `protected state<S>(key, init): S` holds it: the key is the element, or
@@ -490,25 +490,33 @@ subtree that was declared as a given one.
 
 ### `ActionsMap`
 
-The chain container each field holds, keyed by `classIdentifier`. It extends `Map<symbol, FieldActionExecute>`. It
-is the type of `FieldBase`'s internal action store and is exported so that type can be named; `registerAction()`,
-`triggerAction()` and `clearValidators()` on the field are the supported way to drive it. Its own surface is
-`register()`, `trigger()`, `triggerChain()`, `triggerEager()`, `willTrigger()`, `validators`, `clone()`,
-`cloneWithoutValidators()` and `bindTo()`.
+The actions one element has registered, grouped by `classIdentifier`. It is the type of `FieldBase`'s internal
+action store and is exported so that type can be named; `registerAction()`, `registerActionBefore()`,
+`unregisterAction()`, `triggerAction()` and `clearValidators()` on the field are the supported way to drive it. Its
+own surface is `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerFor()`, `willTrigger()`,
+`hasEager`, `validators`, `clone()` and `bindTo()`.
 
-`trigger(ActionClass, field, ...params)` runs the chain registered under that class and, on the value-change
-identifier, the eager actions with it. `triggerChain(identifier, field, ...params)` runs one chain and nothing
-else, and `triggerEager(field, ...params)` runs the eager actions alone. `willTrigger(identifier)` answers whether
-either would run anything, so a caller that has to build the parameters first can skip building them.
+Within a group the actions stand in registration order and are run from the end backwards, so the newest
+registration is the outermost handler and reaches the ones before it through the `supr` it is handed.
+
+`register(action, before?)` appends `action` to its group, or — where `before` is given — puts it in that action's
+place, so `before` wraps it. `before` has to be registered under the same identifier; anything else throws.
+`unregister(action)` drops it and answers whether the map held it. The group is replaced rather than written, so a
+run already walking one finishes on the list it started with and the removal takes effect from the next trigger.
+
+`trigger(ActionClass, field, ...params)` runs the group registered under that class and answers with what its
+outermost handler returned. `triggerEager(field, ...params)` runs the eager actions of every identifier, each group
+on its own, and `triggerEagerFor(identifier, field, ...params)` runs those of one identifier.
+`willTrigger(identifier)` answers whether anything stands under that identifier and `hasEager` whether any eager
+action is registered at all, so a caller that has to build the parameters first can skip building them.
 
 `clone()` returns a copy holding the same action instances, and `bindTo(owner)` tells each of them that it now
 serves `owner`. Binding an element does both, which is what makes an action registered on an item template serve
 every row.
 
-`cloneWithoutValidators()` returns a copy carrying everything but the validators, and does nothing else: calling
-`unregisterFrom()` on the validators it left out is the caller's to do, and `validators` lists them.
-`clearValidators()` on a field does both, and releases them only once the operation it ran in has finished — a
-rollback puts the map back with its validators still live.
+A handler reaches the one before it by calling `supr`, so a chain is walked on the call stack and its depth is
+bounded by it: about 1300 handlers under one identifier on one element, after which firing it throws a
+`RangeError`. Registrations spread over several identifiers or several elements do not add up.
 
 ---
 

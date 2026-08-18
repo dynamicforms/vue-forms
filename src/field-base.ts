@@ -23,6 +23,7 @@ import {
   transactional,
 } from './transaction';
 import { ValidationError } from './validators/validation-error';
+import { Validator } from './validators/validator';
 
 /**
  * The computed behind a container's `valid`, held outside the element it belongs to. A computed refers back to
@@ -604,7 +605,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     const actions = this._actions;
     // the pair a container carries is only composed where something receives it: with no ValueChangedAction and
     // no eager action riding along, walking the members would produce an object nobody reads
-    if (this.composesValue && !actions?.willTrigger(ValueChangedActionClassIdentifier)) return;
+    if (this.composesValue && !(actions?.willTrigger(ValueChangedActionClassIdentifier) || actions?.hasEager)) return;
     const newValue = this.value;
     const oldValue = this.#raw.announcedValue;
     if (!force && (this.composesValue ? isEqual(newValue, oldValue) : newValue === oldValue)) return;
@@ -612,8 +613,10 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     // the record of what was announced is written before the event: a handler that changes something while it
     // runs opens a change of its own, and that one is measured against this announcement
     this.#raw.announcedValue = newValue;
-    if (this.composesValue) actions?.trigger(ValueChangedAction, this, newValue, oldValue);
-    else actions?.triggerChain(ValueChangedActionClassIdentifier, this, newValue, oldValue);
+    // a container's validators read the composed value, which is formed here and nowhere else, so its eager pass
+    // runs with the announcement; a leaf's have run at the write and its announcement carries none
+    if (this.composesValue) actions?.triggerEager(this, newValue, oldValue);
+    actions?.trigger(ValueChangedAction, this, newValue, oldValue);
   }
 
   /**
@@ -698,13 +701,66 @@ export abstract class FieldBase<T = any, X extends object = {}> {
       // enrolled to report that change, and moving the baseline to the value it now holds would erase the report
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
       this.actions.register(action);
-      action.boundToBinding(this);
-      if (action.eager) {
-        // When adding eager actions, execute them immediately
-        this.actions.trigger(Object.getPrototypeOf(action).constructor, this, this.value, this.originalValue);
-      }
+      this.registered(tx, action);
+      // an eager action states something about the value the element already holds, so it reaches that value at
+      // once rather than waiting for the next change. The group it joined runs whole: the new action may be
+      // wrapped by ones registered before it, and its own `supr` reaches the ones it now wraps
+      if (action.eager) this.actions.triggerEagerFor(action.classIdentifier, this, this.value, this.originalValue);
     });
     return this;
+  }
+
+  /**
+   * Registers `action` so that `before` wraps it: `before` reaches it through the `supr` it is handed, instead of
+   * ending the run there. It is how an action is added to a chain someone else built and still sits inside a
+   * handler already registered, which registration order alone cannot arrange. `before` has to be registered on
+   * this element under the same identifier.
+   */
+  registerActionBefore(action: FieldActionBase, before: FieldActionBase): this {
+    transactional((tx) => {
+      if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
+      this.actions.register(action, before);
+      this.registered(tx, action);
+      if (action.eager) this.actions.triggerEagerFor(action.classIdentifier, this, this.value, this.originalValue);
+    });
+    return this;
+  }
+
+  /**
+   * Drops `action` from this element and answers whether it held it. The instance goes on serving every other
+   * element it was registered on: what is dropped is this element's registration, not the action. A validator
+   * withdraws the errors it put on this element as it goes, so the verdict the element reports is the one the
+   * validators it still holds reach.
+   */
+  unregisterAction(action: FieldActionBase): boolean {
+    let dropped = false;
+    transactional((tx) => {
+      const actions = this._actions;
+      if (!actions) return;
+      dropped = actions.unregister(action);
+      if (!dropped) return;
+      tx.touch(this);
+      // a run still in flight was started by a validator this element may no longer hold, and its verdict is one
+      // the element must not take on
+      if (action instanceof Validator) this.#state.validationEpoch++;
+      tx.whenRolledBack(() => {
+        actions.register(action);
+        action.boundToBinding(this);
+      });
+      action.unregisterFrom(this);
+    });
+    return dropped;
+  }
+
+  /**
+   * Records that `action` is now registered on this element, and that a rollback has to take that back. The
+   * registration is not one of the state slots the snapshot covers, so it hands its own undo in.
+   */
+  private registered(tx: Transaction, action: FieldActionBase): void {
+    action.boundToBinding(this);
+    tx.whenRolledBack(() => {
+      if (this._actions?.unregister(action)) action.unregisterFrom(this);
+    });
   }
 
   triggerAction<T2 extends FieldActionBase>(
@@ -728,21 +784,18 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     transactional((tx) => {
       tx.touch(this);
       this.#state.validationEpoch++;
-      if (this._actions) {
-        const previous = this._actions;
-        const dropped = previous.validators;
-        // the map is replaced rather than written, so the snapshot does not reach it: a rollback that put back
-        // every slot but this would leave the element without the validators the verdict it reports was reached
-        // with
-        tx.whenRolledBack(() => {
-          this._actions = previous;
+      const actions = this._actions;
+      if (actions) {
+        // the release names this element, because the same instance goes on serving every other element it was
+        // registered on
+        actions.validators.forEach((validator) => {
+          actions.unregister(validator);
+          tx.whenRolledBack(() => {
+            actions.register(validator);
+            validator.boundToBinding(this);
+          });
+          validator.unregisterFrom(this);
         });
-        this.actions = previous.cloneWithoutValidators();
-        // releasing a validator's listeners is what a rollback could not take back, so it waits for the commit:
-        // until then the map the element carried is still the one a rollback puts back, validators and all. The
-        // release names this element, because the same validator instance goes on serving every other element it
-        // was registered on
-        tx.whenCommitted(() => dropped.forEach((validator) => validator.unregisterFrom(this)));
       }
       this.errors = [];
       // the errors are gone before the recomputation, so the commit forms the verdict over the cleared state and

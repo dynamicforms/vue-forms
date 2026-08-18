@@ -97,7 +97,9 @@ const first = form.field('firstName'); // typed as Field<string>
 
 ### `registerAction(action): this`
 
-Registers an action on the group itself (not on children). Returns `this`.
+Registers an action on the group itself (not on children). Returns `this`. `registerActionBefore(action, before)` and
+`unregisterAction(action)` place and drop one; see
+[`Field`](/api/field#registeractionbefore-action-before-this).
 
 ### `validate(revalidate?): void`
 

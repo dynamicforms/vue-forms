@@ -145,7 +145,9 @@ the one it takes out.
 
 ### `registerAction(action): this`
 
-Registers an action on the list. Returns `this`.
+Registers an action on the list. Returns `this`. `registerActionBefore(action, before)` and
+`unregisterAction(action)` place and drop one; see
+[`Field`](/api/field#registeractionbefore-action-before-this).
 
 ### `validate(revalidate?): void`
 

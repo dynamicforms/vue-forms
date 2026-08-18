@@ -69,6 +69,10 @@ export class ConditionalStatementAction extends ValueChangedAction {
     this.registrations.add(binding);
   }
 
+  unregisterFrom(binding: FieldBase) {
+    this.registrations.delete(binding);
+  }
+
   /**
    * The elements of `scope` this action controls: what each declaration it serves names within that record, and of
    * those the ones that took the action on. A row of a list that never took it on is not one this action drives.
