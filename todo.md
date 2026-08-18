@@ -87,6 +87,16 @@ about the shape of signatures and of the published package — after 1.0 those c
   registered inside a transaction reversible (`GAPS.md` D-006). Net code is about flat and one concept goes away.
   Measure `S2a` before and after: the closures move from registration time to trigger time, and a field write
   triggers on every keystroke.
+
+  Two things the array makes possible that the chain did not, and that belong in the same work:
+  - **A rollback unregisters what its transaction registered.** Today they stay, because registration cannot be
+    taken back; once it can, "a transaction undoes everything it did" is a rule without an exception, which is
+    cheaper to hold than "everything except registrations".
+  - **Ordering control.** With a list rather than nested closures, an action can be placed rather than only
+    appended: `registerActionBefore(action, before)`, or an index. Registration order is observable — it decides
+    which handler wraps which, and `actions-map.spec.ts` pins LIFO — so today the only way to sit inside an
+    existing handler is to have registered first, which a consumer adding an action to a form it did not build
+    cannot arrange.
 - **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
   Resolution answers within one record and reads an element belonging to any other as the element itself
   (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather
