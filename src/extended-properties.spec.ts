@@ -61,39 +61,39 @@ describe('reading and writing extended properties', () => {
   });
 });
 
-describe('cloning', () => {
-  it('carries the properties of the field it was cloned from', () => {
+describe('binding', () => {
+  it('carries the properties of the field it was bound from', () => {
     const field = new Field<number, Presentation>({ value: 1, label: 'Name', hint: 'in full' });
 
-    const clone = field.clone();
+    const bound = field.bind();
 
-    expect(clone.extra).toEqual({ label: 'Name', hint: 'in full' });
-    expect(clone.extra).not.toBe(field.extra);
+    expect(bound.extra).toEqual({ label: 'Name', hint: 'in full' });
+    expect(bound.extra).not.toBe(field.extra);
   });
 
   it('writes the overrides over them and leaves the ones the overrides do not name', () => {
     const field = new Field<number, Presentation>({ value: 1, label: 'Name', hint: 'in full' });
 
-    const clone = field.clone({ value: 2, label: 'Full name' });
+    const bound = field.bind(2, { label: 'Full name' });
 
-    expect(clone.value).toBe(2);
-    expect(clone.extra).toEqual({ label: 'Full name', hint: 'in full' });
+    expect(bound.value).toBe(2);
+    expect(bound.extra).toEqual({ label: 'Full name', hint: 'in full' });
     expect(field.extra.label).toBe('Name');
   });
 
-  it('carries them through a group clone, members included', () => {
+  it('carries them through a group binding, members included', () => {
     const group = new Group<{ a: Field<number, Presentation> }, Presentation>(
       { a: new Field<number, Presentation>({ value: 1, label: 'Amount', hint: 'in euros' }) },
       { label: 'Address' },
     );
 
-    const clone = group.clone();
+    const bound = group.bind();
 
-    expect(clone.extra.label).toBe('Address');
-    expect(clone.fields.a.extra).toEqual({ label: 'Amount', hint: 'in euros' });
+    expect(bound.extra.label).toBe('Address');
+    expect(bound.fields.a.extra).toEqual({ label: 'Amount', hint: 'in euros' });
   });
 
-  it('carries them through a list clone and onto every row the item template builds', () => {
+  it('carries them through a list binding and onto every row the item template builds', () => {
     const template = new Group({ a: new Field<number, Presentation>({ value: 0, label: 'Amount', hint: 'in euros' }) });
     const list = new List<{ a: Field<number, Presentation> }, Presentation>(template, {
       value: [{ a: 1 }, { a: 2 }],
@@ -102,10 +102,10 @@ describe('cloning', () => {
 
     expect(list.get(0)!.fields.a.extra).toEqual({ label: 'Amount', hint: 'in euros' });
     expect(list.get(1)!.fields.a.extra).toEqual({ label: 'Amount', hint: 'in euros' });
-    expect(list.clone().extra.label).toBe('Rows');
+    expect(list.bind().extra.label).toBe('Rows');
   });
 
-  it('has them in place before the eager actions the clone takes on run', () => {
+  it('has them in place before the eager actions the binding takes on run', () => {
     const validator = new Validator<number>((newValue, oldValue, field) =>
       (field as Field<number, Presentation>).extra.label ? null : [new ValidationErrorText('no label')],
     );
@@ -117,10 +117,10 @@ describe('cloning', () => {
     });
     expect(field.valid).toBe(true);
 
-    const clone = field.clone();
+    const bound = field.bind();
 
-    expect(clone.errors).toEqual([]);
-    expect(clone.valid).toBe(true);
+    expect(bound.errors).toEqual([]);
+    expect(bound.valid).toBe(true);
   });
 });
 
@@ -147,15 +147,15 @@ describe('transactions', () => {
 });
 
 describe('what a parameter object states but does not attach', () => {
-  it('leaves the registrations a clone override names out of the extended properties', () => {
+  it('leaves the registrations a bind override names out of the extended properties', () => {
     const validator = new Validator<number>(() => null);
     const field = new Field<number, Presentation>({ value: 1, label: 'Name', hint: 'in full' });
 
-    const clone = field.clone({ validators: [validator], actions: [] });
+    const bound = field.bind(undefined, { validators: [validator], actions: [] });
 
-    expect(Object.keys(clone.extra)).toEqual(['label', 'hint']);
-    // and a clone of that clone carries the same set, rather than one that grows with every generation
-    expect(Object.keys(clone.clone().extra)).toEqual(['label', 'hint']);
+    expect(Object.keys(bound.extra)).toEqual(['label', 'hint']);
+    // and a binding of that binding carries the same set, rather than one that grows with every generation
+    expect(Object.keys(bound.bind().extra)).toEqual(['label', 'hint']);
   });
 
   it('leaves them out on a group, a list and an action too', () => {
@@ -164,9 +164,9 @@ describe('what a parameter object states but does not attach', () => {
     const list = new List<{ a: Field<number> }, Presentation>(undefined, { label: 'Rows' });
     const action = new Action<ActionValue, Presentation>({ hint: 'saves the form' });
 
-    expect(Object.keys(group.clone({ validators: [validator] }).extra)).toEqual(['label']);
-    expect(Object.keys(list.clone({ validators: [validator] }).extra)).toEqual(['label']);
-    expect(Object.keys(action.clone({ validators: [validator] }).extra)).toEqual(['hint']);
+    expect(Object.keys(group.bind(undefined, { validators: [validator] }).extra)).toEqual(['label']);
+    expect(Object.keys(list.bind(undefined, { validators: [validator] }).extra)).toEqual(['label']);
+    expect(Object.keys(action.bind(undefined, { validators: [validator] }).extra)).toEqual(['hint']);
   });
 });
 

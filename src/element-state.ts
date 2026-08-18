@@ -50,9 +50,9 @@ export interface ElementSlots<T = any> {
    */
   extra: object;
   /**
-   * The element this one was cloned from, absent on an element that was declared rather than cloned. It is what
-   * lets an action shared by every clone work out which clone of a second element it means: `declaration` is the
-   * canonical one, so a clone of a clone names the element the whole family was declared as.
+   * The element this one was bound from, absent on an element that was declared rather than bound. It is what lets
+   * an action shared by every binding work out which binding of a second element it means: `declaration` is the
+   * canonical one, so a binding of a binding names the element the whole family was declared as.
    */
   declaration: FieldBase | undefined;
 

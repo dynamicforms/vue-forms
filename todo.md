@@ -1,6 +1,6 @@
 # todo
 
-What stands between the current source and a frozen 1.0 surface, re-verified against 0.10.1, plus the
+What stands between the current source and a frozen 1.0 surface, re-verified against 0.11.0, plus the
 pre-existing items.
 
 The same findings laid out for reading, with the measurement output and the reasoning behind each severity:
@@ -38,12 +38,10 @@ about the shape of signatures and of the published package — after 1.0 those c
 
 ## Recommended before 1.0
 
-- **`clone()` semantics.** `Group.clone()`/`List.clone()` hardcode `new Group`/`new List` instead of
-  `this.constructor`, so a subclass of either clones into the base class. `clone()` also takes the full
-  `IFieldParams` while forwarding only `value`, `originalValue`, `enabled`, `visibility` and the extended
-  properties, so `f.clone({errors: […]})` and `f.clone({touched: true})` compile and are silently ignored.
-- **`clone()` rebaselines `originalValue`** (`src/field.ts`, `src/group.ts`) — `List.remove()` returns
-  a clone with its dirty state erased.
+- **`bind()` semantics.** `Group.bind()`/`List.bind()` hardcode `new Group`/`new List` instead of
+  `this.constructor`, so a subclass of either binds into the base class. The override object also takes the full
+  `IBindParams` while forwarding only `originalValue`, `enabled`, `visibility` and the extended properties, so
+  `f.bind(v, {errors: […]})` and `f.bind(v, {touched: true})` compile and are silently ignored.
 - **There is no way to unregister an action, and the chain that prevents it costs more than that.**
   `ActionsMap.register()` wraps each handler in a closure that calls the previous one, so the successor holds its
   predecessor and a link cannot be dropped; `registeredActions` is only a record for copying, not the executor.
@@ -118,8 +116,8 @@ about the shape of signatures and of the published package — after 1.0 those c
 `AbortEventHandlingException` does not veto `*Changing*` events (documented as it behaves) ·
 `enabled`/`visibility` fire events even without an actual change ·
 `Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
-an action registered on an item template after a row was built never reaches that row, because a clone carries the
-actions its source held at the moment it was cloned ·
+an action registered on an item template after a row was built never reaches that row, because a binding carries
+the actions its declaration held at the moment it was bound ·
 `Operator.NOT` requires a dummy third argument ·
 `Group.addField`/`List.length`/`items` are missing (additive) ·
 `Group`/`List` do not aggregate `validating` or `busy`, so a form cannot ask whether anything below it is
@@ -149,29 +147,8 @@ that many groups and fires that many events synchronously on the main thread ·
 
 ## Open design decisions
 
-Two questions with no settled answer yet. Both are worth deciding before the surface is frozen, because
-the cheap option in each case is also the one that keeps the other option available.
-
-### How a List gets its rows
-
-**Clone per row** is what the code does: the item template is copied for every row, action instances included,
-and `field.declaration` records what each copy was made from so a shared action can tell one row from another.
-*For:* rows have independent identity, so `v-for` keying and component reuse work with no extra machinery;
-per-event property access is direct. *Against:* every row rebuilds an `ActionsMap` and its closure chain, which
-is the dominant cost of creating a row; resolving a second element of a record is a path walk per evaluation
-rather than an index lookup; and `clone()` is public, documented and load-bearing for `List`.
-
-**Bind to a shared definition**: the field definition (validators, actions, defaults) is extracted into a
-subobject that rows share, and each row holds only mutable state. `clone()` disappears; `bind(data)`
-replaces it. *For:* creating a row allocates state only; an action needs no search to tell one row from
-another, because a binding is the row; `CompareTo` resolves within the row for free. *Against:*
-`bind()` must recurse through nested structure and return stable objects, or `watch` over a field fires on
-every render; and `registerAction` on one row necessarily affects all rows, which needs documenting rather
-than solving — the closure chain has no defined composition order for a shared chain plus a per-row one.
-
-The correctness half of the question is settled — declarations, records and `markRecordIncomplete()` answer it on
-the clone model — so what is left is cost and surface. Switching now removes `clone()`, which is a break; leaving
-it freezes two paths to one thing into 1.0. That is the decision, and it belongs before the freeze.
+One question with no settled answer yet. It is worth deciding before the surface is frozen, because
+the cheap option is also the one that keeps the other option available.
 
 ### How the action chain supports removal
 
@@ -186,9 +163,6 @@ keeps growing.
 dead links leave no depth behind; call-time shape and cost are unchanged. *Against:* more code, and the
 composition must preserve the onion semantics — an action decides whether to call `supr` and may transform
 its result, which a plain listener loop would lose.
-
-If rows come to share one definition, actions are registered once rather than per row, and the depth problem
-shrinks enough that the flag alone would do.
 
 ## Pre-existing items
 

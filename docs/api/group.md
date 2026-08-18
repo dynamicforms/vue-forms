@@ -38,7 +38,7 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 `visibility` the same object carries, and every eager action among them runs exactly once, over the finished group.
 `Field`, `Action` and `List` do the same — see [Field](/api/field) for the full description.
 
-The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you hand it a field instance that already belongs to another group or list: a field belongs to one container, and a container refuses one that is taken. Each group needs its own field instances (use `clone()`). A `List` releases the rows it drops, so those are free to be taken again; a `Group` never releases a field.
+The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you hand it a field instance that already belongs to another group or list: a field belongs to one container, and a container refuses one that is taken. Each group needs its own field instances — bind the declaration again with `field.bind()`. A `List` releases the rows it drops, so those are free to be taken again; a `Group` never releases a field.
 
 Field names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`, `constructor`, `__proto__`, …) are accepted like any other: the map has no prototype, and both `value` and `fullValue` build their result the same way. The value setter likewise assigns only from the object's own keys, so `group.value = {}` leaves a field named `toString` untouched instead of handing it `Object.prototype.toString`. A name used twice in the same group throws `Error('Field <name> is already in this form')`.
 
@@ -112,19 +112,28 @@ Records that a member changed its value, so that the [transaction](/api/transact
 commit what this group's own value became and announces it once. Called internally when a child value changes; you
 rarely need to call this directly.
 
-### `clone(overrides?): Group<T>`
+### `bind(data?, overrides?): Group<T>`
 
-Returns a new `Group` with cloned children, actions and extended properties — the children carry their own over
-as they are cloned. `overrides` is an `IFieldParams<GroupValueInput<T>, X>`; of the members every element takes,
-only `value`, `originalValue`, `enabled` and `visibility` are read, and extended properties it names are written
-over the ones carried from the source. `enabled` and `visibility` apply to the group itself and are not propagated to the children,
-while `value` reaches them exactly as it does through the constructor.
+Returns a new `Group` over `data`: every member is bound in turn, and the actions and extended properties of the
+group and of each member come along. `data` reaches the members exactly as a value passed to the constructor does,
+so a key it leaves out leaves that member with what the declaration gives it. `overrides` is an
+`IBindParams<GroupValueInput<T>, X>`; of the members it takes, only `originalValue`, `enabled` and `visibility` are
+read, and extended properties it names are written over the ones carried from the source. `enabled` and
+`visibility` apply to the group itself and are not propagated to the children.
 
-`originalValue` is read by key presence and `value` by being anything other than `undefined`, so
-`clone({ value: null })` clones a group with every member cleared, while an `undefined` `value` counts as none
-supplied and the clone carries the current one.
+`originalValue` is read by key presence, and `data` by being anything other than `undefined`: `bind(null)` gives a
+group with every member cleared, while an `undefined` `data` counts as none supplied and the new group carries the
+current one.
 
-The clone is detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly in `overrides` — otherwise the clone's `originalValue` becomes its current value, so `isChanged` starts out `false`.
+The new group is detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly in `overrides` — otherwise it becomes the group's current value, so `isChanged` starts out `false`.
+
+### `rebind(data): this`
+
+Exchanges the record this group holds for `data`, in place: the same instance, its members written, the change
+history started over and the validators run. A key `data` leaves out is taken from the group's `declaration`, so a
+row recycled this way ends up as a fresh `bind()` of the item template would. No `ValueChangedAction` fires for the
+group itself; its members announce the values they took on, and a verdict that moves is announced as always. See
+[`rebind()`](/api/field#rebind-data-this) for the whole of it.
 
 ## `NullableGroup`
 

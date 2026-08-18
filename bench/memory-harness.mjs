@@ -128,8 +128,8 @@ function validatorRuns() {
 
   const template = buildTemplate();
   calls = 0;
-  template.clone({ value: rowValue });
-  const perRowClone = calls;
+  template.bind(rowValue);
+  const perRowBind = calls;
 
   const listTemplate = buildTemplate();
   calls = 0;
@@ -137,7 +137,7 @@ function validatorRuns() {
   const perRowList = calls;
 
   if (!singleField.valid || !list.valid) throw new Error('the counting validator rejected the row');
-  return { perFieldConstruction, perRowClone, perRowList };
+  return { perFieldConstruction, perRowBind, perRowList };
 }
 
 // a variant on the command line makes this process one batch measurement and nothing else
@@ -169,5 +169,5 @@ variants.forEach((variant) => {
 process.stdout.write('\n-- validator runs\n');
 const runs = validatorRuns();
 print('runs per field, new Field({ value, validators })', runs.perFieldConstruction);
-print('runs per row, template.clone({ value })', `${runs.perRowClone} (${runs.perRowClone / FIELD_COUNT} per field)`);
+print('runs per row, template.bind(value)', `${runs.perRowBind} (${runs.perRowBind / FIELD_COUNT} per field)`);
 print('runs per row, new List(tpl, { value: [row] })', `${runs.perRowList} (${runs.perRowList / FIELD_COUNT} per field)`);

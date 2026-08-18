@@ -111,7 +111,7 @@ after one becomes an extended property while the field keeps its initializer. De
 where a parameter of its name should reach it.
 
 `validators` and `actions` state what to register on the element rather than what it carries, so neither becomes
-an extended property — in a constructor or in a `clone()` override.
+an extended property — in a constructor or in a `bind()` override.
 
 `extra` is read-only and the object it hands out is frozen: `setExtendedValues(values)` is the write path, and it
 merges — a call naming one property leaves the others standing. The read is tracked like every other read through
@@ -132,8 +132,7 @@ bare.extra.label; // string | undefined
 
 ### `IFieldParams<T, X>`
 
-The exported type of the parameter object itself, taken by `new Field`, `new Action`, `new Group`, `new List` and
-every `clone()`:
+The exported type of the parameter object itself, taken by `new Field`, `new Action`, `new Group` and `new List`:
 
 ```typescript
 type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
@@ -142,6 +141,16 @@ type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstructorPar
 The two halves are made partial separately rather than as `Partial<IFieldConstructorParams<T> & X>`, because `T`
 is inferred through this type: inference through a mapped type over an intersection answers with one constituent
 of a union rather than the union, and `new Field({ value: stringOrNumber })` would be a `Field<string>`.
+
+### `IBindParams<T, X>`
+
+The exported type of the second argument of `bind()`: the same members, minus `value`, which the first argument
+states.
+
+```typescript
+type IBindParams<T = any, X extends object = {}> = Partial<Omit<IFieldConstructorParams<T>, 'value'>> &
+  Partial<NoInfer<X>>;
+```
 
 ## Properties
 
@@ -157,9 +166,9 @@ of a union rather than the union, and `new Field({ value: stringOrNumber })` wou
 | `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()`. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
-| `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `clone()`. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
+| `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `bind()` of it. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
-| `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element it was cloned from for a clone — transitively, so a clone of a clone answers with the same element. Every row a `List` builds from an item template is a clone, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
+| `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding — transitively, so a binding of a binding answers with the same element. Every row a `List` builds from an item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field` |
 | `extra` | `Readonly<Partial<X>>` | no | The [extended properties](#extended-properties) the field carries, `{}` where none were declared. The object is frozen; write through `setExtendedValues()` |
 
@@ -176,7 +185,7 @@ field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) =>
 }));
 ```
 
-An action instance registered on an element is carried by every clone of that element, so **an action registered on
+An action instance registered on an element is carried by every binding of that element, so **an action registered on
 a `List`'s item template fires for every row**. The first argument the executor receives is the element it fired
 for, which is how a handler that cares about one row tells them apart:
 
@@ -198,7 +207,7 @@ which rows a declared element stands for: `list.bindingsOf(template.fields.a)` i
 ### `markRecordIncomplete(): void`
 
 States that an eager action running over this element looked for a second element of the record and did not find
-it, because the record was not assembled yet — a `List` row's members are cloned before any of them holds the row.
+it, because the record was not assembled yet — a `List` row's members are bound before any of them holds the row.
 The container that completes the record runs this element's eager actions again, and a container that takes the
 record in afterwards does the same. Only an action implementation calls it; see
 [Reading a second element of the record](/api/actions#reading-a-second-element-of-the-record).
@@ -250,19 +259,57 @@ set back.
 field.setExtendedValues({ label: 'Given name' });
 ```
 
-### `clone(overrides?): Field<T>`
+### `bind(data?, overrides?): this`
 
-Returns a new reactive field with the same registered actions and the same extended properties. `overrides` is an
-`IFieldParams<T, X>`; of the members every field takes, only `value`, `originalValue`, `enabled` and `visibility`
-are read — the rest, `validators` and `actions` included, are ignored and none of them reaches the clone's
-extended properties. Extended properties it names are written over the ones the clone carries from the field it
-was cloned from, and they are in place before the clone's eager actions run. `originalValue` is read by key
-presence and `value` by being anything other than `undefined`, so `clone({ value: null })` gives a clone holding
-`null`, while an `undefined` `value` counts as none supplied and the clone keeps the current one.
+Returns a new reactive field over `data`, with the same registered actions and the same extended properties. It is
+how a declared field is put to work over a record, and the field it is called on is what the new one answers
+`declaration` with.
 
-The clone is constructed through `this.constructor`, so a subclass of `Field` clones into its own class. It is
-detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly in
-`overrides` — otherwise the clone's `originalValue` becomes its current value, so `isChanged` starts out `false`.
+`data` of `undefined` is no data supplied and the new field carries the current value; an explicit `null` is data
+and clears, so `bind(null)` gives a field holding `null`. `overrides` is an `IBindParams<T, X>`; of the members it
+takes, only `originalValue`, `enabled` and `visibility` are read — the rest, `validators` and `actions` included,
+are ignored and none of them reaches the new field's extended properties. Extended properties it names are written
+over the ones carried over from the field bound, and they are in place before the new field's eager actions run.
+`originalValue` is read by key presence.
+
+The new field is constructed through `this.constructor`, so a subclass of `Field` binds into its own class. It is
+detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly
+in `overrides` — otherwise it becomes the data bound, so `isChanged` starts out `false`.
+
+```typescript
+const row = template.bind({ name: 'John' });   // a group over one record
+const copy = field.bind(field.value);          // another field holding what this one holds
+```
+
+### `rebind(data): this`
+
+Exchanges the data the field holds for `data`, in place. The element is the same instance afterwards — its
+identity, its actions, its extended properties and its place in whatever container holds it all stand — and it ends
+up in the state `bind(data)` would have produced: the values are written, `originalValue` is baselined to them so
+`isChanged` starts out `false`, `touched` goes back to `false` and the validators run over the new data. It is what
+recycles one element across records, which is what a virtualised renderer does with the rows it keeps.
+
+The element makes no statement of its own about the exchange: no `ValueChangedAction` fires for it, the way none
+fires for an element that was just built. Its members do announce theirs — the fields of a rebound row report the
+values they took on — and a verdict that moves is announced as always, so a rebound row that is invalid says so to
+the list holding it.
+
+A disabled `Field` refuses a value written to it, here as anywhere: it keeps what it holds and only its change
+history starts over. A disabled `Group` or `List` writes through to its members, the same way an assignment to it
+does.
+
+Inside an open `transaction()`, a change the element is already owed an announcement for stands: the exchange does
+not erase it, and what the commit announces is the pair measured from where the element stood when the transaction
+opened.
+
+On a `Group` the record need not name every member: a key it leaves out is taken from the element's `declaration`,
+so a recycled row ends up as a fresh binding of the item template would, rather than as the record before it left
+it.
+
+```typescript
+const row = list.get(0)!;
+row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
+```
 
 ## `EmptyField`
 
@@ -285,8 +332,8 @@ carries; it defaults to `{}`, which is what makes `FieldBase` on its own the typ
 
 It provides `originalValue`, `enabled`, `visibility`, `valid`, `errors`, `validating`, `validationEpoch`,
 `isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `triggerAction()`, `validate()`,
-`clearValidators()`, `setExtendedValues()`, `beginValidating()` and `endValidating()` — which is why those work the same way on every form
-element. `value`, `touched` and `clone()` are abstract and supplied by each subclass.
+`clearValidators()`, `setExtendedValues()`, `rebind()`, `beginValidating()` and `endValidating()` — which is why those work the same way on every form
+element. `value`, `touched` and `bind()` are abstract and supplied by each subclass.
 
 It holds every mutable member of an element in a reactive state object beside it, which is what makes every form
 element reactive without a wrapper: reading `field.value` in a template or a `computed` subscribes to that one

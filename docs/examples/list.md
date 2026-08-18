@@ -28,7 +28,7 @@ import {
   Validators
 } from '@dynamicforms/vue-forms';
 
-// The item template: a declaration of what a single row is, cloned into every row the list holds.
+// The item template: a declaration of what a single row is, bound to the data of every row the list holds.
 // The Required validator is declared once here and applies to the description of every row.
 const lineItem = new Group({
   description: new Field({ value: '', validators: [new Validators.Required()] }),
@@ -185,7 +185,7 @@ function getErrorMessages(field) {
 ## The Item Template
 
 The `Group` handed to `new List(...)` is not a row of the list — it is the declaration every row is built from. Each
-row is a clone of it, so whatever the template carries, every row carries: the `Required` validator on
+row is a binding of it, so whatever the template carries, every row carries: the `Required` validator on
 `description` is written once and rejects an empty description in row one and in row twelve alike, and an action
 registered on a template field runs in each row separately, on that row's field.
 
@@ -199,7 +199,7 @@ Inside a row, `field.parent` is the row's own `Group`, which is what makes `row.
 the row being validated rather than the template's. The same expression written on the template resolves per row,
 because the field the validator receives is the row's field, not the one the template holds.
 
-A row is built member by member — every member is cloned on its own, the clones are handed to a `Group`, and the
+A row is built member by member — every member is bound on its own, the bindings are handed to a `Group`, and the
 group is then handed the row's data — so this validator's first run happens while the unit price still has no
 `parent`. Reaching nothing there is *no verdict*, not a pass: `field.markRecordIncomplete()` says so, and the
 container that completes the record runs the validator again over the row it then has. That is why a row created

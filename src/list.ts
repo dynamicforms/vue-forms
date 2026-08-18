@@ -3,7 +3,7 @@ import { isEmpty } from 'lodash-es';
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
-import { IFieldParams } from './field.interface';
+import { IBindParams, IFieldParams } from './field.interface';
 import { GenericFieldsInterface, Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
@@ -71,7 +71,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
     // If item is already a Group, use it
     if (item instanceof Group) res = item;
     // Otherwise create a Group from item
-    else if (this._itemTemplate) res = this._itemTemplate.clone({ value: item });
+    else if (this._itemTemplate) res = this._itemTemplate.bind(item);
     else res = Group.createFromFormData(item) as Group<T>;
 
     // an item that already belongs to a container is refused here; one this list released earlier carries no
@@ -85,11 +85,11 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
   }
 
   /**
-   * Builds the item that fills a gap left by an insert beyond the end of the list: a copy of the item template with
-   * the template's own values, or an empty group when the list has no template.
+   * Builds the item that fills a gap left by an insert beyond the end of the list: the item template bound to its
+   * own values, or an empty group when the list has no template.
    */
   private createPaddingItem(): Group<T> {
-    return this.processSetValueItem(this._itemTemplate ? this._itemTemplate.clone() : null);
+    return this.processSetValueItem(this._itemTemplate ? this._itemTemplate.bind() : null);
   }
 
   private setValueInternal(newValue: any[]) {
@@ -182,15 +182,15 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
     });
   }
 
-  clone(overrides?: IFieldParams<ListValue, X>): List<T, X> {
-    const res = new List<T, X>(this._itemTemplate?.clone(), {
-      // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
-      value: [...((overrides?.value !== undefined ? overrides.value : this.value) ?? [])],
+  bind(data?: ListValue, overrides?: IBindParams<ListValue, X>): List<T, X> {
+    const res = new List<T, X>(this._itemTemplate?.bind(), {
+      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
+      value: [...((data !== undefined ? data : this.value) ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<ListValue, X>);
-    res.clonedFrom(this, res.value, res.originalValue, overrides);
+    res.boundFrom(this, res.value, res.originalValue, overrides);
     return res;
   }
 
@@ -259,10 +259,12 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
       const row = this.state.rows.splice(index, 1)?.[0];
       if (!row) return;
 
+      // the row itself is what leaves the list: releaseChild has taken the back-reference away, so it carries
+      // nothing of the list it stood in and is free to be taken by another container, and what it holds - the
+      // values it ended up with, its errors, the change history behind isChanged - is the row's to report
       this.releaseChild(row);
       this.bumpValueVersion();
-      // Remove parent reference
-      removedItem = row.clone();
+      removedItem = row;
 
       // an item removed is a fact about an operation and has no net over a transaction, so it is queued in order
       // rather than compared away, and the commit emits it before the value the removal left behind

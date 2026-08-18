@@ -9,7 +9,7 @@ import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
-import { IFieldParams } from './field.interface';
+import { IBindParams } from './field.interface';
 import { type Group } from './group';
 import {
   currentTransaction,
@@ -33,7 +33,7 @@ const validReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
  * The parameter keys that name what to register on an element rather than what it holds. The constructor that
- * receives them registers them and applies the rest, and `clone()` hands its overrides over whole, so they are
+ * receives them registers them and applies the rest, and `bind()` hands its overrides over whole, so they are
  * named here to keep them out of both the element's members and its extended properties.
  */
 const registrationParams: ReadonlySet<string> = new Set(['validators', 'actions']);
@@ -98,7 +98,51 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   abstract get touched(): boolean;
   abstract set touched(touched: boolean);
 
-  abstract clone(overrides?: IFieldParams<T, X>): FieldBase<T, X>;
+  /**
+   * A new element of this one's class over `data`: same class, same registered actions, same extended properties,
+   * and the change history starting over. It is how a declaration is put to work over a record - every row a
+   * `List` builds is its item template bound to that row's data - and the element it is called on is what the new
+   * one answers `declaration` with.
+   *
+   * `data` of `undefined` is no data supplied and the new element carries what this one holds; an explicit `null`
+   * is data and clears. `overrides` states the rest: `originalValue` is read by key presence, `enabled` and
+   * `visibility` fall back to this element's, and extended properties it names are written over the ones carried
+   * over. The new element is detached - no `parent`, no `fieldName` - so it is free to be taken by a container.
+   */
+  abstract bind(data?: T, overrides?: IBindParams<T, X>): FieldBase<T, X>;
+
+  /**
+   * Exchanges the data this element holds for `data`, in place. The element is the same instance afterwards - its
+   * identity, its actions, its extended properties and its place in whatever container holds it all stand - and it
+   * ends up in the state `bind(data)` would have produced: the values are written, the change history starts over
+   * and the validators run. It is what recycles one element across records, which is what a virtualised renderer
+   * does with the rows it keeps.
+   *
+   * The element makes no statement of its own about the exchange: no `ValueChangedAction` fires for it, the way
+   * none fires for an element that was just built. Its members do announce theirs, and a verdict that moves is
+   * announced as always - a rebound element that is invalid says so to the container holding it. A change an
+   * open transaction is already owed an announcement for stands: the commit reports the pair measured from
+   * where the element was when the transaction opened.
+   *
+   * The data is measured against the element's `declaration`, so a key a record leaves out is taken from the
+   * declaration rather than left as the previous record had it.
+   */
+  rebind(data: T): this {
+    transactional((tx) => {
+      tx.touch(this);
+      // the baseline of a change the transaction has yet to announce stays where it is: the element is already
+      // enrolled to report that change, and moving the baseline to the record it ends up over would erase the
+      // report. Both are read before the reset, which enrols the element itself and, on a container, writes the
+      // baseline of its own.
+      const owed = tx.willAnnounceValue(this);
+      const baseline = this.#raw.announcedValue;
+      this.resetTo(this.declaration, data);
+      // with nothing owed, what the element now holds is recorded as announced, so the commit reports no change
+      // of value for it
+      this.#raw.announcedValue = owed ? baseline : this.value;
+    });
+    return this;
+  }
 
   /** contains original field value as was provided at creation */
   get originalValue(): T {
@@ -253,9 +297,9 @@ export abstract class FieldBase<T = any, X extends object = {}> {
 
   /**
    * The element this one was declared as: itself for an element built from parameters, and the element it was
-   * cloned from for a clone - transitively, so a clone of a clone names the same one. Every row a `List` builds
-   * from an item template is a clone, so a row's member and the template's member it stands for answer with the
-   * same element, and an action registered on the template can tell the two apart.
+   * bound from for a binding - transitively, so a binding of a binding names the same one. Every row a `List`
+   * builds from an item template is a binding of it, so a row's member and the template's member it stands for
+   * answer with the same element, and an action registered on the template can tell the two apart.
    */
   get declaration(): FieldBase {
     return this.#raw.declaration ?? this;
@@ -289,7 +333,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   /**
    * States that an eager pass over this element reached an element it needs and did not find it, because the
    * record this element belongs to was not assembled at the time: a `List` row is built member by member and its
-   * members are cloned before any of them holds the row, so a validator comparing two of them runs before the
+   * members are bound before any of them holds the row, so a validator comparing two of them runs before the
    * row exists. The container that finishes the record runs the pass again, and a pass that still reaches
    * nothing says so again, so the next container above answers for it.
    */
@@ -413,7 +457,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
    */
   protected takeChild(child: FieldBase, fieldName?: string): void {
     transactional((tx) => {
-      if (child.parent) throw new TypeError('This element already belongs to a container - pass a clone() of it');
+      if (child.parent) throw new TypeError('This element already belongs to a container - pass a bind() of it');
       tx.touch(child);
       child.#state.fieldName = fieldName;
       child.#state.parent = this;
@@ -447,7 +491,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   }
 
   /**
-   * Brings this element to the state a fresh clone of `source` carrying `value` would be in: `value` is written
+   * Brings this element to the state a fresh binding of `source` carrying `value` would be in: `value` is written
    * where the caller supplied one and `source`'s own value where it did not, the change history - originalValue,
    * touched - starts over and the errors are dropped and re-established by the validators. A container that reuses
    * an element at a position it already holds calls it, so the element is indistinguishable from one built for
@@ -618,14 +662,14 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   }
 
   /**
-   * Brings a fresh clone of `source` into the state a clone is in: it records what it was declared as, takes on
-   * the extended properties and the actions `source` carries, and runs the eager ones over the value it was built
-   * with. The extended properties `overrides` states are written over the ones `source` carries, and they are in
-   * place before the eager pass, so an action reading one sees what the clone ends up carrying. The actions are
-   * the very instances `source` holds - what a clone copies is data, not behaviour - and each is told about this
-   * element as it is taken on, so an action serving several clones knows all of them.
+   * Brings a fresh element into the state a binding of `source` is in: it records what it was declared as, takes
+   * on the extended properties and the actions `source` carries, and runs the eager ones over the value it was
+   * built with. The extended properties `overrides` states are written over the ones `source` carries, and they
+   * are in place before the eager pass, so an action reading one sees what the binding ends up carrying. The
+   * actions are the very instances `source` holds - what a binding takes on is data, not behaviour - and each is
+   * told about this element as it is taken on, so an action serving several bindings knows all of them.
    */
-  protected clonedFrom(source: FieldBase<any, X>, newValue: any, oldValue: any, overrides?: object): void {
+  protected boundFrom(source: FieldBase<any, X>, newValue: any, oldValue: any, overrides?: object): void {
     this.#raw.declaration = source.declaration;
     const extended: Partial<X> = { ...source.extra, ...(overrides && this.extendedOf(overrides)) };
     if (!isEmpty(extended)) this.setExtendedValues(extended);

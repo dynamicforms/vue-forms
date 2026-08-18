@@ -55,8 +55,9 @@ export function resolveInScope(declaration: FieldBase, scope: FieldBase): FieldB
 /**
  * Every element `declaration` stands for when something changes in `scope`. It is the one member of that record
  * where the record holds one; where the element belongs to a record above - a form field the rows of a list read -
- * it is each of its copies inside `scope`, because a change there speaks for every one of them; and where `scope`
- * reaches no copy at all, it is the element itself, which is the answer for a form that has no records below it.
+ * it is each of its bindings inside `scope`, because a change there speaks for every one of them; and where
+ * `scope` reaches no binding at all, it is the element itself, which is the answer for a form that has no records
+ * below it.
  * A record still being assembled reaches none of these and answers with nothing, so the assignment that finishes
  * it asks again.
  */

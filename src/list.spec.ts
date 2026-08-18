@@ -228,7 +228,7 @@ describe('List', () => {
     expect(list.value).toBeNull();
   });
 
-  it('clones list correctly', () => {
+  it('binds a list correctly', () => {
     const template = new Group({
       name: new Field(),
       age: new Field(),
@@ -241,21 +241,21 @@ describe('List', () => {
       ],
     });
 
-    const cloned = list.clone();
+    const bound = list.bind();
 
     // Check that values match
-    expect(cloned.value).toEqual(list.value);
+    expect(bound.value).toEqual(list.value);
 
     // Check that it's a new instance
-    expect(cloned).not.toBe(list);
+    expect(bound).not.toBe(list);
 
-    // Check that the clone has its own template
-    expect(cloned.get(0)?.fields.name.value).toBe('John');
+    // Check that the new list has its own template
+    expect(bound.get(0)?.fields.name.value).toBe('John');
 
-    // Modify original, verify clone is not affected
+    // Modify original, verify the new list is not affected
     list.push({ name: 'Bob', age: 40 });
     expect(list.value?.length).toBe(3);
-    expect(cloned.value?.length).toBe(2);
+    expect(bound.value?.length).toBe(2);
   });
 
   it('sets values correctly', () => {
@@ -346,8 +346,9 @@ describe('List', () => {
     expect(JSON.stringify(item)).not.toContain('parent');
     expect(() => JSON.stringify(list)).not.toThrow();
 
-    // When we pop, the parent link is removed via cloning
+    // the row itself comes back, released of the list that held it
     const popped = list.pop();
+    expect(popped).toBe(item);
     expect(popped?.parent).toBeUndefined();
   });
 });
@@ -625,11 +626,69 @@ describe('List construction parameters', () => {
   });
 });
 
-describe('List cloning', () => {
-  it('clones an empty list', () => {
+describe('What remove() hands back', () => {
+  const listOfTwo = () => {
+    const template = new Group({ name: new Field({ value: '', validators: [new Validators.Required()] }) });
+    return new List(template, { value: [{ name: 'John' }, { name: 'Jane' }] });
+  };
+
+  it('hands back the row itself, with what it holds and what it was declared as', () => {
+    const list = listOfTwo();
+    const row = list.get(0)!;
+    row.fields.name.value = 'Johnny';
+
+    const removed = list.remove(0);
+
+    expect(removed).toBe(row);
+    expect(removed!.isChanged).toBe(true);
+    expect(removed!.value).toEqual({ name: 'Johnny' });
+    expect(removed!.originalValue).toEqual({ name: 'John' });
+    expect(removed!.fields.name.touched).toBe(false);
+    // released of the list, so another container may take it
+    expect(removed!.parent).toBeUndefined();
+    expect(() => new List(undefined, { value: [removed!] })).not.toThrow();
+  });
+
+  it('hands back a row that is invalid as it stands, errors and all', () => {
+    const list = listOfTwo();
+    const row = list.get(0)!;
+    row.fields.name.value = '';
+    expect(row.valid).toBe(false);
+
+    const removed = list.remove(0);
+
+    expect(removed).toBe(row);
+    expect(removed!.valid).toBe(false);
+    expect(removed!.fields.name.errors.length).toBe(1);
+    // and the list it left counts it no longer
+    expect(list.valid).toBe(true);
+  });
+
+  it('gives ListItemRemovedAction the same instance it answers with', () => {
+    const seen: any[] = [];
+    const list = listOfTwo().registerAction(new ListItemRemovedAction((element, supr, item) => seen.push(item)));
+    const row = list.get(1)!;
+
+    const popped = list.pop();
+
+    expect(popped).toBe(row);
+    expect(seen).toEqual([row]);
+  });
+
+  it('answers with undefined for an index the list does not hold', () => {
+    const list = listOfTwo();
+
+    expect(list.remove(5)).toBeUndefined();
+    expect(list.remove(-1)).toBeUndefined();
+    expect(new List().pop()).toBeUndefined();
+  });
+});
+
+describe('List binding', () => {
+  it('binds an empty list', () => {
     const list = new List(new Group({ name: new Field({ value: 'template' }) }));
 
-    const copy = list.clone();
+    const copy = list.bind();
 
     expect(copy).not.toBe(list);
     expect(copy.value).toBeNull();
@@ -639,13 +698,13 @@ describe('List cloning', () => {
     expect(list.value).toBeNull();
   });
 
-  it('takes a clone value override only from a value the caller supplied', () => {
+  it('takes the data it binds only from an argument the caller supplied', () => {
     const list = new List(new Group({ name: new Field() }), { value: [{ name: 'John' }] });
 
-    expect(list.clone().value).toEqual([{ name: 'John' }]);
-    expect(list.clone({ value: undefined }).value).toEqual([{ name: 'John' }]);
-    expect(list.clone({ value: null }).value).toBeNull();
-    expect(list.clone({ value: [{ name: 'Jane' }] }).value).toEqual([{ name: 'Jane' }]);
+    expect(list.bind().value).toEqual([{ name: 'John' }]);
+    expect(list.bind(undefined).value).toEqual([{ name: 'John' }]);
+    expect(list.bind(null).value).toBeNull();
+    expect(list.bind([{ name: 'Jane' }]).value).toEqual([{ name: 'Jane' }]);
   });
 });
 
@@ -659,8 +718,8 @@ describe('Rows and the element they were declared as', () => {
     expect(list.get(1)!.declaration).toBe(template);
     expect(list.get(0)!.fields.name.declaration).toBe(template.fields.name);
 
-    // a clone of a clone names the element the whole family was declared as
-    expect(list.get(0)!.clone().declaration).toBe(template);
+    // a binding of a binding names the element the whole family was declared as
+    expect(list.get(0)!.bind().declaration).toBe(template);
   });
 
   it('finds the rows a declaration stands for', () => {

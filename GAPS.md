@@ -644,3 +644,102 @@ the type promises a label, and making the parameter conditionally required is a 
 The cost of the type chosen is that `X` declaring a member required states an intention rather than a guarantee.
 `setExtendedValues` never takes a property away, so a property is present from the write that put it there
 onwards.
+
+---
+
+## D-025 — `clone()` becomes `bind(data, overrides)`, and `rebind(data)` is the in-place half of it
+
+**Version:** 0.11.0
+
+The operation is unchanged: a new element of the same class, carrying the action and validator instances the
+source holds and its extended properties, detached, with `originalValue` baselined to the data it was given. What
+changes is the name and where the data goes. `clone` named the mechanism — a copy — while what the library does
+with it is put a declaration to work over one record, which is what every `List` row is and what `declaration`,
+`bindingsOf()` and `boundToBinding()` already called a binding. The vocabulary is now one word throughout.
+
+**The data is an argument of its own rather than a key of the override object.** `bind(data?, overrides?)` reads
+`data` positionally and `IBindParams<T, X>` — `IFieldParams<T, X>` without `value` — for the rest. Two things a
+caller can state that mean the same thing are one too many, and the data is what nearly every call site passes:
+`template.bind(record)` against `template.clone({ value: record })`. The overload semantics the specs pin are
+carried over whole onto the argument: `undefined` is no data supplied and the source's value stands, an explicit
+`null` is data and clears, and `originalValue` in the overrides is read by key presence.
+
+**Rejected: `bind(params)` with the data still inside the object.** It is a rename and nothing else, and it keeps
+the shape that made `clone({ value: null })` read as an override of a value rather than as the data a binding is
+over. **Rejected: `bind(data)` alone.** The overrides carry `enabled`, `visibility`, `originalValue` and the
+extended properties a caller writes over the ones carried across, all of which the specs and the documented
+surface use.
+
+**`rebind(data)` announces nothing for the element it is called on.** It is `resetTo(this.declaration, data)` —
+the primitive a `List` already uses to recycle a row through a whole-value assignment — plus the element's
+announcement baseline being set to what it ends up holding, which is what a constructor does with the value it
+finishes on. A recycled row is not an edit of the record it held before, so a `ValueChangedAction` on it would
+report a change nothing made.
+
+The one announcement it does not swallow is a change already owed. Inside an open transaction the element may
+have been written to before the exchange, and the commit is enrolled to report that write; the exchange keeps
+that baseline and the commit announces from where the element stood when the transaction opened. Moving the
+baseline unconditionally would leave the element holding a record it never announced — silently on a leaf, and
+as a pair reporting no change at all where a structural operation had already forced the announcement.
+
+What does still fire is stated rather than suppressed: the members of a rebound group announce the values they
+took on, and a verdict that moves is announced as always. Silencing the members would leave anything a handler
+derives from them stale, and it would make `rebind` differ from the row reuse `list.value = rows` performs, which
+is the same operation reached through the list. Silencing the verdict is not available at all: a container's
+tally of invalid children is what `valid` is composed from, so a rebound row that turns invalid has to say so.
+
+**The data is measured against `declaration`, not against the element itself.** A record that leaves a key out
+leaves that member to the declaration, so a recycled row is indistinguishable from a fresh `bind()` of the item
+template rather than carrying a remnant of the record before it. An element that was declared rather than bound
+answers `declaration` with itself, so the rule reads the same on both.
+
+---
+
+## D-026 — `List.remove()` hands back the row itself
+
+**Version:** 0.11.0
+
+`remove()` and `pop()` answer with the row instance the list held, and `ListItemRemovedAction` receives that same
+instance. The copy they used to answer with existed to shed the container back-reference, which `releaseChild()`
+has done since 0.7.0: the row leaves without a `parent` and any container will take it.
+
+The copy erased what a caller asks a removed row for. `originalValue` is baselined at construction, so a row
+edited before it was removed came back reporting `isChanged` as `false`, its errors re-established from the values
+rather than the ones its validators had reached, and its identity gone — the instance a handler had kept from
+`list.get(index)` was not the one the event carried. Everything a caller can do with a removed row — undo it back
+into the list, ask what changed in it, hand it to another list — needs the row rather than a likeness of it.
+
+The cost is that a caller who kept the removed row keeps the whole element alive, actions and all. That is what
+they asked for by keeping it; a caller that wants a detached likeness has `bind()`.
+
+**The sibling packages need no change for either rename.** `@dynamicforms/vuetify-inputs`,
+`@dynamicforms/vuetify-modal-form-kit` and `@dynamicforms/vue-grid` never called `clone()` — the only `clone`
+in any of them is lodash's — and none of them calls `List.remove()` or `List.pop()`, so the peer range is the
+only thing that moves for them.
+
+---
+
+## D-027 — Rows go on being built element by element; the declaration/binding split is dropped
+
+**Version:** 0.11.0
+
+A `List` row is a `Group` of elements bound from the item template, each holding its own state, and it stays that
+way. The alternative the plan carried — a shared definition object holding the validators, actions and defaults,
+with a row holding only mutable state — is not taken, and neither is the shared slot array that went with it.
+
+**What decided it.** The correctness the split was wanted for is already answered on this model: `declaration`
+names what an element was declared as, a record is derived from the container chain, and `markRecordIncomplete()`
+covers the pass that runs before a record exists (D-014). What was left was cost, and the cost the slot array
+bought was about 11% of an element's memory in exchange for rewriting every state accessor from a named property
+(`this.#state.originalValue`) into an indexed lookup. Readability beat it.
+
+**What the model keeps.** A row has an identity of its own, so `v-for` keying and component reuse need no
+machinery; per-element property access is direct; and `registerAction()` on one row is that row's action rather
+than every row's, which a shared definition could not offer without a composition order for a shared chain plus a
+per-row one.
+
+**What it leaves standing.** Every row rebuilds an `ActionsMap` and its closure chain, which is the dominant cost
+of creating one, and resolving a second element of a record is a path walk per evaluation rather than an index
+lookup. `bind()` names the operation the model rests on (D-025), and `rebind()` covers what the split was reached
+for last — recycling one row across records — without moving where state lives.
+

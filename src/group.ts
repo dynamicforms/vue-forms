@@ -3,7 +3,7 @@ import { isEmpty } from 'lodash-es';
 import { type ContainerSlots, containerSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
-import { IFieldParams } from './field.interface';
+import { IBindParams, IFieldParams } from './field.interface';
 import { transactional } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
@@ -62,7 +62,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
       }
 
       // the members are in place and hold their values, so this is the record they were promised: a member whose
-      // eager pass ran before the group existed - every member of a cloned group - gets it here
+      // eager pass ran before the group existed - every member of a bound group - gets it here
       this.completeRecords();
 
       // reading value walks every member and builds an object, so it is read once here and the result serves
@@ -183,7 +183,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
   /**
    * Members are reset one by one rather than assigned as a whole value: the value setter writes only the keys the
    * value carries, while a member the value leaves out has to end up holding what the template gives it. `source`
-   * supplies that per member, so a group reset from the template it was cloned from matches a fresh clone of it.
+   * supplies that per member, so a group reset from the template it was bound from matches a fresh binding of it.
    */
   protected resetTo(source: FieldBase, value: any): void {
     const template = source as Group<T>;
@@ -266,21 +266,29 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
     });
   }
 
-  clone(overrides?: IFieldParams<GroupValueInput<T>, X>): Group<T, X> {
+  bind(data?: GroupValueInput<T>, overrides?: IBindParams<GroupValueInput<T>, X>): Group<T, X> {
     const newFields = Object.create(null) as T;
     Object.entries(this._fields).forEach(([name, field]) => {
-      newFields[name as keyof T] = field.clone() as any;
+      newFields[name as keyof T] = field.bind() as any;
     });
     const res = new Group<T, X>(newFields, {
-      // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
-      value: overrides?.value !== undefined ? overrides.value : this.value,
+      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
+      value: data !== undefined ? data : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<GroupValueInput<T>, X>);
     // the constructor primed announcedValue with the value the members ended up holding, and nothing has run since
-    res.clonedFrom(this, res.raw.announcedValue, res.originalValue, overrides);
+    res.boundFrom(this, res.raw.announcedValue, res.originalValue, overrides);
     return res;
+  }
+
+  /**
+   * A record need not name every member: a key it leaves out is taken from the declaration, the same way a member
+   * the constructor is given no value for takes the one it was declared with.
+   */
+  rebind(data: GroupValueInput<T>): this {
+    return super.rebind(data as GroupValue<T>);
   }
 }
 

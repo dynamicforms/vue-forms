@@ -27,17 +27,17 @@ At the end of every chain sits a handler that returns `null`, so `supr` is alway
 
 ### One action, many elements
 
-An action instance is registered on an element, and every clone of that element carries the same instance — so an
+An action instance is registered on an element, and every binding of that element carries the same instance — so an
 action registered on a `List`'s item template fires for **every row of the list**. The element the executor
 receives as its first argument is the one it fired for, and it is what a handler that cares about a single row
 checks. The same holds for validators, which are actions: one `Required` instance validates every row's field, and
 `clearValidators()` on one row leaves the instance validating the others.
 
-An action drives the elements it was registered on and their clones, and no others. Registered on one row of a
+An action drives the elements it was registered on and their bindings, and no others. Registered on one row of a
 `List`, it stays that row's action: the other rows never took it on, and neither a change of the field a
 `CompareTo` compares against nor a change of a field a `Statement` reads reaches them. A row built **before** the
-registration never took it on either — a clone carries the actions the element it was cloned from held at the
-moment it was cloned — so an action meant for every row is registered on the item template before the rows are
+registration never took it on either — a binding carries the actions the element it was bound from held at the
+moment it was bound — so an action meant for every row is registered on the item template before the rows are
 built.
 
 An action that has to remember something between runs keeps it against the element it ran over, not on itself —
@@ -301,7 +301,7 @@ new ListItemRemovedAction((field, supr, item, index) => {
 })
 ```
 
-`item` is a clone of the removed group (without `parent`), not the original instance: `remove()` clones the element before triggering the action and returns that same clone to the caller. `pop()` delegates to `remove()`, so it behaves identically.
+`item` is the removed row itself, released of the list (so without `parent`) and holding everything it held while it stood in the list — its values, its errors and the change history behind `isChanged`. It is the instance `remove()` answers the caller with, and the one `list.get(index)` answered with before the call. `pop()` delegates to `remove()`, so it behaves identically.
 
 ---
 
@@ -453,11 +453,11 @@ Optional overrides:
 | Member | Description |
 |--------|-------------|
 | `get eager()` | Return `true` to have the action executed immediately on `registerAction()`, and on every `ValueChangedAction` trigger and `validate(true)`. Defaults to `false` |
-| `boundToBinding(binding)` | Called once for every element this action comes to serve: the element it is registered on, and every clone of that element as the clone takes the action on. Use it to record the elements the action answers for |
+| `boundToBinding(binding)` | Called once for every element this action comes to serve: the element it is registered on, and every binding of that element as the binding takes the action on. Use it to record the elements the action answers for |
 | `unregisterFrom(binding)` | Called by `clearValidators()` on each dropped action that is a `Validator`, once the operation that dropped it has finished, and names the element it was dropped from. Override it to release what the validator installed for that element — `CompareTo` stops answering for it. A non-validator action is carried over to the new chain instead, so its `unregisterFrom()` never runs |
 
 State an action keeps between runs belongs to the element it ran over, because the instance is shared by every
-clone of the element it was registered on. `protected state<S>(key, init): S` holds it: the key is the element, or
+binding of the element it was registered on. `protected state<S>(key, init): S` holds it: the key is the element, or
 the record the element belongs to where the fact is about the whole record, and the entry is released with the key.
 
 ```typescript
@@ -477,7 +477,7 @@ class CountingAction extends ValueChangedAction {
 ### Reading a second element of the record
 
 An eager action that reads a second element — a validator comparing two fields, a statement over another field of
-the row — can run before the record it reads exists: a `List` row is built by cloning the item template member by
+the row — can run before the record it reads exists: a `List` row is built by binding the item template member by
 member, and a member's eager pass runs while the member is still on its own. Where the lookup reaches nothing,
 call `field.markRecordIncomplete()` and reach no verdict. The container that finishes the record runs the pass
 again over the record it then has, and a pass that still reaches nothing says so again, so the container above —
@@ -502,7 +502,7 @@ else, and `triggerEager(field, ...params)` runs the eager actions alone. `willTr
 either would run anything, so a caller that has to build the parameters first can skip building them.
 
 `clone()` returns a copy holding the same action instances, and `bindTo(owner)` tells each of them that it now
-serves `owner`. Cloning an element does both, which is what makes an action registered on an item template serve
+serves `owner`. Binding an element does both, which is what makes an action registered on an item template serve
 every row.
 
 `cloneWithoutValidators()` returns a copy carrying everything but the validators, and does nothing else: calling

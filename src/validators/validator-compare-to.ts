@@ -32,14 +32,14 @@ export default class CompareTo<T = any> extends Validator {
   private readonly registrations = new WeakSet<FieldBase>();
 
   /**
-   * The fields this validator has installed its listener on. A clone of such a field carries the listener too -
-   * a clone takes on the actions of the field it was cloned from - so the field it was cloned from is what is
+   * The fields this validator has installed its listener on. A binding of such a field carries the listener too -
+   * a binding takes on the actions of the field it was bound from - so the field it was bound from is what is
    * asked about as well, and a list of a thousand rows installs one listener rather than a thousand.
    */
   private readonly listening = new WeakSet<FieldBase>();
 
   /**
-   * What the fields this validator was registered on were declared as. One entry stands for every clone of such a
+   * What the fields this validator was registered on were declared as. One entry stands for every binding of such a
    * field, so a change of a compared field finds the fields of the record that change happened in without a list
    * of a thousand rows being held here.
    */
@@ -87,7 +87,7 @@ export default class CompareTo<T = any> extends Validator {
   /**
    * Makes a change of `other` re-run this comparison. The listener re-runs it over the fields of the record the
    * change happened in rather than over the field that installed it, so the listener a row inherits with the field
-   * it was cloned from serves that row; and it re-runs this one validator, not the chain around it.
+   * it was bound from serves that row; and it re-runs this one validator, not the chain around it.
    */
   private listenOn(other: FieldBase): void {
     if (this.listening.has(other) || this.listening.has(other.declaration)) return;
