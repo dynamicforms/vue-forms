@@ -94,8 +94,8 @@ describe('extended properties', () => {
     const rejected = () => [
       // @ts-expect-error an element with no extended properties declared takes none
       new Field({ value: 1, label: 'Name' }),
-      // @ts-expect-error the same for a clone override
-      field.clone({ label: 'Name' }),
+      // @ts-expect-error the same for a bind override
+      field.bind(undefined, { label: 'Name' }),
       // @ts-expect-error and for a property the declaration does not carry
       new Field<number, Presentation>({ value: 1, placeholder: 'Name' }),
     ];
@@ -130,7 +130,7 @@ describe('extended properties', () => {
 
     expectTypeOf(base.extra).toEqualTypeOf<Readonly<{}>>();
     expectTypeOf(group.field('name')).toEqualTypeOf<Field<string, Presentation> | null>();
-    expectTypeOf(field.clone()).toEqualTypeOf<Field<string, Presentation>>();
+    expectTypeOf(field.bind()).toEqualTypeOf<Field<string, Presentation>>();
   });
 
   it('infers the value type over a union of value types', () => {

@@ -62,7 +62,7 @@ where a run reached no verdict because the record it reads was not assembled yet
 [Reading a second field](#reading-a-second-field)). A field can therefore be `valid === false` before the user has
 interacted with it at all — use `touched` to decide when to actually display the errors.
 
-One validator instance validates every field it is registered on, the clones of that field included, so a validator
+One validator instance validates every field it is registered on, the bindings of that field included, so a validator
 on a `List`'s item template validates every row. What it remembers about a field it validated — its run sequence,
 and whatever a subclass adds — is held against that field: `protected bindingState(field)` answers with it, and
 `protected newBindingState()` is what a subclass overrides to widen it, returning `{ ...super.newBindingState(), … }`.

@@ -80,7 +80,7 @@ import {
   Validators
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
-// The item template: a declaration of what a single row is, cloned into every row the list holds.
+// The item template: a declaration of what a single row is, bound to the data of every row the list holds.
 // The Required validator is declared once here and applies to the description of every row.
 const lineItem = new Group({
   description: new Field({ value: '', validators: [new Validators.Required()] }),

@@ -52,29 +52,35 @@ readonly(field);               // hands the element straight back, silently
 computed(() => field.value);   // hand out the value, or a computed over it
 ```
 
-## Declarations and clones
+## Declarations and bindings
 
 `new Field({ … })`, `new Group({ … })` and `new List(template)` build a **declaration**: an element that states
-what something is — its validators, its actions, its defaults. `clone()` produces another element of the same
-class from it.
+what something is — its validators, its actions, its defaults. `bind(data)` puts it to work over one record: it
+produces another element of the same class, holding that data.
 
-What a clone copies is **data, not behaviour**. It takes on the action and validator *instances* the element it
-was cloned from holds — the very same objects — and its own `value`, `enabled`, `visibility` and extended
-properties. It starts detached: no `parent`, no `fieldName`, and `originalValue` rebaselined to the value it was
-built with, so `isChanged` is `false`.
+What a binding takes on is **data, not behaviour**. It carries the action and validator *instances* the element it
+was bound from holds — the very same objects — and its own `value`, `enabled`, `visibility` and extended
+properties. It starts detached: no `parent`, no `fieldName`, and `originalValue` baselined to the data it was
+bound to, so `isChanged` is `false`.
 
 ```typescript
 const template = new Field({ value: '', validators: [new Validators.Required()] });
-const copy = template.clone();
+const copy = template.bind('John');
 // one Required instance now validates both
 ```
 
+`rebind(data)` is the same exchange made **in place**: the element stays the very instance it was, keeps its
+actions, its extended properties and its place in whatever container holds it, and comes out holding the new
+record with its change history started over. It is what recycles a row across records — a virtualised renderer
+keeping one component per visible row rebinds it as the data scrolls past — and it announces no value change of
+its own, though the members of a rebound group announce theirs and a verdict that moves is announced as always.
+
 `declaration` names the element a family was declared as. It answers itself for an element built from parameters
-and the element it was cloned from for a clone, transitively — so a clone of a clone names the same one:
+and the element it was bound from for a binding, transitively — so a binding of a binding names the same one:
 
 ```typescript
-copy.declaration === template;          // true
-copy.clone().declaration === template;  // true
+copy.declaration === template;         // true
+copy.bind().declaration === template;  // true
 ```
 
 `element.bindingsOf(declaration)` answers with every element of a subtree that was declared as the given one, which
@@ -83,8 +89,8 @@ is how a declaration is turned back into the elements standing for it: `list.bin
 
 ### One action instance, many elements
 
-Because a clone takes on the instances rather than copies of them, **an action registered on an element fires for
-every clone of that element**. The element the executor receives as its first argument is the one it fired for:
+Because a binding takes on the instances rather than copies of them, **an action registered on an element fires
+for every binding of that element**. The element the executor receives as its first argument is the one it fired for:
 
 ```typescript
 template.registerAction(new ValueChangedAction((field, supr, newValue) => {
@@ -98,23 +104,23 @@ serves. What belongs to one element goes into `protected state(key, init)`, keye
 it belongs to, and is released with the key. `boundToBinding(binding)` is called once for every element the action
 comes to serve, and `unregisterFrom(binding)` once for a validator dropped from one.
 
-An action drives the elements it was registered on and their clones, and no others. Registered on one row of a
+An action drives the elements it was registered on and their bindings, and no others. Registered on one row of a
 list, it stays that row's action. A row built *before* the registration never took it on, which is why an action
 meant for every row is registered on the item template before the rows exist.
 
 ## How a `List` builds rows
 
 The `Group` handed to `new List(template)` is not a row. It is the declaration every row is built from, and every
-row is a clone of it — its members, its validators and its actions included.
+row is a binding of it — its members, its validators and its actions included.
 
 | Operation | What it does with rows |
 |---|---|
-| `new List(tpl, { value: [...] })` | one clone per item, each given that item's data |
-| `push(item)` / `insert(item, index)` | one clone, taken into the list at that position |
-| `insert(item, index)` past the end | clones of the template, carrying the template's own values, fill the gap |
-| `push(group)` / `insert(group, …)` | an existing `Group` is taken as it stands, not cloned |
-| `list.value = rows` | where the list has an item template and the item is plain data, the row already standing at that position is **reused** and reset; otherwise a clone takes its place. Surplus rows are released |
-| `remove(index)` / `pop()` | the row instance is released — it loses its `parent` and can be handed to another list — and a clone of it is returned |
+| `new List(tpl, { value: [...] })` | one binding per item, each over that item's data |
+| `push(item)` / `insert(item, index)` | one binding, taken into the list at that position |
+| `insert(item, index)` past the end | bindings of the template, carrying the template's own values, fill the gap |
+| `push(group)` / `insert(group, …)` | an existing `Group` is taken as it stands, not bound |
+| `list.value = rows` | where the list has an item template and the item is plain data, the row already standing at that position is **reused** and reset; otherwise a binding takes its place. Surplus rows are released |
+| `remove(index)` / `pop()` | the row itself is released — it loses its `parent`, can be handed to another list, and holds everything it held in the list — and it is what the call answers with |
 | `clear()` | every row is released |
 
 A list without an item template builds each row with `Group.createFromFormData(item)`, so its rows need not carry
@@ -158,8 +164,8 @@ Three ways to name the second element, all of which answer within the record bei
 
 ### A rule that runs before its record exists
 
-A row is built member by member: every member is cloned on its own, the clones are handed to a `Group`, and the
-group is then handed the row's data. A member's eager actions run at the moment it is cloned, when it holds neither
+A row is built member by member: every member is bound on its own, the bindings are handed to a `Group`, and the
+group is then handed the row's data. A member's eager actions run at the moment it is bound, when it holds neither
 its siblings nor its row — so a rule reading a second element reaches nothing there.
 
 Reaching nothing is **no verdict**, not a pass. An action that finds nothing says so with

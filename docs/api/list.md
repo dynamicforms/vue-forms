@@ -30,12 +30,12 @@ const list2 = new List(itemTemplate, {
 `params` is an `IFieldParams<ListValue, X>` — the same parameter type every form element takes, with the list's
 value shape substituted. A list takes [extended properties](/api/field#extended-properties) like every other
 element: declare them as the second type argument, `new List<Fields, Presentation>(template, { label: … })`, and
-read them back through `list.extra`. Every row the item template builds is a clone of it, so the template's
+read them back through `list.extra`. Every row the item template builds is a binding of it, so the template's
 members carry theirs into each row.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `itemTemplate` | `Group<T>` | `undefined` | Template cloned for each new item. If omitted, `Group.createFromFormData` is used for plain objects. |
+| `itemTemplate` | `Group<T>` | `undefined` | Template bound to each new item's data. If omitted, `Group.createFromFormData` is used for plain objects. |
 | `params.value` | `ListValue` (`Record<string, any>[] \| null`) | `null` | Initial array of item values |
 | `params.originalValue` | `ListValue` | same as `value` (`null` when empty) | Baseline for `isChanged` |
 | `params.enabled` | `boolean` | `true` | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value |
@@ -113,7 +113,7 @@ list.push({ name: 'Charlie', score: 70 });
 
 ### `pop(): Group<T> | undefined`
 
-Removes the last item and returns a detached clone of it (`undefined` if the list is empty). Triggers `ListItemRemovedAction`.
+Removes the last item and returns it (`undefined` if the list is empty). Triggers `ListItemRemovedAction`.
 
 ### `insert(item, index): number`
 
@@ -121,7 +121,7 @@ Inserts `item` at `index` and returns the position it ends up at. A negative `in
 stops at the front, exactly the way `Array.prototype.splice` reads it: on a three-item list `-1` inserts before the
 last item and returns `2`, and `-100` inserts at the front and returns `0`. A non-negative `index` is the position
 itself, so the return value is the number you passed. If `index` is beyond the current length, the gap is filled
-with clones of the item template — these carry the template's own values, not empty ones. (Without an item template
+with bindings of the item template — these carry the template's own values, not empty ones. (Without an item template
 the padding items are genuinely empty, since they go through `Group.createFromFormData(null)`.)
 
 `ListItemAddedAction` fires once per item that ends up in the list: once for each padding item, each with the index
@@ -130,11 +130,13 @@ negative `index` is reported resolved there too.
 
 ### `remove(index): Group<T> | undefined`
 
-Removes the item at `index` and returns a detached clone of it. Triggers `ListItemRemovedAction`.
+Removes the item at `index` and returns it — the row instance itself, the one `list.get(index)` answered with
+before the call, and the one `ListItemRemovedAction` is given. Triggers `ListItemRemovedAction`.
 
-The row instance the list held is released as well: it loses its `parent`, stops counting towards the list's
-validity, and can be pushed into another list — or back into this one. It is the instance `list.get(index)`
-answered with before the call, not the clone returned here.
+The row is released as it leaves: it loses its `parent`, stops counting towards the list's validity, and can be
+pushed into another list — or back into this one. Everything it holds stands, so a row edited before it was
+removed answers `isChanged` with `true`, keeps the errors its validators reached, and reports its `originalValue`
+as the data it was bound to.
 
 ### `clear()`
 
@@ -157,16 +159,22 @@ Records that a row changed its value, so that the [transaction](/api/transaction
 what this list's own value became, fires `ValueChangedAction` where it differs from the value last announced, and
 re-forms the verdict. The mutation methods call it themselves; you rarely need to.
 
-### `clone(overrides?): List<T>`
+### `bind(data?, overrides?): List<T>`
 
-Returns a new `List` with a cloned item template, values, actions and extended properties. `overrides` is an
-`IFieldParams<ListValue, X>`; of the members every element takes, only `value`, `originalValue`, `enabled` and
-`visibility` are read, and extended properties it names are written over the ones carried from the source.
-Cloning an empty list gives an empty list.
+Returns a new `List` over `data`, carrying a binding of the item template, the actions and the extended
+properties. `overrides` is an `IBindParams<ListValue, X>`; of the members it takes, only `originalValue`, `enabled`
+and `visibility` are read, and extended properties it names are written over the ones carried from the source.
+Binding an empty list gives an empty list.
 
-`originalValue` is read by key presence and `value` by being anything other than `undefined`, on `List`, `Group` and
-`Field` alike: an explicit `null` is a value the caller supplied, so `clone({ value: null })` gives an empty list,
-while an `undefined` `value` counts as none supplied and the clone keeps the current items.
+`originalValue` is read by key presence and the data by being anything other than `undefined`, on `List`, `Group`
+and `Field` alike: an explicit `null` is data the caller supplied, so `bind(null)` gives an empty list, while an
+`undefined` `data` counts as none supplied and the new list carries the current items.
+
+### `rebind(data): this`
+
+Exchanges the rows this list holds for `data`, in place: the same list instance, the row standing at a position
+reused the way a whole-value assignment reuses it, and the change history started over. No `ValueChangedAction`
+fires for the list itself. See [`rebind()`](/api/field#rebind-data-this) for the whole of it.
 
 ## `NullableList`
 

@@ -122,33 +122,33 @@ describe('Field', () => {
     expect(fieldWithValidator.errors.length).toBe(1);
   });
 
-  it('maintains valid state after cloning', () => {
-    // Test cloning field with errors (invalid)
+  it('maintains valid state in the element bind() produces', () => {
+    // binding a field that holds errors (invalid)
     const invalidField = new Form.Field({
       value: '',
       validators: [new Form.Validators.Required()],
     });
     expect(invalidField.valid).toBe(false);
 
-    const clonedInvalid = invalidField.clone();
-    expect(clonedInvalid.valid).toBe(false);
-    expect(clonedInvalid.errors.length).toBe(1);
+    const boundInvalid = invalidField.bind();
+    expect(boundInvalid.valid).toBe(false);
+    expect(boundInvalid.errors.length).toBe(1);
 
-    // Test cloning field without errors (valid)
+    // binding a field without errors (valid)
     const validField = new Form.Field({
       value: 'valid value',
       validators: [new Form.Validators.Required()],
     });
     expect(validField.valid).toBe(true);
 
-    const clonedValid = validField.clone();
-    expect(clonedValid.valid).toBe(true);
-    expect(clonedValid.errors.length).toBe(0);
+    const boundValid = validField.bind();
+    expect(boundValid.valid).toBe(true);
+    expect(boundValid.errors.length).toBe(0);
 
-    // Test cloning with value override that changes validity
-    const clonedWithInvalidValue = validField.clone({ value: '' });
-    expect(clonedWithInvalidValue.valid).toBe(false);
-    expect(clonedWithInvalidValue.errors.length).toBe(1);
+    // binding data that changes the verdict
+    const boundToInvalidValue = validField.bind('');
+    expect(boundToInvalidValue.valid).toBe(false);
+    expect(boundToInvalidValue.errors.length).toBe(1);
   });
 
   it('triggers ValidChangedAction when valid state changes', () => {
@@ -180,12 +180,12 @@ describe('Field construction', () => {
     expect(new Form.Field({ value: 'x' }).value).toBe('x');
   });
 
-  it('clones into the subclass it was called on', () => {
+  it('binds into the subclass it was called on', () => {
     class MyField extends Form.Field<string> {}
 
     const onChange = vi.fn();
     const original = new MyField({ value: 'a' }).registerAction(new Form.ValueChangedAction(onChange));
-    const copy = original.clone();
+    const copy = original.bind();
 
     expect(copy).toBeInstanceOf(MyField);
     expect(copy).not.toBe(original);
@@ -285,13 +285,13 @@ describe('Field construction', () => {
     expect(new Form.Field<string | null>({ value: null, originalValue: 'orig' }).value).toBeNull();
   });
 
-  it('takes a clone value override only from a value the caller supplied', () => {
+  it('takes the data it binds only from an argument the caller supplied', () => {
     const field = new Form.Field<string | null | undefined>({ value: 'a' });
 
-    expect(field.clone().value).toBe('a');
-    expect(field.clone({ value: undefined }).value).toBe('a');
-    expect(field.clone({ value: null }).value).toBeNull();
-    expect(field.clone({ value: 'b' }).value).toBe('b');
+    expect(field.bind().value).toBe('a');
+    expect(field.bind(undefined).value).toBe('a');
+    expect(field.bind(null).value).toBeNull();
+    expect(field.bind('b').value).toBe('b');
   });
 
   it('warns when EmptyField is written to', () => {

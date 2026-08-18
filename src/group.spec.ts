@@ -470,7 +470,7 @@ describe('Group field storage', () => {
     expect(group.value).toEqual(expected);
     expect(JSON.parse(JSON.stringify(group.value))).toEqual(expected);
     expect(group.fullValue).toEqual(expected);
-    expect(group.clone().value).toEqual(expected);
+    expect(group.bind().value).toEqual(expected);
   });
 
   it('keeps a __proto__ field coming from parsed API data', () => {
@@ -528,7 +528,7 @@ describe('Group field storage', () => {
 
     expect(() => JSON.stringify(outer)).not.toThrow();
     // isEqual walks the same enumerable properties, so it must terminate as well
-    expect(() => isEqual(outer, outer.clone())).not.toThrow();
+    expect(() => isEqual(outer, outer.bind())).not.toThrow();
   });
 
   it('compares two fields by what they hold, not by the container each belongs to', () => {
@@ -612,13 +612,13 @@ describe('Group construction parameters', () => {
     expect(enabledSeen).toEqual([true]);
   });
 
-  it('takes a clone value override only from a value the caller supplied', () => {
+  it('takes the data it binds only from an argument the caller supplied', () => {
     const group = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
 
-    expect(group.clone().value).toEqual({ a: 1, b: 2 });
-    expect(group.clone({ value: undefined }).value).toEqual({ a: 1, b: 2 });
-    expect(group.clone({ value: null }).value).toEqual({ a: null, b: null });
-    expect(group.clone({ value: { a: 7 } }).value).toEqual({ a: 7, b: 2 });
+    expect(group.bind().value).toEqual({ a: 1, b: 2 });
+    expect(group.bind(undefined).value).toEqual({ a: 1, b: 2 });
+    expect(group.bind(null).value).toEqual({ a: null, b: null });
+    expect(group.bind({ a: 7 }).value).toEqual({ a: 7, b: 2 });
   });
 });
 
@@ -635,14 +635,14 @@ describe('Group value = null', () => {
     expect(group.value).toEqual({ f: null, l: null });
   });
 
-  it('clears a nested List through a clone that supplies null', () => {
+  it('clears a nested List through a binding that supplies null', () => {
     const template = new Group({ a: new Field({ value: '' }) });
     const group = new Group({
       f: new Field({ value: 'x' }),
       l: new List(template, { value: [{ a: '1' }] }),
     });
 
-    expect(group.clone({ value: null }).value).toEqual({ f: null, l: null });
+    expect(group.bind(null).value).toEqual({ f: null, l: null });
   });
 });
 

@@ -72,7 +72,7 @@ information.
 | vue proxies per 1000-row list | 9 001 | 9 001 |
 | vue proxies for the item template | 9 | 9 |
 | validator runs per field, `new Field({ value, validators })` | 1 | 1 |
-| validator runs per row, `template.clone({ value })` | 16 (2 per field) | 16 (2 per field) |
+| validator runs per row, `template.bind(value)` | 16 (2 per field) | 16 (2 per field) |
 | validator runs per row, `new List(tpl, { value: [row] })` | 16 (2 per field) | 16 (2 per field) |
 
 Retained heap is the difference of two `process.memoryUsage().heapUsed` readings taken across a full
@@ -85,7 +85,7 @@ bundler puts in front of `vue`. Proxies Vue creates on its own when a nested obj
 proxy — `field.errors` is the one that occurs here — are not in the count.
 
 Validator runs are counted with a validator whose only work is counting. Two runs per field is what a row
-built from an item template costs, through the `clone` path and through the `List` path alike.
+built from an item template costs, through the `bind` path and through the `List` path alike.
 
 ## Not captured here
 

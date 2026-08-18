@@ -225,7 +225,7 @@ describe('CompareTo Validator', () => {
     expect(list.get(0)!.valid).toBe(false);
 
     // a copy taken directly, and the row a removal hands back
-    expect(template.clone().fields.dateTo.errors.length).toBe(1);
+    expect(template.bind().fields.dateTo.errors.length).toBe(1);
     expect(list.remove(0)!.valid).toBe(false);
 
     // an item the list builds to fill a gap holds the template's values as well

@@ -400,7 +400,7 @@ const prefs: { darkMode: boolean; notifications: boolean } | null = values.prefe
 
 The value shape is derived from the fields map by the exported `FieldsToValues<T>`, with `GroupValue<T>` and
 `GroupValueInput<T>` as the group's read and write types, and `ListValue` for lists. Constructor parameters have
-their own exported type, `IFieldParams<T, X>`, shared by all four element classes and by `clone()`:
+their own exported type, `IFieldParams<T, X>`, shared by all four element classes:
 
 ```typescript
 import { Field, IFieldParams } from '@dynamicforms/vue-forms';

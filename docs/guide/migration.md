@@ -8,9 +8,9 @@ release.
 This is the only page that names superseded APIs; everywhere else in this documentation only the current one
 exists.
 
-## The whole journey: 0.6.1 to 0.10.x
+## The whole journey: 0.6.1 to 0.11.x
 
-Four releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
+Five releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
 
 ### 1. The three silent breaks — do these first
 
@@ -61,9 +61,15 @@ if (isEqual(rowA, rowB)) …
 if (isEqual(rowA.value, rowB.value)) …
 ```
 
-### 2. Two breaks the type checker finds for you
+### 2. Three breaks the type checker finds for you
 
-**`clone()` is unchanged, but the value objects it works over are frozen.** `group.value` and `list.value` hand out
+**`clone()` is `bind()`.** The data comes first and the rest of the overrides second, so `f.clone()` is
+`f.bind(f.value)`, `f.clone({ value: x })` is `f.bind(x)` and `f.clone({ value: x, label: 'Name' })` is
+`f.bind(x, { label: 'Name' })`. Everything else about it stands: the same class, the same action instances, the
+same extended properties, `originalValue` read by key presence, and a `null` that clears where an `undefined`
+counts as none supplied.
+
+**The value objects a binding works over are frozen.** `group.value` and `list.value` hand out
 one object per change, reused by every reader until the next one, and it is frozen — rows included. Writing into it
 throws in strict mode and is silently dropped outside it. Assign a new value instead. `originalValue` holds a copy
 of its own and is not frozen.
@@ -167,10 +173,11 @@ the action held, so nothing observed them. Each now assigns a new value object t
 reference to the object you passed as `params.value` and read your later writes to it back off the action, that
 link breaks the first time either setter runs. `new Action({}).label = 'X'` threw a `TypeError` and now works.
 
-**A `List` releases the rows it drops.** `remove()`, `pop()`, `clear()` and a shortening assignment leave the row
-instance without a `parent`, so it can be pushed into another list or back into this one. `remove()` still returns
-a clone. An assignment of the same length reuses the row objects positionally, so `list.get(0)` survives it and a
-keyed `v-for` stops remounting.
+**A `List` releases the rows it drops, and hands the dropped one back.** `remove()`, `pop()`, `clear()` and a
+shortening assignment leave the row instance without a `parent`, so it can be pushed into another list or back into
+this one. `remove()` and `pop()` answer with that instance itself, holding what it held in the list — its values,
+its errors, and an `isChanged` that reports the edits made to it. An assignment of the same length reuses the row
+objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops remounting.
 
 ### 4. What newly works
 
@@ -182,6 +189,11 @@ keyed `v-for` stops remounting.
 - **`field.declaration`, `field.bindingsOf(declaration)` and `field.markRecordIncomplete()`** — what a shared
   action uses to tell one row's field from another's. [The model](/guide/model) describes the mechanism.
 - **`FieldActionBase.state(key, init)`** — per-element memory for an action instance shared by every row.
+- **`element.rebind(data)`** — the same element over the next record, in place: the instance, its actions and its
+  extended properties all stand, and it announces no value change of its own. It is what recycles a row in a
+  virtualised list.
+- **Extended properties** — whatever your application attaches to an element beyond the members of its class,
+  declared as its second type argument, read through `extra` and written with `setExtendedValues()`.
 - **Lists got fast.** Filling a 1000-row list by `push()` went from 13.1 s to 0.20 s, writing one field from
   33 ms to 0.011 ms, and reading `list.valid` from 11.3 ms to microseconds.
 
@@ -190,8 +202,8 @@ keyed `v-for` stops remounting.
 1. Search for `watch(` with an element as the source and rewrite each to a getter.
 2. Search for `readonly(` over an element and hand out the value or a `computed` instead.
 3. Search for `isEqual` over elements and compare `.value` instead.
-4. Run the type checker: `await` or `.catch()` every `execute()`, and rename `boundToField` / `unregister` on any
-   custom action class.
+4. Run the type checker: rename every `clone(` to `bind(` and move the value out of the override object,
+   `await` or `.catch()` every `execute()`, and rename `boundToField` / `unregister` on any custom action class.
 5. Search for writes into a value object read back from `group.value` or `list.value` — it is frozen now.
 6. Re-check any handler that relied on seeing a half-applied state, or on a validity event arriving before the
    value event that caused it.
@@ -199,6 +211,62 @@ keyed `v-for` stops remounting.
    rules now apply, and the verdicts are the ones the data always called for.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
+
+## Upgrading to v0.11.0 (from v0.10.x)
+
+Two breaks, both about what an element is made from and what a `List` hands back.
+
+### `clone()` is `bind()`, and there is now a `rebind()` beside it
+
+`bind(data?, overrides?)` is what `clone(overrides?)` was, with the data it binds as the first argument instead of
+a key of the override object. The type checker finds every call site.
+
+```typescript
+// before
+const copy = field.clone();
+const cleared = field.clone({ value: null });
+const relabelled = field.clone({ value: 2, label: 'Full name' });
+
+// after
+const copy = field.bind(field.value);   // field.bind() is the same thing
+const cleared = field.bind(null);
+const relabelled = field.bind(2, { label: 'Full name' });
+```
+
+Everything the call does is unchanged: the same class through `this.constructor`, the same action and validator
+instances, the same extended properties with the overrides written over them, `originalValue` read by key presence
+in the second argument, and a `null` that clears where an `undefined` counts as no data supplied. The second
+argument is typed `IBindParams<T, X>` — `IFieldParams<T, X>` without `value` — and goes on accepting `validators`
+and `actions` without reading them.
+
+`rebind(data)` is the new half of the pair: the same exchange made in place. The element stays the instance it was,
+keeps its actions, its extended properties and its place in whatever container holds it, and comes out over the new
+record with `originalValue` baselined to it, `touched` back to `false` and the validators run. It announces no
+value change of its own — a rebound row's members announce theirs, and a verdict that moves is announced as always.
+It is what recycles one row across records in a virtualised list:
+
+```typescript
+const row = list.get(0)!;
+row.rebind(records[scrollIndex]);   // same instance, same component, next record
+```
+
+### `remove()` and `pop()` hand back the row itself
+
+They used to answer with a copy of the removed row, which reported `isChanged` as `false` however the row had been
+edited, and which was not the instance the list had held. They now answer with the row, released of the list:
+`ListItemRemovedAction` receives the same instance, `list.get(index)` answered with it before the call, and it
+holds what it held while it stood in the list — its values, its errors, and the change history behind `isChanged`.
+
+```typescript
+const removed = list.remove(0)!;
+removed.isChanged;   // true where the row was edited; it was always false before
+undoStack.push(removed);
+list.push(removed);  // the very instance goes back in
+```
+
+Code that relied on the answer being detached needs no change — the row is released as it leaves, so it carries no
+`parent` and any container will take it. Code that relied on it being a *copy*, with the list keeping a live row of
+its own, was reading a row the list had already dropped.
 
 ## Upgrading to v0.10.0 (from v0.9.x)
 
@@ -455,8 +523,8 @@ of `Field.create(` → `new Field(` and `Action.create(` → `new Action(`, incl
 `Field.create<T>(` → `new Field<T>(`.
 
 A subclass of `Field` no longer needs a factory of its own. Give it a constructor, or override the protected
-`init(params)` hook when all you want is different parameter handling. `clone()` constructs through
-`this.constructor`, so a subclass clones into its own class either way.
+`init(params)` hook when all you want is different parameter handling. `bind()` constructs through
+`this.constructor`, so a subclass binds into its own class either way.
 
 `init` runs from `Field`'s constructor, that is, during your subclass's `super()` call and therefore **before**
 your own class-field initializers — read only the constructor parameters in it, never members you initialize on

@@ -149,7 +149,7 @@ means.
 The fixtures carry no `CompareTo`, so the plain variant exercises none of this release: its item template holds
 eight `Required`s and one `ValueChangedAction`, none of which reads a second element. The conditional variant is
 where the release shows, because a `ConditionalVisibilityAction` on `f1` driven by `f0` is exactly the rule that
-cannot be answered while a row is still a set of loose clones.
+cannot be answered while a row is still a set of loose elements.
 
 ## Wall clock
 

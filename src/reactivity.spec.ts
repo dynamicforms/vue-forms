@@ -109,7 +109,7 @@ describe('reactivity flags', () => {
 
     // both walkers follow own enumerable properties, so the parent/child cycle must not be reachable through them
     expect(() => JSON.stringify(outer)).not.toThrow();
-    expect(() => isEqual(outer, outer.clone())).not.toThrow();
+    expect(() => isEqual(outer, outer.bind())).not.toThrow();
   });
 });
 

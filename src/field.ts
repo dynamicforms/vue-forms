@@ -1,7 +1,7 @@
 import { ValueChangedAction } from './actions';
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
-import { IFieldParams } from './field.interface';
+import { IBindParams, IFieldParams } from './field.interface';
 import { transactional } from './transaction';
 
 class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
@@ -84,17 +84,17 @@ class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
     this.state.touched = touched;
   }
 
-  clone(overrides?: IFieldParams<T, X>): this {
-    // construction goes through this.constructor so that a subclass clones into its own type
+  bind(data?: T, overrides?: IBindParams<T, X>): this {
+    // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (params?: IFieldParams<T, X>) => this;
     const res = new Ctor({
-      // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
-      value: overrides?.value !== undefined ? (overrides.value as T) : this.value,
+      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
+      value: data !== undefined ? data : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<T, X>);
-    res.clonedFrom(this, res.value, res.originalValue, overrides);
+    res.boundFrom(this, res.value, res.originalValue, overrides);
     return res;
   }
 }

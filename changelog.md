@@ -5,6 +5,56 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2026-08-18
+
+### Changed
+- **Breaking:** `clone()` is now `bind()`, and takes the data it binds as its first argument. The call does what
+  it always did — a new element of the same class, carrying the same registered action and validator instances and
+  the same extended properties, detached and with `originalValue` baselined to the data — and it is now named for
+  that. The value moves out of the override object and into an argument of its own:
+
+  ```typescript
+  const copy = field.clone();                              // before
+  const copy = field.bind(field.value);                    // after; field.bind() is the same thing
+
+  const cleared = field.clone({ value: null });            // before
+  const cleared = field.bind(null);                        // after
+
+  const row = template.clone({ value: { name: 'John' } }); // before
+  const row = template.bind({ name: 'John' });             // after
+  ```
+
+  The second argument is the rest of the overrides, typed `IBindParams<T, X>` — `IFieldParams<T, X>` without
+  `value`. `originalValue` is still read by key presence, `enabled` and `visibility` still fall back to the element
+  bound, extended properties it names are still written over the ones carried over, and `validators` and `actions`
+  are still accepted and ignored. Data of `undefined` counts as none supplied and an explicit `null` clears, on
+  `Field`, `Group` and `List` alike.
+- **Breaking:** `List.remove()` and `List.pop()` hand back the row itself, released of the list, rather than a
+  copy of it. `ListItemRemovedAction` receives that same instance, and it is the instance `list.get(index)`
+  answered with before the call. What the row holds comes with it: its values, its errors, and the change history behind
+  `isChanged` — which the copy erased, so an edited row used to come back reporting `isChanged` as `false`. The row
+  carries no `parent`, so it can be pushed straight into another list, or back into this one.
+
+### Added
+- **`rebind(data)`** on every element: the exchange `bind()` makes, made in place. The element is the same
+  instance afterwards — its identity, its actions, its extended properties and its place in whatever container
+  holds it all stand — and it ends up over the new record, with `originalValue` baselined to it, `touched` back to
+  `false` and the validators run. It is what recycles one element across records, which is what a virtualised
+  renderer does with the rows it keeps:
+
+  ```typescript
+  const row = list.get(0)!;
+  row.rebind({ name: 'Jane', age: 25 });   // same instance, same component, next record
+  ```
+
+  The element announces nothing of its own about the exchange: no `ValueChangedAction` fires for it, the way none
+  fires for an element that was just built. Its members do announce theirs, and a verdict that moves is announced
+  as always, so a rebound row that is invalid says so to the list holding it. Inside an open `transaction()`, a
+  change the element is already owed an announcement for stands, and the commit reports it from where the element
+  stood when the transaction opened. On a `Group` the record need not name every member: a key it leaves out is
+  taken from the element's `declaration`.
+- **`IBindParams<T, X>`**, the exported type of the second argument of `bind()`.
+
 ## [0.10.2] - 2026-08-18
 
 ### Added
