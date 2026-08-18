@@ -218,7 +218,7 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 
 | Member | Description |
 |--------|-------------|
-| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — a `Partial<IFieldConstructorParams<T>>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value |
 | `label` | Reads `value.label`; writing it assigns a new value object carrying the new label |
 | `icon` | Reads `value.icon`; writing it assigns a new value object carrying the new icon |
 | `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise |

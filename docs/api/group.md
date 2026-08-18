@@ -16,8 +16,10 @@ const form = new Group({
 
 ## `new Group(fields, params?)`
 
-`params` is a `Partial<IFieldConstructorParams<GroupValueInput<T>>>` — the same parameter type every form element
-takes, with the group's value shape substituted.
+`params` is an `IFieldParams<GroupValueInput<T>, X>` — the same parameter type every form element takes, with the
+group's value shape substituted. A group takes [extended properties](/api/field#extended-properties) like every
+other element: declare them as the second type argument, `new Group<Fields, Presentation>(fields, { label: … })`,
+and read them back through `group.extra`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -112,9 +114,10 @@ rarely need to call this directly.
 
 ### `clone(overrides?): Group<T>`
 
-Returns a new `Group` with cloned children and actions. `overrides` is a
-`Partial<IFieldConstructorParams<GroupValueInput<T>>>`; of its keys, only `value`, `originalValue`, `enabled` and
-`visibility` are read. `enabled` and `visibility` apply to the group itself and are not propagated to the children,
+Returns a new `Group` with cloned children, actions and extended properties — the children carry their own over
+as they are cloned. `overrides` is an `IFieldParams<GroupValueInput<T>, X>`; of the members every element takes,
+only `value`, `originalValue`, `enabled` and `visibility` are read, and extended properties it names are written
+over the ones carried from the source. `enabled` and `visibility` apply to the group itself and are not propagated to the children,
 while `value` reaches them exactly as it does through the constructor.
 
 `originalValue` is read by key presence and `value` by being anything other than `undefined`, so

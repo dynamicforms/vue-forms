@@ -2,7 +2,7 @@ import { ref, type Ref } from 'vue';
 
 import { ExecuteAction } from './actions';
 import { Field } from './field';
-import { IFieldConstructorParams } from './field.interface';
+import { IFieldParams } from './field.interface';
 import { transactional } from './transaction';
 
 export interface ActionValue {
@@ -23,8 +23,8 @@ function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): A
   return val;
 }
 
-export class Action<T extends ActionValue = ActionValue> extends Field<T> {
-  protected init(params?: Partial<IFieldConstructorParams<T>>) {
+export class Action<T extends ActionValue = ActionValue, X extends object = {}> extends Field<T, X> {
+  protected init(params?: IFieldParams<T, X>) {
     transactional(() => {
       // an Action's value is always a shaped object, so the empty value is the pair of undefined members and not
       // undefined itself - both this hook and isValEmpty below rely on that
@@ -34,7 +34,7 @@ export class Action<T extends ActionValue = ActionValue> extends Field<T> {
         // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
         // guards them too
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        Object.assign(this, otherParams);
+        this.assignParams(otherParams);
         const val = isValEmpty(paramValue, this._value);
         const orgVal = Object.freeze({ label: originalValue?.label, icon: originalValue?.icon } as ActionValue);
         // the fallback is a copy of the baseline, never the frozen baseline itself: label and icon stay

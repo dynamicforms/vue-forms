@@ -1,4 +1,4 @@
-import { isBoolean, isEqual } from 'lodash-es';
+import { isBoolean, isEmpty, isEqual } from 'lodash-es';
 import { computed, reactive, type ComputedRef } from 'vue';
 
 import ActionsMap from './actions/actions-map';
@@ -9,7 +9,7 @@ import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
-import { IFieldConstructorParams } from './field.interface';
+import { IFieldParams } from './field.interface';
 import { type Group } from './group';
 import {
   currentTransaction,
@@ -32,13 +32,20 @@ import { ValidationError } from './validators/validation-error';
 const validReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
+ * The parameter keys that name what to register on an element rather than what it holds. The constructor that
+ * receives them registers them and applies the rest, and `clone()` hands its overrides over whole, so they are
+ * named here to keep them out of both the element's members and its extended properties.
+ */
+const registrationParams: ReadonlySet<string> = new Set(['validators', 'actions']);
+
+/**
  * How many elements are waiting for the record they belong to. A container that completes a record asks this
  * before it walks anything, so a form built out of elements that answer for themselves alone pays nothing for
  * the mechanism.
  */
 let incompleteRecords = 0;
 
-export abstract class FieldBase<T = any> {
+export abstract class FieldBase<T = any, X extends object = {}> {
   /**
    * Vue's getTargetType answers INVALID for an object that carries __v_skip, so reactive() hands an element back
    * unwrapped and no element is ever behind a proxy of its own. isReactive() reads the second flag, and it stays
@@ -91,7 +98,7 @@ export abstract class FieldBase<T = any> {
   abstract get touched(): boolean;
   abstract set touched(touched: boolean);
 
-  abstract clone(overrides?: Partial<IFieldConstructorParams<T>>): FieldBase<T>;
+  abstract clone(overrides?: IFieldParams<T, X>): FieldBase<T, X>;
 
   /** contains original field value as was provided at creation */
   get originalValue(): T {
@@ -101,6 +108,68 @@ export abstract class FieldBase<T = any> {
   set originalValue(newValue: T) {
     this.touchState();
     this.#state.originalValue = newValue;
+  }
+
+  /**
+   * The extended properties this element carries: what a consumer attached to it beyond the members the class
+   * declares, such as the label, hint or css class a UI layer binds to the input it renders the element with.
+   * The read is tracked, so a template rendering off `field.extra.label` re-renders when the property is written.
+   *
+   * Every property is optional here, whatever `X` states: a parameter object need not carry one and
+   * setExtendedValues writes as few as a caller likes, so a property `X` declares as required is present only
+   * once something has written it.
+   *
+   * The object is frozen and setExtendedValues is the way to change it: it is the object a transaction captured,
+   * and one written in place would leave a rollback with nothing to put back.
+   */
+  get extra(): Readonly<Partial<X>> {
+    return this.#state.extra as Readonly<Partial<X>>;
+  }
+
+  /**
+   * Writes extended properties. The values given are merged over the ones the element carries, so a write of one
+   * property leaves the others standing, and the merged set replaces the object the element held.
+   */
+  setExtendedValues(values: Partial<X>): void {
+    this.touchState();
+    this.#state.extra = Object.freeze({ ...this.#raw.extra, ...values });
+  }
+
+  /**
+   * The extended properties a parameter object carries: every key the element does not answer for itself. A key
+   * the element answers for at the time the parameters are applied - `value`, `enabled`, an accessor a subclass
+   * adds - is the element's own; a key that only Object.prototype answers for is nobody's declaration and counts
+   * as extended, and `validators` and `actions` are neither, since they state what to register on the element.
+   *
+   * A member a subclass declares as a class field is not among the keys the element answers for: class fields are
+   * defined on the instance after the base constructor returns, and the parameters are applied inside it. A
+   * subclass that wants a parameter of its own name assigned to it declares that member as an accessor.
+   */
+  protected extendedOf(params: object): Partial<X> {
+    // the accumulator carries no prototype, so a params key of `__proto__` - which is what a parameter object
+    // parsed out of JSON can carry - becomes an own property of it instead of reaching the setter Object.prototype
+    // holds and replacing the accumulator's prototype, which would make the ownership test below answer for keys
+    // nothing put there
+    const extended: Record<string, any> = Object.create(null);
+    Object.entries(params).forEach(([key, value]) => {
+      if (registrationParams.has(key)) return;
+      if (!(key in this) || Object.hasOwn(Object.prototype, key)) extended[key] = value;
+    });
+    return extended as Partial<X>;
+  }
+
+  /**
+   * Applies a parameter object: the members the element answers for are assigned to the element and the rest
+   * become its extended properties. Assigning a getter-only member throws a TypeError, which is what a caller
+   * naming `valid` or `parent` past the type system gets.
+   */
+  protected assignParams(params: object): void {
+    const extended = this.extendedOf(params);
+    Object.entries(params).forEach(([key, value]) => {
+      if (Object.hasOwn(extended, key) || registrationParams.has(key)) return;
+      (this as any)[key] = value;
+    });
+    if (!isEmpty(extended)) this.setExtendedValues(extended);
   }
 
   /**
@@ -550,12 +619,16 @@ export abstract class FieldBase<T = any> {
 
   /**
    * Brings a fresh clone of `source` into the state a clone is in: it records what it was declared as, takes on
-   * the actions `source` carries and runs the eager ones over the value it was built with. The actions are the
-   * very instances `source` holds - what a clone copies is data, not behaviour - and each is told about this
+   * the extended properties and the actions `source` carries, and runs the eager ones over the value it was built
+   * with. The extended properties `overrides` states are written over the ones `source` carries, and they are in
+   * place before the eager pass, so an action reading one sees what the clone ends up carrying. The actions are
+   * the very instances `source` holds - what a clone copies is data, not behaviour - and each is told about this
    * element as it is taken on, so an action serving several clones knows all of them.
    */
-  protected clonedFrom(source: FieldBase, newValue: any, oldValue: any): void {
+  protected clonedFrom(source: FieldBase<any, X>, newValue: any, oldValue: any, overrides?: object): void {
     this.#raw.declaration = source.declaration;
+    const extended: Partial<X> = { ...source.extra, ...(overrides && this.extendedOf(overrides)) };
+    if (!isEmpty(extended)) this.setExtendedValues(extended);
     const actions = source._actions;
     if (!actions) return;
     this._actions = actions.clone();

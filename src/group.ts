@@ -3,7 +3,7 @@ import { isEmpty } from 'lodash-es';
 import { type ContainerSlots, containerSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
-import { IFieldConstructorParams } from './field.interface';
+import { IFieldParams } from './field.interface';
 import { transactional } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
@@ -20,7 +20,10 @@ export type GroupValue<T extends GenericFieldsInterface> = FieldsToValues<T> | n
 /** what Group.value and the Group constructor accept: keys left out are simply not assigned */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
 
-export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> extends FieldBase<GroupValue<T>> {
+export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X extends object = {}> extends FieldBase<
+  GroupValue<T>,
+  X
+> {
   protected get state(): ContainerSlots<GroupValue<T>> {
     return super.state as ContainerSlots<GroupValue<T>>;
   }
@@ -31,7 +34,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
 
   private readonly _fields: T;
 
-  constructor(fields: T, params?: Partial<IFieldConstructorParams<GroupValueInput<T>>>) {
+  constructor(fields: T, params?: IFieldParams<GroupValueInput<T>, X>) {
     super(containerSlots<GroupValue<T>>());
 
     if (!Group.isValidFields(fields)) throw new Error('Invalid fields object provided');
@@ -49,7 +52,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
         // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
         // guards them too
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        Object.assign(this, otherParams);
+        this.assignParams(otherParams);
         // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
         // an optional property yields an undefined value, and assigning it would push null into every member and
         // then baseline that emptied state as the original, so the group would report itself unchanged over values
@@ -263,20 +266,20 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface> ex
     });
   }
 
-  clone(overrides?: Partial<IFieldConstructorParams<GroupValueInput<T>>>): Group<T> {
+  clone(overrides?: IFieldParams<GroupValueInput<T>, X>): Group<T, X> {
     const newFields = Object.create(null) as T;
     Object.entries(this._fields).forEach(([name, field]) => {
       newFields[name as keyof T] = field.clone() as any;
     });
-    const res = new Group(newFields, {
+    const res = new Group<T, X>(newFields, {
       // an override value is one the caller supplied, and undefined is not one; an explicit null is, and clears
       value: overrides?.value !== undefined ? overrides.value : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
-    });
+    } as IFieldParams<GroupValueInput<T>, X>);
     // the constructor primed announcedValue with the value the members ended up holding, and nothing has run since
-    res.clonedFrom(this, res.raw.announcedValue, res.originalValue);
+    res.clonedFrom(this, res.raw.announcedValue, res.originalValue, overrides);
     return res;
   }
 }
