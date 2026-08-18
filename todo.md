@@ -19,18 +19,23 @@ about the shape of signatures and of the published package — after 1.0 those c
 
 ### Packaging
 
-- **[V] Raise `peerDependencies.vue` to `^3.5`.** Decided; not yet done.
-  Nothing in `src/` needs it — the library imports `reactive`, `computed`, `ref`, `unref`, `toRaw`, `h`,
-  `watchEffect` and friends, all long-standing. The floor comes from the emitted declarations: `vue-tsc`
-  builds them against the installed Vue and writes `MessagesWidget` as `DefineComponent<Props, {}, {}, ...>`
-  with 21 type arguments, which 3.5's typings accept and 3.4's reject with
-  `TS2707: Generic type 'DefineComponent' requires between 0 and 13 type arguments`. A consumer sees it only
-  with `skipLibCheck: false`, and only at compile time; runtime is unaffected.
-  So the rule is that **the peer floor tracks the Vue the declarations are built against**, and the current
-  range simply predates the build. Set it to `^3.5`.
-  Worth adding with it: CI's matrix covers `node-version: ['lts/*', 'latest']` and nothing else, so it
-  installs the newest Vue every time and cannot see a divergence like this. A job that installs the declared
-  minimum with `skipLibCheck: false` turns the range from something written down into something checked.
+- **[V] Decide the Vue peer range by what CI verifies, and free it from the emitted declarations.**
+  Nothing in `src/` needs a recent Vue: the imports are `reactive`, `computed`, `ref`, `unref`, `toRaw`, `h`,
+  `watchEffect`, `effectScope`, `isReactive`, `isRef`, `nextTick`, `readonly`, `resolveComponent` — all Vue
+  3.0, and `__v_skip` has been honoured since then too. The floor comes from one shipped line: `vue-tsc`
+  writes `MessagesWidget` as `DefineComponent<Props, {}, {}, ...>` with 21 type arguments, which 3.5's typings
+  accept and 3.4's reject (`TS2707`). A consumer meets it only with `skipLibCheck: false`, and only at compile
+  time.
+  A declared range does not make anything work; it only claims. So either narrow the claim to `^3.5`, or make
+  the wide claim true by **hand-writing the type for `MessagesWidget`** — the only export that pulls
+  `DefineComponent`, `ComponentOptionsMixin`, `PublicProps` and `ComponentProvideOptions` into the public
+  declarations. Everything else the library takes from Vue (`Ref`) is stable across the whole 3.x line. The
+  cost is some precision in a consumer's prop inference for that one component.
+  Widening is the larger promise, not the smaller one: `^3.0` commits to five years of releases nobody has
+  run this against. **The range should be whatever CI actually installs and tests.** Today the matrix covers
+  `node-version: ['lts/*', 'latest']` and nothing else, so it takes the newest Vue every time and cannot see a
+  divergence of this kind — this one or the next. A job pinning the declared floor with `skipLibCheck: false`
+  is what turns the range from a line in `package.json` into something known.
 
 - **[V] Drop the CJS/UMD entry point and raise `engines.node` to `>=22`.** Decided; not yet done.
   The `require` half of `exports` costs 327 kB of the package's 731 kB — `umd.cjs` with its map, plus
