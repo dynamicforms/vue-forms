@@ -3,6 +3,10 @@ import { vi } from 'vitest';
 
 import { Field } from '../field';
 import { Group } from '../group';
+import { transaction } from '../transaction';
+import { Validators } from '../validators';
+
+import FieldActionBase from './field-action-base';
 
 import { ValueChangedAction, VisibilityChangedAction } from '.';
 
@@ -68,5 +72,195 @@ describe('Action registration', () => {
     const field = new Field({ value: 1 });
 
     expect(() => field.registerAction({ execute: () => null } as any)).toThrow(/Invalid action type/);
+  });
+});
+
+describe('Action ordering', () => {
+  it('places an action inside a handler already registered', () => {
+    const calls: string[] = [];
+    const outer = new ValueChangedAction((field, supr, newValue, oldValue) => {
+      calls.push('outer');
+      return supr(field, newValue, oldValue);
+    });
+    const inner = new ValueChangedAction((field, supr, newValue, oldValue) => {
+      calls.push('inner');
+      return supr(field, newValue, oldValue);
+    });
+
+    const field = new Field({ value: 'initial' }).registerAction(outer);
+    field.registerActionBefore(inner, outer);
+    field.value = 'new value';
+
+    expect(calls).toEqual(['outer', 'inner']);
+  });
+
+  it('refuses an anchor the element does not hold under that identifier', () => {
+    const registered = new ValueChangedAction((field, supr, ...params) => supr(field, ...params));
+    const elsewhere = new ValueChangedAction((field, supr, ...params) => supr(field, ...params));
+    const other = new VisibilityChangedAction((field, supr, ...params) => supr(field, ...params));
+    const field = new Field({ value: 1 }).registerAction(registered);
+
+    expect(() => field.registerActionBefore(new ValueChangedAction(() => null), elsewhere)).toThrow(
+      /not registered under the same identifier/,
+    );
+    expect(() => field.registerActionBefore(new ValueChangedAction(() => null), other)).toThrow(
+      /not registered under the same identifier/,
+    );
+  });
+});
+
+describe('Unregistering an action', () => {
+  it('drops the handler and answers whether the element held it', () => {
+    const handler = vi.fn((field, supr, ...params) => supr(field, ...params));
+    const action = new ValueChangedAction(handler);
+    const field = new Field({ value: 'initial' }).registerAction(action);
+
+    field.value = 'first';
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    expect(field.unregisterAction(action)).toBe(true);
+    field.value = 'second';
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    expect(field.unregisterAction(action)).toBe(false);
+  });
+
+  it('leaves the handlers registered around it in place', () => {
+    const calls: string[] = [];
+    const first = new ValueChangedAction((field, supr, ...params) => {
+      calls.push('first');
+      return supr(field, ...params);
+    });
+    const middle = new ValueChangedAction((field, supr, ...params) => {
+      calls.push('middle');
+      return supr(field, ...params);
+    });
+    const last = new ValueChangedAction((field, supr, ...params) => {
+      calls.push('last');
+      return supr(field, ...params);
+    });
+
+    const field = new Field({ value: 0 }).registerAction(first).registerAction(middle).registerAction(last);
+    field.unregisterAction(middle);
+    field.value = 1;
+
+    expect(calls).toEqual(['last', 'first']);
+  });
+
+  it('withdraws the errors a validator put on the field', () => {
+    const required = new Validators.Required();
+    const field = new Field({ value: '', validators: [required] });
+    expect(field.valid).toBe(false);
+
+    field.unregisterAction(required);
+
+    expect(field.errors).toEqual([]);
+    expect(field.valid).toBe(true);
+  });
+
+  it('leaves the instance validating every other field it was registered on', () => {
+    const required = new Validators.Required();
+    const kept = new Field({ value: '', validators: [required] });
+    const dropped = new Field({ value: '', validators: [required] });
+
+    dropped.unregisterAction(required);
+
+    expect(dropped.valid).toBe(true);
+    expect(kept.valid).toBe(false);
+    kept.value = 'x';
+    kept.value = '';
+    expect(kept.valid).toBe(false);
+  });
+});
+
+describe('Registration inside a transaction', () => {
+  it('is taken back by a rollback', () => {
+    const handler = vi.fn((field, supr, ...params) => supr(field, ...params));
+    const action = new ValueChangedAction(handler);
+    const field = new Field({ value: 'initial' });
+
+    transaction((tx) => {
+      field.registerAction(action);
+      tx.rollback();
+    });
+
+    handler.mockClear();
+    field.value = 'new value';
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('puts back a registration the transaction dropped', () => {
+    const required = new Validators.Required();
+    const field = new Field({ value: '', validators: [required] });
+
+    transaction((tx) => {
+      field.unregisterAction(required);
+      expect(field.valid).toBe(true);
+      tx.rollback();
+    });
+
+    expect(field.valid).toBe(false);
+    expect(field.errors).toHaveLength(1);
+    field.value = 'filled';
+    expect(field.valid).toBe(true);
+  });
+
+  it('puts back the validators clearValidators dropped', () => {
+    const field = new Field({ value: '', validators: [new Validators.Required()] });
+
+    transaction((tx) => {
+      field.clearValidators();
+      expect(field.valid).toBe(true);
+      tx.rollback();
+    });
+
+    expect(field.valid).toBe(false);
+    field.value = 'filled';
+    expect(field.valid).toBe(true);
+    field.value = '';
+    expect(field.valid).toBe(false);
+  });
+});
+
+describe('Eager actions', () => {
+  const EagerFlagIdentifier = Symbol('EagerFlag');
+
+  class FlaggedAction extends FieldActionBase {
+    private readonly isEager: boolean;
+
+    constructor(isEager: boolean, executorFn: (field: any, supr: any, ...params: any[]) => any) {
+      super(executorFn);
+      this.isEager = isEager;
+    }
+
+    static get classIdentifier() {
+      return EagerFlagIdentifier;
+    }
+
+    get eager() {
+      return this.isEager;
+    }
+  }
+
+  it('run alone, without the lazy actions standing under the same identifier', () => {
+    const calls: string[] = [];
+    const field = new Field({ value: 1 })
+      .registerAction(
+        new FlaggedAction(false, (f, supr, ...params) => {
+          calls.push('lazy');
+          return supr(f, ...params);
+        }),
+      )
+      .registerAction(
+        new FlaggedAction(true, (f, supr, ...params) => {
+          calls.push('eager');
+          return supr(f, ...params);
+        }),
+      );
+
+    calls.length = 0;
+    field.validate(true);
+
+    expect(calls).toEqual(['eager']);
   });
 });

@@ -803,3 +803,47 @@ that pulls `DefineComponent`, `ComponentOptionsMixin`, `PublicProps` and `Compon
 declarations, so one hand-written type would free the whole range — at the cost of prop inference on that
 component, and of a range spanning releases nothing has been run against. A declared range is a promise, not a
 mechanism; the narrow one is the promise CI can keep.
+
+## D-030 — one list per identifier, walked by index
+
+**Decision.** `ActionsMap` holds `Map<symbol, FieldActionBase[]>` and walks a group from the end backwards, handing
+each action a `supr` that continues at the index before it. The composed closure chain — every registration wrapping
+the handler already there — is gone.
+
+**What forced it.** A composed chain cannot be taken apart: the successor closure holds its predecessor, and
+`registeredActions` was only a record for copying. Every consequence followed from that. `clearValidators()` had to
+replace the whole map, which is why it needed a rollback hook of its own. `triggerChain()` existed so a transaction
+could run handlers without a second eager pass, because `trigger()` ran one on the quiet. `willTrigger()` carried a
+special case for the value-change identifier for the same reason. `eager` was tracked per identifier, so one eager
+action made every action under that identifier eager. And `unregisterAction` could not exist at all.
+
+**What went away.** `triggerChain()`, `cloneWithoutValidators()`, `willTrigger()`'s special case, the
+`eagerActions: Set<symbol>` and `Transaction.whenCommitted()` with its deferred-work array. **What arrived.**
+`unregister()`, `triggerEagerFor()`, `hasEager`, and a second grouping of the eager actions per identifier so both
+walks are the same plain walk. Net about flat, and one concept — a chain that composes itself — is gone.
+
+**Alternative not taken: a filter on the walk.** One grouping, with `step` skipping the actions that are not eager.
+It saves the second map at the cost of a predicate on the hot path and two shapes of walk. Registration is rare and
+triggering is not, so the grouping is done once at registration instead.
+
+**`unregisterFrom` moved into the operation.** It used to run at commit, because releasing what an action installed
+elsewhere was held to be beyond a rollback's reach. With the list it is not: the rollback re-registers the action
+and announces it to it again, so the release is as reversible as the registration. Moving it also made
+`Validator.unregisterFrom` possible — it withdraws the errors that validator put on the element, which has to happen
+inside the transaction so the snapshot can put them back. Deferring it to commit would have written into elements
+after the commit's announcement passes had finished, and nothing would have announced the result.
+
+**Ordering: `registerActionBefore(action, before)`, not an index.** An index is measured against a list the caller
+cannot see, and the off-by-one lands as a handler in the wrong layer of the onion rather than as an error. Naming
+the action to sit inside says what the caller means, and a `before` that is not registered under the same identifier
+throws instead of quietly appending.
+
+**What did not go away: the recursion limit.** A handler reaches the next one by calling `supr`, so a group is
+walked on the call stack whichever way it is stored. Measured on this repo: a single identifier on one element fires
+about 1300 deep before `RangeError`, against about 1560 for the composed chain — the walk adds one frame per level.
+The claim that the array retires the `RangeError` was wrong. What it does remove is the closure per registration
+held for the element's lifetime: closures are now made at trigger time and only as deep as the run reaches.
+
+**Cost.** S2a — one field write in a 1000-row list, the keystroke path — is unchanged: 0.0100 ms before, 0.0101 ms
+after (plain), 0.0091 ms both (conditional), taking the minimum as the least noisy statistic. The closures moved
+from registration time to trigger time and the write does not notice.

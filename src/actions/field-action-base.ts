@@ -53,8 +53,10 @@ export default abstract class FieldActionBase {
   boundToBinding(binding: FieldBase) {}
 
   /**
-   * Announces that `binding` no longer holds this action. It names one element rather than the action as a whole,
-   * because the instance goes on serving every other element it was registered on.
+   * Announces that `binding` no longer holds this action, and takes back what running it left there. It names one
+   * element rather than the action as a whole, because the instance goes on serving every other element it was
+   * registered on. It runs inside the operation that drops the registration, so an operation that unwinds puts the
+   * registration and what this took back both back.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   unregisterFrom(binding: FieldBase) {}

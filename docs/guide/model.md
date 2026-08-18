@@ -102,7 +102,7 @@ template.registerAction(new ValueChangedAction((field, supr, newValue) => {
 The consequence for anyone writing an action: what the instance keeps on itself is shared by every element it
 serves. What belongs to one element goes into `protected state(key, init)`, keyed by that element or by the record
 it belongs to, and is released with the key. `boundToBinding(binding)` is called once for every element the action
-comes to serve, and `unregisterFrom(binding)` once for a validator dropped from one.
+comes to serve, and `unregisterFrom(binding)` once for an element the action is dropped from.
 
 An action drives the elements it was registered on and their bindings, and no others. Registered on one row of a
 list, it stays that row's action. A row built *before* the registration never took it on, which is why an action
@@ -256,6 +256,8 @@ member first and forms the container's own verdict once, over the finished set.
 `clearValidators()` drops the validators of one element, empties its `errors` and announces the verdict that
 leaves. It names that element only: the same validator instance goes on validating every other element it was
 registered on, so clearing one row of a list leaves the other rows validating. It does not descend into members.
+`unregisterAction()` drops a single action — a validator among them — and withdraws only the errors that validator
+contributed.
 
 Validators are **eager**: they run once at construction, once at registration, at every value change, on
 `validate(true)`, and once more where a run reached no verdict because its record was not assembled yet. A field

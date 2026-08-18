@@ -163,7 +163,7 @@ type IBindParams<T = any, X extends object = {}> = Partial<Omit<IFieldConstructo
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while at least one async validator is pending. The library maintains it through `beginValidating()` / `endValidating()`, which validators call around a returned promise |
-| `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()`. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
+| `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
 | `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `bind()` of it. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
@@ -199,6 +199,45 @@ template.fields.amount.registerAction(new ValueChangedAction((field, supr, newVa
 Anything an action remembers between runs belongs to the element it ran over rather than to the action — see
 [Writing custom actions](/api/actions#custom-actions).
 
+The newest registration is the outermost handler: it runs first and reaches the ones registered before it through
+`supr`. Registered inside a [transaction](/api/transactions), a registration is undone if the transaction unwinds.
+
+### `registerActionBefore(action, before): this`
+
+Registers `action` so that `before` wraps it: `before` runs first and reaches `action` through the `supr` it is
+handed, instead of ending the run there. It is how an action is added to a chain someone else built and still sits
+*inside* a handler already registered, which registration order alone cannot arrange. Returns `this`.
+
+```typescript
+// the audit handler already registered wraps this one, so it sees the value the trimming leaves behind
+field.registerActionBefore(
+  new ValueChangedAction((f, supr, newValue, oldValue) => supr(f, newValue.trim(), oldValue)),
+  audit,
+);
+```
+
+`before` has to be registered on this element and under the same `classIdentifier` as `action`; anything else
+throws `Error('Action to register before is not registered under the same identifier')`.
+
+### `unregisterAction(action): boolean`
+
+Drops `action` from this element and answers whether the element held it. The instance goes on serving every other
+element it was registered on — one `Required` registered on a `List`'s item template is carried by every row, and
+unregistering it from one row leaves the others validating.
+
+```typescript
+const required = new Validators.Required();
+const field = new Field({ value: '', validators: [required] });
+field.valid;                      // false
+field.unregisterAction(required); // true
+field.valid;                      // true — the error the validator put there is withdrawn with it
+```
+
+A `Validator` withdraws the errors it put on the element as it goes, so the verdict left standing is the one the
+validators the element still holds reach; errors from another source stay. Any other action releases what it
+installed for this element through `unregisterFrom()`. A validation still in flight is dropped when it settles.
+Called inside a [transaction](/api/transactions), the unregistration is undone if the transaction unwinds.
+
 ### `bindingsOf(declaration): FieldBase[]`
 
 Every element in this element's subtree, this element included, whose `declaration` is the one given. It answers
@@ -233,10 +272,11 @@ including ones no validator contributed — errors pushed in from the outside, s
 goes through the same path as any other: a field that was invalid fires `ValidChangedAction` and its container
 re-evaluates its own validity. A validation still in flight is dropped when it settles, so it cannot push an error
 onto a field that no longer carries the validator that produced it. A validator that installed a listener
-elsewhere — `CompareTo`, on the field it compares against — has that listener released once the operation the call
-ran in has finished, so an operation that unwinds leaves the validators exactly as it found them. The release names
-this element only: the same validator instance goes on validating every other element it was registered on, so
-clearing the validators of one row of a `List` leaves the other rows validating.
+elsewhere — `CompareTo`, on the field it compares against — has that listener released with the registration, and an
+operation that unwinds puts both back. The release names this element only: the same validator instance goes on
+validating every other element it was registered on, so clearing the validators of one row of a `List` leaves the
+other rows validating. `unregisterAction()` drops a single validator instead of all of them, and withdraws only the
+errors that validator contributed.
 
 It does not descend into members. A `Group` or a `List` composes `valid` from its members as well, so
 `group.clearValidators()` leaves `group.valid` at `false` while any member is still invalid — call
@@ -331,8 +371,9 @@ is the second argument every one of them takes, the [extended properties](#exten
 carries; it defaults to `{}`, which is what makes `FieldBase` on its own the type of any form element.
 
 It provides `originalValue`, `enabled`, `visibility`, `valid`, `errors`, `validating`, `validationEpoch`,
-`isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `triggerAction()`, `validate()`,
-`clearValidators()`, `setExtendedValues()`, `rebind()`, `beginValidating()` and `endValidating()` — which is why those work the same way on every form
+`isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `registerActionBefore()`,
+`unregisterAction()`, `triggerAction()`, `validate()`, `clearValidators()`, `setExtendedValues()`, `rebind()`,
+`beginValidating()` and `endValidating()` — which is why those work the same way on every form
 element. `value`, `touched` and `bind()` are abstract and supplied by each subclass.
 
 It holds every mutable member of an element in a reactive state object beside it, which is what makes every form

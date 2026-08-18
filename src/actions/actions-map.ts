@@ -1,74 +1,85 @@
 import { type FieldBase } from '../field-base';
-import { type FieldActionExecute, AbortEventHandlingException } from '../field.interface';
+import { AbortEventHandlingException } from '../field.interface';
 import { Validator } from '../validators/validator';
 
 import FieldActionBase from './field-action-base';
-import { ValueChangedActionClassIdentifier } from './value-changed-action';
 
-export default class ActionsMap extends Map<symbol, FieldActionExecute> {
-  private readonly eagerActions = new Set<symbol>();
-
+/**
+ * The actions one element has registered, grouped by the identifier they are triggered under. Within a group the
+ * actions stand in registration order and are run from the end backwards, so the newest registration is the
+ * outermost handler and reaches the ones before it through the `supr` it is handed. A handler that does not call
+ * `supr` ends the run there, and one that calls it may transform what it answers with.
+ */
+export default class ActionsMap {
+  /** every action registered here, in registration order across all identifiers */
   private readonly registeredActions: FieldActionBase[] = [];
 
-  register(action: FieldActionBase) {
+  /** the actions of one identifier, in registration order */
+  private readonly chains = new Map<symbol, FieldActionBase[]>();
+
+  /** the eager actions of one identifier, in registration order; a subsequence of the chain under that identifier */
+  private readonly eagerChains = new Map<symbol, FieldActionBase[]>();
+
+  /**
+   * Registers `action`. It becomes the outermost handler of its identifier, or - where `before` is given and is
+   * registered here under the same identifier - takes that action's place in the order, so `before` wraps it and
+   * reaches it through `supr`. That is what lets an action be added to a chain someone else built and still sit
+   * inside a handler already there.
+   */
+  register(action: FieldActionBase, before?: FieldActionBase): void {
     if (!(action instanceof FieldActionBase)) throw new Error('Invalid action type');
-    this.registeredActions.push(action);
-
-    const actionType = action.classIdentifier;
-    const existingExecute = this.get(actionType) || (() => null);
-
-    function ex(field: FieldBase, ...params: any[]) {
-      return action.execute(field, existingExecute, ...params);
+    const identifier = action.classIdentifier;
+    if (before && (before.classIdentifier !== identifier || !this.registeredActions.includes(before))) {
+      throw new Error('Action to register before is not registered under the same identifier');
     }
-    this.set(actionType, ex);
-    if (action.eager) this.eagerActions.add(action.classIdentifier);
+
+    this.registeredActions.push(action);
+    this.insert(this.chains, identifier, action, before);
+    if (action.eager) this.insert(this.eagerChains, identifier, action, before);
   }
 
   /**
-   * True when triggering this action would run something: a handler registered under the identifier, or - on the
-   * value change identifier, which trigger() answers with an eager pass as well - any eager action at all. A
-   * caller that has to build the parameters before it can trigger asks this first and skips building them when
-   * there is nothing to receive them.
+   * Drops `action` from this map and answers whether it was in it. The lists it stood in are replaced rather than
+   * written, so a run already walking one finishes on the list it started with and the removal takes effect from
+   * the next trigger.
    */
-  willTrigger(identifier: symbol): boolean {
-    if (this.has(identifier)) return true;
-    return identifier === ValueChangedActionClassIdentifier && this.eagerActions.size > 0;
+  unregister(action: FieldActionBase): boolean {
+    const at = this.registeredActions.indexOf(action);
+    if (at < 0) return false;
+    this.registeredActions.splice(at, 1);
+    const identifier = action.classIdentifier;
+    this.remove(this.chains, identifier, action);
+    this.remove(this.eagerChains, identifier, action);
+    return true;
   }
 
+  /** True where something is registered under `identifier`. */
+  willTrigger(identifier: symbol): boolean {
+    return this.chains.has(identifier);
+  }
+
+  /** True where any eager action is registered, whatever identifier it stands under. */
+  get hasEager(): boolean {
+    return this.eagerChains.size > 0;
+  }
+
+  /** Runs the actions registered under `ActionClass` and answers with what the outermost of them returned. */
   trigger<T extends FieldActionBase>(
     ActionClass: (abstract new (...args: any[]) => T) & { classIdentifier: symbol },
     field: FieldBase,
     ...params: any[]
   ): any {
-    const identifier = ActionClass.classIdentifier;
-    if (identifier === ValueChangedActionClassIdentifier) this.triggerEager(field, ...params);
-    return this.triggerChain(identifier, field, ...params);
+    return this.run(this.chains.get(ActionClass.classIdentifier), field, params);
   }
 
-  /**
-   * Runs the chain registered under one identifier and nothing else. A caller that has already run the eager
-   * pass - a transaction runs it at the write, so that the validators have decided before it commits - reaches
-   * the handlers through here, so the eager actions are not run a second time at the announcement.
-   */
-  triggerChain(identifier: symbol, field: FieldBase, ...params: any[]): any {
-    const execute = this.get(identifier);
-    try {
-      if (execute) return execute(field, ...params);
-    } catch (error) {
-      if (!(error instanceof AbortEventHandlingException)) throw error;
-    }
-    return null;
+  /** Runs the eager actions of every identifier, each group on its own. */
+  triggerEager(field: FieldBase, ...params: any[]): void {
+    this.eagerChains.forEach((chain) => this.run(chain, field, params));
   }
 
-  triggerEager(field: FieldBase, ...params: any[]): any {
-    for (const identifier of this.eagerActions) {
-      const execute = this.get(identifier);
-      try {
-        if (execute) execute(field, ...params);
-      } catch (error) {
-        if (!(error instanceof AbortEventHandlingException)) throw error;
-      }
-    }
+  /** Runs the eager actions registered under `identifier` and nothing else. */
+  triggerEagerFor(identifier: symbol, field: FieldBase, ...params: any[]): any {
+    return this.run(this.eagerChains.get(identifier), field, params);
   }
 
   /** the validators registered in this map, in registration order */
@@ -77,9 +88,9 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
   }
 
   clone(): ActionsMap {
-    const newActions = new ActionsMap();
-    this.registeredActions.forEach((action) => newActions.register(action));
-    return newActions;
+    const copy = new ActionsMap();
+    this.registeredActions.forEach((action) => copy.register(action));
+    return copy;
   }
 
   /**
@@ -92,15 +103,47 @@ export default class ActionsMap extends Map<symbol, FieldActionExecute> {
   }
 
   /**
-   * A copy of this map carrying everything but the validators. It only leaves them out: releasing what a
-   * validator installed elsewhere is the caller's to do, and only once the transaction that dropped them has
-   * committed, because a rollback puts this map back with its validators in it.
+   * Walks `chain` from the end backwards, handing each action a `supr` that continues at the one before it. The
+   * closures exist for the length of the run and only as deep as the run actually goes, so a chain nobody walks to
+   * the bottom costs nothing for the part left unreached.
    */
-  cloneWithoutValidators(): ActionsMap {
-    const newActions = new ActionsMap();
-    this.registeredActions.forEach((action) => {
-      if (!(action instanceof Validator)) newActions.register(action);
-    });
-    return newActions;
+  private step(chain: FieldActionBase[], index: number, field: FieldBase, params: any[]): any {
+    if (index < 0) return null;
+    const supr = (next: FieldBase, ...rest: any[]) => this.step(chain, index - 1, next, rest);
+    return chain[index].execute(field, supr, ...params);
+  }
+
+  /** Walks a chain, answering null where there is none. An abort ends the run and is not an error to the caller. */
+  private run(chain: FieldActionBase[] | undefined, field: FieldBase, params: any[]): any {
+    if (!chain) return null;
+    try {
+      return this.step(chain, chain.length - 1, field, params);
+    } catch (error) {
+      if (!(error instanceof AbortEventHandlingException)) throw error;
+    }
+    return null;
+  }
+
+  private insert(
+    groups: Map<symbol, FieldActionBase[]>,
+    identifier: symbol,
+    action: FieldActionBase,
+    before?: FieldActionBase,
+  ): void {
+    const chain = groups.get(identifier) ?? [];
+    const at = before ? chain.indexOf(before) : -1;
+    // a `before` the group does not hold - registering an eager action before a lazy one - places nothing: the
+    // eager group has no position that corresponds to it, and the end of the group is where it belongs
+    if (at < 0) chain.push(action);
+    else chain.splice(at, 0, action);
+    groups.set(identifier, chain);
+  }
+
+  private remove(groups: Map<symbol, FieldActionBase[]>, identifier: symbol, action: FieldActionBase): void {
+    const chain = groups.get(identifier);
+    if (!chain?.includes(action)) return;
+    const left = chain.filter((registered) => registered !== action);
+    if (left.length) groups.set(identifier, left);
+    else groups.delete(identifier);
   }
 }

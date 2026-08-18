@@ -76,9 +76,6 @@ function depthOf(element: FieldBase): number {
 export class Transaction {
   private readonly participants = new Map<FieldBase, Participant>();
 
-  /** work that stands only where the transaction commits; a rollback simply never does it */
-  private readonly deferred: (() => void)[] = [];
-
   /** what a rollback has to put back beyond the state slots, newest last */
   private readonly undo: (() => void)[] = [];
 
@@ -145,15 +142,6 @@ export class Transaction {
   }
 
   /**
-   * Registers work the commit does once everything has been announced. It is for what a rollback could not take
-   * back: releasing a listener, dropping a registration. Held until the commit, it is simply never done where the
-   * transaction unwinds instead.
-   */
-  whenCommitted(work: () => void): void {
-    this.deferred.push(work);
-  }
-
-  /**
    * Registers what a rollback has to put back beyond the element's state slots. The snapshot covers the slots,
    * which is everything an ordinary write touches; an operation that replaces something else the element carries
    * hands its own undo in here rather than making every snapshot carry the thing.
@@ -189,7 +177,6 @@ export class Transaction {
     // newest first, so an element written twice ends up as the earlier of the two writes found it
     for (let index = this.undo.length - 1; index >= 0; index--) this.undo[index]();
     this.undo.length = 0;
-    this.deferred.length = 0;
   }
 
   /**
@@ -206,8 +193,6 @@ export class Transaction {
       if (this.settleValidity()) continue;
       break;
     }
-    const work = this.deferred.splice(0);
-    work.forEach((fn) => fn());
   }
 
   /**
