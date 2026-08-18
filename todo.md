@@ -86,10 +86,6 @@ behind it keeps running: `ValidationFunction` receives no `AbortSignal`, so noth
 network level and fast typing leaves a request in flight per keystroke — the fourth argument is additive, and it
 is also what a rolled-back transaction would need to stop a validation it started, which today runs to the end
 with its verdict discarded ·
-a rollback does not un-register the actions registered while the transaction was open: `ActionsMap` nests each
-handler in a closure that calls the previous one, so a single registration cannot be taken back · between
-`clearValidators()` and the end of the operation it ran in, a dropped `CompareTo` can still fire and push an
-error onto the field it was dropped from, because its listener is released at commit ·
 `InAllowedValues` freezes the list at
 construction · `ValidationError` has no machine-readable code · error object identity is not preserved
 across validations: two runs producing the same message leave the field holding the newer instance, because the
@@ -100,27 +96,6 @@ Vue proxy of whatever instance the field holds, so `field.errors[0] === myError`
 `List.insert(item, index)` fills the gap position by position, so an index taken from an API response builds
 that many groups and fires that many events synchronously on the main thread ·
 `./style.css` is unreachable under node10 resolution · no coverage thresholds.
-
----
-
-## Open design decisions
-
-One question with no settled answer yet. It is worth deciding before the surface is frozen, because
-the cheap option is also the one that keeps the other option available.
-
-### How the action chain supports removal
-
-`ActionsMap` nests each handler in a closure that calls the previous one, so a handler cannot be removed
-and two chains cannot be composed.
-
-**A `deactivated` flag on each link**, passing straight through to `supr`. *For:* a few lines, no change in
-call-time shape. *Against:* the chain never shrinks, so the stack depth that produces the `RangeError` above
-keeps growing.
-
-**An array of handlers, composed into a chain that is rebuilt on registration.** *For:* removal is real, so
-dead links leave no depth behind; call-time shape and cost are unchanged. *Against:* more code, and the
-composition must preserve the onion semantics — an action decides whether to call `supr` and may transform
-its result, which a plain listener loop would lose.
 
 ## Pre-existing items
 
