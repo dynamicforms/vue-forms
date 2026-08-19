@@ -20,17 +20,6 @@ owner only, so treat this file as the authoritative copy).
 - **Async action handlers are neither awaited nor caught** — an `async` `ValueChangedAction` that throws
   ends as an unhandled rejection. Decide and document the contract, because changing it later (setters
   becoming async) is a 2.0.
-- **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
-  request changes the setting for everyone. Settled and documented as a fact rather than a defect: the one setting
-  states whether a component that renders markdown is registered, which is a property of the application and not of
-  a form, and the single reader runs when a validator is constructed - in a store or at module scope, where no app
-  exists and `inject` is unavailable. It stays on the list because the shape is frozen at 1.0, not because a fix is
-  pending.
-- **3 open Dependabot alerts**, all in VitePress's pinned dev server (`vite`, `esbuild`, and `vitepress` itself)
-  and none with a fix published. None is in the published package's dependency tree: it declares `lodash-es` as its
-  only dependency and `vue` as its only peer, and ships `dist/*`. Documentation-site exposure, not a consumer one,
-  so it does not gate 1.0. Needs an `npm outdated` pass and a decision on whether to enable Dependabot pull
-  requests.
 ---
 
 ## Can wait (non-breaking to add later)
