@@ -847,3 +847,21 @@ held for the element's lifetime: closures are now made at trigger time and only 
 **Cost.** S2a — one field write in a 1000-row list, the keystroke path — is unchanged: 0.0100 ms before, 0.0101 ms
 after (plain), 0.0091 ms both (conditional), taking the minimum as the least noisy statistic. The closures moved
 from registration time to trigger time and the write does not notice.
+
+## D-031 — the build target follows the floors the package already declares
+
+**Decision.** `build.target` is `es2022`.
+
+**What it costs and saves.** `field-base.ts` is the only file in `src/` that uses private class fields, with 51
+access sites. An ES2015 output cannot express them, so esbuild lowers every one to a WeakMap lookup behind an
+access check. Measured by building both: 92 715 → 87 902 bytes, 25 728 → 24 547 gzipped, and the whole difference
+sits in that one file, which is 30 % of the shipped artifact.
+
+**Why the number is not a matter of taste.** A library's target is the syntax its consumer's toolchain has to
+parse, not the runtime it ends up on — a consuming bundler re-transpiles the chunk to its own target. What
+settles it here is that the package already declares `engines.node >= 22` and ships ESM only. There is no
+consumer those declarations admit that ES2022 excludes, so the lower target bought compatibility with nobody.
+
+**Alternative not taken.** Deriving the target from a browserslist query. It is the right instrument for an
+application, whose target is a browser support matrix; a library published to npm has no browser matrix of its
+own, because the application it lands in decides that.

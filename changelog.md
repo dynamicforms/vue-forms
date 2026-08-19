@@ -5,6 +5,15 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] - 2026-08-19
+
+### Changed
+- The build target is ES2022, up from ES2015. The only thing it changed is `field-base.ts`: it is the sole
+  file holding private class fields, and an ES2015 output has to lower each of its 51 access sites to a
+  WeakMap lookup guarded by an access check. The artifact goes from 92 715 to 87 902 bytes, 25 728 to 24 547
+  gzipped, and the private fields ship as themselves. Every runtime the package already declares support for —
+  Node 22 and up — runs ES2022 natively.
+
 ## [0.12.0] - 2026-08-18
 
 ### Changed
