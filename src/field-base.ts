@@ -11,6 +11,7 @@ import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
 import { IBindParams } from './field.interface';
 import { type Group } from './group';
+import { type List } from './list';
 import {
   currentTransaction,
   type Transaction,
@@ -67,6 +68,22 @@ export abstract class FieldBase<T = any, X extends object = {}> {
 
   get __v_isReactive(): boolean {
     return true;
+  }
+
+  /**
+   * Names the element's class, which is what a structural comparison of two elements answers on. An element keeps
+   * its state in private class fields, so a walk over own keys reaches none of it; lodash reads this tag through
+   * Object.prototype.toString before it compares anything, and a tag it does not know ends the comparison there.
+   * Two elements are therefore equal only where they are the same element. What they hold is compared as
+   * isEqual(a.value, b.value).
+   *
+   * It is an accessor on the prototype, so an element carries nothing for it, and `Object.prototype.toString`
+   * answers `[object Field]` rather than `[object Object]`. Each class states its own name as a literal: a
+   * minifier renames the class itself, so reading the constructor's name would report whatever the build called
+   * it.
+   */
+  get [Symbol.toStringTag](): string {
+    return 'FormElement';
   }
 
   /**
@@ -272,7 +289,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   beginValidating(): void {
     const wasIdle = !this.validating;
     this.#state.validatingCount++;
-    if (wasIdle) this.parent?.childValidatingChanged(true);
+    if (wasIdle) this.container?.childValidatingChanged(true);
   }
 
   /** announces the end of one asynchronous validation run */
@@ -281,7 +298,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     // element never started
     if (this.#raw.validatingCount === 0) return;
     this.#state.validatingCount--;
-    if (!this.validating) this.parent?.childValidatingChanged(false);
+    if (!this.validating) this.container?.childValidatingChanged(false);
   }
 
   /**
@@ -291,7 +308,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   protected childValidatingChanged(started: boolean): void {
     const wasValidating = this.validating;
     this.#state.validatingChildren += started ? 1 : -1;
-    if (this.validating !== wasValidating) this.parent?.childValidatingChanged(started);
+    if (this.validating !== wasValidating) this.container?.childValidatingChanged(started);
   }
 
   /**
@@ -371,9 +388,21 @@ export abstract class FieldBase<T = any, X extends object = {}> {
    * undefined while no container holds it. The container writes it; everyone else reads it. The read is tracked,
    * so an effect rendering off the link - `v-if="field.parent"` - re-runs when a container takes the element or
    * releases it.
+   *
+   * A `List` holds rows and a row is a `Group`, so only a container can be a `List`'s child: `Field` narrows the
+   * type to `Group | undefined`, and the sibling lookup `field.parent?.fields.other` is typed on a field.
    */
-  get parent(): Group | undefined {
-    return this.#state.parent as Group | undefined;
+  get parent(): Group | List | undefined {
+    return this.#state.parent as Group | List | undefined;
+  }
+
+  /**
+   * The same link at the type the internals reach through. The protected members a container is told things
+   * through - childValidatingChanged, childValidityChanged - are declared here, and a union of two subclasses is
+   * not an instance of this class, which is what a protected access needs.
+   */
+  private get container(): FieldBase | undefined {
+    return this.#state.parent;
   }
 
   /** when member of a Group, fieldName specifies the name of this field. Written by the group, read-only after */
@@ -745,11 +774,11 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     this.#raw.valid = newValid;
     // the verdict goes to the container that holds this element, and a container that released it holds it no
     // longer: the link is gone with the release, so a dropped row moves no tally
-    const container = this.parent;
-    if (container) {
-      tx.touch(container);
-      container.childValidityChanged(newValid);
-      tx.markValidityDirty(container);
+    const holder = this.container;
+    if (holder) {
+      tx.touch(holder);
+      holder.childValidityChanged(newValid);
+      tx.markValidityDirty(holder);
     }
     this._actions?.trigger(ValidChangedAction, this, newValid, oldValid);
   }

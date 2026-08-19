@@ -182,7 +182,9 @@ into the form — and a pass that still reaches nothing says so again, so the ne
 
 ```typescript
 new Validators.Validator((newValue, oldValue, field) => {
-  const row = field.parent;
+  // the callback receives a FieldBase, whose container is typed as either kind, and the members below are a
+  // Group's: a field is never a List's child, so the narrowing holds
+  const row = field.parent as Group | undefined;
   if (!row) {
     field.markRecordIncomplete();
     return null;

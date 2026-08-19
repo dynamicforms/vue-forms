@@ -1,9 +1,14 @@
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { IBindParams, IFieldParams } from './field.interface';
+import { type Group } from './group';
 import { transactional } from './transaction';
 
 class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
+  get [Symbol.toStringTag](): string {
+    return 'Field';
+  }
+
   protected get state(): FieldSlots<T> {
     return super.state as FieldSlots<T>;
   }
@@ -72,6 +77,15 @@ class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
       // the handlers hear about the change once the transaction closes, over the value the field ends up holding
       this.propagateValueChanged();
     });
+  }
+
+  /**
+   * The container that holds this field. A `List` holds rows and a row is a `Group`, so a field is never a `List`'s
+   * child and the link is a `Group` wherever there is one: `field.parent?.fields.other` is the sibling lookup, and
+   * it is typed here.
+   */
+  get parent(): Group | undefined {
+    return super.parent as Group | undefined;
   }
 
   get touched(): boolean {

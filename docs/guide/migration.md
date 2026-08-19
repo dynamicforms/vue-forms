@@ -51,7 +51,8 @@ const view = computed(() => field.value);
 
 **`isEqual` over two elements answers `true` for any two of the same class.** An element's state is held in
 private class fields, so `Object.keys`, `Object.getOwnPropertySymbols`, `JSON.stringify` and lodash `isEqual` reach
-none of it. Compare what the elements hold:
+none of it. From 0.15.0 the comparison throws rather than answering — see
+[Comparing two elements throws](#comparing-two-elements-throws). Compare what the elements hold:
 
 ```typescript
 // before
@@ -321,6 +322,48 @@ list.value = null;                      // fine — empties the list, as does cl
 
 The setter is typed, so the throw reaches a JavaScript caller, one writing through `as any`, and a value that
 arrived from a server without being checked. `params.value` and `params.originalValue` are refused the same way.
+
+### `parent` is typed per class
+
+`FieldBase.parent` is `Group | List | undefined` - a row of a `List` gets the `List`, and the type says so now.
+`Field` narrows it to `Group | undefined`, and `Action` inherits that narrowing: a `List` holds rows and a row is
+a `Group`, so a field is never a `List`'s child.
+
+```typescript
+field.parent?.fields.other;   // unchanged: a field's container is a Group
+row.parent?.fields;           // now a compile error: a row's container is the List
+```
+
+The type checker finds every site. Where you hold the element as a `FieldBase` - the type an action executor and a
+`ValidationFunction` receive - narrow the container yourself:
+
+```typescript
+// before
+new Validators.Validator((newValue, oldValue, field) => field.parent?.fields.dateFrom …);
+
+// after
+new Validators.Validator((newValue, oldValue, field) => (field.parent as Group)?.fields.dateFrom …);
+```
+
+Naming the sibling and letting `CompareTo` resolve it - `new Validators.CompareTo('dateFrom', …)` - needs no
+narrowing at all.
+
+### Comparing two elements answers identity
+
+`isEqual(fieldA, fieldB)` answered `true` for any two elements of the same class: an element's state is in private
+class fields, so a structural comparison reached none of it. It answers `false` now unless the two are the same
+element:
+
+```typescript
+isEqual(rowA, rowB);              // false, where it was true
+isEqual(rowA, rowA);              // true
+isEqual(rowA.value, rowB.value);  // what to write to compare the data
+```
+
+`FieldBase` carries a `Symbol.toStringTag` accessor naming the element's class, which is the first thing a
+structural comparison reads and a tag it does not know ends it there. The same accessor changes what a string
+coercion produces: `` `${field}` `` and `String(field)` answer `[object Field]` where they answered
+`[object Object]`, and so does a validator message naming the `{field}` placeholder.
 
 ### A `List` declared with `originalValue` alone holds those rows
 
@@ -725,7 +768,7 @@ reference to the template:
 
 ```typescript
 new Validators.CompareTo<string>('password', (mine, other) => mine === other, 'Passwords must match');
-new Validators.CompareTo<number>((field) => field.parent?.fields.dateFrom, (to, from) => to >= from, '…');
+new Validators.CompareTo<number>((field) => (field.parent as Group)?.fields.dateFrom, (to, from) => to >= from, '…');
 ```
 
 ### Custom actions: two renamed hooks
@@ -915,8 +958,9 @@ Two further consequences are visible only to code that inspects the object itsel
 and an element's whole state — `parent` and `fieldName` among it — is held in private class fields rather than in
 own properties. `Object.keys(field)`, `Object.getOwnPropertySymbols(field)`, `JSON.stringify(field)` and lodash
 `isEqual` reach none of it. Assigning `field.parent` yourself now throws a `TypeError` instead of being silently
-accepted; the container sets it. `isEqual` over two elements now answers `true` for any two instances of the same
-class, because it has nothing left to read — compare `a.value` with `b.value` instead.
+accepted; the container sets it. `isEqual` over two elements answers `true` for any two instances of the same
+class, because it has nothing left to read — compare `a.value` with `b.value` instead. From 0.15.0 that
+comparison throws rather than answering, and says so.
 
 ## Upgrading to v0.6.0 (from v0.5.x)
 

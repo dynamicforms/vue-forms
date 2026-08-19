@@ -20,33 +20,17 @@ owner only, so treat this file as the authoritative copy).
 - **Async action handlers are neither awaited nor caught** — an `async` `ValueChangedAction` that throws
   ends as an unhandled rejection. Decide and document the contract, because changing it later (setters
   becoming async) is a 2.0.
-- **`FieldBase.parent` is declared `Group | undefined`** (`src/field-base.ts`); a `List` installs itself as the
-  parent of its row groups (`src/list.ts`), so the honest type is `Group | List`. Widening it breaks the
-  documented sibling lookup `field.parent?.fields.other.value`, which is why it has to be decided before 1.0.
-- **`isEqual` over two elements answers `true` for any two of the same class**, because an element's state is
-  unreachable to a structural walker (`GAPS.md` D-001). `isEqual(a.value, b.value)` is the meaningful
-  comparison and is documented as such, but the trap is silent and a machine-readable identity — or a
-  documented refusal to support element comparison — is worth settling before the surface freezes.
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
   request changes the setting for everyone. Settled and documented as a fact rather than a defect: the one setting
   states whether a component that renders markdown is registered, which is a property of the application and not of
   a form, and the single reader runs when a validator is constructed - in a store or at module scope, where no app
   exists and `inject` is unavailable. It stays on the list because the shape is frozen at 1.0, not because a fix is
   pending.
-- **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, and the rule that a disabled
-  child `Group` still serializes when its own value is non-empty. CI checks that the rolled-up declarations are
-  non-empty and declare `Field`, but nothing imports the built artifact.
-- **24 open Dependabot alerts** — 18 high, 5 moderate, 1 low — visible since `package-lock.json` became
-  tracked. **None is in the published package's dependency tree**: it declares `lodash-es` as its
-  only dependency and `vue` as its only peer, and ships `dist/*`. The flagged packages are the build chain
-  (`brace-expansion`, `fast-uri`, `js-yaml`, `immutable`, `ws`, `esbuild`, `vite`) and the documentation site's
-  own runtime (`linkify-it`, `nanoid`, `markdown-it`, `postcss`); the latter are reported under `runtime` scope
-  because they are runtime dependencies *of `docs/`*, which shares the lockfile, and nothing under `src/`
-  imports any of them. Build and docs-site exposure, not a consumer one, so it does not gate 1.0.
-  Needs: `npm audit` with the tree bumped where a fix exists, an `npm outdated` pass now that the lockfile
-  pins what CI installs, and a decision on whether to enable Dependabot pull requests — with the lockfile
-  tracked they arrive as reviewable diffs instead of silent drift.
-
+- **3 open Dependabot alerts**, all in VitePress's pinned dev server (`vite`, `esbuild`, and `vitepress` itself)
+  and none with a fix published. None is in the published package's dependency tree: it declares `lodash-es` as its
+  only dependency and `vue` as its only peer, and ships `dist/*`. Documentation-site exposure, not a consumer one,
+  so it does not gate 1.0. Needs an `npm outdated` pass and a decision on whether to enable Dependabot pull
+  requests.
 ---
 
 ## Can wait (non-breaking to add later)

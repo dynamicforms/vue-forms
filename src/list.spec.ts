@@ -502,7 +502,8 @@ describe('Cross-field validation with revalidate', () => {
 
     // a validator on endDate that requires it to fall after startDate
     const dateValidator = new Validators.Validator((newValue, oldValue, field) => {
-      const startDate = field.parent?.fields.startDate.value;
+      // a ValidationFunction receives a FieldBase, whose container may be a Group or a List; a field's is a Group
+      const startDate = (field.parent as Group | undefined)?.fields.startDate.value;
       if (startDate && newValue && new Date(newValue) <= new Date(startDate)) {
         return [new ValidationErrorText('End date must be after start date')];
       }

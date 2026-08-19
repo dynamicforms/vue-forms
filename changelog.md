@@ -34,8 +34,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   silently became `DisplayMode.FULL`. A constant's name is still accepted, case insensitive.
 - A form element whose parameters name no visibility still starts at `DisplayMode.FULL`. That is a starting value,
   and it no longer stands in for input a parse could not read.
+- **Breaking:** `parent` is typed per class. `FieldBase.parent` is `Group | List | undefined`, which is what the
+  link holds: a row of a `List` gets the `List`. `Field` narrows it to `Group | undefined` and `Action` inherits
+  that narrowing, because a `List` holds rows and a row is a `Group`, so a field is never a `List`'s child. The
+  sibling lookup `field.parent?.fields.other` therefore compiles unchanged on a field, and `row.parent.fields` is
+  a compile error where it was a promise the type could not keep - the declared `Group` was the container's type
+  for a member of a group and the wrong one for a row. Code holding an element as a `FieldBase` - which is the
+  type an action executor and a `ValidationFunction` receive - narrows the container itself:
+  `(field.parent as Group)?.fields.other`.
+- **Breaking:** a structural comparison of two elements answers identity. `isEqual(fieldA, fieldB)` read nothing
+  either element holds - the state is in private class fields - and answered `true` for any two instances of the
+  same class; it is `false` now unless they are the same element, and what they hold is compared as
+  `isEqual(a.value, b.value)`. `FieldBase` carries a `Symbol.toStringTag` accessor naming the element's class,
+  which is the first thing such a comparison reads and a tag it does not know ends it there. The accessor is on the
+  prototype, so an element carries nothing for it, and `Object.prototype.toString.call(field)` answers
+  `[object Field]` where it answered `[object Object]`.
+- The build tooling moves to `eslint-config-velis` 3, which states its plugins as peer dependencies rather than
+  carrying them, so the thirteen it names are declared here: eslint 10, `@typescript-eslint` 8.67,
+  `eslint-plugin-unicorn` 73, prettier 3.9, `@types/node` 26 and the rest. `npm audit` goes from 18 findings to 3,
+  and the three that remain are VitePress's pinned dev server with no fix published. None of it reaches the
+  published package, which declares `lodash-es` and `vue`.
 
 ### Added
+- `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
+  the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that
+  it ends only the run it was thrown in, that every other exception reaches the caller and unwinds the transaction,
+  and that a `*Changing*` handler throwing it does not veto the write.
+- CI loads the built ESM artifact and exercises it - the export list, a list composing and validating, `value`
+  against `fullValue` over a disabled member, and a transaction announcing once and rolling back on a throw. The
+  specs import `src/`, so nothing else reached what the package actually publishes.
 - `defaultDisplayMode` is exported from the package. It names the mode an element starts at, so code that has
   to choose one for input it could not parse states the same constant the library does rather than repeating
   `DisplayMode.FULL`.

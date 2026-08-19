@@ -53,6 +53,9 @@ jobs:
           fi
           grep -q 'declare class Field' dist/index.d.ts
 
+      - name: Verify the built artifact
+        run: node scripts/verify-artifact.mjs
+
       - name: Build docs
         run: npm run docs:build
 

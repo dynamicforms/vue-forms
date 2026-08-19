@@ -14,6 +14,10 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
   ListValue,
   X
 > {
+  get [Symbol.toStringTag](): string {
+    return 'List';
+  }
+
   protected get state(): ListSlots<T> {
     return super.state as ListSlots<T>;
   }

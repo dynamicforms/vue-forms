@@ -81,6 +81,10 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
   GroupValue<T>,
   X
 > {
+  get [Symbol.toStringTag](): string {
+    return 'Group';
+  }
+
   protected get state(): GroupSlots<GroupValue<T>> {
     return super.state as GroupSlots<GroupValue<T>>;
   }
