@@ -45,6 +45,8 @@ describe('reading and writing extended properties', () => {
   it('still refuses a getter-only member named as a parameter', () => {
     expect(() => new Field({ value: 1, valid: true } as any)).toThrow(TypeError);
     expect(() => new Group({ a: new Field({ value: 1 }) }, { valid: true } as any)).toThrow(TypeError);
+    // busy is one of them, so a presentation property of that name has no room on an element
+    expect(() => new Field({ value: 1, busy: true } as any)).toThrow(TypeError);
   });
 
   it('carries them on a Group, a List and an Action', () => {

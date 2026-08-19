@@ -1,5 +1,5 @@
 import { isBoolean, isEmpty, isEqual } from 'lodash-es';
-import { computed, reactive, type ComputedRef } from 'vue';
+import { computed, reactive, watch, type ComputedRef } from 'vue';
 
 import ActionsMap from './actions/actions-map';
 import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
@@ -31,6 +31,9 @@ import { Validator } from './validators/validator';
  * properties, so an element carrying one as a property would be a cycle to either of them.
  */
 const validReads = new WeakMap<object, ComputedRef<boolean>>();
+
+/** The computed behind a container's `busy`, held outside the element for the same reason `validReads` is. */
+const busyReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
  * The parameter keys that name what to register on an element rather than what it holds. The constructor that
@@ -242,28 +245,110 @@ export abstract class FieldBase<T = any, X extends object = {}> {
    * Puts a captured state back. It writes through the tracked view, so an effect that ran on the state the
    * transaction produced runs again on the state it is being returned to, and only for the slots that differ.
    *
-   * validatingCount is the one slot the element keeps: it counts runs that are in flight, and a rollback cannot
-   * un-start one. Put back, the count would no longer match the endValidating calls still to come.
+   * The two validation counters are the slots the element keeps: they count runs that are in flight, and a
+   * rollback cannot un-start one. Put back, the counts would no longer match the endValidating calls still to come.
    */
   protected [TxRestore](snapshot: TxSnapshot): void {
     const validating = this.#raw.validatingCount;
+    const validatingChildren = this.#raw.validatingChildren;
     Object.assign(this.#state, snapshot);
     this.#state.validatingCount = validating;
+    this.#state.validatingChildren = validatingChildren;
   }
 
-  /** true while at least one asynchronous validator is still running for this field */
+  /**
+   * True while an asynchronous validation is in flight on this element or on anything below it, so a form answers
+   * for the whole tree it holds. The answer is a pair of counters rather than a walk: the element's own runs, and
+   * how many of its children answer the same question with true. A child that starts running while it was idle,
+   * or stops while it was the last one running, moves its container's tally, and a tally that changes the
+   * container's own answer moves the one above it - the transition costs the nesting depth and the read costs
+   * nothing.
+   */
   get validating(): boolean {
-    return this.#state.validatingCount > 0;
+    return this.#state.validatingCount > 0 || this.#state.validatingChildren > 0;
   }
 
   /** announces the start of one asynchronous validation run; validators pair it with endValidating */
   beginValidating(): void {
+    const wasIdle = !this.validating;
     this.#state.validatingCount++;
+    if (wasIdle) this.parent?.childValidatingChanged(true);
   }
 
   /** announces the end of one asynchronous validation run */
   endValidating(): void {
-    this.#state.validatingCount = Math.max(0, this.#state.validatingCount - 1);
+    // a stray call is a no-op: the count never goes below zero, and nothing above is told of a stop that the
+    // element never started
+    if (this.#raw.validatingCount === 0) return;
+    this.#state.validatingCount--;
+    if (!this.validating) this.parent?.childValidatingChanged(false);
+  }
+
+  /**
+   * Records that a child started or stopped answering `validating` with true, and carries the transition further
+   * up where it changes this element's own answer.
+   */
+  protected childValidatingChanged(started: boolean): void {
+    const wasValidating = this.validating;
+    this.#state.validatingChildren += started ? 1 : -1;
+    if (this.validating !== wasValidating) this.parent?.childValidatingChanged(started);
+  }
+
+  /**
+   * True while an `Action.execute()` at or below this element has yet to settle. An `Action` answers for its own
+   * runs; a container answers for the actions below it; anything else answers false, because an element that is
+   * not an action has nothing to execute.
+   *
+   * It states one thing and `validating` states the other, so a form that gates a submit button on the tree being
+   * idle reads both.
+   */
+  get busy(): boolean {
+    return false;
+  }
+
+  /**
+   * The composed answer a container gives `busy`, memoised by Vue. An `Action` counts its executions in a counter
+   * of its own, which no container is told about, so the answer is composed over the members instead of tallied;
+   * the computed keeps the walk from repeating while nothing it read has moved, and a member that is itself a
+   * container answers from its own computed.
+   */
+  protected get busyRead(): boolean {
+    let read = busyReads.get(this);
+    if (!read) {
+      read = computed(() => this.composeBusy());
+      busyReads.set(this, read);
+    }
+    return read.value;
+  }
+
+  /** What busyRead computes. A container answers over its members; anything else executes nothing. */
+  protected composeBusy(): boolean {
+    return false;
+  }
+
+  /**
+   * Resolves once nothing at or below this element is running - no asynchronous validation, no `Action.execute()`
+   * that has yet to settle. It is what a submit path awaits instead of polling `validating` and `busy`, and it
+   * resolves at once where nothing is running to begin with.
+   *
+   * It answers for the moment it resolves and makes no promise about the one after: work started later leaves the
+   * element running again, so a caller that has to act on a settled tree reads what it needs immediately after
+   * awaiting rather than at its leisure.
+   */
+  settled(): Promise<void> {
+    if (!this.validating && !this.busy) return Promise.resolve();
+    return new Promise((resolve) => {
+      // sync flush, so the promise settles with the write that ended the last run rather than a tick after it
+      const stop = watch(
+        () => this.validating || this.busy,
+        (running) => {
+          if (running) return;
+          stop();
+          resolve();
+        },
+        { flush: 'sync' },
+      );
+    });
   }
 
   /**
@@ -471,6 +556,14 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     transactional((tx) => {
       tx.touch(this);
       if (!child.#raw.valid) this.#raw.invalidChildren++;
+      // a run in flight below the child now runs below this element too. The validation counters are outside the
+      // snapshot, so the transfer hands the rollback an undo of its own, and that undo reads the child at rollback
+      // time: a run that starts below the child while the transaction holds it is one this element counts too, and
+      // it is still in flight when the rollback hands the child back
+      if (child.validating) this.childValidatingChanged(true);
+      tx.whenRolledBack(() => {
+        if (child.validating) this.childValidatingChanged(false);
+      });
       // the tally moved, so the verdict this element carries may no longer be the one its members support
       tx.markValidityDirty(this);
     });
@@ -486,7 +579,16 @@ export abstract class FieldBase<T = any, X extends object = {}> {
       tx.touch(this);
       tx.touch(child);
       if (!child.#raw.valid) this.#raw.invalidChildren--;
+      // the undo reads the child at rollback time for the same reason adoptChild's does: what this element carries
+      // again is the runs the child has in flight when it comes back, not the ones it had when it left
+      if (child.validating) this.childValidatingChanged(false);
+      tx.whenRolledBack(() => {
+        if (child.validating) this.childValidatingChanged(true);
+      });
       child.#state.parent = undefined;
+      // the name goes with the link: it is the name a container held the element under, and the element belongs to
+      // none, so it is as detached as one a bind() produced
+      child.#state.fieldName = undefined;
       tx.markValidityDirty(this);
     });
   }
@@ -656,7 +758,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     return this.#state.errors.length === 0;
   }
 
-  get fullValue(): any {
+  get fullValue(): T {
     return this.value;
   }
 

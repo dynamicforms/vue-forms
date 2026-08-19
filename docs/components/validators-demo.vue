@@ -60,7 +60,8 @@
       <v-card-actions>
         <v-btn
           color="primary"
-          :disabled="!formValid"
+          :disabled="!formValid || formBusy"
+          :loading="formBusy"
         >
           Submit
         </v-btn>
@@ -154,10 +155,10 @@ const validatedForm = new Group({
   })
 });
 
-// Overall form validity, recomputed whenever any field's valid state changes
-const formValid = computed(() => {
-  return Object.values(validatedForm.fields).every(field => field.valid);
-});
+// A group forms its verdict over its members, and busy answers for the whole tree: true while an asynchronous
+// validation is in flight anywhere below the group. Both reads are tracked, so these recompute on their own.
+const formValid = computed(() => validatedForm.valid);
+const formBusy = computed(() => validatedForm.busy);
 
 // Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
 // componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.

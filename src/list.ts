@@ -4,7 +4,7 @@ import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { IBindParams, IFieldParams } from './field.interface';
-import { GenericFieldsInterface, Group } from './group';
+import { FieldsToFullValues, GenericFieldsInterface, Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 /** what List.value reads back: one plain object per item, or null when the list is empty */
@@ -92,9 +92,25 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
     return this.processSetValueItem(this._itemTemplate ? this._itemTemplate.bind() : null);
   }
 
-  private setValueInternal(newValue: any[]) {
+  /** Records that the set of rows changed, so `items` rebuilds the frozen array it hands out at the next read. */
+  private rowsChanged(): void {
+    this.state.rowsVersion++;
+  }
+
+  /** True where `next` is a different set of rows than `previous`: another count, or another row at a position. */
+  private static rowsDiffer(previous: Group<any>[] | null, next: Group<any>[] | null): boolean {
+    const before = previous ?? [];
+    const after = next ?? [];
+    return before.length !== after.length || before.some((row, index) => row !== after[index]);
+  }
+
+  private setValueInternal(newValue: ListValue) {
     transactional((tx) => {
       tx.touch(this);
+      // the set standing before the write, so that only an assignment that actually changes it makes `items` build
+      // a new array: an assignment every row survives, and one of a value that is neither an array nor null, leave
+      // the array a reader took as it is
+      const held = this.raw.rows;
       // null is the value that clears, the same one Group.value = null writes into every member; without this a
       // list nested in a group would keep its rows while every sibling field was emptied
       if (newValue == null) {
@@ -124,6 +140,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
         for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
         this.state.rows = rows;
       }
+      if (List.rowsDiffer(held, this.raw.rows)) this.rowsChanged();
       this.bumpValueVersion();
     });
   }
@@ -144,7 +161,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
     return built;
   }
 
-  set value(newValue: Record<string, any>[]) {
+  set value(newValue: ListValue) {
     transactional(() => {
       this.setValueInternal(newValue);
       // an assignment is a statement about the whole list, and it is announced as one without being compared away
@@ -223,6 +240,14 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
     return this.state.errors.length === 0 && (this.state.rows?.every((item) => item.valid) ?? true);
   }
 
+  get busy() {
+    return this.busyRead;
+  }
+
+  protected composeBusy(): boolean {
+    return this.state.rows?.some((item) => item.busy) ?? false;
+  }
+
   validate(revalidate: boolean = false) {
     transactional(() => {
       // the items are revalidated first and the list forms its own verdict afterwards, over the finished set: an
@@ -235,6 +260,43 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
 
   protected get members(): FieldBase[] {
     return this.raw.rows ?? [];
+  }
+
+  /**
+   * How many rows this list holds. The read is tracked, so a template rendering off it re-renders as rows come and
+   * go.
+   */
+  /**
+   * Every row of this list, each one built from all of its fields. Where `value` states what the list serializes -
+   * rows composed of the fields that are enabled, and null where the list is empty - this states what the list
+   * holds: the disabled fields are in it too, and an empty list reads back as an empty array rather than as null.
+   */
+  get fullValue(): FieldsToFullValues<T>[] {
+    return (this.state.rows ?? []).map((row) => row.fullValue);
+  }
+
+  get length(): number {
+    return this.state.rows?.length ?? 0;
+  }
+
+  /**
+   * The rows this list holds, oldest position first. The array is a frozen copy: it states what the list held at
+   * the read and nothing writes back through it - `push`, `insert`, `remove` and `clear` are what change the set -
+   * so a caller may hold on to it. The rows in it are the live elements, so reading one reports what it holds now.
+   *
+   * The copy is built once per change of the set and handed to every reader until the next one: a write inside a
+   * row changes what the list serializes without changing which rows it holds, and the array a reader took stays
+   * the same one across such a write.
+   */
+  get items(): readonly Group<T>[] {
+    // the version is a tracked read and the cache is not, so a reader answered from the cache still re-runs when
+    // the set of rows changes
+    const version = this.state.rowsVersion;
+    if (this.raw.cachedItemsVersion !== version) {
+      this.raw.cachedItems = Object.freeze([...(this.raw.rows ?? [])]);
+      this.raw.cachedItemsVersion = version;
+    }
+    return this.raw.cachedItems!;
   }
 
   get(index: number): Group<T> | undefined {
@@ -263,6 +325,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
       // nothing of the list it stood in and is free to be taken by another container, and what it holds - the
       // values it ended up with, its errors, the change history behind isChanged - is the row's to report
       this.releaseChild(row);
+      this.rowsChanged();
       this.bumpValueVersion();
       removedItem = row;
 
@@ -297,6 +360,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
 
       tx.recordStructural(this, { actionClass: ListItemAddedAction, item: itm, index: position });
       // one item more is a different set, so no comparison is needed to establish that the value changed
+      this.rowsChanged();
       this.bumpValueVersion();
       this.propagateValueChanged(true);
     });
@@ -315,6 +379,8 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
       tx.touch(this);
       this.releaseRows();
       this.state.rows = null;
+      // a list that held nothing holds the same nothing afterwards, so the array `items` hands out stands
+      if (hadItems) this.rowsChanged();
       this.bumpValueVersion();
       this.propagateValueChanged(hadItems);
     });

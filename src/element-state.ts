@@ -22,8 +22,8 @@ import { ValidationError } from './validators/validation-error';
  * walk their way down a structure over own keys, enumerable symbols included, and the `parent` slot is in the
  * state: reachable, it would take either walker back into the container the element came from.
  *
- * What they do reach on an element is `_actions` once something is registered, `_fields` on a `Group` and
- * `_itemTemplate` on a `List`. All three lead downwards only.
+ * What they do reach on an element is `_actions` once something is registered, `_fields` and the guarded view
+ * over it on a `Group`, and `_itemTemplate` on a `List`. All of them lead downwards only.
  */
 export interface ElementSlots<T = any> {
   /** the value the element was given at construction; isChanged compares against it */
@@ -37,6 +37,8 @@ export interface ElementSlots<T = any> {
   valueVersion: number;
   /** how many asynchronous validation runs are in flight on this element */
   validatingCount: number;
+  /** how many direct children answer `validating` with true; a child that starts or stops running moves it */
+  validatingChildren: number;
   /** the container that holds this element, absent while none does; takeChild writes it, releaseChild clears it */
   parent: FieldBase | undefined;
   /** the name the containing Group holds this element under; a List row carries none */
@@ -77,6 +79,7 @@ export function elementSlots<T = any>(): ElementSlots<T> {
     enabled: true,
     valueVersion: 0,
     validatingCount: 0,
+    validatingChildren: 0,
     parent: undefined,
     fieldName: undefined,
     validationEpoch: 0,
@@ -115,13 +118,35 @@ export function containerSlots<T = any>(): ContainerSlots<T> {
   } as ContainerSlots<T>;
 }
 
+/** what a Group holds beyond the container slots: the names of its members, in the order it took them */
+export interface GroupSlots<T = any> extends ContainerSlots<T> {
+  /**
+   * The names the group holds its members under. The member map itself is a plain object beside the state, so
+   * this array is what a reader inside an effect depends on: a member added or removed re-runs the effect, and a
+   * rolled-back transaction puts the set back with the rest of the slots.
+   */
+  fieldNames: string[];
+}
+
+export function groupSlots<T = any>(): GroupSlots<T> {
+  return { ...containerSlots<T>(), fieldNames: [] } as GroupSlots<T>;
+}
+
 /** what a List holds beyond the container slots: the rows themselves */
 export interface ListSlots<
   T extends GenericFieldsInterface = GenericFieldsInterface,
 > extends ContainerSlots<ListValue> {
   rows: Group<T>[] | null;
+  /**
+   * Counts the changes to the set of rows. `items` rebuilds the frozen array it hands out when it moves, and
+   * only then: a write inside a row changes what the list serializes without changing which rows it holds.
+   */
+  rowsVersion: number;
+  /** the frozen array `items` last handed out, together with the rows version it was built from */
+  cachedItems: readonly Group<T>[] | null;
+  cachedItemsVersion: number;
 }
 
 export function listSlots<T extends GenericFieldsInterface = GenericFieldsInterface>(): ListSlots<T> {
-  return { ...containerSlots<ListValue>(), rows: null };
+  return { ...containerSlots<ListValue>(), rows: null, rowsVersion: 0, cachedItems: null, cachedItemsVersion: -1 };
 }

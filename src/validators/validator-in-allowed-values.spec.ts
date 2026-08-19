@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { unref } from 'vue';
+import { ref, unref } from 'vue';
 
 import { Field } from '../field';
 
@@ -104,5 +104,54 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(1);
     const errorText = (unref(field.errors[0]) as ValidationErrorRenderContent).componentBody;
     expect(errorText).toBe(customMessage);
+  });
+});
+
+describe('InAllowedValues Validator with a list that arrives later', () => {
+  it('measures the value against the list a reference holds at validation time', () => {
+    const allowedValues = ref<string[]>([]);
+    const field = new Field({ value: 'red', validators: [new InAllowedValues(allowedValues)] });
+
+    // nothing is allowed yet, so nothing passes
+    expect(field.errors.length).toBe(1);
+
+    allowedValues.value = ['red', 'green'];
+    field.value = 'green';
+    expect(field.errors.length).toBe(0);
+
+    field.value = 'blue';
+    expect(field.errors.length).toBe(1);
+  });
+
+  it('measures the value against the list a callback answers with', () => {
+    let allowedValues = ['red'];
+    const field = new Field({ value: 'blue', validators: [new InAllowedValues(() => allowedValues)] });
+
+    expect(field.errors.length).toBe(1);
+
+    allowedValues = ['red', 'blue'];
+    field.value = 'red';
+    field.value = 'blue';
+    expect(field.errors.length).toBe(0);
+  });
+
+  it('names the list as it stands when the message is built', () => {
+    const allowedValues = ref(['red']);
+    const field = new Field({ value: 'blue', validators: [new InAllowedValues(allowedValues)] });
+
+    expect((field.errors[0] as ValidationErrorRenderContent).componentBindings.source).toBe('Must be one of [**red**]');
+
+    allowedValues.value = ['red', 'green'];
+    field.value = 'yellow';
+
+    expect((field.errors[0] as ValidationErrorRenderContent).componentBindings.source).toBe(
+      'Must be one of [**red, green**]',
+    );
+  });
+
+  it('states the in-allowed-values code on the error it produces', () => {
+    const field = new Field({ value: 'blue', validators: [new InAllowedValues(['red'])] });
+
+    expect(field.errors[0].code).toBe('in-allowed-values');
   });
 });

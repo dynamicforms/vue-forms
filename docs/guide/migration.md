@@ -1,9 +1,9 @@
 # Migration guide
 
-If you are crossing several releases at once, read **[the whole journey](#the-whole-journey-0-6-1-to-0-10-x)**
-first: it is the same content as the per-release sections, ordered by how likely each change is to bite rather
-than by which version produced it. The per-release sections follow, newest first, for a project crossing a single
-release.
+If you are crossing several releases at once, read **[the whole journey](#the-whole-journey-0-6-1-to-0-12-x)**
+first: it is those releases in one pass, ordered by how likely each change is to bite rather than by which version
+produced it. The per-release sections follow it, newest first — take the ones above `v0.12.0` in that order for
+the releases the journey does not cover, or a single one for a project crossing a single release.
 
 This is the only page that names superseded APIs; everywhere else in this documentation only the current one
 exists.
@@ -217,6 +217,179 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
    the CJS build — the package is ESM-only.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
+
+## Upgrading to v0.13.0 (from v0.12.x)
+
+One break is silent and is the one to search for before you upgrade: `Required` trims. The rest throw or are found
+by the type checker.
+
+### `Required` trims, so whitespace alone is no longer a value
+
+`Required` measures a string after trimming it, so a field holding `'   '` is empty and the field is invalid.
+Nothing is logged and nothing throws: a form that used to accept a space stops accepting one, from the moment it
+is built. A project with many `Required` usages becomes stricter everywhere at once.
+
+```typescript
+// a value of spaces used to pass; now
+new Validators.Required();                  // '   ' fails
+new Validators.Required({ trim: false });   // '   ' passes
+```
+
+The options stand beside a message or on their own, and the first two arguments are told apart by shape — a
+string, an `MdString`, a function, a `Ref` and an object naming a component are messages, and any other object is
+the options:
+
+```typescript
+new Validators.Required('Please enter a name');
+new Validators.Required('Please enter a name', { trim: false });
+```
+
+`RequiredOptions` is exported. Only strings are trimmed; an array, an object or any other value is measured as it
+stands.
+
+What to do: search for `Required` and decide per field whether spaces are part of what it holds — a signature
+line, a formatting-sensitive code — and pass `{ trim: false }` there. Everywhere else the new verdict is the one
+the field always meant. `error.code === 'required'` now names the failure, so a sweep over your forms can
+count exactly which fields the stricter verdict catches.
+
+### `Statement` throws on an operand it cannot compare
+
+An operand that is `undefined` or a function throws a `TypeError` from the constructor, naming the position it
+was written at:
+
+```typescript
+new Statement(form.fields.usreName, Operator.EQUALS, true);
+// TypeError: Statement operand 1 is undefined: an operand is a field, a nested statement or a literal, …
+
+new Statement(() => form.fields.userName, Operator.EQUALS, true);
+// TypeError: Statement operand 1 is a function: …
+```
+
+Both are what a mistake reaches the constructor with: a misspelled name off `group.fields`, and a field accessor
+handed over uncalled. A statement built from either compared nothing and never fired, so the code it drove — a
+conditional visibility, a conditional enablement — silently did nothing. The throw arrives where the name is
+written.
+
+Everything else stands as an operand: a field, a nested statement, `null`, `NaN`, `0`, `''`, an array, an object
+with `includes`. `Operator.NOT` reads its first operand only, so the second position under it is not checked.
+`group.field('typoName')` answers `null` rather than `undefined`, and `null` is a literal a statement may compare
+against — reach for it where a name may legitimately be absent.
+
+### Type tightenings the checker finds for you
+
+**Five validators no longer take a type parameter**, because none of them ever read it: `Required`, `Pattern`,
+`MinLength`, `MaxLength` and `LengthInRange`. Drop the argument.
+
+```typescript
+// before
+new Validators.Required<string>();
+new Validators.Pattern<string>(/^\d{4}$/);
+
+// after
+new Validators.Required();
+new Validators.Pattern(/^\d{4}$/);
+```
+
+`InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` keep theirs, where it types an argument
+or a callback.
+
+**`GroupValue<T>` is `Partial<FieldsToValues<T>> | null`.** A group leaves a disabled member out of the object it
+builds, so every member of a read value is possibly `undefined` — which is what the runtime always handed out.
+Code that reads a member off `group.value` and passes it on where the type is required needs a fallback or a
+check:
+
+```typescript
+// before
+const name: string = group.value!.firstName;
+
+// after
+const name: string = group.value?.firstName ?? '';
+```
+
+**`busy` is a member of every element**, so a parameter of that name is no longer an extended property:
+`new Field({ busy: true })` throws a `TypeError`, the way `valid` and `validating` already did. A presentation
+layer carrying a `busy` property of its own states it under another name.
+
+### Behaviour that changed under code you do not have to edit
+
+**`validating` answers for the whole subtree.** A group or a list reports `true` while an asynchronous validation
+is in flight anywhere below it, where it used to answer for its own runs alone. A form asks one element what the
+tree is doing:
+
+```typescript
+// before: every field, one by one
+const pending = Object.values(form.fields).some((field) => field.validating);
+
+// after
+form.validating;
+```
+
+The answer is a pair of counters rather than a walk, so the read costs nothing and a run that starts or settles
+costs the nesting depth. A guard that already read `form.validating` and found it always `false` now blocks while
+a field below is being checked, which is what it was written to do.
+
+**`group.fields` hands out a guarded view.** Reading it is unchanged; `Object.defineProperty(group.fields, …)`
+now throws a `TypeError` alongside assignment and `delete`, and names `addField()` / `removeField()` as the way to
+change the set.
+
+### What newly works
+
+- **`ValidationError.code`** — a kebab-case identifier of what failed, so a program reacting to one failure does
+  not have to match message text that is translated and configurable. The built-in validators state theirs:
+  `required`, `pattern`, `min`, `max`, `range`, `min-length`, `max-length`, `range-length`, `in-allowed-values`,
+  `compare-to`, and `validation-failed` on the error a rejected validation promise leaves. Every error class takes
+  it as its last constructor argument.
+- **A `ValidationFunction` receives a fourth argument, `signal: AbortSignal`.** Hand it to the work the function
+  commissions and that work is called off the moment the run's verdict stops counting — a newer run over the same
+  field, a validator taken off the field, a transaction that was unwound. A cancelled run reaches no verdict, so a
+  check that rejects on abort says nothing and reports nothing. A function with nothing to cancel ignores it.
+- **`busy`** on every element — `true` while anything at or below it is still running, an asynchronous validation
+  or an `Action.execute()` that has yet to settle. `<button :disabled="!form.valid || form.busy">`.
+- **`Group.addField(name, field)` and `Group.removeField(name)`** — the member set changes after construction.
+  Both are transactional; `addField` throws `Error` for a name the group already holds and `TypeError` for a field
+  another container holds, and `removeField` hands the field back detached, answering `undefined` for a name the
+  group does not hold. Neither rewrites the baseline behind `isChanged`.
+- **`List.length` and `List.items`** — the row count, and a frozen array of the live rows built once per change of
+  the set. `v-for="row in list.items"` replaces counting through `list.value`.
+- **`InAllowedValues` takes `AllowedValues<T>`** — an array, a `Ref<T[]>` or a `() => T[]` — and reads the list at
+  each validation, so a list that arrives from a server after the validator is built is the one the value is
+  measured against and the one the message names.
+- **`getConfig()`, `setConfig()` and `FormsConfig`** are exported from the package entry point beside the plugin,
+  so the global options can be read and written without an app to install a plugin on.
+- **`list.value = null` type-checks**, the write `group.value = null` makes into a nested list included.
+
+### `busy` states an execution, and `fullValue` states what an element holds
+
+`busy` is `true` while an `Action.execute()` at or below the element has yet to settle, and nothing else. An
+asynchronous validation is what `validating` answers for. Code that read `busy` alone to decide whether the tree
+was idle now misses a validation in flight:
+
+```typescript
+// before: busy answered for both
+if (form.busy) return;
+
+// after: two questions, or one await
+if (form.busy || form.validating) return;
+await form.settled();
+```
+
+`Group.fullValue` is typed `FieldsToFullValues<T>` where it answered `Record<string, any>`, so what was `any`
+now carries the field's real type and the type checker starts reading it. `List.fullValue` changes what it
+returns as well as its type: it maps its rows through their own `fullValue` instead of answering with `value`, so
+a field disabled inside a row is in it, and an empty list reads back as `[]` rather than as `null`.
+
+### Checklist for 0.13.0
+
+1. Search for `Required` and pass `{ trim: false }` where whitespace is part of what the field holds.
+2. Run the type checker: drop the type argument from `Required`, `Pattern`, `MinLength`, `MaxLength` and
+   `LengthInRange`, and handle the now-optional members of a read `GroupValue`.
+3. Rename any extended property called `busy`.
+4. Load the forms that carry conditional actions: a `Statement` built over a misspelled name now throws where it
+   used to do nothing.
+5. Search for `busy`: where it gated on the whole tree being idle, read `validating` beside it or await
+   `settled()`.
+6. Search for `fullValue` on a `List`: it now carries the fields a row disables, and answers `[]` for an empty
+   list.
 
 ## Upgrading to v0.12.0 (from v0.11.x)
 

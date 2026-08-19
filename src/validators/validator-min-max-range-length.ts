@@ -14,13 +14,17 @@ function toLength(a: any): number {
   return String(a).length;
 }
 
-export class MinLength<T = any> extends Validator {
+export class MinLength extends Validator {
   constructor(minLength: number, message?: RenderContentRef) {
     const msg = message || buildErrorMessage('Length must be larger or equal to **{minLength}**');
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
+    const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       if (toLength(newValue) < minLength) {
         return [
-          new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field, minLength })),
+          new ValidationErrorRenderContent(
+            this.replacePlaceholders(msg, { newValue, oldValue, field, minLength }),
+            '',
+            'min-length',
+          ),
         ];
       }
       return null;
@@ -30,13 +34,17 @@ export class MinLength<T = any> extends Validator {
   }
 }
 
-export class MaxLength<T = any> extends Validator {
+export class MaxLength extends Validator {
   constructor(maxLength: number, message?: RenderContentRef) {
     const msg = message || buildErrorMessage('Length must be less than or equal to **{maxLength}**');
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
+    const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       if (toLength(newValue) > maxLength) {
         return [
-          new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field, maxLength })),
+          new ValidationErrorRenderContent(
+            this.replacePlaceholders(msg, { newValue, oldValue, field, maxLength }),
+            '',
+            'max-length',
+          ),
         ];
       }
       return null;
@@ -46,15 +54,17 @@ export class MaxLength<T = any> extends Validator {
   }
 }
 
-export class LengthInRange<T = any> extends Validator {
+export class LengthInRange extends Validator {
   constructor(minLength: number, maxLength: number, message?: RenderContentRef) {
     const msg = message || buildErrorMessage('Length must be between **{minLength}** and **{maxLength}**');
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
+    const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       const len = toLength(newValue);
       if (len < minLength || len > maxLength) {
         return [
           new ValidationErrorRenderContent(
             this.replacePlaceholders(msg, { newValue, oldValue, field, minLength, maxLength }),
+            '',
+            'range-length',
           ),
         ];
       }

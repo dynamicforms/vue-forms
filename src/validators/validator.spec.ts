@@ -343,3 +343,33 @@ describe('Asynchronous validation', () => {
     expect(field.validating).toBe(false);
   });
 });
+
+describe('Error codes', () => {
+  const failWith = (errors: ValidationError[]) => new Validator((newValue) => (newValue === 'bad' ? errors : null));
+
+  it('carries the code a custom validator gives its error', () => {
+    const field = new Field({
+      value: 'bad',
+      validators: [failWith([new ValidationErrorText('Not allowed here', '', 'not-in-this-country')])],
+    });
+
+    expect(field.errors[0].code).toBe('not-in-this-country');
+  });
+
+  it('leaves the code undefined on an error built without one', () => {
+    expect(new ValidationErrorText('Plain').code).toBeUndefined();
+    expect(new ValidationErrorRenderContent('Plain').code).toBeUndefined();
+    expect(new ValidationError().code).toBeUndefined();
+  });
+
+  it('keeps the code on the copy a second validator of the same error instance receives', () => {
+    const shared = new ValidationErrorText('Shared error', '', 'shared-code');
+    const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
+    const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
+
+    // the second validator owns a copy of the instance the first one claimed, and the copy answers the same code
+    expect(field2.errors[0]).not.toBe(field1.errors[0]);
+    expect(field1.errors[0].code).toBe('shared-code');
+    expect(field2.errors[0].code).toBe('shared-code');
+  });
+});

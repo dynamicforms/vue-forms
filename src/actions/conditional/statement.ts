@@ -8,7 +8,8 @@ import Operator from './operator';
 
 // An operand is a nested Statement, a field whose current value is compared, or a literal of any type. The
 // union with `any` collapses to `any` for the type checker, so the alias documents intent rather than
-// constraining callers.
+// constraining callers; the two shapes that are no operand at all - undefined and a function - are rejected by
+// the constructor.
 export type OperandType = any | Statement | FieldBase;
 
 function XOR(value1: boolean, value2: boolean): boolean {
@@ -22,7 +23,33 @@ export class Statement {
 
   private readonly operand2: OperandType;
 
+  /**
+   * An operand is a nested `Statement`, a `FieldBase` whose value is compared, or a literal. `undefined` and a
+   * function are neither: they are what a misspelled field name and a field accessor handed over uncalled answer
+   * with, and a statement built from one compares nothing and never fires. The position names which of the two
+   * operands is at fault, so the error points at the place the name was written.
+   */
+  private static validateOperand(operand: OperandType, position: 1 | 2): void {
+    if (operand === undefined) {
+      throw new TypeError(
+        `Statement operand ${position} is undefined: an operand is a field, a nested statement or a literal, ` +
+          'and a name resolving to nothing is none of them. Compare against null to test for an unset value.',
+      );
+    }
+    if (typeof operand === 'function') {
+      throw new TypeError(
+        `Statement operand ${position} is a function: an operand is a field, a nested statement or a literal, ` +
+          "and a function is none of them. An accessor states the field it answers with: group.field('name').",
+      );
+    }
+  }
+
+  /** @throws TypeError where an operand the statement reads is undefined or a function. */
   constructor(operand1: OperandType, operator: Operator, operand2: OperandType) {
+    Statement.validateOperand(operand1, 1);
+    // NOT reads operand1 alone, so whatever stands in the second position is never compared and never rejected
+    if (operator !== Operator.NOT) Statement.validateOperand(operand2, 2);
+
     this.operand1 = operand1;
     this.operator = operator;
     this.operand2 = operand2;

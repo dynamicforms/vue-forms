@@ -222,7 +222,7 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 | `label` | Reads `value.label`; writing it assigns a new value object carrying the new label |
 | `icon` | Reads `value.icon`; writing it assigns a new value object carrying the new icon |
 | `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise |
-| `busy` | `true` from the call to `execute()` until the run it started settles |
+| `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
 
 `ActionValue` is the exported shape of the value: `{ label?: string; icon?: string }`. `Action<T extends
 ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members is inferred from
@@ -357,6 +357,22 @@ built from.
 Each operand has the exported type `OperandType` — a nested `Statement`, a `FieldBase` whose current `value` is
 compared, or a literal of any type. Because the union includes `any`, the type checker accepts anything there; the
 three cases are told apart at evaluation time by `instanceof`.
+
+The constructor refuses the two shapes that are no operand at all, **throwing a `TypeError`** that names the
+position the operand was written at:
+
+- `undefined` — what `group.fields.typoName` answers with. Compare against `null` to test for an unset value;
+  `group.field('typoName')` answers `null`, and `null` is a literal a statement may compare against;
+- a **function** — a field accessor handed over uncalled. State the field it answers with: `group.field('name')`.
+
+Everything else stands: a field, a nested statement, `null`, `NaN`, `0`, `''`, an array, an object with
+`includes`. `Operator.NOT` reads its first operand alone, so whatever stands in the second position under it is
+never compared and never checked.
+
+```typescript
+new Statement(form.fields.typo, Operator.EQUALS, 1);
+// TypeError: Statement operand 1 is undefined: an operand is a field, a nested statement or a literal, …
+```
 
 `Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on any field. One handler is registered per field however many rows read it, and the handler re-evaluates the record the change happened in.
 

@@ -122,10 +122,12 @@ describe('Statement', () => {
     expect(() => statement.evaluate()).toThrow('Operator not implemented');
   });
 
-  it('handles null and undefined', () => {
+  it('handles null and unset fields', () => {
+    const unset = new Field();
+
     expect(new Statement(null, Operator.EQUALS, null).evaluate()).toBe(true);
-    expect(new Statement(undefined, Operator.EQUALS, undefined).evaluate()).toBe(true);
-    expect(new Statement(null, Operator.EQUALS, undefined).evaluate()).toBe(true);
+    expect(new Statement(unset, Operator.EQUALS, new Field()).evaluate()).toBe(true);
+    expect(new Statement(null, Operator.EQUALS, unset).evaluate()).toBe(true);
 
     // IN and INCLUDES with null
     expect(new Statement('a', Operator.IN, null).evaluate()).toBe(false);
@@ -185,7 +187,7 @@ describe('Statement.evaluate return type', () => {
     ['0', 0],
     ["''", ''],
     ['null', null],
-    ['undefined', undefined],
+    ['a field holding undefined', new Field()],
     ['NaN', NaN],
     ["'x'", 'x'],
     ['1', 1],
@@ -209,7 +211,7 @@ describe('Statement.evaluate return type', () => {
     expect(new Statement('', Operator.OR, NaN).evaluate()).toBe(false);
     expect(new Statement(0, Operator.XOR, 'x').evaluate()).toBe(true);
     expect(new Statement('x', Operator.XOR, 1).evaluate()).toBe(false);
-    expect(new Statement(null, Operator.XOR, undefined).evaluate()).toBe(false);
+    expect(new Statement(null, Operator.XOR, new Field()).evaluate()).toBe(false);
   });
 
   it('returns a boolean for IN when the container reports membership with a non-boolean', () => {
@@ -227,7 +229,6 @@ describe('Statement.evaluate return type', () => {
     ['a string without the operand', 'xyz', false],
     ['a container reporting membership with a non-boolean', { includes: (v: any) => (v === 'a' ? 1 : 0) }, true],
     ['null', null, false],
-    ['undefined', undefined, false],
     ['an object without includes', {}, false],
     ['a number', 0, false],
   ])('evaluates NOT_IN as the exact negation of IN over %s', (name, operand2, inResult) => {
@@ -300,5 +301,35 @@ describe('Statement.collectFields', () => {
     expect(collected.size).toBe(2);
     expect(collected.has(field1)).toBe(true);
     expect(collected.has(field2)).toBe(true);
+  });
+});
+
+describe('Statement operand rejection', () => {
+  const form = new Group({ quantity: new Field<number>({ value: 1 }) });
+
+  it('rejects a misspelled field name at the position it was written', () => {
+    expect(() => new Statement((form.fields as any).quantitiy, Operator.GT, 0)).toThrow(TypeError);
+    expect(() => new Statement((form.fields as any).quantitiy, Operator.GT, 0)).toThrow('Statement operand 1');
+    expect(() => new Statement(0, Operator.LT, (form.fields as any).quantitiy)).toThrow('Statement operand 2');
+  });
+
+  it('rejects a function operand', () => {
+    expect(() => new Statement(() => 1, Operator.EQUALS, 1)).toThrow(TypeError);
+    expect(() => new Statement(1, Operator.EQUALS, form.field.bind(form))).toThrow('Statement operand 2');
+  });
+
+  it('accepts fields, nested statements and literals', () => {
+    expect(() => new Statement(form.fields.quantity, Operator.GT, 0)).not.toThrow();
+    expect(() => new Statement(form, Operator.EQUALS, null)).not.toThrow();
+    expect(() => new Statement(new Statement(1, Operator.LT, 2), Operator.AND, true)).not.toThrow();
+    expect(() => new Statement(null, Operator.EQUALS, NaN)).not.toThrow();
+    expect(() => new Statement(0, Operator.EQUALS, '')).not.toThrow();
+    expect(() => new Statement('a', Operator.IN, ['a'])).not.toThrow();
+    expect(() => new Statement('a', Operator.IN, { includes: (v: any) => v === 'a' })).not.toThrow();
+  });
+
+  it('leaves the second operand of NOT unchecked, because NOT does not read it', () => {
+    expect(new Statement(false, Operator.NOT, undefined).evaluate()).toBe(true);
+    expect(new Statement(true, Operator.NOT, undefined as any).evaluate()).toBe(false);
   });
 });

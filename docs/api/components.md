@@ -31,6 +31,9 @@ const field = new Field({ value: '', validators: [new Validators.Required()] });
 messages also receive `df-messages-widget-markdown`. A `string` message renders a single `<span>`; a
 `ValidationError[]` renders one node per error (multiple root nodes).
 
+`code` is not rendered. It is the machine-readable name of what failed, which the built-in validators state and a
+program matches on instead of the message text — see [error codes](/api/validators#error-codes).
+
 `ClassType` is `string | string[] | Record<string, boolean>`, and `ClassTypes` is `ClassType | ClassType[]` —
 nested arrays are allowed, and the widget builds one internally.
 
@@ -38,9 +41,9 @@ nested arrays are allowed, and the widget builds one internally.
 
 | Class | Description |
 |-------|-------------|
-| `ValidationError` | Base class: override `componentName`, `componentBindings`, `componentBody` and `extraClasses` to define your own error rendering |
-| `ValidationErrorText` | `new ValidationErrorText(text, classes?)` — plain text rendered as a `<div>` carrying the widget `classes` plus the instance `classes`. Override the getters in a subclass to render something else |
-| `ValidationErrorRenderContent` | `new ValidationErrorRenderContent(content, classes?)` — content may be a `string` (plain), an `MdString` (markdown), a `SimpleComponentDef` (`{ componentName, componentProps?, componentVHtml? }`), a `Ref` of any of these, or a function returning one |
+| `ValidationError` | `new ValidationError(code?)` — base class: override `componentName`, `componentBindings`, `componentBody` and `extraClasses` to define your own error rendering |
+| `ValidationErrorText` | `new ValidationErrorText(text, classes?, code?)` — plain text rendered as a `<div>` carrying the widget `classes` plus the instance `classes`. Override the getters in a subclass to render something else |
+| `ValidationErrorRenderContent` | `new ValidationErrorRenderContent(content, classes?, code?)` — content may be a `string` (plain), an `MdString` (markdown), a `SimpleComponentDef` (`{ componentName, componentProps?, componentVHtml? }`), a `Ref` of any of these, or a function returning one |
 | `RenderableValue` | Same as `ValidationErrorRenderContent`, named for content that is not an error (help, hints) |
 
 The content given to `ValidationErrorRenderContent` may be a `Ref`, a `computed` or a function returning the value;

@@ -50,11 +50,15 @@ type ValidationFunction<T = any> = (
   newValue: T,
   oldValue: T,
   field: FieldBase<T>,
+  signal: AbortSignal,
 ) => ValidationFunctionResult | Promise<ValidationFunctionResult>;
 ```
 
 Return `null` or `[]` to indicate no errors. Import `ValidationFunction` when you write a reusable validation
 function separately from the `Validator` that wraps it.
+
+`signal` aborts when the verdict the run would reach stops counting — see [Cancelling a run](#cancelling-a-run).
+Hand it to the work the function commissions; a function with nothing to cancel ignores it.
 
 Validators are eager: they run once at field creation, over the value the constructor produced, immediately when
 passed to `registerAction()` on an existing field, on every value change, on `field.validate(true)`, and once more
@@ -96,8 +100,10 @@ the verdict its own fields support.
 ### Asynchronous validation
 
 When the validation function returns a `Promise`, `field.validating` becomes `true` right away (the field counts the
-asynchronous runs it has in flight) and `field.errors` / `field.valid` are updated when the promise settles. UI should
-block submit while `validating === true` as well.
+asynchronous runs it has in flight) and `field.errors` / `field.valid` are updated when the promise settles. Every
+container above the field answers `validating` with `true` for as long as the run is in flight, so a form asks
+itself rather than walking its fields, and `busy` on the form is the same answer with the `Action.execute()` runs
+below it included. UI should block submit while either is `true` as well.
 
 Only the newest run of a validator decides that validator's verdict on a field. Every execution takes the next
 sequence number for that field, and a result is applied only while its run is still the newest one. A slow run
@@ -131,8 +137,36 @@ empties `field.errors` and recalculates the verdict over the emptied list, and a
 verdict or with a rejection — can no longer push errors onto the field. A field that was invalid therefore fires
 `ValidChangedAction` and the `Group` or `List` holding it re-evaluates its own validity. `field.validationEpoch` is
 the read-only counter behind the cancellation — `clearValidators()` increments it, a run captures it when it starts,
-and a result whose epoch no longer matches is discarded. The cancelled run still ends its own bookkeeping, so
-`validating` returns to `false` when its promise settles.
+and a result whose epoch no longer matches is discarded. The signal the cancelled run was handed aborts with it,
+so a check that honours it stops there, and the run still ends its own bookkeeping: `validating` returns to `false`
+when its promise settles. Inside a transaction the epoch and the cancellation are both taken back by a rollback,
+and the run reaches the verdict the field is then owed.
+
+### Cancelling a run
+
+The fourth argument a validation function receives is an `AbortSignal`. It aborts the moment the verdict the run
+would reach stops counting:
+
+- a newer run of the same validator over the same field has started, so this one is superseded;
+- the field no longer carries this validator — `unregisterAction()` or `clearValidators()` took it off, and that
+  removal stands: inside a [transaction](/api/transactions) the cancellation waits for the commit, so a rollback
+  that puts the validator back leaves the run going and the verdict it reaches counts;
+- the transaction the run started in was rolled back, so the value it is examining is one the form never went on
+  to hold.
+
+Hand it to the work the function commissions and that work stops as soon as its answer is worth nothing:
+
+```typescript
+new Validators.Validator(async (newValue, oldValue, field, signal) => {
+  const response = await fetch(`/api/available?name=${newValue}`, { signal });
+  return (await response.json()).free ? null : [new ValidationErrorText('This name is taken')];
+});
+```
+
+A cancelled run reaches no verdict at all: neither errors it returns nor a rejection it ends with is applied, so a
+`fetch` rejecting with `AbortError` places nothing on the field and logs nothing. A validation function that
+ignores the signal runs to the end and its result is discarded when it arrives. Either way the run ends its own
+bookkeeping, so `validating` returns to `false` once its promise settles.
 
 ### `buildErrorMessage(markdown)`
 
@@ -153,17 +187,42 @@ Returns an `MdString` when [`useMarkdownInValidators`](/api/config) is enabled (
 
 All default messages below are the literal strings passed to `buildErrorMessage()`, so with the default configuration they end up as `MdString` and are rendered as markdown — see [`useMarkdownInValidators`](/api/config).
 
-### `new Validators.Required(message?)`
+`InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` take a type argument, which types a
+constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
+`new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure whatever
+the field holds.
 
-Fails when the value is empty (zero-length string, empty array, empty plain object, or `null`/`undefined`).
+### `new Validators.Required(message?, options?)`
+
+Fails when the value is empty (zero-length string, empty array, empty plain object, or `null`/`undefined`). A
+string is trimmed before it is measured, so a value of spaces alone is no value and the field is invalid. Only
+strings are trimmed; an array, an object or any other value is measured as it stands.
 
 ```typescript
 new Field({ value: '', validators: [new Validators.Required('This field is required')] })
+
+// where the spaces are part of what the field holds
+new Field({ value: ' ', validators: [new Validators.Required({ trim: false })] })
 ```
+
+Both arguments are optional, and the options may stand on their own in the first position:
+
+```typescript
+constructor(options?: RequiredOptions);
+constructor(message?: RenderContentRef, options?: RequiredOptions);
+
+interface RequiredOptions {
+  trim?: boolean;
+}
+```
+
+The first two arguments are told apart by shape: a string, an `MdString`, a function, a `Ref` and an object naming
+a component are messages, and any other object is the options. `RequiredOptions` is exported.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `message` | `RenderContentRef` | `'Please enter a value'` |
+| `options.trim` | `boolean` | `true` |
 
 ---
 
@@ -264,14 +323,27 @@ Fails when the value is not in `allowedValues`.
 
 ```typescript
 new Validators.InAllowedValues(['admin', 'user', 'guest'])
+
+// a list that is filled in after the validator is built
+const roles = ref<string[]>([]);
+new Validators.InAllowedValues(roles);
+
+// or one another field's value leaves open
+new Validators.InAllowedValues(() => rolesFor(department.value))
 ```
 
 | Parameter | Type | Default |
 |-----------|------|---------|
-| `allowedValues` | `T[]` | required |
+| `allowedValues` | `AllowedValues<T>` (`T[] \| Ref<T[]> \| (() => T[])`) | required |
 | `message` | `RenderContentRef` | `'Must be one of [**{allowedAsText}**]'` |
 
-`{allowedAsText}` is `allowedValues.join(', ')`, computed once in the constructor; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is available through `{allowedValues}`.
+`AllowedValues<T>` is exported. The list is read at each validation rather than at construction, so a reference or
+a callback answers with the list in force then, and that list is both the one the value is measured against and
+the one the message names. The read happens inside the validation run, which is no reactive effect, so a
+list that changes does not revalidate the fields on its own — call `field.validate(true)` where they are to be
+measured against the new list at once.
+
+`{allowedAsText}` is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is available through `{allowedValues}`.
 
 ---
 
@@ -325,14 +397,41 @@ verdict from this validator at all.
 
 ## Error types
 
+### Error codes
+
+Every error class takes a `code`: a kebab-case identifier of what failed, reachable as `error.code` and typed
+`string | undefined`. It is what a program matches on when it reacts to one particular failure, so that it does not
+have to match the message text, which is translated and configurable. An error built by hand carries whatever its
+author gives it, or nothing.
+
+```typescript
+const missing = field.errors.filter((error) => error.code === 'required');
+```
+
+The codes the library states:
+
+| Code | Raised by |
+|------|-----------|
+| `required` | `Required` |
+| `pattern` | `Pattern` |
+| `min` / `max` / `range` | `MinValue` / `MaxValue` / `ValueInRange` |
+| `min-length` / `max-length` / `range-length` | `MinLength` / `MaxLength` / `LengthInRange` |
+| `in-allowed-values` | `InAllowedValues` |
+| `compare-to` | `CompareTo` |
+| `validation-failed` | the `Validation could not be completed` error a rejected validation promise leaves |
+
 ### `ValidationError`
 
-Base class. It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
+```typescript
+new ValidationError(/* optional code */)
+```
+
+Base class. Its only constructor argument is the [code](#error-codes). It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
 
 ### `ValidationErrorText`
 
 ```typescript
-new ValidationErrorText('Something went wrong', /* optional CSS classes */)
+new ValidationErrorText('Something went wrong', /* optional CSS classes */, /* optional code */)
 ```
 
 Renders as plain text. Accessible via `.text` and `.classes`.
@@ -340,7 +439,7 @@ Renders as plain text. Accessible via `.text` and `.classes`.
 ### `ValidationErrorRenderContent`
 
 ```typescript
-new ValidationErrorRenderContent(message, /* optional CSS classes */)
+new ValidationErrorRenderContent(message, /* optional CSS classes */, /* optional code */)
 ```
 
 Accepts a `RenderContentRef`: a `string`, an `MdString` (markdown), a `SimpleComponentDef` object, a `Ref` to any of those, or a function `() => string | MdString | SimpleComponentDef` (useful for reactive or translated messages — the function is evaluated on every render). The same type is used for the `message` parameter of every built-in validator. The consuming UI component reads `componentName`, `componentBindings`, `componentBody` and `extraClasses` to render it.

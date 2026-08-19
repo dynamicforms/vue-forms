@@ -116,7 +116,8 @@ const username = new Field({ value: '', validators: [new Validators.Required()] 
 ```
 
 Validators run eagerly — the field above is already invalid right after creation, because it has no value. That is why
-the template checks `touched` before showing the errors.
+the template checks `touched` before showing the errors. `Required` trims a string before measuring it, so a value
+of spaces alone is no value; pass `new Validators.Required({ trim: false })` where the spaces belong to the field.
 
 ## Plugin Setup
 
@@ -129,7 +130,9 @@ app.use(forms, { useMarkdownInValidators: false });
 ```
 
 By default the built-in validators produce markdown messages, which `MessagesWidget` renders through a globally
-registered `vue-markdown` component. Set `useMarkdownInValidators` to `false` if you don't have one.
+registered `vue-markdown` component. Set `useMarkdownInValidators` to `false` if you don't have one. The same
+options are reachable without the plugin, through `getConfig()` and `setConfig()` — see
+[Configuration](/api/config).
 
 ## Versioning and support
 
@@ -153,5 +156,5 @@ how a `List` builds its rows. After that, the [Examples](/examples/basic-form) s
 context and the API reference names every member: [Field](/api/field), [Group](/api/group),
 [Validators](/api/validators) and [Configuration](/api/config).
 
-Upgrading an existing project? The [migration guide](/guide/migration) walks the whole journey from 0.6.1 to
-0.10.x, silent breaks first.
+Upgrading an existing project? The [migration guide](/guide/migration) walks the whole journey from 0.6.1 onwards,
+silent breaks first.

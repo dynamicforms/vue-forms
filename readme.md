@@ -22,19 +22,25 @@ mechanism applies at every level of a nested form.
 
 ## Features
 
-- **UI-agnostic**: Works with any Vue UI components or your custom ones
+- **UI-agnostic**: a logic layer for form state, validation and dynamic behaviour. Any Vue components render it,
+  your own included
+- **Transactional**: every mutating operation is atomic — events are announced once, over the net change, and a
+  handler that throws leaves the form exactly as it was. `transaction()` makes several writes one operation, and
+  `tx.rollback()` withdraws one without an error
+- **Lists that scale**: a `List` is meant to hold thousands of rows. Writing one field of one row costs that row
+  and the depth it sits at, a `push()` costs one row, and reading `value` or `valid` again costs nothing
+- **Declared once, bound per record**: the `Group` handed to `new List(template)` is the declaration every row is
+  built from. One validator instance and one conditional rule serve every row, and each row answers for itself
 - **Reactive**: every member of a field, group or list is a tracked read — assign a property directly, with no
   `ref` to unwrap and no computed mirror to keep in sync
-- **Nested structures**: Support for complex data with nested fields and groups
-- **Event system**: Rich event handling for field changes, validation, and more
-- **Transactional**: every mutating operation is atomic — events are announced once, over the net change, and a
-  handler that throws leaves the form exactly as it was
-- **TypeScript support**: Full type definitions for excellent developer experience
+- **Nested structures**: fields, groups and lists compose recursively, at every level
+- **Event system**: every change travels through an action pipeline; a handler may pass it on, reshape it or stop it
+- **Validation**: built-in validators, custom synchronous and asynchronous rules, cross-field comparisons, and
+  errors that carry a `code` and render as text, markdown or a component of your own
+- **Conditional logic**: visibility, enablement and values declared as statements over other fields
+- **Display modes**: control field visibility with different display modes (Full, Hidden, Invisible, Suppress)
+- **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds
 - **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one
-- **Field types**: Core field types (Field, Action, Group, List) to represent any data structure
-- **Validation**: Comprehensive validation system with built-in validators and extensible error handling
-- **Conditional logic**: Dynamic form behavior based on field values and conditions
-- **Display modes**: Control field visibility with different display modes (Full, Hidden, Invisible, Suppress)
 
 ## Installation
 
@@ -62,6 +68,10 @@ The import must be a named one — the default export is a namespace of the libr
 `useMarkdownInValidators` defaults to `true`, which means the default messages of the built-in validators are markdown
 (`MdString`). Rendering those requires a globally registered `vue-markdown` component; set the option to `false` if you
 want plain text instead.
+
+The configuration is module-global rather than per app, and `getConfig()`, `setConfig()` and the `FormsConfig` type
+are exported beside the plugin, so the options can be read and written where there is no app to install a plugin
+on.
 
 ## Basic Usage Example
 
@@ -211,13 +221,22 @@ const validatedForm = new Group({
 ```
 
 Validators run eagerly — a field is validated the moment it is created, so a form built from empty required fields is
-invalid immediately. Use `field.touched` to decide when to show the errors in the UI.
+invalid immediately. Use `field.touched` to decide when to show the errors in the UI. `Required` trims a string
+before it measures it, so a value of spaces alone is no value; `new Validators.Required({ trim: false })` keeps the
+spaces where they are part of what the field holds.
 
-A validation function may return a `Promise`. `field.validating` is `true` while such a run is pending, and the
-verdict applied to the field is always the one belonging to the newest run, so a slow check cannot overwrite a faster
-one started after it. A validator message given as a `Ref` or `computed` is resolved when the message is rendered, so
-a translated message follows a locale switch without revalidating. `field.clearValidators()` drops the validators,
-empties the errors and cancels whatever validation is still in flight.
+Every error a built-in validator produces carries a `code` — `required`, `pattern`, `min-length`, … — so a program
+reacting to one particular failure need not match message text that is translated and configurable.
+
+A validation function may return a `Promise`. `field.validating` is `true` while such a run is pending — on the
+field and on every container above it, so a form answers for the whole tree — and the verdict applied to the field
+is always the one belonging to the newest run, so a slow check cannot overwrite a faster one started after it. The
+function receives an `AbortSignal` as its fourth argument, which aborts the moment the run's verdict stops
+counting, so the request behind it can be called off. `form.busy` is the same question with the `Action.execute()`
+runs below it included — what a submit button binds to. A validator message given as a `Ref` or `computed` is
+resolved when the message is rendered, so a translated message follows a locale switch without revalidating.
+`field.clearValidators()` drops the validators, empties the errors and cancels whatever validation is still in
+flight.
 
 ## Messages Widget Component
 
@@ -326,7 +345,8 @@ const contactsList = new List(contactTemplate);
 contactsList.push({ name: 'John Doe', email: 'john@example.com', phone: '123-456-7890' });
 contactsList.push({ name: 'Jane Doe', email: 'jane@example.com', phone: '987-654-3210' });
 
-// Access list items: get() returns undefined for an invalid index
+// Access list items: items hands out the rows, get() answers undefined for an invalid index
+console.log(contactsList.length);            // 2
 const firstContact = contactsList.get(0)!;
 console.log(firstContact.fields.name.value); // 'John Doe'
 
@@ -337,8 +357,9 @@ firstContact.fields.email.value = 'john.doe@example.com';
 contactsList.remove(1);
 ```
 
-Every list mutation is tracked, so a `v-for` over `contactsList.value` re-renders on `push()`, `insert()`,
-`remove()`, `pop()` and `clear()` without any extra wiring.
+Every list mutation is tracked, so a `v-for` over `contactsList.items` re-renders on `push()`, `insert()`,
+`remove()`, `pop()` and `clear()` without any extra wiring. `items` hands out a frozen array of the live rows,
+rebuilt once per change of the set.
 
 ## TypeScript Support
 
@@ -388,10 +409,11 @@ const email: string = userForm.fields.email.value;
 const age: number = userForm.fields.age.value;
 const darkMode: boolean = userForm.fields.preferences.fields.darkMode.value;
 
-// The serialized value is typed too, member by member
+// The serialized value is typed too, member by member. Every member is optional, because a disabled field is
+// left out of the object the group builds
 const values = userForm.value!;
-const emailFromValue: string = values.email;
-const prefs: { darkMode: boolean; notifications: boolean } | null = values.preferences;
+const emailFromValue: string | undefined = values.email;
+const prefs: { darkMode?: boolean; notifications?: boolean } | null | undefined = values.preferences;
 
 // Type safety prevents errors
 // userForm.fields.age.value = 'not a number'; // Error: Type 'string' is not assignable to type 'number'
@@ -443,8 +465,8 @@ For more detailed documentation and examples, check out the [documentation](http
 declarations, transactions, where validity comes from and how a `List` builds its rows.
 
 Upgrading an existing project? The
-[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration) walks the journey from 0.6.1 to
-0.10.x, silent breaks first, and keeps a section per release for a project crossing one.
+[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration) walks the journey from 0.6.1
+onwards, silent breaks first, and keeps a section per release for a project crossing one.
 
 ## Conclusion
 

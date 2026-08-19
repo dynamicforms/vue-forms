@@ -5,6 +5,106 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.13.0] - 2026-08-19
+
+### Added
+- `settled()` on every element answers with a promise that resolves once nothing at or below it is running - no
+  asynchronous validation, no `Action.execute()` yet to settle. It resolves at once where nothing is running, so a
+  submit path awaits it instead of reading `validating` and `busy` and reading them again. It answers for the
+  moment it resolves and states nothing about the one after: work started later leaves the element running again.
+
+### Changed
+- **Breaking:** `Group.fullValue` is typed `FieldsToFullValues<T>` and `List.fullValue` is `FieldsToFullValues<T>[]`,
+  where both answered `Record<string, any>` or the list's own `value` before. `fullValue` states what an element
+  holds where `value` states what it serializes, so every key is present and none is null - reading through a
+  nested group needs no `?.`. `List` gains an override of its own: it maps its rows through their `fullValue`
+  rather than answering with `value`, so a field disabled inside a row is in it, and an empty list reads back as
+  `[]` rather than as null.
+- **Breaking:** `busy` states an execution and nothing else. It is `true` while an `Action.execute()` at or below
+  the element has yet to settle; an element that is not an action executes nothing and answers `false`. An
+  asynchronous validation is what `validating` answers for, on the element and on everything below it. The two
+  questions are separate, so a form that gates on an idle tree reads both or awaits `settled()`.
+- **Breaking:** `Required` trims a string before it measures it, so a value of spaces alone is no value and the
+  field is invalid. Where the spaces are part of what the field holds, `trim` turns it off. The constructor takes
+  the options beside the message or on their own:
+
+  ```typescript
+  new Validators.Required();                                  // whitespace-only fails
+  new Validators.Required({ trim: false });                   // whitespace-only passes
+  new Validators.Required('Please enter a name');             // message, trimming still on
+  new Validators.Required('Please enter a name', { trim: false });
+  ```
+
+  `RequiredOptions` is exported. Only strings are trimmed; an array, an object or any other value is measured as
+  it stands. The two first arguments are told apart by shape, so an object naming a component is still a message.
+- **Breaking:** the `Statement` constructor refuses an operand it cannot compare. An operand that is `undefined` —
+  what `group.fields.typoName` answers with — or a function — a field accessor handed over uncalled — throws a
+  `TypeError` naming the position it was written at. Everything else stands: a field, a nested statement, `null`,
+  `NaN`, `0`, `''`, an array, an object with `includes`. `Operator.NOT` never reads its second operand, so that
+  operand is not checked under it. A name the group does not hold reaches `Statement` as `undefined` only through
+  `group.fields`; `group.field('typoName')` answers `null`, which is a value a statement may legitimately compare
+  against.
+- **Breaking:** `validating` answers for the whole subtree: a group or a list reports true while an asynchronous
+  validation is in flight anywhere below it, where it used to answer for its own runs alone. A form asks one
+  element what the tree is doing. The answer is a pair of counters rather than a walk, so the read costs nothing
+  and a run that starts or settles costs the nesting depth.
+- **Breaking:** `busy` is a member of every element, so a parameter of that name is no longer an extended property:
+  `new Field({ busy: true })` throws a `TypeError` the way `valid` and `validating` already did. `length` and
+  `items` are members of `List` for the same reason, so `new List(tpl, { length: 3 })` and `new List(tpl, { items:
+  [] })` throw as well. A presentation layer that carried any of the three as a property of its own states it under
+  another name.
+- **Breaking:** `GroupValue<T>` is `Partial<FieldsToValues<T>> | null`. A group leaves a disabled member out of the
+  value it builds, so every member reads as possibly `undefined` — which is what the runtime always handed out.
+- **Breaking:** the five validators that never read their type parameter no longer take one: `Required`, `Pattern`,
+  `MinLength`, `MaxLength` and `LengthInRange`. `new Validators.Required<string>()` becomes
+  `new Validators.Required()`. `InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` keep
+  theirs, where it types an argument or a callback.
+- `InAllowedValues` takes `AllowedValues<T>` — an array, a `Ref<T[]>` or a `() => T[]` — and reads the list at each
+  validation instead of at construction. A list that arrives from a server after the validator is built, or one
+  another field's value leaves open, is the list the value is measured against and the one `{allowedAsText}` and
+  `{allowedValues}` name.
+- `group.fields` hands out a guarded view of the member map. Reading it reaches the members themselves; assigning,
+  deleting and now also `Object.defineProperty` throw a `TypeError` naming `addField()` or `removeField()` as the
+  way to change the set.
+- `list.value` accepts `ListValue`, so `list.value = null` — the write that clears a list, and the one
+  `group.value = null` makes into every member — type-checks.
+
+### Added
+- `ValidationError.code` names what failed, so a program reacting to a particular failure does not have to match
+  message text that is translated and configurable. The built-in validators state theirs: `required`, `pattern`,
+  `min`, `max`, `range`, `min-length`, `max-length`, `range-length`, `in-allowed-values`, `compare-to`, and
+  `validation-failed` on the error the library raises when a validation promise rejects. `ValidationErrorText` and
+  `ValidationErrorRenderContent` take it as a third constructor argument; an error built by hand carries whatever
+  its author gives it, or nothing.
+- A `ValidationFunction` receives a fourth argument, `signal: AbortSignal`, and hands it to the work it
+  commissions. It aborts the moment the verdict the run would reach stops counting: a newer run over the same
+  field, a field the validator was taken off with `unregisterAction()` or `clearValidators()`, or a transaction
+  that was unwound. A cancelled run reaches no verdict at all, so a check that rejects on abort says nothing and
+  reports nothing. The cancellation an unregistration brings waits for the commit, so a transaction that rolls
+  back puts the validator, its epoch and the run in flight all back, and the field ends up carrying the verdict
+  that run reaches rather than reporting itself valid over a value nothing checked. A function with nothing to
+  cancel ignores the argument.
+- `busy` on every element: true while anything at or below it is still running — an asynchronous validation, or an
+  `Action.execute()` below it that has yet to settle. On an `Action` it answers for that action's own `execute()`
+  runs, and an asynchronous validation of the action itself is reported by `validating` alone. It is what a form
+  asks to disable a submit button while the tree is still deciding.
+- `Group.addField(name, field)` and `Group.removeField(name)` change the member set after construction. Both are
+  transactional and announce the value once the transaction closes; the group's verdict re-forms over the members
+  it holds, and a rule of the added field that names another member of the form reaches it. `addField` throws
+  `Error` where the group already holds that name and `TypeError` where the field belongs to another container —
+  pass a `bind()` of it. `removeField` hands the field back, detached and free to be taken elsewhere, and answers
+  `undefined` for a name the group does not hold. Neither rewrites the baseline behind `isChanged`.
+- `List.length` and `List.items`. `length` is the number of rows. `items` is a frozen array of the live rows, built
+  once per change of the set: a write inside a row leaves the array a reader took as it is, and so does an
+  assignment to `value` that every row survives, while a `push`, `insert`, `remove` or `clear` replaces it.
+- `getConfig()`, `setConfig()` and the `FormsConfig` type are exported from the package entry point beside the
+  plugin, so the global options can be read and written without the plugin.
+
+### Fixed
+- `CompareTo` withdraws the errors it placed on a field when it is taken off that field. `unregisterAction()` on a
+  `CompareTo` dropped the registration and left the error standing, so the field stayed invalid on an error no
+  validator was left to take back.
+
 ## [0.12.1] - 2026-08-19
 
 ### Changed

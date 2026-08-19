@@ -11,7 +11,7 @@ export interface IFieldConstructorActionsList {
 /**
  * Parameters accepted by field constructors and by bind overrides.
  *
- * Only writable members are listed. valid, validating, fullValue and isChanged are getter-only, so assigning
+ * Only writable members are listed. valid, validating, busy, fullValue and isChanged are getter-only, so assigning
  * them throws a TypeError. So are parent and fieldName: a container writes the slots behind them when it takes
  * an element, and nobody else can, which is why the type rejects them.
  */

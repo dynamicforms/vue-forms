@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { nextTick, watchEffect } from 'vue';
 
 import {
   EnabledChangedAction,
@@ -13,7 +14,8 @@ import {
 import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
-import { List } from './list';
+import { List, type ListValue } from './list';
+import { transaction } from './transaction';
 import { Validators, ValidationErrorText } from './validators';
 
 describe('List', () => {
@@ -1179,5 +1181,140 @@ describe('List value object', () => {
       (value[0] as any).a = 99;
     }).toThrow();
     expect(list.value).toEqual([{ a: 1 }]);
+  });
+});
+
+describe('The rows a list hands out', () => {
+  it('counts them without building a value', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }));
+
+    expect(list.length).toBe(0);
+
+    list.push({ a: 1 });
+    list.push({ a: 2 });
+    expect(list.length).toBe(2);
+
+    list.remove(0);
+    expect(list.length).toBe(1);
+
+    list.clear();
+    expect(list.length).toBe(0);
+  });
+
+  it('hands out the rows themselves, in a frozen array', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }, { a: 2 }] });
+    const items = list.items;
+
+    expect(items.length).toBe(2);
+    expect(items[0]).toBe(list.get(0));
+    expect(Object.isFrozen(items)).toBe(true);
+    expect(() => {
+      (items as any[]).push(list.get(0));
+    }).toThrow();
+  });
+
+  it('keeps the array it handed out across a write inside a row, and replaces it as rows come and go', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
+    const items = list.items;
+
+    list.get(0)!.fields.a.value = 5;
+    expect(list.items).toBe(items);
+    expect(list.items[0].value).toEqual({ a: 5 });
+
+    list.push({ a: 2 });
+    expect(list.items).not.toBe(items);
+    expect(list.items.length).toBe(2);
+    // the array a caller took stands as the set the list held at the read
+    expect(items.length).toBe(1);
+  });
+
+  it('re-renders a reader as rows come and go', async () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
+    const seen: number[] = [];
+    watchEffect(() => seen.push(list.items.length + list.length));
+
+    list.push({ a: 2 });
+    await nextTick();
+    list.get(1)!.fields.a.value = 9;
+    await nextTick();
+    list.clear();
+    await nextTick();
+
+    expect(seen).toEqual([2, 4, 0]);
+  });
+
+  it('keeps the array it handed out across an assignment every row survives', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }, { a: 2 }] });
+    const items = list.items;
+    const first = list.get(0);
+
+    list.value = [{ a: 9 }, { a: 10 }];
+
+    // the rows are reset rather than rebuilt, so the set is the one the reader took
+    expect(list.get(0)).toBe(first);
+    expect(list.items).toBe(items);
+    expect(list.value).toEqual([{ a: 9 }, { a: 10 }]);
+
+    list.value = [{ a: 11 }];
+    expect(list.items).not.toBe(items);
+  });
+
+  it('keeps the array it handed out across a write that leaves the rows untouched', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
+    const items = list.items;
+
+    // neither an array nor null: the rows stand, and so does the array they were handed out in
+    (list as any).value = 'not an array';
+    expect(list.items).toBe(items);
+
+    const empty = new List(new Group({ a: new Field({ value: 0 }) }));
+    const none = empty.items;
+    empty.clear();
+    expect(empty.items).toBe(none);
+  });
+
+  it('puts the set back when the transaction it changed in is rolled back', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
+    const items = list.items;
+
+    transaction((tx) => {
+      list.push({ a: 2 });
+      expect(list.length).toBe(2);
+      tx.rollback();
+    });
+
+    expect(list.length).toBe(1);
+    expect(list.items).toEqual(items);
+  });
+});
+
+describe('List value assignment types', () => {
+  it('takes null through the same setter its getter reads back', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
+
+    const roundTrip: ListValue = list.value;
+    expect(roundTrip).toEqual([{ a: 1 }]);
+
+    list.value = null;
+
+    expect(list.value).toBeNull();
+    expect(list.length).toBe(0);
+  });
+});
+
+describe('List.fullValue', () => {
+  it('carries the fields value leaves out, and reads an empty list as an array', () => {
+    const template = new Group({ a: new Field({ value: '' }), b: new Field({ value: '' }) });
+    const list = new List(template);
+
+    expect(list.fullValue).toEqual([]);
+    expect(list.value).toBeNull();
+
+    list.push({ a: 'Ada', b: 'Lovelace' });
+    list.get(0)!.fields.b.enabled = false;
+
+    // value serializes, so the disabled field is out of it; fullValue states what the row holds
+    expect(list.value).toEqual([{ a: 'Ada' }]);
+    expect(list.fullValue).toEqual([{ a: 'Ada', b: 'Lovelace' }]);
   });
 });

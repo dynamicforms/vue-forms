@@ -4,7 +4,7 @@ import { isRef, unref } from 'vue';
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
-import { currentTransaction, transaction } from '../transaction';
+import { currentTransaction, transaction, transactional } from '../transaction';
 
 import { buildErrorMessage } from './error-message-builder';
 import {
@@ -18,10 +18,17 @@ import {
 } from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
+/**
+ * What a validator does with a value. `signal` aborts when the verdict this call would reach stops counting - a
+ * newer run over the same field, a field the validator was taken off once that removal stands, a transaction that
+ * was unwound - so an asynchronous check hands it to the work it commissions and stops paying for an answer nobody
+ * will read. A function that has nothing to cancel ignores it.
+ */
 export type ValidationFunction<T = any> = (
   newValue: T,
   oldValue: T,
   field: FieldBase<T>,
+  signal: AbortSignal,
 ) => ValidationFunctionResult | Promise<ValidationFunctionResult>;
 
 interface SourceProp {
@@ -31,6 +38,8 @@ interface SourceProp {
 /** What a validator remembers about one field it is registered on; a subclass widens it. */
 export interface ValidatorBindingState {
   run: number;
+  /** cancels the asynchronous run in flight over the field, absent while no run is waiting for its verdict */
+  abandon?: () => void;
 }
 
 const ValidatorClassIdentifier = Symbol('Validator');
@@ -55,16 +64,34 @@ export class Validator<T = any> extends ValueChangedAction {
   constructor(validationFn: ValidationFunction<T>) {
     const executor = (field: FieldBase<T>, supr: FieldActionExecute<T>, newValue: T, oldValue: T) => {
       const runs = this.bindingState(field);
+      // the run still waiting for its verdict over this field, which this one takes the place of
+      const superseded = runs.abandon;
       const run = ++runs.run;
       const epoch = field.validationEpoch;
       // the transaction this run started in, so that a run reaching its verdict after that transaction was
       // unwound says nothing: the value it examined is one the form never went on to hold
       const startedIn = currentTransaction();
       // a result counts only while nothing newer has been decided for this field, the field still holds the
-      // validators it held when the run started, and the change that prompted it still stands
-      const isCurrent = () => runs.run === run && field.validationEpoch === epoch && !startedIn?.rolledBack;
+      // validators it held when the run started, the change that prompted it still stands, and the run was not
+      // cancelled. Cancellation is the one condition that does not read the field: the work behind the run is
+      // already called off, so whatever the run says afterwards is an answer about work that was stopped
+      let abandoned = false;
+      const isCurrent = () =>
+        !abandoned && runs.run === run && field.validationEpoch === epoch && !startedIn?.rolledBack;
 
-      const errors = validationFn(newValue, oldValue, field) || [];
+      // work a validation function commissions is cancelled at the moment its verdict stops counting, which is the
+      // moment isCurrent turns false; a run whose verdict still counts is left alone
+      const controller = new AbortController();
+      const abandon = () => {
+        if (isCurrent()) return;
+        abandoned = true;
+        if (runs.abandon === abandon) runs.abandon = undefined;
+        controller.abort();
+      };
+      // this run holds the newest number now, so the one it replaces is no longer current and its signal aborts
+      superseded?.();
+
+      const errors = validationFn(newValue, oldValue, field, controller.signal) || [];
 
       // the swap of this validator's errors and the verdict that follows from it are one change: a run that
       // settles after the operation that started it opens a transaction of its own here, and one that settles
@@ -86,6 +113,10 @@ export class Validator<T = any> extends ValueChangedAction {
         });
 
       if (errors instanceof Promise) {
+        // a run that has not reached its verdict is the only one there is anything left to cancel, and an unwound
+        // transaction takes back the very change this run is examining
+        runs.abandon = abandon;
+        startedIn?.whenRolledBack(abandon);
         field.beginValidating();
         errors
           .then(
@@ -99,12 +130,15 @@ export class Validator<T = any> extends ValueChangedAction {
               // successful run of the same validator withdraws it like any other error of its own. The reason never
               // reaches the user, whose message says only that the check did not complete, so it is logged.
               if (isCurrent()) {
-                processErrors([new ValidationErrorRenderContent(validationFailedMessage())]);
+                processErrors([new ValidationErrorRenderContent(validationFailedMessage(), '', 'validation-failed')]);
                 console.error('Validation failed', reason);
               }
             },
           )
-          .finally(() => field.endValidating())
+          .finally(() => {
+            if (runs.abandon === abandon) runs.abandon = undefined;
+            field.endValidating();
+          })
           // applying a verdict fires ValidChangedAction, so a handler that throws would leave this chain
           // rejected with nowhere to report it
           .catch((error) => console.error('Validation failed', error));
@@ -150,14 +184,29 @@ export class Validator<T = any> extends ValueChangedAction {
    * Takes this validator off `field`: the errors it put there are withdrawn and the verdict is re-formed over what
    * the validators the field still holds have to say. Withdrawing them is what keeps a field from staying invalid
    * on an error no validator is left to take back.
+   *
+   * A run in flight over the field is cancelled once the removal stands, and not before: a transaction that
+   * unwinds puts the validator and its epoch back, and the run it never cancelled goes on to reach the verdict the
+   * field is then owed. Cancelling it as the removal is made would leave the field reporting itself valid over a
+   * value nothing checked, on the strength of a transaction that never happened.
    */
   unregisterFrom(field: FieldBase) {
-    transaction(() => {
+    transactional((tx) => {
+      tx.whenCommitted(() => this.abandonRun(field));
       for (let i = field.errors.length - 1; i >= 0; i--) {
         if ((field.errors[i] as ValidationError & SourceProp).source === this.source) field.errors.splice(i, 1);
       }
       field.validate();
     });
+  }
+
+  /**
+   * Cancels the asynchronous run in flight over `field`, where there is one. It is called once the field has
+   * stopped holding this validator: the field's validation epoch has moved on by then, so the run's verdict is
+   * already dropped and the signal it handed its check aborts with it.
+   */
+  protected abandonRun(field: FieldBase): void {
+    this.bindingState(field).abandon?.();
   }
 
   /**
