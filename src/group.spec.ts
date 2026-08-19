@@ -957,3 +957,30 @@ describe('Group membership after construction', () => {
     await running;
   });
 });
+
+describe('bind() and the class it builds', () => {
+  it('binds a subclass into its own type', () => {
+    class Address extends Group<{ city: Field<string> }> {}
+    const declaration = new Address({ city: new Field({ value: 'Ljubljana' }) });
+
+    const bound = declaration.bind({ city: 'Maribor' });
+
+    expect(bound).toBeInstanceOf(Address);
+    expect(bound.value).toEqual({ city: 'Maribor' });
+    expect(bound.declaration).toBe(declaration);
+  });
+
+  it('refuses to answer with a binding a subclass built from its own members', () => {
+    class Fixed extends Group<{ city: Field<string> }> {
+      constructor() {
+        // the members are the subclass's own, so the ones bind() hands over are never seen
+        super({ city: new Field({ value: 'declared' }) });
+      }
+    }
+    const declaration = new Fixed();
+
+    expect(() => declaration.bind({ city: 'Maribor' })).toThrow(
+      /did not take the members it was given|has to override bind/,
+    );
+  });
+});

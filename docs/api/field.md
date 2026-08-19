@@ -145,13 +145,19 @@ of a union rather than the union, and `new Field({ value: stringOrNumber })` wou
 
 ### `IBindParams<T, X>`
 
-The exported type of the second argument of `bind()`: the same members, minus `value`, which the first argument
-states.
+The exported type of the second argument of `bind()`: the three members a binding takes over from the element it
+was bound from, plus the extended properties.
 
 ```typescript
-type IBindParams<T = any, X extends object = {}> = Partial<Omit<IFieldConstructorParams<T>, 'value'>> &
+type IBindParams<T = any, X extends object = {}> = Partial<
+  Pick<IFieldConstructorParams<T>, 'originalValue' | 'enabled' | 'visibility'>
+> &
   Partial<NoInfer<X>>;
 ```
+
+`value` is what the first argument states. What else a constructor takes is left out because a binding cannot
+honour it: `validators` and `actions` are carried from the declaration rather than supplied, and `touched` and
+`errors` are what the binding establishes for itself as it validates. Naming any of them is a compile error.
 
 ## Properties
 
@@ -331,10 +337,10 @@ how a declared field is put to work over a record, and the field it is called on
 `declaration` with.
 
 `data` of `undefined` is no data supplied and the new field carries the current value; an explicit `null` is data
-and clears, so `bind(null)` gives a field holding `null`. `overrides` is an `IBindParams<T, X>`; of the members it
-takes, only `originalValue`, `enabled` and `visibility` are read — the rest, `validators` and `actions` included,
-are ignored and none of them reaches the new field's extended properties. Extended properties it names are written
-over the ones carried over from the field bound, and they are in place before the new field's eager actions run.
+and clears, so `bind(null)` gives a field holding `null`. `overrides` is an [`IBindParams<T, X>`](#ibindparams-t-x):
+`originalValue`, `enabled`, `visibility` and the extended properties, and nothing else — anything a binding could
+not honour is refused by the type rather than accepted and dropped. Extended properties it names are written over
+the ones carried over from the field bound, and they are in place before the new field's eager actions run.
 `originalValue` is read by key presence.
 
 The new field is constructed through `this.constructor`, so a subclass of `Field` binds into its own class. It is

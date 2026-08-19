@@ -39,12 +39,14 @@ export type IFieldConstructorParams<T = any> = {
 export type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
 
 /**
- * What bind() accepts beside the data it binds: everything a constructor takes except the value, which the data
- * argument states. Of the members named here, bind() reads `originalValue`, `enabled` and `visibility`;
- * `validators` and `actions` state what to register and are carried by the binding from its declaration, and the
- * rest are the element's to establish.
+ * What bind() accepts beside the data it binds: the three members a binding takes over from the element it was
+ * bound from, and the extended properties. What is left out is left out because a binding cannot honour it -
+ * `validators` and `actions` are carried from the declaration rather than supplied, and `touched` and `errors`
+ * are what the binding establishes for itself as it validates.
  */
-export type IBindParams<T = any, X extends object = {}> = Partial<Omit<IFieldConstructorParams<T>, 'value'>> &
+export type IBindParams<T = any, X extends object = {}> = Partial<
+  Pick<IFieldConstructorParams<T>, 'originalValue' | 'enabled' | 'visibility'>
+> &
   Partial<NoInfer<X>>;
 
 export class AbortEventHandlingException extends Error {}

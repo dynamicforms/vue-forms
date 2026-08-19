@@ -1318,3 +1318,28 @@ describe('List.fullValue', () => {
     expect(list.fullValue).toEqual([{ a: 'Ada', b: 'Lovelace' }]);
   });
 });
+
+describe('List.bind() and the class it builds', () => {
+  it('binds a subclass into its own type', () => {
+    class Rows extends List<{ a: Field<string> }> {}
+    const declaration = new Rows(new Group({ a: new Field({ value: '' }) }));
+
+    const bound = declaration.bind([{ a: 'Ada' }]);
+
+    expect(bound).toBeInstanceOf(Rows);
+    expect(bound.value).toEqual([{ a: 'Ada' }]);
+  });
+
+  it('refuses to answer with a binding a subclass built from its own template', () => {
+    class Fixed extends List<{ a: Field<string> }> {
+      constructor() {
+        super(new Group({ a: new Field({ value: 'declared' }) }));
+      }
+    }
+    const declaration = new Fixed();
+
+    expect(() => declaration.bind([{ a: 'Ada' }])).toThrow(
+      /did not take the item template it was given|has to override bind/,
+    );
+  });
+});

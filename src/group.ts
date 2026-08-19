@@ -420,18 +420,40 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
     });
   }
 
+  /**
+   * States that `res` was built from the members handed to it. A subclass whose constructor takes something other
+   * than `(fields, params)` - one that composes its own members and passes them to super - never sees them, and
+   * would answer with a binding carrying the declaration's data instead of the record's. That is a difference no
+   * reader would find, so it is refused here rather than returned.
+   */
+  private static assertTookFields(res: Group<any, any>, fields: object, name: string): void {
+    // the members are compared by identity rather than by name: a subclass that composes its own set arrives at
+    // the same names, and it is the instances carrying the record's data that have to be the ones it took on
+    const asked = Object.entries(fields) as [string, FieldBase][];
+    const got = res.raw.fieldNames;
+    if (asked.length === got.length && asked.every(([key, field]) => res._fields[key] === field)) return;
+    throw new TypeError(
+      `${name}.bind() built an element that did not take the members it was given, so the binding would carry ` +
+        `the declaration's data. A subclass whose constructor does not take (fields, params) has to override ` +
+        'bind() and construct itself.',
+    );
+  }
+
   bind(data?: GroupValueInput<T>, overrides?: IBindParams<GroupValueInput<T>, X>): Group<T, X> {
     const newFields = Object.create(null) as T;
     Object.entries(this._fields).forEach(([name, field]) => {
       newFields[name as keyof T] = field.bind() as any;
     });
-    const res = new Group<T, X>(newFields, {
+    // construction goes through this.constructor so that a subclass binds into its own type
+    const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
+    const res = new Ctor(newFields, {
       // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
       value: data !== undefined ? data : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<GroupValueInput<T>, X>);
+    Group.assertTookFields(res, newFields, this.constructor.name);
     // the constructor primed announcedValue with the value the members ended up holding, and nothing has run since
     res.boundFrom(this, res.raw.announcedValue, res.originalValue, overrides);
     return res;
