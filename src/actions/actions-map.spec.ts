@@ -1,14 +1,16 @@
 // form-actions.spec.ts
 import { vi } from 'vitest';
 
+import DisplayMode from '../display-mode';
 import { Field } from '../field';
+import { AbortEventHandlingException } from '../field.interface';
 import { Group } from '../group';
 import { transaction } from '../transaction';
 import { Validators } from '../validators';
 
 import FieldActionBase from './field-action-base';
 
-import { ValueChangedAction, VisibilityChangedAction } from '.';
+import { ExecuteAction, ValueChangedAction, VisibilityChangedAction, VisibilityChangingAction } from '.';
 
 describe('Form actions', () => {
   it('correctly executes action chain', () => {
@@ -262,5 +264,97 @@ describe('Eager actions', () => {
     field.validate(true);
 
     expect(calls).toEqual(['eager']);
+  });
+});
+
+describe('AbortEventHandlingException', () => {
+  it('ends the run and leaves the handlers below it unreached', () => {
+    const calls: string[] = [];
+    const inner = new ValueChangedAction((field, supr, ...params) => {
+      calls.push('inner');
+      return supr(field, ...params);
+    });
+    const outer = new ValueChangedAction(() => {
+      calls.push('outer');
+      throw new AbortEventHandlingException();
+    });
+
+    const field = new Field({ value: 'initial' }).registerAction(inner).registerAction(outer);
+    field.value = 'new value';
+
+    expect(calls).toEqual(['outer']);
+  });
+
+  it('does not escape the setter, and the value it announced still stands', () => {
+    const field = new Field({ value: 'initial' }).registerAction(
+      new ValueChangedAction(() => {
+        throw new AbortEventHandlingException();
+      }),
+    );
+
+    expect(() => {
+      field.value = 'new value';
+    }).not.toThrow();
+    // the value is written before it is announced, so aborting the announcement does not take the write back
+    expect(field.value).toBe('new value');
+  });
+
+  it('answers null from triggerAction for the run it ended', () => {
+    const field = new Field({ value: 1 }).registerAction(
+      new ExecuteAction(() => {
+        throw new AbortEventHandlingException();
+      }),
+    );
+
+    expect(field.triggerAction(ExecuteAction)).toBeNull();
+  });
+
+  it('ends only the run it was thrown in', () => {
+    const seen: string[] = [];
+    const field = new Field({ value: 'initial' })
+      .registerAction(
+        new ValueChangedAction(() => {
+          seen.push('value');
+          throw new AbortEventHandlingException();
+        }),
+      )
+      .registerAction(
+        new VisibilityChangedAction((f, supr, ...params) => {
+          seen.push('visibility');
+          return supr(f, ...params);
+        }),
+      );
+
+    field.value = 'new value';
+    field.visibility = DisplayMode.HIDDEN;
+
+    expect(seen).toEqual(['value', 'visibility']);
+  });
+
+  it('lets every other exception through to the caller', () => {
+    const field = new Field({ value: 'initial' }).registerAction(
+      new ValueChangedAction(() => {
+        throw new Error('a handler failed');
+      }),
+    );
+
+    expect(() => {
+      field.value = 'new value';
+    }).toThrow('a handler failed');
+    // an ordinary throw unwinds the transaction the write opened, so the field is as it was
+    expect(field.value).toBe('initial');
+  });
+
+  it('does not veto a *Changing* event: the value it guards is still written', () => {
+    const field = new Field({ value: 1 });
+    field.registerAction(
+      new VisibilityChangingAction(() => {
+        throw new AbortEventHandlingException();
+      }),
+    );
+
+    field.visibility = DisplayMode.HIDDEN;
+
+    expect(field.visibility).toBe(DisplayMode.HIDDEN);
   });
 });

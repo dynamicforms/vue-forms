@@ -24,6 +24,10 @@ function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): A
 }
 
 export class Action<T extends ActionValue = ActionValue, X extends object = {}> extends Field<T, X> {
+  get [Symbol.toStringTag](): string {
+    return 'Action';
+  }
+
   protected init(params?: IFieldParams<T, X>) {
     transactional(() => {
       // an Action's value is always a shaped object, so the empty value is the pair of undefined members and not

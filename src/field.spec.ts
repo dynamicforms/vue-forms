@@ -293,14 +293,4 @@ describe('Field construction', () => {
     expect(field.bind(null).value).toBeNull();
     expect(field.bind('b').value).toBe('b');
   });
-
-  it('warns when EmptyField is written to', () => {
-    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    try {
-      Form.EmptyField.value = 'anything';
-      expect(warn).toHaveBeenCalled();
-    } finally {
-      warn.mockRestore();
-    }
-  });
 });

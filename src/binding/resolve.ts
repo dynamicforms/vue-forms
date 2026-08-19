@@ -22,6 +22,20 @@ export function scopeOf(element: FieldBase): FieldBase {
   return current;
 }
 
+/**
+ * The member of `record` that was declared as `declaration`, and `undefined` where the record holds none. The path
+ * of names is what locates it: the record is walked down the same names that lead from the declaration's own record
+ * to the declaration itself.
+ */
+function memberOf(record: FieldBase, declaration: FieldBase): FieldBase | undefined {
+  let resolved: FieldBase | undefined = record;
+  for (const name of pathOf(declaration)) {
+    resolved = (resolved as Group).field?.(name) ?? undefined;
+    if (!resolved) return undefined;
+  }
+  return resolved?.declaration === declaration ? resolved : undefined;
+}
+
 /** The names leading from an element's record down to the element itself. */
 function pathOf(element: FieldBase): string[] {
   const path: string[] = [];
@@ -41,14 +55,21 @@ function pathOf(element: FieldBase): string[] {
  * which says that the question has to be asked again once it is.
  */
 export function resolveInScope(declaration: FieldBase, scope: FieldBase): FieldBase | undefined {
-  let resolved: FieldBase | undefined = scope;
-  for (const name of pathOf(declaration)) {
-    resolved = (resolved as Group).field?.(name) ?? undefined;
-    if (!resolved) break;
+  const withinRecord = memberOf(scope, declaration);
+  if (withinRecord) return withinRecord;
+
+  // the record holds no member declared as this element, so it belongs to a record further out. A list nested in a
+  // row makes that record one per row - an order's total, read by the lines of that order - so the containers are
+  // asked in turn before the element is taken for one every record reads alike
+  let enclosing = scope.parent;
+  while (enclosing) {
+    const bound = memberOf(scopeOf(enclosing), declaration);
+    if (bound) return bound;
+    enclosing = enclosing.parent;
   }
-  if (resolved?.declaration === declaration) return resolved;
-  // the record holds no member declared as this element. Either it belongs elsewhere and is read where it stands,
-  // or the record is one of the same family and is still being assembled
+
+  // nothing above holds a binding of it either. Either it is the one element every record reads - a form field
+  // above a list - or the record is one of the same family and is still being assembled
   return scopeOf(declaration) === scopeOf(scope.declaration) ? undefined : declaration;
 }
 

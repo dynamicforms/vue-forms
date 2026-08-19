@@ -81,6 +81,10 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
   GroupValue<T>,
   X
 > {
+  get [Symbol.toStringTag](): string {
+    return 'Group';
+  }
+
   protected get state(): GroupSlots<GroupValue<T>> {
     return super.state as GroupSlots<GroupValue<T>>;
   }
@@ -286,13 +290,10 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
     const val = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
       const fieldValue = field.value;
-      if (field.enabled) {
-        // readOnly fields do not serialize
-        val[name] = fieldValue;
-      } else if (field instanceof Group && !isEmpty(fieldValue)) {
-        // readOnly group only serializes if it is non-empty (some of its fields are not readOnly)
-        val[name] = fieldValue;
-      }
+      // a disabled field does not serialize, and a disabled container is the one exception: a Group or a List
+      // that is disabled is kept while what its own members compose is non-empty, because a member of it that is
+      // enabled holds a value the form still has to carry. Empty, it is left out like any other disabled field.
+      if (field.enabled || (this.childComposesValue(field) && !isEmpty(fieldValue))) val[name] = fieldValue;
     });
     // the object outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen: a caller writing into it would change what the group reports without any member holding that value

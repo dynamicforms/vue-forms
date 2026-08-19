@@ -51,7 +51,8 @@ const view = computed(() => field.value);
 
 **`isEqual` over two elements answers `true` for any two of the same class.** An element's state is held in
 private class fields, so `Object.keys`, `Object.getOwnPropertySymbols`, `JSON.stringify` and lodash `isEqual` reach
-none of it. Compare what the elements hold:
+none of it. From 0.15.0 the comparison throws rather than answering — see
+[Comparing two elements throws](#comparing-two-elements-throws). Compare what the elements hold:
 
 ```typescript
 // before
@@ -218,9 +219,170 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.15.0 (from v0.14.x)
+
+Every break here is announced by a throw or found by the type checker; nothing changes silently.
+
+### `EmptyField` is gone
+
+It was a singleton `Field` the package exported, shared by every caller, so writing to it in one place changed it
+everywhere. A missing element is `null`:
+
+```typescript
+// before
+const field = form.field(name) ?? EmptyField;
+
+// after
+const field = form.field(name);   // NullableField<T>, so null where the name names nothing
+if (field) field.value = x;
+```
+
+### Validators are reached through the namespace alone
+
+`Validator` and the types that go with it were exported from the package root as well as from `Validators`,
+while every concrete validator was in the namespace only. One spelling now:
+
+```typescript
+// before
+import { Validator, Validators } from '@dynamicforms/vue-forms';
+class Even extends Validator<number> { /* … */ }
+
+// after
+import { Validators } from '@dynamicforms/vue-forms';
+class Even extends Validators.Validator<number> { /* … */ }
+```
+
+`ValidationError`, `ValidationErrorText`, `ValidationErrorRenderContent`, `MdString` and `buildErrorMessage` are
+unchanged and stay at the root: they are what a field hands back rather than what validates it.
+
+### `DisplayMode` never falls back to `FULL`
+
+A mode nobody defined used to resolve to `DisplayMode.FULL` — through `DisplayMode.fromString()`, through
+`DisplayMode.fromAny()`, and through the `visibility` setter, which asked `isDefined()` and was told a misspelled
+name was fine. All three refuse it now:
+
+```typescript
+DisplayMode.fromString('hidden');  // DisplayMode.HIDDEN — names are accepted, case insensitive
+DisplayMode.fromString('hiden');   // Error: 'hiden' is not a DisplayMode constant
+DisplayMode.fromAny(999);          // Error: 999 is not a DisplayMode constant
+DisplayMode.fromAny(null);         // Error: null is not a DisplayMode constant
+
+field.visibility = 'HIDEN';        // Error: visibility must be a DisplayMode constant
+field.visibility = 999;            // Error: visibility must be a DisplayMode constant
+```
+
+Every error from `fromString()` and `fromAny()` reads `<value> is not a DisplayMode constant`; the setter keeps its
+own `visibility must be a DisplayMode constant` and leaves the property at the value it held.
+
+**Deserializing a payload is where this bites.** A response carrying `"visibility": "hiden"` — or a mode a newer
+backend knows and this version does not — rendered the field fully and said nothing. It throws now, at the parse,
+and the throw is not caught for you. Decide per call site what an unknown mode means:
+
+```typescript
+// keep going, and choose the default deliberately
+const mode = DisplayMode.isDefined(payload.visibility)
+  ? DisplayMode.fromAny(payload.visibility)
+  : DisplayMode.FULL;
+
+// or let it fail, and report the payload
+field.visibility = DisplayMode.fromAny(payload.visibility);
+```
+
+`DisplayMode.isDefined()` is the member that does not throw: it answers `false` for a number that is no constant,
+for a misspelled name, and for input of any other type, so it is what a parse asks before it commits.
+
+An element whose parameters name no visibility still starts at `DisplayMode.FULL`. That is unchanged; what is gone
+is anything resolving to it for input it could not read, so where you want it for bad input, write it yourself as
+above.
+
+### A disabled `List` is serialized where its rows compose something
+
+`Group.value` leaves a disabled member out, with one exception: a disabled container is kept while its own value
+is non-empty. That exception held for a nested `Group` and not for a nested `List`; it now holds for both.
+
+```typescript
+const rows = new List(template, { value: [{ a: 1 }], enabled: false });
+const form = new Group({ name: new Field({ value: 'x' }), rows });
+
+form.value;   // before: { name: 'x' }
+              // after:  { name: 'x', rows: [{ a: 1 }] }
+```
+
+A disabled list that holds no rows is still left out, and a disabled `Field` is left out whatever it holds. Where
+a payload must not carry the list, empty it — `rows.clear()` — or take the key out of the object you submit.
+
+### `List.value` refuses a value that is not an array
+
+Assigning anything but an array or `null` did nothing at all. It throws now:
+
+```typescript
+(list as any).value = 'not an array';   // TypeError: Invalid value provided: a list takes an array of rows, …
+list.value = null;                      // fine — empties the list, as does clear()
+```
+
+The setter is typed, so the throw reaches a JavaScript caller, one writing through `as any`, and a value that
+arrived from a server without being checked. `params.value` and `params.originalValue` are refused the same way.
+
+### `parent` is typed per class
+
+`FieldBase.parent` is `Group | List | undefined` - a row of a `List` gets the `List`, and the type says so now.
+`Field` narrows it to `Group | undefined`, and `Action` inherits that narrowing: a `List` holds rows and a row is
+a `Group`, so a field is never a `List`'s child.
+
+```typescript
+field.parent?.fields.other;   // unchanged: a field's container is a Group
+row.parent?.fields;           // now a compile error: a row's container is the List
+```
+
+The type checker finds every site. Where you hold the element as a `FieldBase` - the type an action executor and a
+`ValidationFunction` receive - narrow the container yourself:
+
+```typescript
+// before
+new Validators.Validator((newValue, oldValue, field) => field.parent?.fields.dateFrom …);
+
+// after
+new Validators.Validator((newValue, oldValue, field) => (field.parent as Group)?.fields.dateFrom …);
+```
+
+Naming the sibling and letting `CompareTo` resolve it - `new Validators.CompareTo('dateFrom', …)` - needs no
+narrowing at all.
+
+### Comparing two elements answers identity
+
+`isEqual(fieldA, fieldB)` answered `true` for any two elements of the same class: an element's state is in private
+class fields, so a structural comparison reached none of it. It answers `false` now unless the two are the same
+element:
+
+```typescript
+isEqual(rowA, rowB);              // false, where it was true
+isEqual(rowA, rowA);              // true
+isEqual(rowA.value, rowB.value);  // what to write to compare the data
+```
+
+`FieldBase` carries a `Symbol.toStringTag` accessor naming the element's class, which is the first thing a
+structural comparison reads and a tag it does not know ends it there. The same accessor changes what a string
+coercion produces: `` `${field}` `` and `String(field)` answer `[object Field]` where they answered
+`[object Object]`, and so does a validator message naming the `{field}` placeholder.
+
+### A `List` declared with `originalValue` alone holds those rows
+
+A `Field` and a `Group` given an `originalValue` and no `value` take the value from it. A `List` did not: it was
+built empty, read back `null` and reported itself changed against the value it was declared with.
+
+```typescript
+const list = new List(template, { originalValue: [{ a: 1 }] });
+
+list.length;      // before: 0     after: 1
+list.isChanged;   // before: true  after: false
+```
+
+An explicit `value: null` beside an `originalValue` still leaves the list empty — `null` is a value you mean.
+Code that relied on the empty list can pass `value: null` to keep it.
+
 ## Upgrading to v0.14.0 (from v0.13.x)
 
-Both breaks are found by the type checker or announced by a throw. Nothing changes silently.
+Every break here is found by the type checker or announced by a throw. Nothing changes silently.
 
 ### `bind()` refuses what it never honoured
 
@@ -262,6 +424,7 @@ Give such a subclass a `(fields, params)` constructor, or override `bind()` and 
 
 One break is silent and is the one to search for before you upgrade: `Required` trims. The rest throw or are found
 by the type checker.
+
 
 ### `Required` trims, so whitespace alone is no longer a value
 
@@ -605,7 +768,7 @@ reference to the template:
 
 ```typescript
 new Validators.CompareTo<string>('password', (mine, other) => mine === other, 'Passwords must match');
-new Validators.CompareTo<number>((field) => field.parent?.fields.dateFrom, (to, from) => to >= from, '…');
+new Validators.CompareTo<number>((field) => (field.parent as Group)?.fields.dateFrom, (to, from) => to >= from, '…');
 ```
 
 ### Custom actions: two renamed hooks
@@ -795,8 +958,9 @@ Two further consequences are visible only to code that inspects the object itsel
 and an element's whole state — `parent` and `fieldName` among it — is held in private class fields rather than in
 own properties. `Object.keys(field)`, `Object.getOwnPropertySymbols(field)`, `JSON.stringify(field)` and lodash
 `isEqual` reach none of it. Assigning `field.parent` yourself now throws a `TypeError` instead of being silently
-accepted; the container sets it. `isEqual` over two elements now answers `true` for any two instances of the same
-class, because it has nothing left to read — compare `a.value` with `b.value` instead.
+accepted; the container sets it. `isEqual` over two elements answers `true` for any two instances of the same
+class, because it has nothing left to read — compare `a.value` with `b.value` instead. From 0.15.0 that
+comparison throws rather than answering, and says so.
 
 ## Upgrading to v0.6.0 (from v0.5.x)
 

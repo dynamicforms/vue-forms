@@ -38,9 +38,9 @@ of that meaning something else.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `itemTemplate` | `Group<T>` | `undefined` | Template bound to each new item's data. If omitted, `Group.createFromFormData` is used for plain objects. |
-| `params.value` | `ListValue` (`Record<string, any>[] \| null`) | `null` | Initial array of item values |
-| `params.originalValue` | `ListValue` | same as `value` (`null` when empty) | Baseline for `isChanged` |
-| `params.enabled` | `boolean` | `true` | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value |
+| `params.value` | `ListValue` (`Record<string, any>[] \| null`) | `null` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
+| `params.originalValue` | `ListValue` | same as `value` (`null` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
+| `params.enabled` | `boolean` | `true` | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is |
 | `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
 | `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
 | `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
@@ -56,14 +56,14 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `ListValue` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items. Getter and setter share the type, so `list.value = null` — the write `group.value = null` makes into a nested list — type-checks, and it releases every row; `clear()` empties a list the same way. Any other non-array value leaves the rows untouched |
+| `value` | `ListValue` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items. Getter and setter share the type, so `list.value = null` — the write `group.value = null` makes into a nested list — type-checks, and it releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows standing: the setter is typed, so that write reaches it from JavaScript or through an `as any` |
 | `originalValue` | `ListValue` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the list itself and all items are valid |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the list itself or in any row. The list keeps a tally of the rows that answer `true`, so the read costs nothing however many rows it holds |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` in a row has yet to settle. A validation running in a row is answered by `validating`, not by this, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
-| `enabled` | `boolean` | yes | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value |
+| `enabled` | `boolean` | yes | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
 | `length` | `number` | no | The number of rows the list holds. Nothing is built to count them |

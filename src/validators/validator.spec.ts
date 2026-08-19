@@ -62,7 +62,8 @@ describe('Validator', () => {
     validator.execute(field, mockSupr, 'new', 'old');
 
     // Assert
-    expect(mockSupr).toHaveBeenCalledWith(field, 'new', 'old');
+    expect(mockSupr).toHaveBeenCalledWith(expect.anything(), 'new', 'old');
+    expect(mockSupr.mock.calls[0][0]).toBe(field);
   });
 
   it('replaces placeholders in error messages', () => {
@@ -123,6 +124,25 @@ describe('Validator', () => {
     expect(result).toBe('Name: John, Age: 30, Value: test');
   });
 
+  it('renders an element named as a placeholder by its class', () => {
+    class TestValidator extends Validator {
+      constructor() {
+        super(() => null);
+      }
+
+      public testReplacePlaceholders(text: string, replace: Record<string, any>): string {
+        return this.replacePlaceholders(text, replace) as string;
+      }
+    }
+
+    const validator = new TestValidator();
+    const field = new Field({ value: 'x' });
+
+    // every built-in validator hands the element it ran over in as {field}
+    expect(validator.testReplacePlaceholders('Value: {newValue}', { newValue: 'a', field })).toBe('Value: a');
+    // a message that names it reads the element's tag, which is its class rather than the bare object
+    expect(validator.testReplacePlaceholders('On {field}', { newValue: 'a', field })).toBe('On [object Field]');
+  });
   it('creates validator with field instance instead of mock', () => {
     // Create a field with a validator directly
     const validationFn: ValidationFunction = (newValue) =>

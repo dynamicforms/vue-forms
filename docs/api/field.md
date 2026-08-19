@@ -167,14 +167,14 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
 | `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value` |
-| `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization |
+| `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
 | `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
-| `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `bind()` of it. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
+| `parent` | `Group \| undefined` on a `Field` or an `Action`, `Group \| List \| undefined` on a `Group`, a `List` and `FieldBase` | no | Container the element belongs to, installed by that container and taken away again when the container releases the element — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses an element that still carries one, so hand on the released instance or a `bind()` of it. A `List` holds rows and a row is a `Group`, so a field's container is a `Group` wherever there is one and the sibling lookup `field.parent?.fields.other` is typed on a field; an element that can itself be a row answers with either container, and reaching for `fields` through it is a compile error. Where you hold the element as a `FieldBase` — the type every action executor and `ValidationFunction` receives — narrow it: `(field.parent as Group)?.fields.other`, or name the sibling and let [`CompareTo`](/api/validators#compareto) resolve it. The read is tracked, so a template rendering off `field.parent` follows the element from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
 | `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding — transitively, so a binding of a binding answers with the same element. Every row a `List` builds from an item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field`. On a `Group` and a `List` it states what the element holds rather than what it serializes — see [`Group`](/api/group#properties) and [`List`](/api/list#properties) |
@@ -382,10 +382,6 @@ const row = list.get(0)!;
 row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
 ```
 
-## `EmptyField`
-
-A singleton placeholder `Field` exported from the same module, used where a field reference is required but no real field exists. Writing to it logs a `console.warn`.
-
 ## `NullableField<T>`
 
 Type alias for `Field<T> | null`.
@@ -412,6 +408,14 @@ element reactive without a wrapper: reading `field.value` in a template or a `co
 slot, and assigning it re-renders whatever read it. The element itself is not a proxy, so `toRaw(field)` is
 `field` — and `watch(field, cb)` with a bare element as the source never fires. Watch what you read:
 `watch(() => field.value, cb)`.
+
+A structural comparison of two elements answers identity: `isEqual(fieldA, fieldB)` reads nothing either element
+holds — the state is in private class fields — so it would answer `true` for any two instances of the same class.
+`FieldBase` carries a `Symbol.toStringTag` accessor naming the element's class, which is the first thing such a
+comparison reads and a tag it does not know ends it there. Two elements are therefore equal only where they are
+the same element, and what they hold is compared as `isEqual(a.value, b.value)`. The accessor sits on the
+prototype, so an element carries nothing for it, and `Object.prototype.toString.call(field)` answers
+`[object Field]`.
 
 `instanceof FieldBase` is both the recommended type guard and the runtime check the library itself performs:
 `new Group({...})` rejects a member that is not a `FieldBase` with `Error('Invalid fields object provided')`.

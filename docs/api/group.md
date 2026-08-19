@@ -44,9 +44,9 @@ Field names are ordinary keys of the `fields` map, so names that collide with `O
 
 `fields` hands out a guarded view of the member map, so the set of members cannot be rewritten from outside: `group.fields.name = otherField`, `Object.defineProperty(group.fields, 'name', …)` and `delete group.fields.name` all throw a `TypeError` naming the method to use instead. A field swapped in that way would never get `parent`, `fieldName` or change notifications, and the group would go on counting the verdict of a member it no longer holds. `addField()` and `removeField()` are the way the set changes. Reading through the view is a tracked read of the set of members, so a template rendering off `group.fields` re-renders when a field is added or removed.
 
-`parent` and `fieldName` are read-only accessors over an element's state, and that state is held in private class fields — invisible to `Object.keys(field)`, `Object.getOwnPropertySymbols(field)`, `JSON.stringify(field)` and lodash `isEqual` alike. The parent link is therefore out of reach of all four, and a walk over a group that contains its own descendants' back-references terminates. The container writes both; assigning either yourself throws a `TypeError`.
+`parent` and `fieldName` are read-only accessors over an element's state, and that state is held in private class fields — invisible to `Object.keys(field)`, `Object.getOwnPropertySymbols(field)` and `JSON.stringify(field)` alike. The parent link is therefore out of reach of all three, and a walk over a group that contains its own descendants' back-references terminates. The container writes both; assigning either yourself throws a `TypeError`. A `Group` that is a row of a `List` gets the `List` as its `parent`, which is why `Group.parent` is typed `Group | List | undefined` while a field's is `Group | undefined`.
 
-The same opacity means an element is not worth handing to a structural comparison: `isEqual(fieldA, fieldB)` reads nothing either field holds and answers `true` for any two instances of the same class. Compare `fieldA.value` with `fieldB.value` instead.
+The same opacity is why a structural comparison of two elements answers identity: it would read nothing either element holds and answer `true` for any two instances of the same class. `FieldBase` carries a `Symbol.toStringTag` accessor naming the element's class — the first thing such a comparison reads, and a tag it does not know ends it there — so `isEqual(fieldA, fieldB)` is `false` unless they are the same element. Compare what they hold: `isEqual(fieldA.value, fieldB.value)`. The accessor is on the prototype, so it costs an element nothing, and `Object.prototype.toString` answers `[object Field]` rather than `[object Object]`.
 
 ## Types
 
@@ -83,7 +83,7 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | `fullValue` | `FieldsToFullValues<T>` | no | What the group holds, where `value` is what it serializes: every field is in it, disabled ones included, and every key is present rather than optional. A nested group contributes its own full structure, so the guarantee carries all the way down and no `?.` is needed to read through it |
 
 ::: tip Serialization rule
-`Group.value` serializes only **enabled** fields. A disabled field is completely excluded from the output object. An exception applies to a disabled nested `Group`: it is still included when its own value is non-empty, that is when at least one field inside it serializes. A disabled nested `List` has no such exception and is always excluded.
+`Group.value` serializes only **enabled** fields. A disabled field is completely excluded from the output object. An exception applies to a disabled nested container — a `Group` or a `List` alike: it is still included when its own value is non-empty, that is when at least one field inside it serializes. A disabled container whose value is empty is excluded like any other disabled field.
 :::
 
 ## Methods

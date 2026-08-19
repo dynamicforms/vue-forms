@@ -76,6 +76,28 @@ describe('Group', () => {
     });
   });
 
+  it('keeps a disabled group while its members compose something, and leaves an empty one out', () => {
+    const sub = new Group({ a: new Field({ value: 1 }) }, { enabled: false });
+    const group = new Group({ sub });
+
+    expect(group.value).toEqual({ sub: { a: 1 } });
+
+    sub.fields.a.enabled = false;
+
+    expect(group.value).toBeNull();
+  });
+
+  it('keeps a disabled list while its rows compose something, and leaves an empty one out', () => {
+    const rows = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }], enabled: false });
+    const group = new Group({ name: new Field({ value: 'x' }), rows });
+
+    expect(group.value).toEqual({ name: 'x', rows: [{ a: 1 }] });
+
+    rows.clear();
+
+    expect(group.value).toEqual({ name: 'x' });
+  });
+
   it('correctly notifies parent of changes', () => {
     const onValueChanged = vi.fn();
     const group = new Group({ field1: new Field() }).registerAction(new ValueChangedAction(onValueChanged));
@@ -535,9 +557,9 @@ describe('Group field storage', () => {
     expect(() => isEqual(outer, outer.bind())).not.toThrow();
   });
 
-  it('compares two fields by what they hold, not by the container each belongs to', () => {
-    // isEqual walks own string keys and own enumerable symbols alike, so neither the parent link nor the state
-    // may be reachable through either: the fields below hold the same value and differ only in their containers
+  it('keeps the container link out of reach of a walker, and compares elements by identity', () => {
+    // isEqual walks own string keys and own enumerable symbols alike, so the parent link must be reachable
+    // through neither - a walk that found it would follow the parent/child cycle
     const inner = new Field({ value: 1 });
     const inner2 = new Field({ value: 1 });
     const left = new Group({ inner, sibling: new Field({ value: 'A' }) });
@@ -545,10 +567,13 @@ describe('Group field storage', () => {
 
     expect(inner.parent).toBe(left);
     expect(inner2.parent).toBe(right);
-    expect(isEqual(inner, inner2)).toBe(true);
     expect(Object.getOwnPropertySymbols(inner)).toEqual([]);
-    // an element carries nothing a walker can read, so what two of them hold is compared over their values
+    // the comparison ends at the element's tag, so two elements are equal only where they are the same one
+    expect(isEqual(inner, inner2)).toBe(false);
+    expect(isEqual(inner, inner)).toBe(true);
+    // what two of them hold is compared over their values
     expect(isEqual(left.value, right.value)).toBe(false);
+    expect(isEqual(left.fields.inner.value, right.fields.inner.value)).toBe(true);
   });
 });
 

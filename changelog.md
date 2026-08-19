@@ -5,6 +5,90 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-08-19
+
+### Changed
+- **Breaking:** `EmptyField` is gone. It was a module-level singleton `Field` the package exported, shared by
+  everyone who touched it, and nothing used it - not the library, not its tests beyond the one asserting its own
+  warning, not any of the packages built on it. A missing element is `null`: `Group.field()` answers with it and
+  `NullableField<T>` names the type.
+- **Breaking:** `Validator` and the types that go with it - `ValidationFunction`, `ValidationFunctionResult`,
+  `ValidatorBindingState` - are reached through the `Validators` namespace alone. They were exported from the
+  package root as well, while every concrete validator was in the namespace only, so one member of the set had two
+  spellings and the rest had one. `import { Validator }` becomes `Validators.Validator`. The error classes,
+  `MdString` and `buildErrorMessage` are unaffected: they are what a field hands back rather than what validates
+  it, and they stay at the root, where they were never duplicated.
+- **Breaking:** nothing in `DisplayMode` falls back to `DisplayMode.FULL` any more. `fromString()` throws for a
+  string that names no constant, `fromAny()` throws for a number that is none of them, for a string that names
+  none, and for input that is neither a number nor a string; all three errors read
+  `<value> is not a DisplayMode constant`, so a caller recognises one wherever it was raised. A mode nobody
+  defined is an error where it arrives, rather than a field that renders fully and is never questioned. Code that
+  fed a wire payload to `fromString()`/`fromAny()` and relied on the fallback has to catch the error and choose
+  the mode it wants, or ask `isDefined()` first.
+- **Breaking:** `DisplayMode.isDefined()` judges a string against the constant names instead of routing it through
+  `fromString()`, so `isDefined('HIDEN')` answers `false` where it answered `true`. It is the one member that does
+  not throw - it answers `false` for a number that is no constant, for a misspelled name, and for input of any
+  other type. The `visibility` setter asks it, which makes both spellings of the same mistake throw:
+  `field.visibility = 'HIDEN'` and `field.visibility = 999` alike raise
+  `Error('visibility must be a DisplayMode constant')` and leave the property as it was, where a misspelled name
+  silently became `DisplayMode.FULL`. A constant's name is still accepted, case insensitive.
+- A form element whose parameters name no visibility still starts at `DisplayMode.FULL`. That is a starting value,
+  and it no longer stands in for input a parse could not read.
+- **Breaking:** `parent` is typed per class. `FieldBase.parent` is `Group | List | undefined`, which is what the
+  link holds: a row of a `List` gets the `List`. `Field` narrows it to `Group | undefined` and `Action` inherits
+  that narrowing, because a `List` holds rows and a row is a `Group`, so a field is never a `List`'s child. The
+  sibling lookup `field.parent?.fields.other` therefore compiles unchanged on a field, and `row.parent.fields` is
+  a compile error where it was a promise the type could not keep - the declared `Group` was the container's type
+  for a member of a group and the wrong one for a row. Code holding an element as a `FieldBase` - which is the
+  type an action executor and a `ValidationFunction` receive - narrows the container itself:
+  `(field.parent as Group)?.fields.other`.
+- **Breaking:** a structural comparison of two elements answers identity. `isEqual(fieldA, fieldB)` read nothing
+  either element holds - the state is in private class fields - and answered `true` for any two instances of the
+  same class; it is `false` now unless they are the same element, and what they hold is compared as
+  `isEqual(a.value, b.value)`. `FieldBase` carries a `Symbol.toStringTag` accessor naming the element's class,
+  which is the first thing such a comparison reads and a tag it does not know ends it there. The accessor is on the
+  prototype, so an element carries nothing for it, and `Object.prototype.toString.call(field)` answers
+  `[object Field]` where it answered `[object Object]`.
+- The build tooling moves to `eslint-config-velis` 3, which states its plugins as peer dependencies rather than
+  carrying them, so the thirteen it names are declared here: eslint 10, `@typescript-eslint` 8.67,
+  `eslint-plugin-unicorn` 73, prettier 3.9, `@types/node` 26 and the rest. `npm audit` goes from 18 findings to 3,
+  and the three that remain are VitePress's pinned dev server with no fix published. None of it reaches the
+  published package, which declares `lodash-es` and `vue`.
+
+- A rule written against a field of an *enclosing* row now reads the row it runs in. Resolution answered within
+  one record and took an element belonging to any other for the one element every record reads alike - true of a
+  form field above a list, false of a field of the row a nested list sits in - so the lines of an order compared
+  against the item template's `total` rather than against that order's. It walks the containers of the record
+  outward before it settles for that, which is what the name form always did, so the two forms agree on the same
+  rule.
+
+### Added
+- `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
+  the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that
+  it ends only the run it was thrown in, that every other exception reaches the caller and unwinds the transaction,
+  and that a `*Changing*` handler throwing it does not veto the write.
+- CI loads the built ESM artifact and exercises it - the export list, a list composing and validating, `value`
+  against `fullValue` over a disabled member, and a transaction announcing once and rolling back on a throw. The
+  specs import `src/`, so nothing else reached what the package actually publishes.
+- `defaultDisplayMode` is exported from the package. It names the mode an element starts at, so code that has
+  to choose one for input it could not parse states the same constant the library does rather than repeating
+  `DisplayMode.FULL`.
+- **Breaking:** a disabled `List` is serialized by the `Group` above it while its rows compose something, the way a
+  disabled `Group` already was. The exception is one rule now - a disabled container is kept where its composed
+  value is non-empty and left out where it is empty - and it holds whichever container the member is. A disabled
+  leaf is left out as before. A form that read `group.value` to submit it now carries the rows of a disabled list
+  it previously dropped.
+- **Breaking:** `List.value` refuses a value that is neither an array nor null with a
+  `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')`, where such a value was
+  accepted and silently did nothing. The setter is typed, so this reaches a JavaScript caller or one writing
+  through `as any`; the constructor's `value` and `originalValue` are refused the same way.
+
+### Fixed
+- A `List` constructed with an `originalValue` and no `value` takes its rows from it, the way a `Field` and a
+  `Group` already did: it held no rows, read back `null` and reported `isChanged` as `true` against the very value
+  it was declared with. An explicit `value: null` still leaves the list empty - null is a value the caller means -
+  and an absent value with no `originalValue` beside it still starts the list empty.
+
 ## [0.14.0] - 2026-08-19
 
 ### Changed

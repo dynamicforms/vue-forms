@@ -173,6 +173,35 @@ describe('List value types', () => {
   });
 });
 
+describe('parent typing', () => {
+  it('is a Group on a field and either container on an element that can be a row', () => {
+    const field = new Field({ value: 1 });
+    const group = new Group({ n: field });
+    const list = new List(new Group({ n: new Field({ value: 1 }) }));
+    const action = new Action();
+
+    // a List holds rows and a row is a Group, so a field's container is a Group wherever there is one
+    expectTypeOf(field.parent).toEqualTypeOf<Group | undefined>();
+    expectTypeOf(action.parent).toEqualTypeOf<Group | undefined>();
+    expectTypeOf(group.parent).toEqualTypeOf<Group | List | undefined>();
+    expectTypeOf(list.parent).toEqualTypeOf<Group | List | undefined>();
+
+    // the sibling lookup, typed on the field it is written against
+    expectTypeOf(field.parent?.fields).toEqualTypeOf<Record<string, FieldBase> | undefined>();
+  });
+
+  it('refuses the sibling lookup on an element whose container may be a List', () => {
+    const row = new Group({ n: new Field({ value: 1 }) });
+    new List(row.bind()).push({ n: 1 });
+
+    const rejected = () => [
+      // @ts-expect-error a row's container is the List, which holds no named members
+      row.parent?.fields,
+    ];
+    expect(rejected).toBeInstanceOf(Function);
+  });
+});
+
 describe('field members', () => {
   it('exposes validating as a plain boolean', () => {
     const field = new Field({ value: 1 });

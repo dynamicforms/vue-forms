@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash-es';
 import { nextTick, watchEffect } from 'vue';
 
 import { Action } from './action';
@@ -580,5 +581,53 @@ describe('settled', () => {
     field.endValidating();
     await waiting;
     expect(done).toBe(true);
+  });
+});
+
+describe('comparing elements', () => {
+  it('answers a structural comparison of two elements with identity', () => {
+    const a = new Field({ value: 'x' });
+    const b = new Field({ value: 'x' });
+
+    // the same data, and still two elements: what an element holds is unreachable to a structural walk, so the
+    // comparison ends at the tag and only the same element answers true
+    expect(isEqual(a, b)).toBe(false);
+    expect(isEqual(a, a)).toBe(true);
+    // the tag sits on the base, so it answers for every class of element
+    expect(isEqual(new Group({ a }), new Group({ b }))).toBe(false);
+    expect(isEqual(new List(), new List())).toBe(false);
+    expect(isEqual(new Action(), new Action())).toBe(false);
+  });
+
+  it('leaves the comparison of what two elements hold to answer', () => {
+    const left = new Group({ a: new Field({ value: 1 }) });
+    const right = new Group({ a: new Field({ value: 1 }) });
+
+    expect(isEqual(left.value, right.value)).toBe(true);
+    expect(isEqual(left.fields.a.value, right.fields.a.value)).toBe(true);
+    expect(isEqual(left.value, new Group({ a: new Field({ value: 2 }) }).value)).toBe(false);
+  });
+
+  it('names its class where something asks what it is', () => {
+    const field = new Field({ value: 1 });
+    const group = new Group({ a: field });
+
+    expect(Object.prototype.toString.call(field)).toBe('[object Field]');
+    expect(Object.prototype.toString.call(group)).toBe('[object Group]');
+    expect(Object.prototype.toString.call(new List())).toBe('[object List]');
+    expect(Object.prototype.toString.call(new Action())).toBe('[object Action]');
+    expect(`${group}`).toBe('[object Group]');
+
+    // the tag is on the prototype and JSON reads own enumerable keys, so serializing an element is unaffected
+    expect(() => JSON.stringify(group)).not.toThrow();
+    expect(JSON.stringify(group.value)).toBe('{"a":1}');
+  });
+
+  it('carries the tag on the prototype, so an element has no property of its own for it', () => {
+    const field = new Field({ value: 1 });
+
+    expect(Object.getOwnPropertySymbols(field)).toEqual([]);
+    expect(Object.hasOwn(field, Symbol.toStringTag)).toBe(false);
+    expect(Object.getOwnPropertyDescriptor(FieldBase.prototype, Symbol.toStringTag)?.get).toBeInstanceOf(Function);
   });
 });

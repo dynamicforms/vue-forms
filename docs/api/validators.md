@@ -8,10 +8,19 @@ All built-in validators are available on the `Validators` namespace:
 import { Validators } from '@dynamicforms/vue-forms';
 ```
 
-The namespace contains validators only — `Validator`, `Required`, `Pattern`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. The error classes and `MdString` are exported from the package root instead:
+The namespace contains the validators and the types that belong to writing one — `Validator`,
+`ValidationFunction`, `ValidationFunctionResult`, `ValidatorBindingState`, `Required`, `Pattern`, `MinValue`,
+`MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. The
+namespace is the only way to them: a validator is written `Validators.Required`, never `Required`.
+
+The error classes and `MdString` are what a field hands back rather than what validates it, so they are exported
+from the package root:
 
 ```typescript
-import { ValidationErrorText, ValidationErrorRenderContent, MdString, Validator } from '@dynamicforms/vue-forms';
+import { ValidationErrorText, ValidationErrorRenderContent, MdString, buildErrorMessage } from '@dynamicforms/vue-forms';
+import { Validators } from '@dynamicforms/vue-forms';
+
+class Even extends Validators.Validator<number> { /* … */ }
 ```
 
 Pass validators when creating a field — `new Field({ validators: [...] })`, `new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })` — or register them later with `registerAction()`.
@@ -83,7 +92,9 @@ container above answers for it.
 
 ```typescript
 new Validators.Validator((newValue, oldValue, field) => {
-  const row = field.parent;
+  // the callback receives a FieldBase, whose container is typed as either kind, and the members below are a
+  // Group's: a field is never a List's child, so the narrowing holds
+  const row = field.parent as Group | undefined;
   if (!row) {
     field.markRecordIncomplete();
     return null;
@@ -486,7 +497,7 @@ All built-in error messages support `{placeholder}` substitution. The available 
 | `{allowedAsText}` | `InAllowedValues` |
 | `{otherField}` | `CompareTo` |
 
-Substitution is purely textual (`String.replaceAll`). Placeholders whose value is an object — `{field}`, `{otherField}`, and `{newValue}`/`{oldValue}` on group/list or object-valued fields — are rendered as `[object Object]`; use a function message (`() => ...`) to read whatever you need off the field instead. Note also that `{allowedValues}` produces `admin,user` while `{allowedAsText}` produces `admin, user` (truncated when longer than 60 characters).
+Substitution is purely textual (`String.replaceAll`). `{newValue}`/`{oldValue}` on a group, a list or an object-valued field render as `[object Object]`, and `{field}`/`{otherField}` name an element, which renders as `[object Field]` — its class rather than what it holds. Use a function message (`() => ...`) to read what you need off the element instead. Note also that `{allowedValues}` produces `admin,user` while `{allowedAsText}` produces `admin, user` (truncated when longer than 60 characters).
 
 ---
 
