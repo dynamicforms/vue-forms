@@ -332,3 +332,33 @@ describe('CompareTo Validator', () => {
     expect(errorContent.componentBody).toBe(errorMessage);
   });
 });
+
+describe('CompareTo unregistration', () => {
+  it('withdraws the error it placed when it is taken off the field', () => {
+    const other = new Field({ value: 'xyz' });
+    const field = new Field({ value: 'abc' });
+    const compare = new CompareTo(other, (mine, theirs) => mine === theirs, 'Fields must match');
+
+    field.registerAction(compare);
+    expect(field.errors.length).toBe(1);
+    expect(field.valid).toBe(false);
+
+    expect(field.unregisterAction(compare)).toBe(true);
+    expect(field.errors.length).toBe(0);
+    expect(field.valid).toBe(true);
+
+    // the field no longer carries the rule, so a change of the compared field leaves it alone
+    other.value = 'changed';
+    expect(field.errors.length).toBe(0);
+  });
+});
+
+describe('CompareTo Validator error code', () => {
+  it('states the compare-to code on the error it produces', () => {
+    const other = new Field({ value: 'xyz' });
+    const field = new Field({ value: 'abc' });
+    field.registerAction(new CompareTo(other, (mine, theirs) => mine === theirs, 'Fields must match'));
+
+    expect(field.errors[0].code).toBe('compare-to');
+  });
+});

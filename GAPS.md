@@ -847,3 +847,54 @@ held for the element's lifetime: closures are now made at trigger time and only 
 **Cost.** S2a — one field write in a 1000-row list, the keystroke path — is unchanged: 0.0100 ms before, 0.0101 ms
 after (plain), 0.0091 ms both (conditional), taking the minimum as the least noisy statistic. The closures moved
 from registration time to trigger time and the write does not notice.
+
+## D-031 — the build target follows the floors the package already declares
+
+**Decision.** `build.target` is `es2022`.
+
+**What it costs and saves.** `field-base.ts` is the only file in `src/` that uses private class fields, with 51
+access sites. An ES2015 output cannot express them, so esbuild lowers every one to a WeakMap lookup behind an
+access check. Measured by building both: 92 715 → 87 902 bytes, 25 728 → 24 547 gzipped, and the whole difference
+sits in that one file, which is 30 % of the shipped artifact.
+
+**Why the number is not a matter of taste.** A library's target is the syntax its consumer's toolchain has to
+parse, not the runtime it ends up on — a consuming bundler re-transpiles the chunk to its own target. What
+settles it here is that the package already declares `engines.node >= 22` and ships ESM only. There is no
+consumer those declarations admit that ES2022 excludes, so the lower target bought compatibility with nobody.
+
+**Alternative not taken.** Deriving the target from a browserslist query. It is the right instrument for an
+application, whose target is a browser support matrix; a library published to npm has no browser matrix of its
+own, because the application it lands in decides that.
+
+## D-032 — the artifact ships with its whitespace, and that is Vite's call
+
+**Decision.** `dist/dynamicforms-vue-forms.js` is published as Vite emits it: identifiers and syntax minified,
+whitespace and comments kept. No plugin is added to strip them.
+
+**Why the option does not exist.** Vite's `resolveEsbuildTranspileOptions()` sets `minifyWhitespace: false` for
+every `format: 'es'` library build, in the default branch and in the branch that reads `esbuild` options alike.
+Setting `esbuild.minifyWhitespace: true` produces a byte-identical file. `build.minify` is already `'esbuild'` and
+already applies; whitespace is the one thing it does not reach.
+
+**What it costs, measured.** Re-minifying the published file: 87 902 → 38 307 bytes, 24 547 → 11 022 gzipped. More
+than half of the artifact is whitespace and doc comments.
+
+**Why that is not a cost to a consumer.** A consumer's bundler minifies and tree-shakes the chunk it produces, so
+what the artifact weighs on disk is not what an application ships. Bundled and minified from the published files,
+against 0.5.1 bundled the same way:
+
+| | 0.5.1 | 0.12.1 |
+|---|---:|---:|
+| the whole library | 7 391 | 11 103 |
+| `Field` alone | 3 104 | 7 784 |
+
+*(gzipped bytes)*
+
+The library as a whole costs a consumer 1.5× what it did; a single `Field` costs 2.5×, because the base every
+element sits on grew from 42 % of the library to 70 % of it. What that base bought is a complexity class: filling
+a 1000-row list went from 13 132 ms to 364 ms, a single field write in one from 32.95 ms to 0.0087 ms, and memory
+per field from 2642 to about 1490 bytes.
+
+**Who does pay for the whitespace.** Anyone loading `dist` directly - a `<script type="module">` tag, a CDN, an
+import map - since nothing minifies it for them. A separate minified output is what that would need, and it is a
+packaging addition rather than a change to this artifact.

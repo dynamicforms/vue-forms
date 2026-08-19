@@ -31,7 +31,9 @@ const list2 = new List(itemTemplate, {
 value shape substituted. A list takes [extended properties](/api/field#extended-properties) like every other
 element: declare them as the second type argument, `new List<Fields, Presentation>(template, { label: … })`, and
 read them back through `list.extra`. Every row the item template builds is a binding of it, so the template's
-members carry theirs into each row.
+members carry theirs into each row. `length` and `items` are members `List` declares itself and are read-only,
+so a parameter of either name throws a `TypeError` the way `valid` and `busy` do — name a presentation property
+of that meaning something else.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -54,21 +56,46 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | reads `ListValue`, accepts `Record<string, any>[]` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items. The setter's declared type is an array, and `clear()` is what empties a list; a `null` reaching it — which is what `group.value = null` writes into a nested list — releases every row, and any other non-array value leaves the rows untouched |
+| `value` | `ListValue` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items. Getter and setter share the type, so `list.value = null` — the write `group.value = null` makes into a nested list — type-checks, and it releases every row; `clear()` empties a list the same way. Any other non-array value leaves the rows untouched |
 | `originalValue` | `ListValue` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the list itself and all items are valid |
-| `validating` | `boolean` | no | `true` while an async validator registered on the list itself is pending; it does not aggregate items |
+| `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the list itself or in any row. The list keeps a tally of the rows that answer `true`, so the read costs nothing however many rows it holds |
+| `busy` | `boolean` | no | `true` while an `Action.execute()` in a row has yet to settle. A validation running in a row is answered by `validating`, not by this, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
 | `enabled` | `boolean` | yes | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
-| `fullValue` | `ListValue` | no | Same as `value` — `List` does not override it, so disabled fields inside items are still omitted. Consequently a parent `Group.fullValue` does not recover hidden values through a nested `List` either |
+| `length` | `number` | no | The number of rows the list holds. Nothing is built to count them |
+| `items` | `readonly Group<T>[]` | no | The rows themselves — see [The rows](#the-rows) |
+| `fullValue` | `FieldsToFullValues<T>[]` | no | Every row, each built from all of its fields. Where `value` states what the list serializes — rows composed of the enabled fields, and `null` where the list is empty — this states what the list holds: the disabled fields are in it too, and an empty list reads back as `[]` |
 
 `ListValue` is exported as `Record<string, any>[] | null`.
 
 Every mutation — `push()`, `insert()`, `remove()`, `pop()`, `clear()` and assigning `value` — is tracked by Vue, so
-a `v-for` over `list.value` re-renders on its own without any additional wiring.
+a `v-for` over `list.items` or `list.value` re-renders on its own without any additional wiring.
+
+## The rows
+
+`items` hands out the rows in the order the list holds them, and `length` says how many there are. Both reads are
+tracked, so a template rendering off either re-renders as rows come and go:
+
+```vue
+<div v-for="(row, index) in lineItems.items" :key="index">
+  <input v-model="row.fields.description.value" />
+  <button @click="lineItems.remove(index)">Remove</button>
+</div>
+<p>{{ lineItems.length }} lines</p>
+```
+
+The array `items` answers with is a frozen copy: it states which rows the list held at the read, nothing writes
+back through it — `push()`, `insert()`, `remove()`, `pop()`, `clear()` and assigning `value` are what change the
+set — and a caller may hold on to it. The rows in it are the live elements, so reading one reports what it holds
+now.
+
+The copy is built once per change of the set and handed to every reader until the next one: a write inside a row
+changes what the list serializes without changing which rows it holds, and the array a reader took stays the very
+same one across such a write. `get(index)` reaches a single row without building anything at all.
 
 ## Scale
 
@@ -77,6 +104,7 @@ how long the list is:
 
 | operation | cost |
 |---|---|
+| reading `length`, or `items` again with the set of rows unchanged | constant |
 | reading `value` or `valid` again with nothing changed in between | constant — both are cached |
 | writing one field of one row | that row, plus the depth of the nesting it sits in |
 | `push()`, `insert()`, `remove()`, `pop()` | one row |
@@ -100,8 +128,6 @@ validator that reads `list.value` while the assignment runs never sees a positio
 ### `get(index): Group<T> | undefined`
 
 Returns the `Group` instance at `index`, or `undefined` if out of range.
-
-`List` has no `length` property — use `list.value?.length ?? 0` to get the item count.
 
 ### `push(item): number`
 

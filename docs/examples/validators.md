@@ -79,10 +79,10 @@ const validatedForm = new Group({
   })
 });
 
-// Overall form validity, recomputed whenever any field's valid state changes
-const formValid = computed(() => {
-  return Object.values(validatedForm.fields).every(field => field.valid);
-});
+// A group forms its verdict over its members, and busy answers for the whole tree: true while an asynchronous
+// validation is in flight anywhere below the group. Both reads are tracked, so these recompute on their own.
+const formValid = computed(() => validatedForm.valid);
+const formBusy = computed(() => validatedForm.busy);
 
 // Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
 // componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.
@@ -172,7 +172,8 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
       <v-card-actions>
         <v-btn
           color="primary"
-          :disabled="!formValid"
+          :disabled="!formValid || formBusy"
+          :loading="formBusy"
         >
           Submit
         </v-btn>
@@ -205,6 +206,15 @@ field: the results belonging to the intermediate values are discarded as they ar
 for the text actually in it, and `field.validating` — bound to the input's `loading` prop — is back to `false` once the
 last run has settled.
 
+The submit button reads `validatedForm.valid` and `validatedForm.busy`: the group forms its verdict over its
+members, and `busy` is `true` while a run is in flight anywhere below it, so the button is disabled for the length
+of the check without anything walking the fields.
+
+The validation function receives an `AbortSignal` as its fourth argument. It aborts the moment the run's verdict
+stops counting — a newer keystroke, a validator taken off the field, a transaction rolled back — and a real
+availability check hands it to `fetch` so the request is dropped there. The timer this demo awaits has nothing to
+cancel and ignores it.
+
 The validator here resolves in both outcomes and never rejects, because the delay it awaits cannot fail. A real
 availability check talks to a server and can: an unreachable server is not read as an address that is free — the
 rejected run puts a single `Validation could not be completed` error on the field, which leaves it invalid and the
@@ -214,7 +224,7 @@ error inside the validation function only when the user should read something mo
 ## API Reference
 
 - [Validators](/api/validators) — all built-in validators with signatures and placeholder list
-- [Field → errors](/api/field#properties) — `errors`, `valid`, `validating` properties
+- [Field → errors](/api/field#properties) — `errors`, `valid`, `validating` and `busy` properties
 - [MessagesWidget](/api/components) — renders `field.errors` directly, without converting them to strings
 
 ## Key Features Demonstrated
@@ -224,8 +234,8 @@ error inside the validation function only when the user should read something mo
 - **ValueInRange Validator**: Ensures a numeric value is within specified bounds
 - **InAllowedValues Validator**: Restricts input to a predefined set of values
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
-- **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, and the newest
-  run deciding the verdict
+- **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
+  run deciding the verdict, and `form.busy` disabling submit while the tree is still deciding
 - **Form-level Validation**: Tracking overall form validity based on individual field states
 - **Error Display**: Showing validation errors to the user
 

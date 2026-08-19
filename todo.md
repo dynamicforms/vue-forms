@@ -1,6 +1,6 @@
 # todo
 
-What stands between the current source and a frozen 1.0 surface, re-verified against 0.11.0, plus the
+What stands between the current source and a frozen 1.0 surface, re-verified against 0.12.0, plus the
 pre-existing items.
 
 The same findings laid out for reading, with the measurement output and the reasoning behind each severity:
@@ -38,10 +38,6 @@ owner only, so treat this file as the authoritative copy).
 - **Validators are exported twice:** `Validator` is top-level *and* in `Validators`, while the concrete
   validators live only in the namespace (`src/validators/index.ts:3-4`). Pick one shape before both are
   promised.
-- **`T` does not propagate all the way**: `List.value`'s setter is `Record<string, any>[]` while its getter is
-  `ListValue`, so `list.value = null` is a `TS2322` while `group.value = null` is fine; `Group.value`'s getter
-  still claims every key even though a disabled field is omitted at runtime; and the built-in validators carry
-  an unused public `T` and never check the field's type.
 - **`FieldBase.parent` is declared `Group | undefined`** (`src/field-base.ts`); a `List` installs itself as the
   parent of its row groups (`src/list.ts`), so the honest type is `Group | List`. Widening it breaks the
   documented sibling lookup `field.parent?.fields.other.value`, which is why it has to be decided before 1.0.
@@ -49,13 +45,11 @@ owner only, so treat this file as the authoritative copy).
   unreachable to a structural walker (`GAPS.md` D-001). `isEqual(a.value, b.value)` is the meaningful
   comparison and is documented as such, but the trap is silent and a machine-readable identity — or a
   documented refusal to support element comparison — is worth settling before the surface freezes.
-- **`Required` accepts `'   '` as filled in** and has no `trim` option — after 1.0 the default is frozen for
-  the whole 1.x line.
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
-  request changes the setting for everyone. `FormsConfig`/`getConfig`/`setConfig` are not exported.
+  request changes the setting for everyone.
 - **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, and the rule that a disabled
   child `Group` still serializes when its own value is non-empty. CI checks that the rolled-up declarations are
-  non-empty and declare `Field`, but nothing imports the built artifact or asserts the export list.
+  non-empty and declare `Field`, but nothing imports the built artifact.
 - **24 open Dependabot alerts** — 18 high, 5 moderate, 1 low — visible since `package-lock.json` became
   tracked. **None is in the published package's dependency tree**: it declares `lodash-es` as its
   only dependency and `vue` as its only peer, and ships `dist/*`. The flagged packages are the build chain
@@ -73,23 +67,14 @@ owner only, so treat this file as the authoritative copy).
 
 `AbortEventHandlingException` does not veto `*Changing*` events (documented as it behaves) ·
 `enabled`/`visibility` fire events even without an actual change ·
-`Statement` silently accepts non-fields, so a typo in a field name is a dead condition ·
 an action registered on an item template after a row was built never reaches that row, because a binding carries
 the actions its declaration held at the moment it was bound ·
 `Operator.NOT` requires a dummy third argument ·
-`Group.addField`/`List.length`/`items` are missing (additive) ·
-`Group`/`List` do not aggregate `validating` or `busy`, so a form cannot ask whether anything below it is
-running · a rejection out of `Action.execute()` has nowhere to go but the caller: a call that neither awaits the
+a rejection out of `Action.execute()` has nowhere to go but the caller: a call that neither awaits the
 answer nor attaches a `.catch()` leaves it unhandled, and the library offers no configured error handler to
-route it to · a superseded asynchronous result is dropped, but the request
-behind it keeps running: `ValidationFunction` receives no `AbortSignal`, so nothing cancels the call at the
-network level and fast typing leaves a request in flight per keystroke — the fourth argument is additive, and it
-is also what a rolled-back transaction would need to stop a validation it started, which today runs to the end
-with its verdict discarded ·
-`InAllowedValues` freezes the list at
-construction · `ValidationError` has no machine-readable code · error object identity is not preserved
-across validations: two runs producing the same message leave the field holding the newer instance, because the
-`isEqual` that would have kept the older one compares two `ValidationErrorRenderContent`s including the `computed`
+route it to · error object identity is not preserved across validations: two runs producing the same message
+leave the field holding the newer instance, because the `isEqual` that would have kept the older one compares two
+`ValidationErrorRenderContent`s including the `computed`
 each carries. `Validator.claim()` copies an error another validator already owns, and `field.errors` reads back a
 Vue proxy of whatever instance the field holds, so `field.errors[0] === myError` is `false` either way
 (documented) · `isSimpleComponentDef(null)` throws ·

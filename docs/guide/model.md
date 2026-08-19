@@ -19,9 +19,10 @@ A form is a tree of **elements**. There are four classes and they share one base
 row of a list. Everything below applies at every level.
 
 Every element carries the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
-`enabled`, `visibility`, `touched`, `validating`, `isChanged`, `parent` and `fieldName`. A container adds its own —
-`fields` and `field()` on a `Group`, `get()`, `push()`, `insert()`, `remove()` and `clear()` on a `List`. Anything
-your application needs an element to carry beyond those goes in `extra`, the element's
+`enabled`, `visibility`, `touched`, `validating`, `busy`, `settled()`, `isChanged`, `parent` and `fieldName`. A container adds
+its own — `fields`, `field()`, `addField()` and `removeField()` on a `Group`, `length`, `items`, `get()`,
+`push()`, `insert()`, `remove()` and `clear()` on a `List`. Anything your application needs an element to carry
+beyond those goes in `extra`, the element's
 [extended properties](/api/field#extended-properties): declared as its second type argument, given at
 construction, written with `setExtendedValues()` and read like every other member.
 
@@ -34,6 +35,11 @@ const invoice = new Group({
   lines: new List(line),
 });
 ```
+
+A `Group`'s members are usually the ones its constructor was given, and `addField(name, field)` and
+`removeField(name)` change the set afterwards — a form that grows a field because a server said so, or drops one a
+condition took away. A field a group takes in is held exactly as a constructed member is, and the field
+`removeField()` hands back is detached and free to be taken by another container.
 
 ### Reactivity
 
@@ -264,9 +270,16 @@ Validators are **eager**: they run once at construction, once at registration, a
 is therefore often invalid before anyone has touched it — which is what `touched` is for, as the flag your UI
 sets and reads to decide when to show errors.
 
-An asynchronous validator returns a promise. `validating` counts the runs in flight, only the newest run decides
-that validator's verdict on a field, and a rejection leaves the field invalid with a
-`Validation could not be completed` error rather than reading as a pass.
+An asynchronous validator returns a promise. `validating` counts the runs in flight — on the element itself and on
+everything below it, so a form answers for the whole tree — only the newest run decides that validator's verdict on
+a field, and a rejection leaves the field invalid with a `Validation could not be completed` error rather than
+reading as a pass. A run whose verdict stops counting has the `AbortSignal` its validation function was handed
+aborted, so the work behind it can be called off.
+
+`busy` asks the other question: true while an `Action.execute()` at or below the element has yet to settle. An
+element that is not an action executes nothing and answers false, so `busy` never speaks for a validation and
+`validating` never speaks for an execution. A form that gates on the tree being idle reads both — or awaits
+`settled()`, which resolves once neither answers true and is what a submit path uses instead of polling.
 
 ## Where a value comes from
 

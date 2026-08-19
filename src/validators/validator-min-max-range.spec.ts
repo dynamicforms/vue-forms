@@ -204,3 +204,11 @@ describe('ValueInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 });
+
+describe('Value bound error codes', () => {
+  it('names each bound on the error it produces', () => {
+    expect(new Field({ value: 5, validators: [new MinValue(10)] }).errors[0].code).toBe('min');
+    expect(new Field({ value: 15, validators: [new MaxValue(10)] }).errors[0].code).toBe('max');
+    expect(new Field({ value: 15, validators: [new ValueInRange(1, 10)] }).errors[0].code).toBe('range');
+  });
+});

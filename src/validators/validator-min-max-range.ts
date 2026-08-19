@@ -10,7 +10,11 @@ export class MinValue<T = any> extends Validator {
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue < minValue || newValue === undefined) {
         return [
-          new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field, minValue })),
+          new ValidationErrorRenderContent(
+            this.replacePlaceholders(msg, { newValue, oldValue, field, minValue }),
+            '',
+            'min',
+          ),
         ];
       }
       return null;
@@ -26,7 +30,11 @@ export class MaxValue<T = any> extends Validator {
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue > maxValue || newValue === undefined) {
         return [
-          new ValidationErrorRenderContent(this.replacePlaceholders(msg, { newValue, oldValue, field, maxValue })),
+          new ValidationErrorRenderContent(
+            this.replacePlaceholders(msg, { newValue, oldValue, field, maxValue }),
+            '',
+            'max',
+          ),
         ];
       }
       return null;
@@ -44,6 +52,8 @@ export class ValueInRange<T = any> extends Validator {
         return [
           new ValidationErrorRenderContent(
             this.replacePlaceholders(msg, { newValue, oldValue, field, minValue, maxValue }),
+            '',
+            'range',
           ),
         ];
       }

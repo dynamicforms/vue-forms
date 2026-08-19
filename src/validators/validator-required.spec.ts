@@ -72,3 +72,53 @@ describe('Required Validator', () => {
     expect(errorText).toBe(customMessage);
   });
 });
+
+describe('Required Validator whitespace', () => {
+  it('rejects a string of whitespace alone', () => {
+    const field = new Field({ value: '   ', validators: [new Required()] });
+
+    expect(field.errors.length).toBe(1);
+    expect(field.valid).toBe(false);
+  });
+
+  it('accepts a string of whitespace alone where trimming is switched off', () => {
+    const field = new Field({ value: '   ', validators: [new Required({ trim: false })] });
+
+    expect(field.errors.length).toBe(0);
+    expect(field.valid).toBe(true);
+  });
+
+  it('accepts a value that is only surrounded by whitespace', () => {
+    const field = new Field({ value: '  a  ', validators: [new Required()] });
+
+    expect(field.errors.length).toBe(0);
+  });
+
+  it('leaves values that are not strings alone', () => {
+    expect(new Field({ value: 0, validators: [new Required()] }).errors.length).toBe(0);
+    expect(new Field({ value: [' '], validators: [new Required()] }).errors.length).toBe(0);
+  });
+
+  it('takes the options next to a message', () => {
+    const field = new Field({ value: '  ', validators: [new Required('Enter something', { trim: false })] });
+
+    expect(field.errors.length).toBe(0);
+
+    field.value = '';
+    expect(field.errors.length).toBe(1);
+    expect(field.errors[0].componentBody).toBe('Enter something');
+  });
+
+  it('reads a component message as the message rather than as options', () => {
+    const field = new Field({ value: '', validators: [new Required({ componentName: 'my-error' })] });
+
+    expect(field.errors.length).toBe(1);
+    expect(field.errors[0].componentName).toBe('my-error');
+  });
+
+  it('states the required code on the error it produces', () => {
+    const field = new Field({ value: '', validators: [new Required()] });
+
+    expect(field.errors[0].code).toBe('required');
+  });
+});

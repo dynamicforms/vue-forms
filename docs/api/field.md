@@ -39,8 +39,8 @@ The single trigger closing the constructor runs every eager action — validator
 finished value.
 
 Those are the only accepted parameters: they are exactly the writable members of a field. Derived members
-(`valid`, `validating`, `fullValue`, `isChanged`) and the container back-references (`parent`, `fieldName`) are
-rejected by the type checker. All six are getter-only, so assigning any of them throws a `TypeError` — on a field
+(`valid`, `validating`, `busy`, `fullValue`, `isChanged`) and the container back-references (`parent`, `fieldName`)
+are rejected by the type checker. All seven are getter-only, so assigning any of them throws a `TypeError` — on a field
 that belongs to no container as much as on one that does. The container installs `parent` and `fieldName`; there
 is no way to write either from outside.
 
@@ -105,7 +105,8 @@ exactly the members of `Presentation` alongside the ones every field takes.
 A parameter naming a member the class itself declares is that member and not an extended property. `enabled` sets
 `enabled`, and `valid` still throws a `TypeError`, on a field with extended properties as much as on one without.
 `Action` declares `label` and `icon`, so those two reach an action's value; name presentation properties on an
-`Action` something else. In a subclass of your own, an accessor is such a member and a class field is not: class
+`Action` something else. `List` declares `length` and `items`, both read-only, so a parameter of either name
+throws the same `TypeError` as `valid`. In a subclass of your own, an accessor is such a member and a class field is not: class
 fields are defined on the instance after the base constructor has applied the parameters, so a parameter named
 after one becomes an extended property while the field keeps its initializer. Declare the member as an accessor
 where a parameter of its name should reach it.
@@ -162,14 +163,15 @@ type IBindParams<T = any, X extends object = {}> = Partial<Omit<IFieldConstructo
 | `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value` |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
-| `validating` | `boolean` | no | `true` while at least one async validator is pending. The library maintains it through `beginValidating()` / `endValidating()`, which validators call around a returned promise |
+| `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
+| `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
 | `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
 | `parent` | `Group \| undefined` | no | Container the field belongs to, installed by that container and taken away again when the container releases the field — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses a field that still carries one, so hand on the released instance or a `bind()` of it. A `Group` that is a row of a `List` gets the `List`, which the declared type does not tell you apart from a `Group` — the sibling lookup `field.parent?.fields.other` is valid one level below a `Group` only. The read is tracked, so a template rendering off `field.parent` follows the field from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
 | `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding — transitively, so a binding of a binding answers with the same element. Every row a `List` builds from an item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
-| `fullValue` | `T` | no | Identical to `value` on a plain `Field` |
+| `fullValue` | `T` | no | Identical to `value` on a plain `Field`. On a `Group` and a `List` it states what the element holds rather than what it serializes — see [`Group`](/api/group#properties) and [`List`](/api/list#properties) |
 | `extra` | `Readonly<Partial<X>>` | no | The [extended properties](#extended-properties) the field carries, `{}` where none were declared. The object is frozen; write through `setExtendedValues()` |
 
 ## Methods
@@ -235,8 +237,10 @@ field.valid;                      // true — the error the validator put there 
 
 A `Validator` withdraws the errors it put on the element as it goes, so the verdict left standing is the one the
 validators the element still holds reach; errors from another source stay. Any other action releases what it
-installed for this element through `unregisterFrom()`. A validation still in flight is dropped when it settles.
-Called inside a [transaction](/api/transactions), the unregistration is undone if the transaction unwinds.
+installed for this element through `unregisterFrom()`. A validation still in flight is cancelled and its verdict
+dropped. Called inside a [transaction](/api/transactions), the unregistration is undone if the transaction unwinds,
+and so is the cancellation: the run goes on and the verdict it reaches counts, so the field is never left reporting
+itself valid over a value nothing checked.
 
 ### `bindingsOf(declaration): FieldBase[]`
 
@@ -270,10 +274,10 @@ settles with everything else the transaction did and announces at the end of it.
 Removes the validators registered on this element, empties `errors` and recalculates `valid`. Every error goes,
 including ones no validator contributed — errors pushed in from the outside, such as server-side ones. The verdict
 goes through the same path as any other: a field that was invalid fires `ValidChangedAction` and its container
-re-evaluates its own validity. A validation still in flight is dropped when it settles, so it cannot push an error
-onto a field that no longer carries the validator that produced it. A validator that installed a listener
-elsewhere — `CompareTo`, on the field it compares against — has that listener released with the registration, and an
-operation that unwinds puts both back. The release names this element only: the same validator instance goes on
+re-evaluates its own validity. A validation still in flight is cancelled, so it cannot push an error onto a field
+that no longer carries the validator that produced it. A validator that installed a listener elsewhere —
+`CompareTo`, on the field it compares against — has that listener released with the registration, and an operation
+that unwinds puts both back, the cancelled run included: it goes on and the verdict it reaches counts. The release names this element only: the same validator instance goes on
 validating every other element it was registered on, so clearing the validators of one row of a `List` leaves the
 other rows validating. `unregisterAction()` drops a single validator instead of all of them, and withdraws only the
 errors that validator contributed.
@@ -282,11 +286,32 @@ It does not descend into members. A `Group` or a `List` composes `valid` from it
 `group.clearValidators()` leaves `group.valid` at `false` while any member is still invalid — call
 `clearValidators()` on the members whose validators you also want gone.
 
+### `settled(): Promise<void>`
+
+Resolves once nothing at or below the element is running — no asynchronous validation, no `Action.execute()` that
+has yet to settle. It resolves immediately where nothing is running to begin with, so a submit path awaits it
+instead of polling `validating` and `busy`.
+
+```typescript
+await form.settled();
+if (!form.valid) return;
+await form.fields.submit.execute();
+```
+
+It answers for the moment it resolves and promises nothing about the one after: work started later leaves the
+element running again. A caller that has to act on a settled tree reads what it needs immediately after awaiting.
+
 ### `beginValidating(): void` / `endValidating(): void`
 
 Raise and lower the async-validation counter that backs `validating`. `Validator` calls them around a validation
 function that returns a promise; call them yourself only if you run asynchronous validation outside a `Validator`.
-The counter floors at zero, so an unmatched `endValidating()` leaves it there.
+A call that moves the element between running and idle moves the tally the container above it keeps, so every
+container up the tree follows. An `endValidating()` the element has no run for is a no-op: the counter never goes
+below zero, and nothing above is told of a stop that never started.
+
+Both counters are the state a rolled-back [transaction](/api/transactions) leaves alone — a run in flight cannot be
+un-started, and putting the counts back would leave them out of step with the `endValidating()` calls still to
+come.
 
 ### `setExtendedValues(values): void`
 
@@ -370,7 +395,7 @@ form element": every library signature that takes a field — action executors, 
 is the second argument every one of them takes, the [extended properties](#extended-properties) the element
 carries; it defaults to `{}`, which is what makes `FieldBase` on its own the type of any form element.
 
-It provides `originalValue`, `enabled`, `visibility`, `valid`, `errors`, `validating`, `validationEpoch`,
+It provides `originalValue`, `enabled`, `visibility`, `valid`, `errors`, `validating`, `busy`, `validationEpoch`,
 `isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()`, `validate()`, `clearValidators()`, `setExtendedValues()`, `rebind()`,
 `beginValidating()` and `endValidating()` — which is why those work the same way on every form

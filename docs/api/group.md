@@ -38,11 +38,11 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 `visibility` the same object carries, and every eager action among them runs exactly once, over the finished group.
 `Field`, `Action` and `List` do the same — see [Field](/api/field) for the full description.
 
-The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you hand it a field instance that already belongs to another group or list: a field belongs to one container, and a container refuses one that is taken. Each group needs its own field instances — bind the declaration again with `field.bind()`. A `List` releases the rows it drops, so those are free to be taken again; a `Group` never releases a field.
+The constructor throws if `fields` is not an object of field instances (`Invalid fields object provided`). It also throws a `TypeError` when you hand it a field instance that already belongs to another group or list: a field belongs to one container, and a container refuses one that is taken. Each group needs its own field instances — bind the declaration again with `field.bind()`. A `List` releases the rows it drops and a `Group` releases the field `removeField()` takes out, so both are free to be taken again.
 
 Field names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`, `constructor`, `__proto__`, …) are accepted like any other: the map has no prototype, and both `value` and `fullValue` build their result the same way. The value setter likewise assigns only from the object's own keys, so `group.value = {}` leaves a field named `toString` untouched instead of handing it `Object.prototype.toString`. A name used twice in the same group throws `Error('Field <name> is already in this form')`.
 
-Each entry of `fields` is a non-configurable getter, so the map cannot be rewritten from outside: `group.fields.name = otherField` and `delete group.fields.name` both throw a `TypeError`. A field swapped in that way would never get `parent`, `fieldName` or change notifications. Build a new `Group` instead.
+`fields` hands out a guarded view of the member map, so the set of members cannot be rewritten from outside: `group.fields.name = otherField`, `Object.defineProperty(group.fields, 'name', …)` and `delete group.fields.name` all throw a `TypeError` naming the method to use instead. A field swapped in that way would never get `parent`, `fieldName` or change notifications, and the group would go on counting the verdict of a member it no longer holds. `addField()` and `removeField()` are the way the set changes. Reading through the view is a tracked read of the set of members, so a template rendering off `group.fields` re-renders when a field is added or removed.
 
 `parent` and `fieldName` are read-only accessors over an element's state, and that state is held in private class fields — invisible to `Object.keys(field)`, `Object.getOwnPropertySymbols(field)`, `JSON.stringify(field)` and lodash `isEqual` alike. The parent link is therefore out of reach of all four, and a walk over a group that contains its own descendants' back-references terminates. The container writes both; assigning either yourself throws a `TypeError`.
 
@@ -54,7 +54,7 @@ The same opacity means an element is not worth handing to a structural compariso
 |------|-----------|---------|
 | `GenericFieldsInterface` | `Record<string, FieldBase>` | The constraint on `Group`'s and `List`'s type argument. Extend it to declare a form's shape: `interface UserForm extends GenericFieldsInterface { name: Field<string> }` |
 | `FieldsToValues<T>` | `{ [K in keyof T]: T[K]['value'] }` | Maps a fields interface to the value object it serializes to. A nested `Group` contributes its own value object, a nested `List` its row array |
-| `GroupValue<T>` | `FieldsToValues<T> \| null` | What `group.value` reads back |
+| `GroupValue<T>` | `Partial<FieldsToValues<T>> \| null` | What `group.value` reads back. Every key is optional: a disabled member is left out of the object the group builds, so each one reads as possibly `undefined` |
 | `GroupValueInput<T>` | `Partial<FieldsToValues<T>> \| null` | What `group.value` and `params.value` accept |
 
 ## `Group.createFromFormData(data)`
@@ -69,17 +69,18 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `fields` | `T` | no | The typed map of child fields |
-| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of **enabled** field values; `null` when nothing serializes — a group without fields, or one every field of which the serialization rule below leaves out. Reading it gives each field's own value type — for `Group<{ age: Field<number> }>`, `group.value!.age` is `number`. The object is built once per change and handed to every reader until the next one, and it is frozen: writing into it throws in strict mode and is silently dropped outside it. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
+| `fields` | `T` | no | The typed map of child fields. What it hands out is a guarded view over the map the group holds: reading it reaches the members themselves, and every write to it throws a `TypeError` — `addField()` and `removeField()` change the set. The read is tracked, so a template rendering off it re-renders as members come and go |
+| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of **enabled** field values; `null` when nothing serializes — a group without fields, or one every field of which the serialization rule below leaves out. Reading it gives each field's own value type, optional — for `Group<{ age: Field<number> }>`, `group.value!.age` is `number \| undefined`, because a disabled `age` is left out. The object is built once per change and handed to every reader until the next one, and it is frozen: writing into it throws in strict mode and is silently dropped outside it. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
 | `originalValue` | `GroupValueInput<T>` | yes | Value at creation time, held as a copy of its own rather than as the object `value` reads back, and not frozen. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the group itself and all child fields are valid |
-| `validating` | `boolean` | no | `true` while an async validator registered on the group itself is pending. Unlike `valid`, it does **not** aggregate child fields — check the children individually |
+| `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the group itself or anywhere below it. The group keeps a tally of the members that answer `true`, so the read costs nothing however many members it holds |
+| `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the group has yet to settle. A validation is not an execution and is answered by `validating`, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | Group-level validation errors. Writable, but normally managed by validators |
 | `enabled` | `boolean` | yes | Setting this does **not** cascade to children; use child fields directly |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint |
 | `touched` | `boolean` | yes | `true` when any child field has been touched; setting propagates to all children |
-| `fullValue` | `Record<string, any>` | no | Like `value` but includes disabled fields |
+| `fullValue` | `FieldsToFullValues<T>` | no | What the group holds, where `value` is what it serializes: every field is in it, disabled ones included, and every key is present rather than optional. A nested group contributes its own full structure, so the guarantee carries all the way down and no `?.` is needed to read through it |
 
 ::: tip Serialization rule
 `Group.value` serializes only **enabled** fields. A disabled field is completely excluded from the output object. An exception applies to a disabled nested `Group`: it is still included when its own value is non-empty, that is when at least one field inside it serializes. A disabled nested `List` has no such exception and is always excluded.
@@ -94,6 +95,47 @@ Type-safe accessor for a single child field. Returns `null` if the key does not 
 ```typescript
 const first = form.field('firstName'); // typed as Field<string>
 ```
+
+### `addField(fieldName, field): this`
+
+Takes `field` into the group under `fieldName` and returns the group. The group ends up holding it exactly as it
+holds a field the constructor was given: the field carries `parent` and `fieldName`, its verdict counts towards the
+group's, its runs in flight count towards the group's `validating`, and a rule of its own that names another member
+of the form — a `CompareTo` by name, a validator that reads a sibling — is run over the record it has joined.
+
+```typescript
+const form = new Group({ name: new Field({ value: 'Jan' }) });
+form.addField('email', new Field({ value: 'jan@example.com' }));
+form.value; // { name: 'Jan', email: 'jan@example.com' }
+```
+
+The change is announced through the ordinary path: inside a [transaction](/api/transactions) it settles with
+everything else the transaction did, and the group announces the value it ends up holding once — so a member that
+serializes fires `ValueChangedAction` on the group, and a disabled one, which the group leaves out, fires nothing.
+The baseline behind `isChanged` is not rewritten: a group that gains a field holds something its `originalValue`
+does not carry, and reports itself changed until `originalValue` is assigned.
+
+The map is typed `T`, which names the members the group's type declares; a field added beyond those is held and
+serialized like any other, and the type does not know about it. Declare it in `T` where the type is to name it.
+
+- **throws `Error`** (`Field <name> is already in this form`) where the group already holds that name;
+- **throws `TypeError`** where `field` already belongs to a container — hand over a `bind()` of it instead.
+
+### `removeField(fieldName): FieldBase | undefined`
+
+Takes the field held under `fieldName` out of the group and hands it back, answering `undefined` where the group
+holds no field of that name. The field is released whole: `parent` and `fieldName` are gone, its verdict and its
+runs in flight no longer count towards the group's, and it is free to be taken by another container. What it holds
+— its value, its errors, the change history behind `isChanged` — is its own to report.
+
+```typescript
+const email = form.removeField('email'); // the Field instance, detached
+form.value;                              // { name: 'Jan' }
+```
+
+The group's value and verdict settle over the members it has left, announced the same way `addField()`'s change is.
+The baseline behind `isChanged` is not rewritten here either. Rolled back with the transaction it ran in, the
+member set is put back as it was.
 
 ### `registerAction(action): this`
 

@@ -96,3 +96,11 @@ describe('Pattern Validator', () => {
     expect(errorText).toBe(customMessage);
   });
 });
+
+describe('Pattern Validator error code', () => {
+  it('states the pattern code on the error it produces', () => {
+    const field = new Field({ value: 'abc', validators: [new Pattern(/^\d+$/)] });
+
+    expect(field.errors[0].code).toBe('pattern');
+  });
+});

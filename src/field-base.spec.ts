@@ -1,3 +1,7 @@
+import { nextTick, watchEffect } from 'vue';
+
+import { Action } from './action';
+import { ExecuteAction } from './actions';
 import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction } from './actions/value-changed-action';
@@ -335,4 +339,246 @@ it('reports validating as a boolean that starts out false', () => {
   // the counter never goes below zero, so a stray endValidating cannot latch the flag on
   field.endValidating();
   expect(field.validating).toBe(false);
+});
+
+describe('Runs in flight below an element', () => {
+  it('reports validating for the whole subtree, and stops when the last run settles', () => {
+    const a = new Field({ value: 'a' });
+    const b = new Field({ value: 'b' });
+    const inner = new Group({ a, b });
+    const outer = new Group({ inner });
+
+    expect(outer.validating).toBe(false);
+
+    a.beginValidating();
+    expect(inner.validating).toBe(true);
+    expect(outer.validating).toBe(true);
+    expect(b.validating).toBe(false);
+
+    // a second run below the same container leaves the answer where it is, and holds it until it settles too
+    b.beginValidating();
+    a.endValidating();
+    expect(inner.validating).toBe(true);
+    expect(outer.validating).toBe(true);
+
+    b.endValidating();
+    expect(inner.validating).toBe(false);
+    expect(outer.validating).toBe(false);
+  });
+
+  it("counts a row's runs for the list and the form above it", () => {
+    const list = new List(new Group({ z: new Field({ value: 0 }) }));
+    const form = new Group({ list });
+    list.push({ z: 1 });
+    const cell = list.get(0)!.field('z')!;
+
+    cell.beginValidating();
+    expect(list.validating).toBe(true);
+    expect(form.validating).toBe(true);
+
+    cell.endValidating();
+    expect(list.validating).toBe(false);
+    expect(form.validating).toBe(false);
+  });
+
+  it('lets a released element take its runs with it', () => {
+    const list = new List(new Group({ z: new Field({ value: 0 }) }));
+    const form = new Group({ list });
+    list.push({ z: 1 });
+    const row = list.get(0)!;
+    row.field('z')!.beginValidating();
+
+    const removed = list.remove(0)!;
+
+    expect(removed.validating).toBe(true);
+    expect(list.validating).toBe(false);
+    expect(form.validating).toBe(false);
+  });
+
+  it('takes the runs of an element a container takes on, and gives them back on a rollback', () => {
+    const field = new Field({ value: 'x' });
+    const group = new Group({ a: new Field({ value: 'a' }) });
+    field.beginValidating();
+
+    transaction((tx) => {
+      group.addField('b', field);
+      expect(group.validating).toBe(true);
+      tx.rollback();
+    });
+
+    expect(group.validating).toBe(false);
+    expect(field.validating).toBe(true);
+  });
+
+  it('gives back a run that started while the transaction held the element', () => {
+    const field = new Field({ value: 'x' });
+    const group = new Group({ a: new Field({ value: 'a' }) });
+
+    transaction((tx) => {
+      group.addField('b', field);
+      // the run starts after the element was taken on, so what the rollback has to hand back is a run the
+      // container was never told the start of at the moment it took the element
+      field.beginValidating();
+      expect(group.validating).toBe(true);
+      tx.rollback();
+    });
+
+    expect(group.validating).toBe(false);
+    expect(field.validating).toBe(true);
+
+    field.endValidating();
+    expect(group.validating).toBe(false);
+  });
+
+  it('takes back a run that started while a rolled-back transaction held the element released', () => {
+    const group = new Group({ a: new Field({ value: 'a' }) });
+    const field = group.field('a')!;
+
+    transaction((tx) => {
+      group.removeField('a');
+      field.beginValidating();
+      expect(group.validating).toBe(false);
+      tx.rollback();
+    });
+
+    // the element is a member again, and the run it started while it was not is one the group now carries
+    expect(group.validating).toBe(true);
+
+    field.endValidating();
+    expect(group.validating).toBe(false);
+  });
+
+  it('answers busy false on an element that executes nothing', () => {
+    const field = new Field({ value: 'x' });
+
+    // an asynchronous validation is what validating states; busy states an execution, and a plain field has
+    // nothing to execute
+    field.beginValidating();
+    expect(field.validating).toBe(true);
+    expect(field.busy).toBe(false);
+    field.endValidating();
+    expect(field.busy).toBe(false);
+  });
+
+  it('answers busy for an action executing below it', async () => {
+    let settle: (value: unknown) => void = () => null;
+    const action = new Action({ actions: [new ExecuteAction(() => new Promise((resolve) => (settle = resolve)))] });
+    const inner = new Group({ action });
+    const outer = new Group({ inner });
+
+    expect(outer.busy).toBe(false);
+
+    const running = action.execute();
+    expect(inner.busy).toBe(true);
+    expect(outer.busy).toBe(true);
+    // an execution is not a validation, so validating says nothing about it
+    expect(outer.validating).toBe(false);
+
+    settle(null);
+    await running;
+    expect(inner.busy).toBe(false);
+    expect(outer.busy).toBe(false);
+  });
+
+  it('keeps a validation below it out of busy', () => {
+    const cell = new Field({ value: 1 });
+    const list = new List(new Group({ z: new Field({ value: 0 }) }));
+    const form = new Group({ cell, list });
+
+    // the two state different things: a validation is what validating answers for, an execution what busy does,
+    // and a form that gates on the tree being idle reads both
+    cell.beginValidating();
+    expect(form.validating).toBe(true);
+    expect(form.busy).toBe(false);
+
+    cell.endValidating();
+    expect(form.validating).toBe(false);
+    expect(form.busy).toBe(false);
+  });
+
+  it('re-renders a reader of busy as a run below it starts and settles', async () => {
+    let settle: (value: unknown) => void = () => null;
+    const action = new Action({ actions: [new ExecuteAction(() => new Promise((resolve) => (settle = resolve)))] });
+    const group = new Group({ action });
+    const seen: boolean[] = [];
+    watchEffect(() => seen.push(group.busy));
+
+    const running = action.execute();
+    await nextTick();
+    settle(null);
+    await running;
+    await nextTick();
+
+    expect(seen).toEqual([false, true, false]);
+  });
+});
+
+describe('settled', () => {
+  it('resolves at once where nothing is running', async () => {
+    const field = new Field({ value: 'x' });
+    await expect(field.settled()).resolves.toBeUndefined();
+  });
+
+  it('waits for an asynchronous validation below it', async () => {
+    const field = new Field({ value: 'x' });
+    const group = new Group({ field });
+    field.beginValidating();
+
+    let done = false;
+    const waiting = group.settled().then(() => {
+      done = true;
+    });
+
+    await Promise.resolve();
+    expect(done).toBe(false);
+
+    field.endValidating();
+    await waiting;
+    expect(done).toBe(true);
+  });
+
+  it('waits for an action executing below it', async () => {
+    let settle: (value: unknown) => void = () => null;
+    const action = new Action({ actions: [new ExecuteAction(() => new Promise((resolve) => (settle = resolve)))] });
+    const group = new Group({ action });
+    const running = action.execute();
+
+    let done = false;
+    const waiting = group.settled().then(() => {
+      done = true;
+    });
+
+    await Promise.resolve();
+    expect(done).toBe(false);
+
+    settle(null);
+    await running;
+    await waiting;
+    expect(done).toBe(true);
+  });
+
+  it('waits for both, and only answers once neither is running', async () => {
+    let settle: (value: unknown) => void = () => null;
+    const action = new Action({ actions: [new ExecuteAction(() => new Promise((resolve) => (settle = resolve)))] });
+    const field = new Field({ value: 'x' });
+    const group = new Group({ action, field });
+
+    const running = action.execute();
+    field.beginValidating();
+
+    let done = false;
+    const waiting = group.settled().then(() => {
+      done = true;
+    });
+
+    settle(null);
+    await running;
+    await Promise.resolve();
+    // the execution is over, the validation is not
+    expect(done).toBe(false);
+
+    field.endValidating();
+    await waiting;
+    expect(done).toBe(true);
+  });
 });

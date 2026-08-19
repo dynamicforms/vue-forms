@@ -66,6 +66,8 @@ export default class CompareTo<T = any> extends Validator {
         return [
           new ValidationErrorRenderContent(
             this.replacePlaceholders(message, { newValue, oldValue, field, otherField: other }),
+            '',
+            'compare-to',
           ),
         ];
       }
@@ -122,6 +124,10 @@ export default class CompareTo<T = any> extends Validator {
   }
 
   unregisterFrom(binding: FieldBase) {
+    // the errors this validator put on the binding go with the registration: the base method withdraws them, forms
+    // the verdict over what is left and cancels the run in flight, and a binding that no longer carries the rule is
+    // dropped from the set the compared field re-validates
+    super.unregisterFrom(binding);
     this.registrations.delete(binding);
   }
 }

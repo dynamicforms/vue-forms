@@ -1,10 +1,10 @@
 import { isEmpty } from 'lodash-es';
 
-import { type ContainerSlots, containerSlots } from './element-state';
+import { type GroupSlots, groupSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { IBindParams, IFieldParams } from './field.interface';
-import { transactional } from './transaction';
+import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
 // Utility type converting a field structure into the matching value structure.
@@ -15,27 +15,84 @@ export type FieldsToValues<T extends GenericFieldsInterface> = {
   [K in keyof T]: T[K]['value'];
 };
 
-/** what Group.value reads back: the full field map, or null when no field serializes */
-export type GroupValue<T extends GenericFieldsInterface> = FieldsToValues<T> | null;
+/**
+ * What Group.fullValue reads back. The indexed access reads each field's fullValue getter, so a nested group
+ * contributes its own full structure rather than the partial one its `value` builds, and the recursion carries
+ * the guarantee all the way down: every key is present and none of them is null.
+ */
+export type FieldsToFullValues<T extends GenericFieldsInterface> = {
+  [K in keyof T]: T[K]['fullValue'];
+};
+
+/**
+ * What Group.value reads back: the values of the fields that serialize, or null when none does. Every key is
+ * optional, because a field that is disabled is left out of the object the group builds.
+ */
+export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
 /** what Group.value and the Group constructor accept: keys left out are simply not assigned */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
+
+/**
+ * The guarded view of a group's member map, held outside the group it belongs to. It is a proxy over the very map
+ * the group writes into, so an element carrying it as a property would be walked twice by JSON.stringify and by
+ * lodash isEqual, both of which go down a structure over own keys.
+ */
+const fieldsViews = new WeakMap<object, GenericFieldsInterface>();
+
+/**
+ * The handler behind that view. Every read goes through `track` first, which reads the group's name array - the
+ * part of the state that says which members the group holds - so a reader inside an effect re-runs when
+ * addField() or removeField() changes the set; the map itself is beside the state, and a write to it would
+ * otherwise reach nobody.
+ *
+ * Every write is refused: a field assigned into the map, or one deleted out of it, would never receive parent,
+ * fieldName or change notifications, and the group would go on counting the verdict of a member it no longer
+ * holds. addField() and removeField() are the way the set of members changes.
+ */
+const fieldsAreReadOnly = (track: () => number): ProxyHandler<GenericFieldsInterface> => ({
+  get(target, key, receiver) {
+    track();
+    return Reflect.get(target, key, receiver);
+  },
+  has(target, key) {
+    track();
+    return Reflect.has(target, key);
+  },
+  ownKeys(target) {
+    track();
+    return Reflect.ownKeys(target);
+  },
+  getOwnPropertyDescriptor(target, key) {
+    track();
+    return Reflect.getOwnPropertyDescriptor(target, key);
+  },
+  set(_target, key) {
+    throw new TypeError(`fields.${String(key)} cannot be assigned: use addField() to give the group a member`);
+  },
+  defineProperty(_target, key) {
+    throw new TypeError(`fields.${String(key)} cannot be redefined: use addField() to give the group a member`);
+  },
+  deleteProperty(_target, key) {
+    throw new TypeError(`fields.${String(key)} cannot be deleted: use removeField() to take a member out`);
+  },
+});
 
 export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X extends object = {}> extends FieldBase<
   GroupValue<T>,
   X
 > {
-  protected get state(): ContainerSlots<GroupValue<T>> {
-    return super.state as ContainerSlots<GroupValue<T>>;
+  protected get state(): GroupSlots<GroupValue<T>> {
+    return super.state as GroupSlots<GroupValue<T>>;
   }
 
-  protected get raw(): ContainerSlots<GroupValue<T>> {
-    return super.raw as ContainerSlots<GroupValue<T>>;
+  protected get raw(): GroupSlots<GroupValue<T>> {
+    return super.raw as GroupSlots<GroupValue<T>>;
   }
 
   private readonly _fields: T;
 
   constructor(fields: T, params?: IFieldParams<GroupValueInput<T>, X>) {
-    super(containerSlots<GroupValue<T>>());
+    super(groupSlots<GroupValue<T>>());
 
     if (!Group.isValidFields(fields)) throw new Error('Invalid fields object provided');
     // the backing map has no prototype: a field may be named after an Object.prototype member, and on an
@@ -81,25 +138,96 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
   }
 
   /**
+   * The name array is copied as well: a rollback puts back the set of members the group held, not the array it
+   * went on to hold.
+   */
+  protected [TxCapture](): TxSnapshot {
+    const captured = super[TxCapture]();
+    captured.fieldNames = [...this.raw.fieldNames];
+    return captured;
+  }
+
+  /**
    * The copy of a built value that serves as a baseline. The value getter hands out one object per version, and
    * a baseline holding that same object would report every value as its own original.
    */
   private static baseline<V extends GenericFieldsInterface>(value: GroupValue<V>): GroupValue<V> {
-    return value == null ? value : ({ ...value } as FieldsToValues<V>);
+    return value == null ? value : { ...value };
   }
 
-  private addField(fieldName: string, field: FieldBase) {
-    // note: not sure if I should expose this (make it public).
-    //  breaks types, neglects events (originalValue, valueChanged), etc.
-    if (Object.hasOwn(this._fields, fieldName)) {
-      throw new Error(`Field ${fieldName} is already in this form`);
-    }
-    // takeChild refuses a field that another group or list already holds, and installs the back-reference and the
-    // name together. A group never releases a field, so the name stands for the lifetime of the field.
-    this.takeChild(field, fieldName);
-    // the entry is a non-configurable getter, so the map cannot be rewritten behind the group's back:
-    // a field assigned straight into `fields` would never receive parent, fieldName or change notifications
-    Object.defineProperty(this._fields, fieldName, { get: () => field, configurable: false, enumerable: true });
+  /**
+   * Takes `field` into this group under `fieldName`. The group ends up holding it exactly as it holds a field the
+   * constructor was given: the field carries the back-reference and the name, its verdict counts towards the
+   * group's, and a rule of the field's that names another member of the form reaches it here.
+   *
+   * The change is announced through the ordinary path, so a group whose value the new field adds to says so once
+   * the transaction closes, and its verdict is re-formed over the members it now holds. The baseline behind
+   * `isChanged` is not rewritten: a group that gains a field holds something its original value does not carry,
+   * and reports itself changed until `originalValue` is written.
+   *
+   * @throws Error where this group already holds a field under `fieldName`.
+   * @throws TypeError where `field` already belongs to a container - pass a `bind()` of it instead.
+   */
+  addField(fieldName: string, field: FieldBase): this {
+    transactional((tx) => {
+      if (Object.hasOwn(this._fields, fieldName)) {
+        throw new Error(`Field ${fieldName} is already in this form`);
+      }
+      // takeChild refuses a field that another group or list already holds, and installs the back-reference and
+      // the name together
+      this.takeChild(field, fieldName);
+      tx.touch(this);
+      Group.setEntry(this._fields, fieldName, field);
+      // the map is not part of the state a snapshot covers, so the removal is handed to the transaction as its own
+      // undo; the name array is in the state and a rollback puts it back with everything else
+      tx.whenRolledBack(() => Group.dropEntry(this._fields, fieldName));
+      this.state.fieldNames.push(fieldName);
+      // the field now reaches the form this group stands in, so a rule of its own that names a field up there -
+      // one no record below could answer - is run over it here
+      this.completeRecords(field);
+      this.bumpValueVersion();
+      this.notifyValueChanged();
+    });
+    return this;
+  }
+
+  /**
+   * Takes the field held under `fieldName` out of this group and hands it back, answering undefined where the
+   * group holds no field of that name. The field is released whole: the back-reference and the name are gone, its
+   * verdict and its runs in flight no longer count towards the group's, and it is free to be taken by another
+   * container. What it holds - its value, its errors, the change history behind `isChanged` - is its own to report.
+   *
+   * The change is announced through the ordinary path, so the group's value and verdict settle over the members it
+   * has left. The baseline behind `isChanged` is not rewritten, the same way it is not on `addField`.
+   */
+  removeField(fieldName: string): FieldBase | undefined {
+    let removed: FieldBase | undefined;
+    transactional((tx) => {
+      if (!Object.hasOwn(this._fields, fieldName)) return;
+      const field: FieldBase = this._fields[fieldName];
+      tx.touch(this);
+      this.releaseChild(field);
+      Group.dropEntry(this._fields, fieldName);
+      tx.whenRolledBack(() => Group.setEntry(this._fields, fieldName, field));
+      this.state.fieldNames.splice(this.state.fieldNames.indexOf(fieldName), 1);
+      this.bumpValueVersion();
+      this.notifyValueChanged();
+      removed = field;
+    });
+    return removed;
+  }
+
+  /**
+   * Writes one entry of the member map. The map is typed by the fields interface, which names the members a group
+   * of that type holds and no others, so both here and in dropEntry it is reached as the plain record it is.
+   */
+  private static setEntry(fields: GenericFieldsInterface, fieldName: string, field: FieldBase): void {
+    (fields as Record<string, FieldBase>)[fieldName] = field;
+  }
+
+  /** Drops one entry out of the member map. */
+  private static dropEntry(fields: GenericFieldsInterface, fieldName: string): void {
+    delete (fields as Record<string, FieldBase | undefined>)[fieldName];
   }
 
   private static isValidFields(flds: unknown): flds is Record<string, FieldBase> {
@@ -123,12 +251,28 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
     return this._fields[fieldName] ?? null;
   }
 
+  /**
+   * The typed map of this group's members. What it hands out is a view over the map the group holds: reading it
+   * reaches the members themselves, and every write to it is refused - addField() and removeField() are what
+   * change the set. The view is built the first time something asks for it.
+   *
+   * Reading through it is a tracked read of the set of members, so a template rendering off `group.fields`
+   * re-renders when a field is added or removed; what a member itself holds is tracked by that member.
+   */
   get fields(): T {
-    return this._fields;
+    let view = fieldsViews.get(this);
+    if (!view) {
+      view = new Proxy(
+        this._fields,
+        fieldsAreReadOnly(() => this.state.fieldNames.length),
+      );
+      fieldsViews.set(this, view);
+    }
+    return view as T;
   }
 
   protected get members(): FieldBase[] {
-    return Object.values(this._fields);
+    return this.raw.fieldNames.map((name) => this._fields[name]);
   }
 
   get value(): GroupValue<T> {
@@ -152,7 +296,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
     });
     // the object outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen: a caller writing into it would change what the group reports without any member holding that value
-    const built = isEmpty(val) ? null : (Object.freeze({ ...val }) as FieldsToValues<T>);
+    const built = isEmpty(val) ? null : (Object.freeze({ ...val }) as Partial<FieldsToValues<T>>);
     this.raw.cachedValue = built;
     this.raw.cachedValueVersion = version;
     return built;
@@ -219,12 +363,12 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
     });
   }
 
-  get fullValue(): Record<string, any> {
+  get fullValue(): FieldsToFullValues<T> {
     const value = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
       value[name] = field.fullValue;
     });
-    return { ...value };
+    return { ...value } as FieldsToFullValues<T>;
   }
 
   /**
@@ -253,7 +397,17 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
   }
 
   protected composeValid(): boolean {
-    return this.state.errors.length === 0 && Object.values(this._fields).every((field) => field.valid);
+    // the names are read through the tracked view, so a member added or removed re-forms the verdict; the members
+    // themselves are reached through the map, which is beside the state
+    return this.state.errors.length === 0 && this.state.fieldNames.every((name) => this._fields[name].valid);
+  }
+
+  get busy() {
+    return this.busyRead;
+  }
+
+  protected composeBusy(): boolean {
+    return this.state.fieldNames.some((name) => this._fields[name].busy);
   }
 
   validate(revalidate: boolean = false) {

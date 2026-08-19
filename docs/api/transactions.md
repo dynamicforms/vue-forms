@@ -73,10 +73,13 @@ transaction(() => {
 ## Rollback
 
 The first time a transaction modifies an element it records the whole of that element's mutable state —
-`value`, `originalValue`, `touched`, `errors`, `enabled`, `visibility`, and for a `List` its row array. A
+`value`, `originalValue`, `touched`, `errors`, `enabled`, `visibility`, for a `Group` the names of its members and
+for a `List` its row array. A
 rollback puts all of it back, together with the actions the transaction registered or unregistered — including
 the validators a `clearValidators()` dropped — and **announces nothing**: from an observer's point of view the
-transaction never happened.
+transaction never happened. An asynchronous validation the unregistration would have cancelled is put back with
+it: the cancellation waits for the commit, so a run in flight when the transaction opened goes on and the verdict
+it reaches counts.
 
 **A throw rolls back and rethrows.** This is what makes atomicity real: a handler that fails halfway through a
 whole-group assignment leaves the group exactly as it was rather than half-applied.
@@ -115,9 +118,12 @@ Two more things a rollback does not undo:
 
 - **an action registered while it was open stays registered.** Registrations are chained closures, and one of
   them cannot be taken out again.
-- **an asynchronous validation it started runs to the end.** Nothing can recall the request, so instead its
-  verdict is discarded: the field is never left invalid over a value it was rolled back out of. `validating`
-  stays `true` until the run settles, because a run in flight is a fact rather than a state.
+- **an asynchronous validation it started is called off rather than undone.** The `AbortSignal` the validation
+  function was handed aborts, so work that honours it stops; work that does not runs to the end. Either way the
+  verdict is discarded — the field is never left invalid over a value it was rolled back out of — and `validating`
+  stays `true` until the run settles, because a run in flight is a fact rather than a state. The counters behind
+  `validating` are therefore the one piece of state a rollback leaves alone: put back, they would no longer match
+  the runs still to settle.
 
 ## Cost
 

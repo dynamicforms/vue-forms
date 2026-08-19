@@ -79,6 +79,9 @@ export class Transaction {
   /** what a rollback has to put back beyond the state slots, newest last */
   private readonly undo: (() => void)[] = [];
 
+  /** what the commit has to do once the change stands, in the order it was handed in */
+  private readonly settled: (() => void)[] = [];
+
   /** true once the transaction has been unwound, which is what tells a run started inside it to say nothing */
   private unwound = false;
 
@@ -151,6 +154,15 @@ export class Transaction {
   }
 
   /**
+   * Registers work that runs once the transaction has committed, and not at all where it is rolled back. It is
+   * how an operation defers a step that cannot be taken back - cancelling work in flight, for one - until the
+   * change it belongs to actually stands.
+   */
+  whenCommitted(work: () => void): void {
+    this.settled.push(work);
+  }
+
+  /**
    * Notes that an element at or below the depth the pass in progress is working at has been enrolled. The pass
    * then gives up the rest of its batch and is started again over what is now owed, so the newcomer is reached
    * before the containers above it: an element a handler writes must still be announced before the container
@@ -177,6 +189,8 @@ export class Transaction {
     // newest first, so an element written twice ends up as the earlier of the two writes found it
     for (let index = this.undo.length - 1; index >= 0; index--) this.undo[index]();
     this.undo.length = 0;
+    // the change never stood, so what was waiting for it never runs
+    this.settled.length = 0;
   }
 
   /**
@@ -193,6 +207,9 @@ export class Transaction {
       if (this.settleValidity()) continue;
       break;
     }
+    // everything is announced and the change stands, so the steps that were waiting for it run here
+    for (let index = 0; index < this.settled.length; index++) this.settled[index]();
+    this.settled.length = 0;
   }
 
   /**

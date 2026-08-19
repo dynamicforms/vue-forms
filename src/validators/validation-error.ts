@@ -56,6 +56,13 @@ export function isCallableFunction(msg?: RenderContentRef): msg is RenderContent
  */
 
 export class ValidationError {
+  /**
+   * Machine-readable identifier of what failed, in kebab-case. Every validator this library ships states one, so
+   * code that reacts to a particular failure does not have to match the message text, which is translated and
+   * configurable. It is optional: an error built by hand carries whatever its author gives it, or nothing.
+   */
+  constructor(public code?: string) {}
+
   get componentName() {
     return 'Comment';
   }
@@ -80,8 +87,9 @@ export class ValidationErrorText extends ValidationError {
   constructor(
     public text: string,
     public classes: ClassTypes = '',
+    code?: string,
   ) {
-    super();
+    super(code);
   }
 
   get componentName() {
@@ -108,8 +116,9 @@ export class ValidationErrorRenderContent extends ValidationError {
   constructor(
     text: RenderContentRef,
     public classes: ClassTypes = '',
+    code?: string,
   ) {
-    super();
+    super(code);
     this.text = text;
     this.textType = computed(() => this.getTextType);
   }

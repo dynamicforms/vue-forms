@@ -84,14 +84,9 @@ const lineItems = new List(lineItem, {
   ]
 });
 
-// list.get(index) hands out the Group behind a row, which is what the inputs bind to. List has no length
-// property, so the row count comes from list.value, and reading it makes this recompute on every mutation.
-const rows = computed(() => {
-  const rowCount = lineItems.value?.length ?? 0;
-  const result = [];
-  for (let index = 0; index < rowCount; index++) result.push(lineItems.get(index));
-  return result;
-});
+// list.items hands out the Group behind every row, which is what the inputs bind to. The array is frozen and is
+// rebuilt as rows come and go, and the read is tracked, so this recomputes on every mutation.
+const rows = computed(() => lineItems.items);
 
 function addLine() {
   lineItems.push({ description: '', quantity: 1, unitPrice: null });

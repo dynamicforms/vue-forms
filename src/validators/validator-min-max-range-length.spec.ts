@@ -303,3 +303,13 @@ describe('LengthInRange Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 });
+
+describe('Length bound error codes', () => {
+  it('names each bound on the error it produces', () => {
+    expect(new Field({ value: 'ab', validators: [new Validators.MinLength(5)] }).errors[0].code).toBe('min-length');
+    expect(new Field({ value: 'abcdef', validators: [new Validators.MaxLength(5)] }).errors[0].code).toBe('max-length');
+    expect(new Field({ value: 'abcdef', validators: [new Validators.LengthInRange(1, 5)] }).errors[0].code).toBe(
+      'range-length',
+    );
+  });
+});

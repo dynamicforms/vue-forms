@@ -1,9 +1,12 @@
 import { isEqual } from 'lodash-es';
 import { vi } from 'vitest';
+import { nextTick, watchEffect } from 'vue';
 
+import { Action } from './action';
 import {
   EnabledChangedAction,
   EnabledChangingAction,
+  ExecuteAction,
   ValidChangedAction,
   ValueChangedAction,
   VisibilityChangedAction,
@@ -11,8 +14,9 @@ import {
 } from './actions';
 import DisplayMode from './display-mode';
 import { Field } from './field';
-import { Group } from './group';
+import { GenericFieldsInterface, Group } from './group';
 import { List } from './list';
+import { transaction } from './transaction';
 import { Validators, ValidationErrorText } from './validators';
 
 describe('Group', () => {
@@ -509,7 +513,7 @@ describe('Group field storage', () => {
   it('rejects a duplicate field name', () => {
     const group = new Group({ y: new Field({ value: 1 }) });
 
-    expect(() => (group as any).addField('y', new Field({ value: 2 }))).toThrow(/already in this form/);
+    expect(() => group.addField('y', new Field({ value: 2 }))).toThrow(/already in this form/);
   });
 
   it('keeps the parent back-reference out of enumeration so cyclic structures still serialize', () => {
@@ -748,5 +752,208 @@ describe('Group field ownership', () => {
     const list = new List(new Group({ a: new Field({ value: 'x' }) }), { value: [{ a: 'y' }] });
 
     expect(() => new Group({ borrowed: list.get(0)!.fields.a })).toThrow(TypeError);
+  });
+});
+
+describe('Group membership after construction', () => {
+  it('takes a field in and serializes it, announcing the change once', () => {
+    const onValueChanged = vi.fn();
+    // the type argument is the interface a group whose members change at runtime is declared with: addField takes
+    // a name of its own and cannot widen the type the group was built with
+    const group = new Group<GenericFieldsInterface>({ a: new Field({ value: 1 }) }).registerAction(
+      new ValueChangedAction(onValueChanged),
+    );
+    const b = new Field({ value: 2 });
+
+    expect(group.addField('b', b)).toBe(group);
+
+    expect(group.value).toEqual({ a: 1, b: 2 });
+    expect(group.fields.b).toBe(b);
+    expect(Object.keys(group.fields)).toEqual(['a', 'b']);
+    expect(b.parent).toBe(group);
+    expect(b.fieldName).toBe('b');
+    expect(onValueChanged).toHaveBeenCalledTimes(1);
+    expect(onValueChanged.mock.calls[0][2]).toEqual({ a: 1, b: 2 });
+    expect(onValueChanged.mock.calls[0][3]).toEqual({ a: 1 });
+  });
+
+  it('re-forms its verdict over the member it took and the one it gave up', () => {
+    const group = new Group({ a: new Field({ value: 'a' }) });
+    const invalid = new Field({ value: '', validators: [new Validators.Required('Required')] });
+
+    expect(group.valid).toBe(true);
+
+    group.addField('b', invalid);
+    expect(group.valid).toBe(false);
+
+    expect(group.removeField('b')).toBe(invalid);
+    expect(group.valid).toBe(true);
+    // the field it no longer holds moves its tally no further
+    invalid.value = 'x';
+    invalid.value = '';
+    expect(group.valid).toBe(true);
+  });
+
+  it('refuses a field another container already holds', () => {
+    const first = new Group({ shared: new Field({ value: 1 }) });
+    const second = new Group({});
+
+    expect(() => second.addField('shared', first.fields.shared)).toThrow(TypeError);
+    expect(first.fields.shared.parent).toBe(first);
+    expect(Object.keys(second.fields)).toEqual([]);
+  });
+
+  it('hands the removed field back detached, so another group can take it', () => {
+    const group = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+    const onValueChanged = vi.fn();
+    group.registerAction(new ValueChangedAction(onValueChanged));
+
+    const removed = group.removeField('b')!;
+
+    expect(removed.parent).toBeUndefined();
+    expect(removed.fieldName).toBeUndefined();
+    expect(removed.value).toBe(2);
+    expect(group.value).toEqual({ a: 1 });
+    expect(group.field('b')).toBeNull();
+    expect(Object.keys(group.fields)).toEqual(['a']);
+    expect(onValueChanged).toHaveBeenCalledTimes(1);
+
+    const other = new Group({});
+    other.addField('b', removed);
+    expect(other.value).toEqual({ b: 2 });
+  });
+
+  it('answers undefined for a name it does not hold, and says nothing', () => {
+    const onValueChanged = vi.fn();
+    const group = new Group({ a: new Field({ value: 1 }) }).registerAction(new ValueChangedAction(onValueChanged));
+
+    expect(group.removeField('nothing')).toBeUndefined();
+    expect(group.value).toEqual({ a: 1 });
+    expect(onValueChanged).not.toHaveBeenCalled();
+  });
+
+  it('puts the set of members back when the transaction it changed in is rolled back', () => {
+    const group = new Group<GenericFieldsInterface>({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+    const added = new Field({ value: 3 });
+
+    transaction((tx) => {
+      group.addField('c', added);
+      group.removeField('b');
+      expect(group.value).toEqual({ a: 1, c: 3 });
+      tx.rollback();
+    });
+
+    expect(Object.keys(group.fields)).toEqual(['a', 'b']);
+    expect(group.value).toEqual({ a: 1, b: 2 });
+    expect(group.field('c')).toBeNull();
+    expect(added.parent).toBeUndefined();
+    expect(group.fields.b.parent).toBe(group);
+  });
+
+  it('settles value and validity once for a set of changes made in one transaction', () => {
+    const onValueChanged = vi.fn();
+    const onValidChanged = vi.fn();
+    const group = new Group({ a: new Field({ value: 1 }) })
+      .registerAction(new ValueChangedAction(onValueChanged))
+      .registerAction(new ValidChangedAction(onValidChanged));
+
+    transaction(() => {
+      group.addField('b', new Field({ value: '', validators: [new Validators.Required('Required')] }));
+      group.addField('c', new Field({ value: 3 }));
+      group.removeField('a');
+    });
+
+    expect(group.value).toEqual({ b: '', c: 3 });
+    expect(onValueChanged).toHaveBeenCalledTimes(1);
+    expect(onValidChanged).toHaveBeenCalledTimes(1);
+    expect(onValidChanged.mock.calls[0][2]).toBe(false);
+  });
+
+  it('runs a rule of the new field that reaches the record it joined', () => {
+    const template = new Group({
+      password: new Field<string>({ value: '' }),
+      confirmation: new Field<string>({ value: '' }),
+    });
+    template.fields.confirmation.registerAction(
+      new Validators.CompareTo(template.fields.password, (mine: string, other: string) => mine === other, 'must match'),
+    );
+    const form = new Group({ password: template.fields.password.bind('secret') });
+    // bound on its own, the rule reaches no record: the field it names lives in the form the binding has yet to join
+    const confirmation = template.fields.confirmation.bind('typo');
+    expect(confirmation.errors.length).toBe(0);
+
+    form.addField('confirmation', confirmation);
+
+    expect(confirmation.errors.length).toBe(1);
+    expect(form.valid).toBe(false);
+  });
+
+  it('re-renders a reader of the value as the member set changes', async () => {
+    const group = new Group({ a: new Field({ value: 1 }) });
+    const seen: unknown[] = [];
+    watchEffect(() => seen.push(group.value));
+
+    group.addField('b', new Field({ value: 2 }));
+    await nextTick();
+    group.removeField('a');
+    await nextTick();
+
+    expect(seen).toEqual([{ a: 1 }, { a: 1, b: 2 }, { b: 2 }]);
+  });
+
+  it('refuses every write to the view it hands out', () => {
+    const group = new Group<GenericFieldsInterface>({ a: new Field({ value: 1 }) });
+    const other = new Field({ value: 2 });
+
+    expect('a' in group.fields).toBe(true);
+    expect('b' in group.fields).toBe(false);
+
+    expect(() => {
+      group.fields.a = other;
+    }).toThrow(TypeError);
+    expect(() => Object.defineProperty(group.fields, 'b', { value: other })).toThrow(TypeError);
+    expect(() => {
+      delete group.fields.a;
+    }).toThrow(TypeError);
+
+    expect(group.fields.a).not.toBe(other);
+    expect(Object.keys(group.fields)).toEqual(['a']);
+  });
+
+  it('re-runs a reader of fields as members come and go', async () => {
+    const group = new Group<GenericFieldsInterface>({ a: new Field({ value: 1 }) });
+    const seen: string[][] = [];
+    watchEffect(() => {
+      seen.push(Object.keys(group.fields));
+    });
+
+    group.addField('b', new Field({ value: 2 }));
+    await nextTick();
+    group.removeField('b');
+    await nextTick();
+    // a write inside a member is that member's business and says nothing about the set
+    group.fields.a.value = 7;
+    await nextTick();
+
+    expect(seen).toEqual([['a'], ['a', 'b'], ['a']]);
+  });
+
+  it('answers busy over the members it holds now', async () => {
+    const group = new Group<GenericFieldsInterface>({ a: new Field({ value: 1 }) });
+    let settle: (value: unknown) => void = () => null;
+    const b = new Action({ actions: [new ExecuteAction(() => new Promise((resolve) => (settle = resolve)))] });
+    const running = b.execute();
+
+    expect(group.busy).toBe(false);
+
+    group.addField('b', b);
+    expect(group.busy).toBe(true);
+
+    group.removeField('b');
+    expect(group.busy).toBe(false);
+    expect(b.busy).toBe(true);
+
+    settle(null);
+    await running;
   });
 });
