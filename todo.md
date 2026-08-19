@@ -15,14 +15,6 @@ owner only, so treat this file as the authoritative copy).
   `this.constructor`, so a subclass of either binds into the base class. The override object also takes the full
   `IBindParams` while forwarding only `originalValue`, `enabled`, `visibility` and the extended properties, so
   `f.bind(v, {errors: […]})` and `f.bind(v, {touched: true})` compile and are silently ignored.
-- **Find out what the shipped bundle is made of.** `dist/dynamicforms-vue-forms.js` is 92.7 kB (25.8 kB gzipped)
-  and `dist/index.d.ts` is 74.0 kB, for a packed tarball of 112.4 kB. Nothing has ever accounted for those
-  numbers: the source is about 4 500 lines with `lodash-es` as its only runtime dependency, and tree-shaking a
-  handful of named lodash imports should not cost what this costs. Establish where the weight is — a lodash
-  import pulling a chunk it does not need, the markdown pipeline behind `MdString`, `MessagesWidget` dragging
-  component machinery in, or simply the honest size of the library — before the surface is frozen, because the
-  answer may be an import that has to move.
-
 - **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
   Resolution answers within one record and reads an element belonging to any other as the element itself
   (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather
