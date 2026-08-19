@@ -25,8 +25,7 @@ each carries. `Validator.claim()` copies an error another validator already owns
 Vue proxy of whatever instance the field holds, so `field.errors[0] === myError` is `false` either way
 (documented) · `isSimpleComponentDef(null)` throws ·
 `List.insert(item, index)` fills the gap position by position, so an index taken from an API response builds
-that many groups and fires that many events synchronously on the main thread ·
-`./style.css` is unreachable under node10 resolution · no coverage thresholds.
+that many groups and fires that many events synchronously on the main thread.
 
 ## Pre-existing items
 
