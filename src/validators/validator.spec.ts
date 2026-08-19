@@ -7,6 +7,8 @@ import { MdString, ValidationError, ValidationErrorRenderContent, ValidationErro
 import { ValidationFunction, Validator } from './validator';
 import Required from './validator-required';
 
+import { Validators } from '.';
+
 describe('Validator', () => {
   it('adds validation errors to field.errors', () => {
     // Arrange
@@ -391,5 +393,37 @@ describe('Error codes', () => {
     expect(field2.errors[0]).not.toBe(field1.errors[0]);
     expect(field1.errors[0].code).toBe('shared-code');
     expect(field2.errors[0].code).toBe('shared-code');
+  });
+});
+
+describe('the error instance a re-run leaves standing', () => {
+  it('keeps the instance where the message it produces is the one already there', () => {
+    const field = new Field({ value: '', validators: [new Required()] });
+    const first = field.errors[0];
+    expect(field.valid).toBe(false);
+
+    // still empty once trimmed, so the same rule fails again with the same message
+    field.value = '   ';
+
+    expect(field.valid).toBe(false);
+    expect(field.errors).toHaveLength(1);
+    // the field holds the error it already held: an equal error is not a new error, and nothing re-renders
+    expect(field.errors[0]).toBe(first);
+  });
+
+  it('replaces it where the message changes', () => {
+    const min = 5;
+    const field = new Field({ value: 'ab', validators: [new Validators.MinLength(min)] });
+    const first = field.errors[0];
+
+    field.value = 'abc';
+    // the message names the length it wants rather than the value it got, so it does not move
+    expect(field.errors[0]).toBe(first);
+
+    field.value = 'abcde';
+    expect(field.valid).toBe(true);
+    field.value = 'a';
+    // the error was withdrawn in between, so what stands now is a fresh one
+    expect(field.errors[0]).not.toBe(first);
   });
 });

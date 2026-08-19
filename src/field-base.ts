@@ -683,8 +683,11 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   }
 
   set visibility(newValue: DisplayMode) {
+    const oldValue = this.#state.visibility;
+    // writing what the element already holds is not a change, so nothing runs for it: no *Changing* handler, no
+    // enrolment in the transaction, no *Changed* event. It is the rule the value setter states as well
+    if (newValue === oldValue) return;
     transactional((tx) => {
-      const oldValue = this.#state.visibility;
       const alteredValue = this._actions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
       if (!DisplayMode.isDefined(alteredValue ?? newValue)) {
         throw new Error('visibility must be a DisplayMode constant');
@@ -700,8 +703,10 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   }
 
   set enabled(newValue: boolean) {
+    const oldValue = this.#state.enabled;
+    // as with visibility: what the element already holds is no change, and nothing runs for it
+    if (newValue === oldValue) return;
     transactional((tx) => {
-      const oldValue = this.#state.enabled;
       const alteredValue = this._actions?.trigger(EnabledChangingAction, this, newValue, oldValue);
       if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
       tx.touch(this);
