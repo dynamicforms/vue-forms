@@ -15,6 +15,18 @@ owner only, so treat this file as the authoritative copy).
   `this.constructor`, so a subclass of either binds into the base class. The override object also takes the full
   `IBindParams` while forwarding only `originalValue`, `enabled`, `visibility` and the extended properties, so
   `f.bind(v, {errors: […]})` and `f.bind(v, {touched: true})` compile and are silently ignored.
+- **The documentation's landing page says nothing about what makes the library worth choosing.**
+  `docs/index.md` does not mention transactions once, and its four feature tiles are `UI-agnostic`, `Reactive`,
+  `TypeScript Support` and `Nested Structures`. Two of those are hygiene rather than an argument — every Vue
+  library claims to be reactive and typed — and nested structures are in Angular, vee-validate and vuelidate
+  alike. `readme.md` carries the `Transactional` bullet and a `transaction()` example; the page a reader arrives
+  on does not. Missing, and each now backed by a measurement: transactions with rollback, which none of the
+  comparable libraries have; lists that scale, where a 1000-row fill is 364 ms against 13 132 ms and one field
+  write in one is 0.0087 ms against 32.95 ms; and the declaration/binding model. `Lightweight` is provable rather
+  than adjectival at 10.5 kB zstd for the whole library, 61 % of `@angular/forms`' model layer.
+  It freezes no surface and breaks nothing to change later, so it blocks nothing — but 1.0 is when a reader
+  arrives, and a front door that undersells spends that once.
+
 - **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
   Resolution answers within one record and reads an element belonging to any other as the element itself
   (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather
