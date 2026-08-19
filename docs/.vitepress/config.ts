@@ -62,6 +62,8 @@ export default defineConfig({
             { text: 'Validators', link: '/examples/validators' },
             { text: 'Conditional statements', link: '/examples/conditional-statement' },
             { text: 'Action', link: '/examples/action' },
+            { text: 'Transactions', link: '/examples/transactions' },
+            { text: 'Extended properties', link: '/examples/extended-properties' },
             { text: 'Messages widget', link: '/examples/messages-widget' },
           ]
         }

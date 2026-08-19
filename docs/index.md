@@ -20,6 +20,10 @@ features:
     details: A list is meant to hold thousands of rows. What an operation costs depends on what it touches, not on how long the list is
   - title: Declared once, bound per record
     details: A group is the declaration every row of a list is built from — one validator instance, one conditional rule, and each row answers for itself
+  - title: Extended properties
+    details: A field carries whatever your UI needs to render it — a label, a hint, a width — declared as a type and checked by the compiler
+  - title: Validation that composes
+    details: Built-in and custom rules, synchronous or asynchronous, comparing fields across a record; errors carry a code and render as text, markdown or your own component
 ---
 
 # @dynamicforms/vue-forms
@@ -69,6 +73,24 @@ The `Group` handed to `new List(template)` is not a row — it is the declaratio
 row is a binding of it. A validator or a conditional action registered on the template is one instance serving
 every row, and each row answers for itself: two rows disagreeing about a condition show two different verdicts,
 and a `CompareTo` compares that row's own fields. See [The model](/guide/model).
+
+### A field carries what your UI renders it with
+
+The library models state and leaves rendering to you, so a field has room for what the rendering needs: a label, a
+hint, a column width. They are declared as a second type argument, checked by the compiler, and read through
+`extra`:
+
+```typescript
+interface Presentation { label: string; hint?: string }
+
+const firstName = new Field<string, Presentation>({ value: 'Ada', label: 'First name' });
+firstName.extra.label;                                // 'First name'
+firstName.setExtendedValues({ label: 'Given name' }); // hint stays as it was
+```
+
+Reading `extra` is tracked like any other member, so a component rendering off it follows a change. This is what a
+UI layer builds on, and what a form whose shape arrives from a server puts its labels in. See
+[Extended properties](/examples/extended-properties).
 
 ## Interactive Demo
 
