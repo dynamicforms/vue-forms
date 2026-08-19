@@ -5,6 +5,20 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-08-19
+
+### Changed
+- **Breaking:** `IBindParams` names `originalValue`, `enabled`, `visibility` and the extended properties, where it
+  named everything a constructor takes but the value. `bind()` read three of those and dropped the rest, so
+  `f.bind(v, { validators: [...] })`, `{ actions }`, `{ touched }` and `{ errors }` compiled and did nothing. They
+  are refused by the type now: `validators` and `actions` are carried from the declaration rather than supplied,
+  and `touched` and `errors` are what a binding establishes for itself as it validates.
+- **Breaking:** `Group.bind()` and `List.bind()` construct through `this.constructor`, as `Field.bind()` already
+  did, so a subclass binds into its own class instead of into the base one. A subclass whose constructor does not
+  take `(fields, params)` - or `(itemTemplate, params)` on a `List` - never sees what it is handed and would answer
+  with the declaration's data instead of the record's; both refuse that with a `TypeError` naming what to do about
+  it, rather than returning a binding whose data is quietly wrong.
+
 ## [0.13.0] - 2026-08-19
 
 ### Added

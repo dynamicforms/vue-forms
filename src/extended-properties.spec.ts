@@ -149,26 +149,44 @@ describe('transactions', () => {
 });
 
 describe('what a parameter object states but does not attach', () => {
-  it('leaves the registrations a bind override names out of the extended properties', () => {
+  it('leaves the registrations a constructor names out of the extended properties', () => {
     const validator = new Validator<number>(() => null);
-    const field = new Field<number, Presentation>({ value: 1, label: 'Name', hint: 'in full' });
+    const field = new Field<number, Presentation>({
+      value: 1,
+      label: 'Name',
+      hint: 'in full',
+      validators: [validator],
+      actions: [],
+    });
 
-    const bound = field.bind(undefined, { validators: [validator], actions: [] });
-
-    expect(Object.keys(bound.extra)).toEqual(['label', 'hint']);
-    // and a binding of that binding carries the same set, rather than one that grows with every generation
-    expect(Object.keys(bound.bind().extra)).toEqual(['label', 'hint']);
+    expect(Object.keys(field.extra)).toEqual(['label', 'hint']);
+    // and a binding of it carries the same set, rather than one that grows with every generation
+    expect(Object.keys(field.bind().extra)).toEqual(['label', 'hint']);
   });
 
   it('leaves them out on a group, a list and an action too', () => {
     const validator = new Validator(() => null);
-    const group = new Group<{ a: Field<number> }, Presentation>({ a: new Field({ value: 1 }) }, { label: 'Address' });
-    const list = new List<{ a: Field<number> }, Presentation>(undefined, { label: 'Rows' });
-    const action = new Action<ActionValue, Presentation>({ hint: 'saves the form' });
+    const group = new Group<{ a: Field<number> }, Presentation>(
+      { a: new Field({ value: 1 }) },
+      { label: 'Address', validators: [validator] },
+    );
+    const list = new List<{ a: Field<number> }, Presentation>(undefined, { label: 'Rows', validators: [validator] });
+    const action = new Action<ActionValue, Presentation>({ hint: 'saves the form', validators: [validator] });
 
-    expect(Object.keys(group.bind(undefined, { validators: [validator] }).extra)).toEqual(['label']);
-    expect(Object.keys(list.bind(undefined, { validators: [validator] }).extra)).toEqual(['label']);
-    expect(Object.keys(action.bind(undefined, { validators: [validator] }).extra)).toEqual(['hint']);
+    expect(Object.keys(group.extra)).toEqual(['label']);
+    expect(Object.keys(list.extra)).toEqual(['label']);
+    expect(Object.keys(action.extra)).toEqual(['hint']);
+  });
+
+  it('refuses a registration handed to bind, and ignores one forced past the type', () => {
+    const validator = new Validator<number>(() => null);
+    const field = new Field<number, Presentation>({ value: 1, label: 'Name' });
+
+    // bind() carries the registrations from the element it binds from, so naming them again states nothing
+    // @ts-expect-error validators is not part of what bind() accepts
+    const bound = field.bind(undefined, { validators: [validator] });
+
+    expect(Object.keys(bound.extra)).toEqual(['label']);
   });
 });
 

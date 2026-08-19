@@ -11,10 +11,6 @@ owner only, so treat this file as the authoritative copy).
 
 ## Recommended before 1.0
 
-- **`bind()` semantics.** `Group.bind()`/`List.bind()` hardcode `new Group`/`new List` instead of
-  `this.constructor`, so a subclass of either binds into the base class. The override object also takes the full
-  `IBindParams` while forwarding only `originalValue`, `enabled`, `visibility` and the extended properties, so
-  `f.bind(v, {errors: […]})` and `f.bind(v, {touched: true})` compile and are silently ignored.
 - **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
   Resolution answers within one record and reads an element belonging to any other as the element itself
   (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather

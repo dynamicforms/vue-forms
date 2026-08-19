@@ -161,13 +161,18 @@ rarely need to call this directly.
 Returns a new `Group` over `data`: every member is bound in turn, and the actions and extended properties of the
 group and of each member come along. `data` reaches the members exactly as a value passed to the constructor does,
 so a key it leaves out leaves that member with what the declaration gives it. `overrides` is an
-`IBindParams<GroupValueInput<T>, X>`; of the members it takes, only `originalValue`, `enabled` and `visibility` are
-read, and extended properties it names are written over the ones carried from the source. `enabled` and
-`visibility` apply to the group itself and are not propagated to the children.
+[`IBindParams<GroupValueInput<T>, X>`](/api/field#ibindparams-t-x): `originalValue`, `enabled`, `visibility` and
+the extended properties, which are written over the ones carried from the source. `enabled` and `visibility` apply
+to the group itself and are not propagated to the children.
 
 `originalValue` is read by key presence, and `data` by being anything other than `undefined`: `bind(null)` gives a
 group with every member cleared, while an `undefined` `data` counts as none supplied and the new group carries the
 current one.
+
+The new group is constructed through `this.constructor`, so a subclass of `Group` binds into its own class. A
+subclass whose constructor does not take `(fields, params)` never sees the members it is handed and would answer
+with a group carrying the declaration's data instead of the record's; `bind()` refuses that with a `TypeError`
+rather than returning it, and such a subclass overrides `bind()` and constructs itself.
 
 The new group is detached: it has no `parent` and no `fieldName`. `originalValue` is only carried over when you pass it explicitly in `overrides` — otherwise it becomes the group's current value, so `isChanged` starts out `false`.
 

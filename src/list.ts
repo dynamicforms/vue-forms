@@ -200,13 +200,26 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
   }
 
   bind(data?: ListValue, overrides?: IBindParams<ListValue, X>): List<T, X> {
-    const res = new List<T, X>(this._itemTemplate?.bind(), {
+    const template = this._itemTemplate?.bind();
+    // construction goes through this.constructor so that a subclass binds into its own type
+    const Ctor = this.constructor as new (itemTemplate?: Group<T>, params?: IFieldParams<ListValue, X>) => List<T, X>;
+    const res = new Ctor(template, {
       // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
       value: [...((data !== undefined ? data : this.value) ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<ListValue, X>);
+    // a subclass whose constructor does not take (itemTemplate, params) never sees either, so it would answer
+    // with a list built from its own declaration rather than from this record. That is a difference no reader
+    // would find, so it is refused here rather than returned.
+    if (res._itemTemplate !== template) {
+      throw new TypeError(
+        `${this.constructor.name}.bind() built a list that did not take the item template it was given, so the ` +
+          "binding would carry the declaration's rows. A subclass whose constructor does not take " +
+          '(itemTemplate, params) has to override bind() and construct itself.',
+      );
+    }
     res.boundFrom(this, res.value, res.originalValue, overrides);
     return res;
   }

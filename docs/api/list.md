@@ -190,9 +190,14 @@ re-forms the verdict. The mutation methods call it themselves; you rarely need t
 ### `bind(data?, overrides?): List<T>`
 
 Returns a new `List` over `data`, carrying a binding of the item template, the actions and the extended
-properties. `overrides` is an `IBindParams<ListValue, X>`; of the members it takes, only `originalValue`, `enabled`
-and `visibility` are read, and extended properties it names are written over the ones carried from the source.
+properties. `overrides` is an [`IBindParams<ListValue, X>`](/api/field#ibindparams-t-x): `originalValue`,
+`enabled`, `visibility` and the extended properties, which are written over the ones carried from the source.
 Binding an empty list gives an empty list.
+
+The new list is constructed through `this.constructor`, so a subclass of `List` binds into its own class. A
+subclass whose constructor does not take `(itemTemplate, params)` never sees the template it is handed and would
+answer with a list carrying the declaration's rows; `bind()` refuses that with a `TypeError` rather than returning
+it, and such a subclass overrides `bind()` and constructs itself.
 
 `originalValue` is read by key presence and the data by being anything other than `undefined`, on `List`, `Group`
 and `Field` alike: an explicit `null` is data the caller supplied, so `bind(null)` gives an empty list, while an

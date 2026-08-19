@@ -218,6 +218,46 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.14.0 (from v0.13.x)
+
+Both breaks are found by the type checker or announced by a throw. Nothing changes silently.
+
+### `bind()` refuses what it never honoured
+
+`IBindParams` used to name everything a constructor takes but the value, while `bind()` read only
+`originalValue`, `enabled` and `visibility`. Four keys compiled and did nothing:
+
+```typescript
+// before: accepted, and silently ignored
+field.bind(value, { validators: [required], touched: true });
+
+// after: a compile error. Register on the declaration; a binding carries what it declared
+declaration.registerAction(required);
+const bound = declaration.bind(value);
+```
+
+`validators` and `actions` are carried from the declaration, and `touched` and `errors` are what the binding
+establishes for itself as it validates.
+
+### `bind()` on a subclass builds the subclass
+
+`Group.bind()` and `List.bind()` construct through `this.constructor`, so `class Address extends Group {}` binds
+into an `Address` rather than into a `Group`. Code that tested the result with `instanceof` starts answering
+differently, in the direction it was written to expect.
+
+A subclass whose constructor does not take `(fields, params)` — one that composes its own members and passes them
+to `super` — never sees the members `bind()` hands over. That now throws instead of answering with the
+declaration's data:
+
+```typescript
+class Fixed extends Group {
+  constructor() { super({ city: new Field({ value: 'declared' }) }); }
+}
+new Fixed().bind({ city: 'Maribor' });   // TypeError
+```
+
+Give such a subclass a `(fields, params)` constructor, or override `bind()` and construct it yourself.
+
 ## Upgrading to v0.13.0 (from v0.12.x)
 
 One break is silent and is the one to search for before you upgrade: `Required` trims. The rest throw or are found
