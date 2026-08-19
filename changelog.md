@@ -55,6 +55,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the three that remain are VitePress's pinned dev server with no fix published. None of it reaches the
   published package, which declares `lodash-es` and `vue`.
 
+- A rule written against a field of an *enclosing* row now reads the row it runs in. Resolution answered within
+  one record and took an element belonging to any other for the one element every record reads alike - true of a
+  form field above a list, false of a field of the row a nested list sits in - so the lines of an order compared
+  against the item template's `total` rather than against that order's. It walks the containers of the record
+  outward before it settles for that, which is what the name form always did, so the two forms agree on the same
+  rule.
+
 ### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that

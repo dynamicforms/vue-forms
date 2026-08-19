@@ -1,25 +1,12 @@
 # todo
 
-What stands between the current source and a frozen 1.0 surface, re-verified against 0.12.0, plus the
-pre-existing items.
+What is left to do before the 1.0 surface is frozen, re-verified against 0.15.0. Nothing on this list blocks
+that freeze: every item is additive or a behaviour fix that 1.1 can make without a break.
 
 The same findings laid out for reading, with the measurement output and the reasoning behind each severity:
 <https://claude.ai/code/artifact/4527a232-fd57-431f-8aac-aacb244d42a7> (private link — visible to the repo
 owner only, so treat this file as the authoritative copy).
 
----
-
-## Recommended before 1.0
-
-- **A field handed to `CompareTo` or to a `Statement` from an *enclosing* item template is read where it stands.**
-  Resolution answers within one record and reads an element belonging to any other as the element itself
-  (`src/binding/resolve.ts`), so the rows of a nested list compare against the enclosing template's field rather
-  than against the field of the enclosing row they sit in. The name form walks the containers of the field being
-  validated and does reach the enclosing row, so the two forms disagree on the same rule. What a rule written
-  against a field means is part of the surface being frozen.
-- **Async action handlers are neither awaited nor caught** — an `async` `ValueChangedAction` that throws
-  ends as an unhandled rejection. Decide and document the contract, because changing it later (setters
-  becoming async) is a 2.0.
 ---
 
 ## Can wait (non-breaking to add later)

@@ -17,6 +17,37 @@ field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) =>
 Always call `supr(field, newValue, oldValue)` unless you deliberately want to stop the action chain. Validators are also actions and sit in the same chain.
 :::
 
+## A handler is synchronous
+
+A handler runs inside the write that triggered it — `field.value = x` returns once the chain has run — so a
+handler that returns a promise hands back something nobody waits for. The chain passes it along and the setter
+discards it. Two things follow, and neither is reported as an error by the library:
+
+- **A rejection is unhandled.** It surfaces the way any unhandled rejection does, through the runtime rather than
+  through the form: the browser console, or Node's `unhandledRejection`. The element carries no error and no
+  handler downstream is told.
+- **Everything after the first `await` runs outside the transaction.** The write has committed by then, so a
+  rollback cannot take that work back, and a value the continuation writes opens a transaction of its own.
+
+```typescript
+// the rejection is lost to the form: the setter returned before the fetch resolved
+field.registerAction(new ValueChangedAction(async (f, supr, newValue, oldValue) => {
+  await fetch('/api/log', { method: 'POST', body: newValue });
+  return supr(f, newValue, oldValue);
+}));
+
+// state the intent instead: the handler stays synchronous and owns what it starts
+field.registerAction(new ValueChangedAction((f, supr, newValue, oldValue) => {
+  fetch('/api/log', { method: 'POST', body: newValue }).catch(reportToUser);
+  return supr(f, newValue, oldValue);
+}));
+```
+
+Where the work has to be part of the form's state, the library offers two paths that do wait for it:
+[an asynchronous `ValidationFunction`](/api/validators#asynchronous-validation), which holds `validating` while it
+runs and reports a rejection as an error on the field, and [`Action.execute()`](#executeaction), which
+holds `busy` and answers with a promise the caller awaits.
+
 `supr` has the exported type `FieldActionExecute<T>`:
 
 ```typescript
