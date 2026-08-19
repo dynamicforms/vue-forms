@@ -1,4 +1,3 @@
-import { ValueChangedAction } from './actions';
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { IBindParams, IFieldParams } from './field.interface';
@@ -102,9 +101,3 @@ class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
 export { Field };
 
 export type NullableField<T = any> = Field<T> | null;
-
-export const EmptyField = new Field({ value: 'EmptyField' }).registerAction(
-  new ValueChangedAction(() => {
-    console.warn('Working with EmptyField! This should not happen');
-  }),
-);

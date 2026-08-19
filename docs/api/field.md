@@ -167,7 +167,7 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
 | `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value` |
-| `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization |
+| `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
@@ -381,10 +381,6 @@ it.
 const row = list.get(0)!;
 row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
 ```
-
-## `EmptyField`
-
-A singleton placeholder `Field` exported from the same module, used where a field reference is required but no real field exists. Writing to it logs a `console.warn`.
 
 ## `NullableField<T>`
 

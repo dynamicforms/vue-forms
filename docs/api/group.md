@@ -83,7 +83,7 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | `fullValue` | `FieldsToFullValues<T>` | no | What the group holds, where `value` is what it serializes: every field is in it, disabled ones included, and every key is present rather than optional. A nested group contributes its own full structure, so the guarantee carries all the way down and no `?.` is needed to read through it |
 
 ::: tip Serialization rule
-`Group.value` serializes only **enabled** fields. A disabled field is completely excluded from the output object. An exception applies to a disabled nested `Group`: it is still included when its own value is non-empty, that is when at least one field inside it serializes. A disabled nested `List` has no such exception and is always excluded.
+`Group.value` serializes only **enabled** fields. A disabled field is completely excluded from the output object. An exception applies to a disabled nested container — a `Group` or a `List` alike: it is still included when its own value is non-empty, that is when at least one field inside it serializes. A disabled container whose value is empty is excluded like any other disabled field.
 :::
 
 ## Methods

@@ -696,6 +696,15 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   }
 
   /**
+   * Whether `child` composes its value from members of its own. It is what lets a container tell a nested
+   * container from a leaf without knowing the classes below it, the way `resetChild` reaches a reset it does not
+   * know the shape of.
+   */
+  protected childComposesValue(child: FieldBase): boolean {
+    return child.composesValue;
+  }
+
+  /**
    * Announces what this element's value became over the transaction. The pair carried is (value now, value at the
    * last announcement), so a value that went A -> B -> A within the transaction says nothing, and the events an
    * operation states rather than an element's state - an item added, an item removed - are emitted first, in the

@@ -1,4 +1,4 @@
-export { default as DisplayMode } from './display-mode';
+export { default as DisplayMode, defaultDisplayMode } from './display-mode';
 
 export * from './actions';
 export * from './action';

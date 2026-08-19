@@ -5,6 +5,56 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-08-19
+
+### Changed
+- **Breaking:** `EmptyField` is gone. It was a module-level singleton `Field` the package exported, shared by
+  everyone who touched it, and nothing used it - not the library, not its tests beyond the one asserting its own
+  warning, not any of the packages built on it. A missing element is `null`: `Group.field()` answers with it and
+  `NullableField<T>` names the type.
+- **Breaking:** `Validator` and the types that go with it - `ValidationFunction`, `ValidationFunctionResult`,
+  `ValidatorBindingState` - are reached through the `Validators` namespace alone. They were exported from the
+  package root as well, while every concrete validator was in the namespace only, so one member of the set had two
+  spellings and the rest had one. `import { Validator }` becomes `Validators.Validator`. The error classes,
+  `MdString` and `buildErrorMessage` are unaffected: they are what a field hands back rather than what validates
+  it, and they stay at the root, where they were never duplicated.
+- **Breaking:** nothing in `DisplayMode` falls back to `DisplayMode.FULL` any more. `fromString()` throws for a
+  string that names no constant, `fromAny()` throws for a number that is none of them, for a string that names
+  none, and for input that is neither a number nor a string; all three errors read
+  `<value> is not a DisplayMode constant`, so a caller recognises one wherever it was raised. A mode nobody
+  defined is an error where it arrives, rather than a field that renders fully and is never questioned. Code that
+  fed a wire payload to `fromString()`/`fromAny()` and relied on the fallback has to catch the error and choose
+  the mode it wants, or ask `isDefined()` first.
+- **Breaking:** `DisplayMode.isDefined()` judges a string against the constant names instead of routing it through
+  `fromString()`, so `isDefined('HIDEN')` answers `false` where it answered `true`. It is the one member that does
+  not throw - it answers `false` for a number that is no constant, for a misspelled name, and for input of any
+  other type. The `visibility` setter asks it, which makes both spellings of the same mistake throw:
+  `field.visibility = 'HIDEN'` and `field.visibility = 999` alike raise
+  `Error('visibility must be a DisplayMode constant')` and leave the property as it was, where a misspelled name
+  silently became `DisplayMode.FULL`. A constant's name is still accepted, case insensitive.
+- A form element whose parameters name no visibility still starts at `DisplayMode.FULL`. That is a starting value,
+  and it no longer stands in for input a parse could not read.
+
+### Added
+- `defaultDisplayMode` is exported from the package. It names the mode an element starts at, so code that has
+  to choose one for input it could not parse states the same constant the library does rather than repeating
+  `DisplayMode.FULL`.
+- **Breaking:** a disabled `List` is serialized by the `Group` above it while its rows compose something, the way a
+  disabled `Group` already was. The exception is one rule now - a disabled container is kept where its composed
+  value is non-empty and left out where it is empty - and it holds whichever container the member is. A disabled
+  leaf is left out as before. A form that read `group.value` to submit it now carries the rows of a disabled list
+  it previously dropped.
+- **Breaking:** `List.value` refuses a value that is neither an array nor null with a
+  `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')`, where such a value was
+  accepted and silently did nothing. The setter is typed, so this reaches a JavaScript caller or one writing
+  through `as any`; the constructor's `value` and `originalValue` are refused the same way.
+
+### Fixed
+- A `List` constructed with an `originalValue` and no `value` takes its rows from it, the way a `Field` and a
+  `Group` already did: it held no rows, read back `null` and reported `isChanged` as `true` against the very value
+  it was declared with. An explicit `value: null` still leaves the list empty - null is a value the caller means -
+  and an absent value with no `originalValue` beside it still starts the list empty.
+
 ## [0.14.0] - 2026-08-19
 
 ### Changed

@@ -20,20 +20,6 @@ owner only, so treat this file as the authoritative copy).
 - **Async action handlers are neither awaited nor caught** — an `async` `ValueChangedAction` that throws
   ends as an unhandled rejection. Decide and document the contract, because changing it later (setters
   becoming async) is a 2.0.
-- **`Group.value` omits a disabled `List` but keeps a disabled `Group`** (`src/group.ts`; `List` does not
-  extend `Group`) — payload shape.
-- **A non-array assigned to `List.value` is swallowed silently** (`src/list.ts`) — `setValueInternal` writes for an
-  array and clears for `null`, so any other type leaves the rows untouched with no error.
-- **`List` alone does not fall back to `originalValue`** (`src/list.ts`): `new Field({originalValue: 5})` and
-  `new Group({a}, {originalValue: {a: 7}})` start unchanged, while `new List(tpl, {originalValue: […]})` reports
-  `isChanged` and reads back `null`, so a list built from a server baseline is dirty before anyone touches it.
-- **`DisplayMode`:** an invalid *string* silently becomes `FULL`, an invalid *number* throws
-  (`src/display-mode.ts:30-39`).
-- **`EmptyField` is a shared mutable singleton** (`src/field.ts`) — `visibility`/`enabled` can be
-  overwritten with no warning.
-- **Validators are exported twice:** `Validator` is top-level *and* in `Validators`, while the concrete
-  validators live only in the namespace (`src/validators/index.ts:3-4`). Pick one shape before both are
-  promised.
 - **`FieldBase.parent` is declared `Group | undefined`** (`src/field-base.ts`); a `List` installs itself as the
   parent of its row groups (`src/list.ts`), so the honest type is `Group | List`. Widening it breaks the
   documented sibling lookup `field.parent?.fields.other.value`, which is why it has to be decided before 1.0.
@@ -42,7 +28,11 @@ owner only, so treat this file as the authoritative copy).
   comparison and is documented as such, but the trap is silent and a machine-readable identity — or a
   documented refusal to support element comparison — is worth settling before the surface freezes.
 - **Configuration is module-global** (`src/config.ts:7`) and `install(app: any)` ignores `app`; under SSR one
-  request changes the setting for everyone.
+  request changes the setting for everyone. Settled and documented as a fact rather than a defect: the one setting
+  states whether a component that renders markdown is registered, which is a property of the application and not of
+  a form, and the single reader runs when a validator is constructed - in a store or at module scope, where no app
+  exists and `inject` is unavailable. It stays on the list because the shape is frozen at 1.0, not because a fix is
+  pending.
 - **Test gaps on exactly the surface being frozen:** `AbortEventHandlingException`, and the rule that a disabled
   child `Group` still serializes when its own value is non-empty. CI checks that the rolled-up declarations are
   non-empty and declare `Field`, but nothing imports the built artifact.

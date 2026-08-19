@@ -38,8 +38,12 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
         this.assignParams(otherParams);
 
-        // a value that is undefined or null leaves the list empty, which is the state it starts in
-        if (paramValue != null) this.setValueInternal(paramValue);
+        // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
+        // an optional property yields an undefined value, so a list declared with an originalValue alone takes
+        // its rows from that. An explicit null is a supplied value and leaves the list empty, which is the state
+        // it starts in.
+        if (paramValue !== undefined) this.setValueInternal(paramValue);
+        else if (this.originalValue !== undefined) this.setValueInternal(this.originalValue);
       }
 
       if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
@@ -105,18 +109,22 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
   }
 
   private setValueInternal(newValue: ListValue) {
+    // a list holds rows, and nothing but an array states a set of them. The check stands before the transaction
+    // opens, so a refused value leaves the rows the list holds exactly as they were.
+    if (newValue != null && !Array.isArray(newValue)) {
+      throw new TypeError('Invalid value provided: a list takes an array of rows, or null to empty it');
+    }
     transactional((tx) => {
       tx.touch(this);
       // the set standing before the write, so that only an assignment that actually changes it makes `items` build
-      // a new array: an assignment every row survives, and one of a value that is neither an array nor null, leave
-      // the array a reader took as it is
+      // a new array: an assignment every row survives leaves the array a reader took as it is
       const held = this.raw.rows;
       // null is the value that clears, the same one Group.value = null writes into every member; without this a
       // list nested in a group would keep its rows while every sibling field was emptied
       if (newValue == null) {
         this.releaseRows();
         this.state.rows = null;
-      } else if (Array.isArray(newValue)) {
+      } else {
         const previous = this.state.rows ?? [];
         // the new set is built beside the one in place and installed whole: writing a row runs its validators, and
         // one reading this list in the middle of the walk must not be shown a position that has yet to be filled

@@ -8,10 +8,19 @@ All built-in validators are available on the `Validators` namespace:
 import { Validators } from '@dynamicforms/vue-forms';
 ```
 
-The namespace contains validators only — `Validator`, `Required`, `Pattern`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. The error classes and `MdString` are exported from the package root instead:
+The namespace contains the validators and the types that belong to writing one — `Validator`,
+`ValidationFunction`, `ValidationFunctionResult`, `ValidatorBindingState`, `Required`, `Pattern`, `MinValue`,
+`MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. The
+namespace is the only way to them: a validator is written `Validators.Required`, never `Required`.
+
+The error classes and `MdString` are what a field hands back rather than what validates it, so they are exported
+from the package root:
 
 ```typescript
-import { ValidationErrorText, ValidationErrorRenderContent, MdString, Validator } from '@dynamicforms/vue-forms';
+import { ValidationErrorText, ValidationErrorRenderContent, MdString, buildErrorMessage } from '@dynamicforms/vue-forms';
+import { Validators } from '@dynamicforms/vue-forms';
+
+class Even extends Validators.Validator<number> { /* … */ }
 ```
 
 Pass validators when creating a field — `new Field({ validators: [...] })`, `new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })` — or register them later with `registerAction()`.

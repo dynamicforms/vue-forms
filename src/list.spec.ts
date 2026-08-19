@@ -601,6 +601,27 @@ describe('List construction parameters', () => {
     expect(list.get(0)).toBeUndefined();
   });
 
+  it('takes its rows from originalValue where the constructor is given no value', () => {
+    const list = new List(new Group({ a: new Field({ value: 'template' }) }), {
+      originalValue: [{ a: 1 }, { a: 2 }],
+    });
+
+    expect(list.length).toBe(2);
+    expect(list.value).toEqual([{ a: 1 }, { a: 2 }]);
+    expect(list.isChanged).toBe(false);
+  });
+
+  it('stays empty where an explicit null stands beside an originalValue', () => {
+    const list = new List(new Group({ a: new Field({ value: 'template' }) }), {
+      value: null,
+      originalValue: [{ a: 1 }],
+    });
+
+    expect(list.value).toBeNull();
+    expect(list.length).toBe(0);
+    expect(list.isChanged).toBe(true);
+  });
+
   it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
     const visibilitySeen: DisplayMode[] = [];
     const enabledSeen: boolean[] = [];
@@ -1259,17 +1280,12 @@ describe('The rows a list hands out', () => {
     expect(list.items).not.toBe(items);
   });
 
-  it('keeps the array it handed out across a write that leaves the rows untouched', () => {
-    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
-    const items = list.items;
-
-    // neither an array nor null: the rows stand, and so does the array they were handed out in
-    (list as any).value = 'not an array';
-    expect(list.items).toBe(items);
-
+  it('keeps the array it handed out across a clear of a list that held nothing', () => {
     const empty = new List(new Group({ a: new Field({ value: 0 }) }));
     const none = empty.items;
+
     empty.clear();
+
     expect(empty.items).toBe(none);
   });
 
@@ -1299,6 +1315,26 @@ describe('List value assignment types', () => {
 
     expect(list.value).toBeNull();
     expect(list.length).toBe(0);
+  });
+
+  it('refuses a value that is neither an array nor null, and keeps the rows it holds', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
+    const items = list.items;
+
+    // the setter is typed, so a value of another shape reaches it from JavaScript or through an `as any`
+    expect(() => {
+      (list as any).value = 'not an array';
+    }).toThrow(TypeError);
+    expect(() => {
+      (list as any).value = { a: 1 };
+    }).toThrow('Invalid value provided: a list takes an array of rows, or null to empty it');
+
+    expect(list.value).toEqual([{ a: 1 }]);
+    expect(list.items).toBe(items);
+  });
+
+  it('refuses a constructor value that is neither an array nor null', () => {
+    expect(() => new List(undefined, { value: 'not an array' } as any)).toThrow(TypeError);
   });
 });
 

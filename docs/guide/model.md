@@ -297,9 +297,9 @@ Object.isFrozen(group.value);    // true — assign a new value instead of writi
 ```
 
 A `Group` serializes its **enabled** members only, and reads back `null` when nothing serializes. A disabled
-nested `Group` is the one exception: it is still included while its own value is non-empty. `fullValue` is the
-same object built without the `enabled` rule — but a `List` does not override it, so values a disabled field
-hides inside a row stay hidden there.
+nested container is the one exception: a `Group` or a `List` that is disabled is still included while its own
+value is non-empty, and left out where it is empty. `fullValue` is the same object built without the `enabled`
+rule — but a `List` does not override it, so values a disabled field hides inside a row stay hidden there.
 
 A `List` serializes every row regardless of the row's own `enabled` flag, and each row's object follows the group
 rule. It reads back `null` while the list is empty.

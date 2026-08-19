@@ -218,9 +218,128 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.15.0 (from v0.14.x)
+
+Every break here is announced by a throw or found by the type checker; nothing changes silently.
+
+### `EmptyField` is gone
+
+It was a singleton `Field` the package exported, shared by every caller, so writing to it in one place changed it
+everywhere. A missing element is `null`:
+
+```typescript
+// before
+const field = form.field(name) ?? EmptyField;
+
+// after
+const field = form.field(name);   // NullableField<T>, so null where the name names nothing
+if (field) field.value = x;
+```
+
+### Validators are reached through the namespace alone
+
+`Validator` and the types that go with it were exported from the package root as well as from `Validators`,
+while every concrete validator was in the namespace only. One spelling now:
+
+```typescript
+// before
+import { Validator, Validators } from '@dynamicforms/vue-forms';
+class Even extends Validator<number> { /* … */ }
+
+// after
+import { Validators } from '@dynamicforms/vue-forms';
+class Even extends Validators.Validator<number> { /* … */ }
+```
+
+`ValidationError`, `ValidationErrorText`, `ValidationErrorRenderContent`, `MdString` and `buildErrorMessage` are
+unchanged and stay at the root: they are what a field hands back rather than what validates it.
+
+### `DisplayMode` never falls back to `FULL`
+
+A mode nobody defined used to resolve to `DisplayMode.FULL` — through `DisplayMode.fromString()`, through
+`DisplayMode.fromAny()`, and through the `visibility` setter, which asked `isDefined()` and was told a misspelled
+name was fine. All three refuse it now:
+
+```typescript
+DisplayMode.fromString('hidden');  // DisplayMode.HIDDEN — names are accepted, case insensitive
+DisplayMode.fromString('hiden');   // Error: 'hiden' is not a DisplayMode constant
+DisplayMode.fromAny(999);          // Error: 999 is not a DisplayMode constant
+DisplayMode.fromAny(null);         // Error: null is not a DisplayMode constant
+
+field.visibility = 'HIDEN';        // Error: visibility must be a DisplayMode constant
+field.visibility = 999;            // Error: visibility must be a DisplayMode constant
+```
+
+Every error from `fromString()` and `fromAny()` reads `<value> is not a DisplayMode constant`; the setter keeps its
+own `visibility must be a DisplayMode constant` and leaves the property at the value it held.
+
+**Deserializing a payload is where this bites.** A response carrying `"visibility": "hiden"` — or a mode a newer
+backend knows and this version does not — rendered the field fully and said nothing. It throws now, at the parse,
+and the throw is not caught for you. Decide per call site what an unknown mode means:
+
+```typescript
+// keep going, and choose the default deliberately
+const mode = DisplayMode.isDefined(payload.visibility)
+  ? DisplayMode.fromAny(payload.visibility)
+  : DisplayMode.FULL;
+
+// or let it fail, and report the payload
+field.visibility = DisplayMode.fromAny(payload.visibility);
+```
+
+`DisplayMode.isDefined()` is the member that does not throw: it answers `false` for a number that is no constant,
+for a misspelled name, and for input of any other type, so it is what a parse asks before it commits.
+
+An element whose parameters name no visibility still starts at `DisplayMode.FULL`. That is unchanged; what is gone
+is anything resolving to it for input it could not read, so where you want it for bad input, write it yourself as
+above.
+
+### A disabled `List` is serialized where its rows compose something
+
+`Group.value` leaves a disabled member out, with one exception: a disabled container is kept while its own value
+is non-empty. That exception held for a nested `Group` and not for a nested `List`; it now holds for both.
+
+```typescript
+const rows = new List(template, { value: [{ a: 1 }], enabled: false });
+const form = new Group({ name: new Field({ value: 'x' }), rows });
+
+form.value;   // before: { name: 'x' }
+              // after:  { name: 'x', rows: [{ a: 1 }] }
+```
+
+A disabled list that holds no rows is still left out, and a disabled `Field` is left out whatever it holds. Where
+a payload must not carry the list, empty it — `rows.clear()` — or take the key out of the object you submit.
+
+### `List.value` refuses a value that is not an array
+
+Assigning anything but an array or `null` did nothing at all. It throws now:
+
+```typescript
+(list as any).value = 'not an array';   // TypeError: Invalid value provided: a list takes an array of rows, …
+list.value = null;                      // fine — empties the list, as does clear()
+```
+
+The setter is typed, so the throw reaches a JavaScript caller, one writing through `as any`, and a value that
+arrived from a server without being checked. `params.value` and `params.originalValue` are refused the same way.
+
+### A `List` declared with `originalValue` alone holds those rows
+
+A `Field` and a `Group` given an `originalValue` and no `value` take the value from it. A `List` did not: it was
+built empty, read back `null` and reported itself changed against the value it was declared with.
+
+```typescript
+const list = new List(template, { originalValue: [{ a: 1 }] });
+
+list.length;      // before: 0     after: 1
+list.isChanged;   // before: true  after: false
+```
+
+An explicit `value: null` beside an `originalValue` still leaves the list empty — `null` is a value you mean.
+Code that relied on the empty list can pass `value: null` to keep it.
+
 ## Upgrading to v0.14.0 (from v0.13.x)
 
-Both breaks are found by the type checker or announced by a throw. Nothing changes silently.
+Every break here is found by the type checker or announced by a throw. Nothing changes silently.
 
 ### `bind()` refuses what it never honoured
 
@@ -262,6 +381,7 @@ Give such a subclass a `(fields, params)` constructor, or override `bind()` and 
 
 One break is silent and is the one to search for before you upgrade: `Required` trims. The rest throw or are found
 by the type checker.
+
 
 ### `Required` trims, so whitespace alone is no longer a value
 

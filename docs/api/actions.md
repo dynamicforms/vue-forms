@@ -128,7 +128,7 @@ new VisibilityChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. A numeric result that is not one of the `DisplayMode` constants makes the setter throw `Error('visibility must be a DisplayMode constant')`. Strings never throw — they go through `DisplayMode.fromString()`, which silently resolves an unknown string to `DisplayMode.FULL`.
+If the action returns `null` or `undefined`, `newValue` is used instead. A result the setter cannot read as a `DisplayMode` makes it throw `Error('visibility must be a DisplayMode constant')` and leaves `field.visibility` as it was: a number that is none of the constants, and a string that names none of them, are refused alike. A constant's name is accepted, case insensitive — `'hidden'` and `'HIDDEN'` both set `DisplayMode.HIDDEN`.
 
 ### `VisibilityChangedAction`
 
@@ -394,7 +394,7 @@ Enum of supported operators:
 | Membership | `IN`, `NOT_IN` — evaluate `operand2.includes(operand1)` (array or string) and coerce its result to a boolean. `NOT_IN` is the negation of `IN`, so an `operand2` without a callable `includes` gives `IN` `false` and `NOT_IN` `true` |
 | Substring | `INCLUDES`, `NOT_INCLUDES` — `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` and `NOT_INCLUDES` `true` |
 
-Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`. Note that `DisplayMode.fromString` behaves differently — it silently returns `DisplayMode.FULL` for anything it does not recognise.
+Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`. `DisplayMode.fromString` refuses an unrecognised string the same way.
 
 ### `ConditionalVisibilityAction(statement)`
 
@@ -551,11 +551,30 @@ Used by visibility properties.
 import { DisplayMode } from '@dynamicforms/vue-forms';
 
 field.visibility = DisplayMode.HIDDEN;
+
 DisplayMode.fromString('suppress'); // → DisplayMode.SUPPRESS
-DisplayMode.fromString('nonsense'); // → DisplayMode.FULL
+DisplayMode.fromString('nonsense'); // → Error: 'nonsense' is not a DisplayMode constant
+
+DisplayMode.fromAny(5);             // → DisplayMode.HIDDEN
+DisplayMode.fromAny(999);           // → Error: 999 is not a DisplayMode constant
+DisplayMode.fromAny(null);          // → Error: null is not a DisplayMode constant
+
+DisplayMode.isDefined('HIDDEN');    // → true
+DisplayMode.isDefined('HIDEN');     // → false
+DisplayMode.isDefined(999);         // → false
 ```
 
-`DisplayMode.fromString` never throws: anything it does not recognise silently becomes `DisplayMode.FULL`. This differs from `Operator.fromString`, which throws on an unrecognised string.
+Nothing in `DisplayMode` falls back to `DisplayMode.FULL`. `fromString` resolves a constant's name, case insensitive, and throws for anything else. `fromAny` takes a number or a name and throws for a number that is none of the constants, a string that names none, and input that is neither. Every one of those errors reads `<value> is not a DisplayMode constant`, so a caller recognises one wherever it was raised. `Operator.fromString` refuses an unrecognised string the same way.
+
+`DisplayMode.isDefined` is the way to ask without raising, and the one the `visibility` setter asks: a number is a `DisplayMode` when it is one of the constants, a string when it names one, case insensitive. The setter takes a `DisplayMode`, so a string reaches it from JavaScript, through a cast, or as a `VisibilityChangingAction`'s result — a name is set, a misspelled name throws.
+
+A form element whose parameters name no visibility starts at `DisplayMode.FULL`. That is a starting value, not a fallback for input a parse could not read. The package exports it as `defaultDisplayMode`, so code choosing a mode for itself names the same constant the library starts at:
+
+```typescript
+import { defaultDisplayMode, DisplayMode } from '@dynamicforms/vue-forms';
+
+const mode = DisplayMode.isDefined(fromServer) ? DisplayMode.fromAny(fromServer) : defaultDisplayMode;
+```
 
 ---
 

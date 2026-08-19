@@ -76,6 +76,28 @@ describe('Group', () => {
     });
   });
 
+  it('keeps a disabled group while its members compose something, and leaves an empty one out', () => {
+    const sub = new Group({ a: new Field({ value: 1 }) }, { enabled: false });
+    const group = new Group({ sub });
+
+    expect(group.value).toEqual({ sub: { a: 1 } });
+
+    sub.fields.a.enabled = false;
+
+    expect(group.value).toBeNull();
+  });
+
+  it('keeps a disabled list while its rows compose something, and leaves an empty one out', () => {
+    const rows = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }], enabled: false });
+    const group = new Group({ name: new Field({ value: 'x' }), rows });
+
+    expect(group.value).toEqual({ name: 'x', rows: [{ a: 1 }] });
+
+    rows.clear();
+
+    expect(group.value).toEqual({ name: 'x' });
+  });
+
   it('correctly notifies parent of changes', () => {
     const onValueChanged = vi.fn();
     const group = new Group({ field1: new Field() }).registerAction(new ValueChangedAction(onValueChanged));
