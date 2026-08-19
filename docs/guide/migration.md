@@ -348,6 +348,21 @@ new Validators.Validator((newValue, oldValue, field) => (field.parent as Group)?
 Naming the sibling and letting `CompareTo` resolve it - `new Validators.CompareTo('dateFrom', …)` - needs no
 narrowing at all.
 
+### Writing what an element already holds runs nothing
+
+`visibility` and `enabled` ran their `*Changing*` handler and fired their `*Changed*` event for every write,
+including one of the value already there. They return before any of it now, which is what the value setter has
+always done:
+
+```typescript
+field.enabled = field.enabled;   // no handler runs, no event fires, nothing enrols in an open transaction
+```
+
+Code counting events, or a `*Changing*` handler that answers with a value of its own regardless of what was
+written, sees the difference. A handler meant to hold a value at a fixed mode is better written as a rule over the
+field it depends on — a `ConditionalVisibilityAction` — since it then states the mode rather than intercepting
+attempts to leave it.
+
 ### Comparing two elements answers identity
 
 `isEqual(fieldA, fieldB)` answered `true` for any two elements of the same class: an element's state is in private

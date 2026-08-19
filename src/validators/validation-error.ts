@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash-es';
 import { computed, ComputedRef, Ref, unref } from 'vue';
 
 /**
@@ -44,7 +45,8 @@ export type RenderContentRef = RenderContent | Ref<RenderContent>;
  */
 export function isSimpleComponentDef(msg?: RenderContentRef): msg is SimpleComponentDef {
   const uMsg = unref(msg);
-  return typeof uMsg === 'object' && 'componentName' in uMsg;
+  // typeof null is 'object', and `in` refuses null: the answer for it is that it defines no component
+  return typeof uMsg === 'object' && uMsg !== null && 'componentName' in uMsg;
 }
 
 export function isCallableFunction(msg?: RenderContentRef): msg is RenderContentCallable {
@@ -62,6 +64,27 @@ export class ValidationError {
    * configurable. It is optional: an error built by hand carries whatever its author gives it, or nothing.
    */
   constructor(public code?: string) {}
+
+  /**
+   * True where `other` is an error of this class that renders exactly as this one does and reports the same code.
+   * Two runs of one validator over an unchanged value produce two instances of one message, and this is what lets
+   * the validator hand the field back the instance it already holds rather than a fresh one: an equal error is not
+   * a new error, and nothing re-renders over a verdict that did not move.
+   *
+   * The comparison is over what renders - the component, its bindings, its body and the classes - because that is
+   * what a reader of `field.errors` sees. A structural comparison of the errors themselves answers nothing useful:
+   * `ValidationErrorRenderContent` holds a Vue `computed`, and two of those are never structurally equal.
+   */
+  sameAs(other: ValidationError): boolean {
+    return (
+      Object.getPrototypeOf(this) === Object.getPrototypeOf(other) &&
+      this.code === other.code &&
+      this.componentName === other.componentName &&
+      isEqual(this.componentBody, other.componentBody) &&
+      isEqual(this.componentBindings, other.componentBindings) &&
+      isEqual(this.extraClasses, other.extraClasses)
+    );
+  }
 
   get componentName() {
     return 'Comment';

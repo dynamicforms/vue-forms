@@ -2,10 +2,17 @@ import { isEqual } from 'lodash-es';
 import { nextTick, watchEffect } from 'vue';
 
 import { Action } from './action';
-import { ExecuteAction } from './actions';
+import {
+  EnabledChangedAction,
+  EnabledChangingAction,
+  ExecuteAction,
+  VisibilityChangedAction,
+  VisibilityChangingAction,
+} from './actions';
 import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction } from './actions/value-changed-action';
+import DisplayMode from './display-mode';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { Group } from './group';
@@ -629,5 +636,65 @@ describe('comparing elements', () => {
     expect(Object.getOwnPropertySymbols(field)).toEqual([]);
     expect(Object.hasOwn(field, Symbol.toStringTag)).toBe(false);
     expect(Object.getOwnPropertyDescriptor(FieldBase.prototype, Symbol.toStringTag)?.get).toBeInstanceOf(Function);
+  });
+});
+
+describe('writing what an element already holds', () => {
+  it('runs nothing for visibility', () => {
+    const seen: string[] = [];
+    const field = new Field({ value: 1, visibility: DisplayMode.HIDDEN });
+    field.registerAction(
+      new VisibilityChangingAction((f, supr, ...params) => (seen.push('changing'), supr(f, ...params))),
+    );
+    field.registerAction(
+      new VisibilityChangedAction((f, supr, ...params) => (seen.push('changed'), supr(f, ...params))),
+    );
+
+    field.visibility = DisplayMode.HIDDEN;
+    expect(seen).toEqual([]);
+
+    field.visibility = DisplayMode.FULL;
+    expect(seen).toEqual(['changing', 'changed']);
+  });
+
+  it('runs nothing for enabled', () => {
+    const seen: string[] = [];
+    const field = new Field({ value: 1 });
+    field.registerAction(
+      new EnabledChangingAction((f, supr, ...params) => (seen.push('changing'), supr(f, ...params))),
+    );
+    field.registerAction(new EnabledChangedAction((f, supr, ...params) => (seen.push('changed'), supr(f, ...params))));
+
+    field.enabled = true;
+    expect(seen).toEqual([]);
+
+    field.enabled = false;
+    expect(seen).toEqual(['changing', 'changed']);
+  });
+
+  it('leaves a *Changing* handler that would rewrite the value unreached', () => {
+    const field = new Field({ value: 1, visibility: DisplayMode.FULL });
+    // the handler answers with a mode of its own, and a write of the mode the element already holds never asks it
+    field.registerAction(new VisibilityChangingAction(() => DisplayMode.SUPPRESS));
+
+    field.visibility = DisplayMode.FULL;
+    expect(field.visibility).toBe(DisplayMode.FULL);
+
+    field.visibility = DisplayMode.HIDDEN;
+    expect(field.visibility).toBe(DisplayMode.SUPPRESS);
+  });
+
+  it('keeps a no-op write out of the transaction it would otherwise enrol in', () => {
+    const field = new Field({ value: 1, visibility: DisplayMode.FULL });
+
+    transaction((tx) => {
+      field.visibility = DisplayMode.FULL;
+      field.value = 2;
+      tx.rollback();
+    });
+
+    // the value write is taken back; the visibility write was never a write
+    expect(field.value).toBe(1);
+    expect(field.visibility).toBe(DisplayMode.FULL);
   });
 });

@@ -62,6 +62,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   outward before it settles for that, which is what the name form always did, so the two forms agree on the same
   rule.
 
+- **Breaking:** writing what an element already holds is not a change. `visibility` and `enabled` ran their
+  `*Changing*` handler, enrolled the element in the open transaction and fired their `*Changed*` event for a write
+  of the value already there; they now return before any of it, the way the value setter always has. A handler that
+  answers with a value of its own is therefore not reached by such a write.
+- A validator that re-runs and produces the message the field already carries leaves the instance standing.
+  `ValidationError.sameAs(other)` is what it asks - same class, same code, and the same component, bindings, body
+  and classes - because a structural comparison of two errors answers nothing useful: `ValidationErrorRenderContent`
+  holds a Vue `computed`, and two of those are never structurally equal, so every run replaced the error and every
+  reader of `field.errors` re-rendered over a verdict that had not moved.
+- `isSimpleComponentDef(null)` answers `false` rather than raising. `typeof null` is `'object'` and `in` refuses
+  null, so the guard reached the operator and threw where it was asked a question it can answer.
+
 ### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that

@@ -439,6 +439,10 @@ new ValidationError(/* optional code */)
 
 Base class. Its only constructor argument is the [code](#error-codes). It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
 
+#### `sameAs(other): boolean`
+
+True where `other` is an error of the same class that renders exactly as this one does and reports the same code — the component, its bindings, its body and the classes. A validator asks it when it re-runs: where the message it produces is the one the field already carries, the field keeps the instance it has rather than taking a fresh one, so a verdict that did not move re-renders nothing. Overriding `componentBody` and the rest is therefore enough for a custom error class; override `sameAs` only where two errors that render alike are still meant to count as different.
+
 ### `ValidationErrorText`
 
 ```typescript

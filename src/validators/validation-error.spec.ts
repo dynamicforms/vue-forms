@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash-es';
 import { describe, expect, it } from 'vitest';
 import { reactive, ref } from 'vue';
 
@@ -208,5 +209,46 @@ describe('isCallableFunction', () => {
 
     const stringRef = ref('string value');
     expect(isCallableFunction(stringRef)).toBe(false);
+  });
+});
+
+describe('isSimpleComponentDef', () => {
+  it('answers for every shape without raising', () => {
+    expect(isSimpleComponentDef({ componentName: 'MyWidget' })).toBe(true);
+    expect(isSimpleComponentDef('plain text')).toBe(false);
+    expect(isSimpleComponentDef(new MdString('**bold**'))).toBe(false);
+    expect(isSimpleComponentDef(undefined)).toBe(false);
+    // typeof null is 'object' and `in` refuses null, so the guard states what null is rather than raising over it
+    expect(isSimpleComponentDef(null as any)).toBe(false);
+  });
+});
+
+describe('sameAs', () => {
+  it('answers over what renders, not over what the instances hold', () => {
+    const left = new ValidationErrorRenderContent(() => 'the same message');
+    const right = new ValidationErrorRenderContent(() => 'the same message');
+    const other = new ValidationErrorRenderContent(() => 'a different message');
+
+    // the instances differ - each carries a computed of its own - and what they render does not
+    expect(isEqual(left, right)).toBe(false);
+    expect(left.sameAs(right)).toBe(true);
+    expect(left.sameAs(other)).toBe(false);
+  });
+
+  it('separates errors that differ only in their code or class', () => {
+    const plain = new ValidationErrorText('too short');
+    const coded = new ValidationErrorText('too short', '', 'min-length');
+
+    expect(plain.sameAs(coded)).toBe(false);
+    expect(coded.sameAs(new ValidationErrorText('too short', '', 'min-length'))).toBe(true);
+    expect(coded.sameAs(new ValidationErrorText('too short', 'highlighted', 'min-length'))).toBe(false);
+  });
+
+  it('separates two classes that render the same body', () => {
+    const text = new ValidationErrorText('message');
+    const content = new ValidationErrorRenderContent('message');
+
+    expect(text.componentBody).toBe(content.componentBody);
+    expect(text.sameAs(content as any)).toBe(false);
   });
 });

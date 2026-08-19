@@ -134,6 +134,8 @@ new EnabledChangingAction((field, supr, newValue, oldValue) => {
 
 If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so plainly returning `supr(...)` means "no change to `newValue`". If the resulting value is not a boolean, the setter throws `Error('Enabled value must be boolean')`.
 
+The setter asks it only where the write is a change. Assigning the value the element already holds runs no handler and fires no event, so a handler that answers with a value of its own is never reached by such a write — `field.enabled = field.enabled` leaves the element exactly as it stands. The same holds for `VisibilityChangingAction`.
+
 ### `EnabledChangedAction`
 
 Fires **after** `field.enabled` has been updated.

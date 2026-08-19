@@ -1,4 +1,3 @@
-import { isEqual } from 'lodash-es';
 import { isRef, unref } from 'vue';
 
 import { ValueChangedAction } from '../actions/value-changed-action';
@@ -102,7 +101,7 @@ export class Validator<T = any> extends ValueChangedAction {
           for (let i = field.errors.length - 1; i >= 0; i--) {
             const error = field.errors[i] as ValidationError & SourceProp;
             if (error.source === this.source) {
-              const idx = mine.findIndex((e) => isEqual(e, error));
+              const idx = mine.findIndex((e) => e.sameAs(error));
               if (idx >= 0) mine.splice(idx, 1);
               else field.errors.splice(i, 1);
             }
