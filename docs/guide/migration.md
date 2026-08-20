@@ -219,6 +219,76 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.16.0 (from v0.15.x)
+
+Both breaks are about what a trigger answers with and who an action belongs to. The type checker finds neither, so
+they are the ones to search for.
+
+### `Operator.NOT` takes one operand
+
+It reads its first operand alone and the constructor asked for a second one it never looks at, so the call needed a
+placeholder. It does not any more:
+
+```typescript
+new Statement(field, Operator.NOT);          // what NOT means
+new Statement(field, Operator.NOT, null);    // still accepted, still ignored
+```
+
+An operator held in a variable — what `Operator.fromString()` answers with — names both, because the compiler
+cannot tell it from `NOT`.
+
+### An abort is an answer, and refuses a `*Changing*` write
+
+A trigger caught `AbortEventHandlingException` and answered `null`, which is also what it answers when nothing is
+registered. It answers with the exception now:
+
+```typescript
+const answer = field.triggerAction(ExecuteAction, params);
+// before: null, whether a handler ended the run or none was there
+// after:  the exception where a handler ended it, null where none was there
+if (answer instanceof AbortEventHandlingException) reportToUser(answer.message);
+```
+
+And in a `*Changing*` handler it now does what its name says. `EnabledChangingAction` and
+`VisibilityChangingAction` are asked before the value is written, so ending the run there refuses the write:
+
+```typescript
+field.registerAction(new VisibilityChangingAction(() => {
+  throw new AbortEventHandlingException('never suppressed');
+}));
+field.visibility = DisplayMode.SUPPRESS;
+field.visibility;   // before: SUPPRESS — the write went through. after: unchanged
+```
+
+A handler that threw one to stop the rest of the chain while still letting the write happen has to say so: call
+`supr` with the value it wants, or return that value, instead of throwing.
+
+
+### An action belongs to the declaration
+
+A binding read a copy of its declaration's actions, made when the binding was made. It reads the declaration's own
+now, so a rule reaches every binding whenever it was registered:
+
+```typescript
+const template = new Group({ amount: new Field({ value: 0 }) });
+const list = new List(template);
+list.push({ amount: 1 });
+
+template.fields.amount.registerAction(new Validators.Required());
+list.get(0).fields.amount.valid;   // false — the row that already existed is validated too
+```
+
+Three things follow, and code that leaned on the old behaviour sees them:
+
+- **Registering on one row registers on every row.** A row is a binding of the item template, so the rule is the
+  template's. A handler meant for one row checks the element it is handed: `if (field.parent === list.get(0))`.
+- **`unregisterAction()` and `clearValidators()` reach every row** for the same reason. Clearing the validators of
+  one row clears the rule for all of them, and empties the errors it put on each.
+- **A handler that does not call `supr` stops the whole chain.** The handlers of one declaration stand in one
+  chain, so a handler watching one row and returning early silences the handlers registered before it — on every
+  row. Pass `supr` along and filter on the element instead.
+
+
 ## Upgrading to v0.15.0 (from v0.14.x)
 
 Every break here is announced by a throw or found by the type checker; nothing changes silently.
@@ -362,56 +432,6 @@ Code counting events, or a `*Changing*` handler that answers with a value of its
 written, sees the difference. A handler meant to hold a value at a fixed mode is better written as a rule over the
 field it depends on — a `ConditionalVisibilityAction` — since it then states the mode rather than intercepting
 attempts to leave it.
-
-### An abort is an answer, and refuses a `*Changing*` write
-
-A trigger caught `AbortEventHandlingException` and answered `null`, which is also what it answers when nothing is
-registered. It answers with the exception now:
-
-```typescript
-const answer = field.triggerAction(ExecuteAction, params);
-// before: null, whether a handler ended the run or none was there
-// after:  the exception where a handler ended it, null where none was there
-if (answer instanceof AbortEventHandlingException) reportToUser(answer.message);
-```
-
-And in a `*Changing*` handler it now does what its name says. `EnabledChangingAction` and
-`VisibilityChangingAction` are asked before the value is written, so ending the run there refuses the write:
-
-```typescript
-field.registerAction(new VisibilityChangingAction(() => {
-  throw new AbortEventHandlingException('never suppressed');
-}));
-field.visibility = DisplayMode.SUPPRESS;
-field.visibility;   // before: SUPPRESS — the write went through. after: unchanged
-```
-
-A handler that threw one to stop the rest of the chain while still letting the write happen has to say so: call
-`supr` with the value it wants, or return that value, instead of throwing.
-
-### An action belongs to the declaration
-
-A binding read a copy of its declaration's actions, made when the binding was made. It reads the declaration's own
-now, so a rule reaches every binding whenever it was registered:
-
-```typescript
-const template = new Group({ amount: new Field({ value: 0 }) });
-const list = new List(template);
-list.push({ amount: 1 });
-
-template.fields.amount.registerAction(new Validators.Required());
-list.get(0).fields.amount.valid;   // false — the row that already existed is validated too
-```
-
-Three things follow, and code that leaned on the old behaviour sees them:
-
-- **Registering on one row registers on every row.** A row is a binding of the item template, so the rule is the
-  template's. A handler meant for one row checks the element it is handed: `if (field.parent === list.get(0))`.
-- **`unregisterAction()` and `clearValidators()` reach every row** for the same reason. Clearing the validators of
-  one row clears the rule for all of them, and empties the errors it put on each.
-- **A handler that does not call `supr` stops the whole chain.** The handlers of one declaration stand in one
-  chain, so a handler watching one row and returning early silences the handlers registered before it — on every
-  row. Pass `supr` along and filter on the element instead.
 
 ### Comparing two elements answers identity
 
