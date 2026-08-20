@@ -79,6 +79,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   what `Operator.fromString()` answers with - still names both, because the compiler cannot tell it from `NOT`, and
   a second operand under `NOT` is accepted as it always was.
 
+- **Breaking:** an action belongs to the element's declaration, and a binding reads that one rather than a copy of
+  it. A rule registered on a `List`'s item template therefore drives every row - the rows that already exist as
+  much as the ones added later - and registering on one row registers on the template, because a row is a binding
+  of it. `unregisterAction()` and `clearValidators()` read the same way, so a call on one row names the rule every
+  row reads. What stays per row is the data: the value, the errors the rule produces there, the verdict.
+  A handler that does not call `supr` now ends the run for every handler registered before it on that declaration,
+  since the handlers of one declaration stand in one chain.
+- Memory per field drops by about half, from roughly 1700 bytes to roughly 870: a row carried its own map of
+  actions and now carries the declaration's. A 1000-row list of 8 fields goes from about 13.3 MB to about 6.8 MB.
+  `ActionsMap.clone()` is gone with the copying.
+
 ### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that

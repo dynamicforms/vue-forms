@@ -54,7 +54,7 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
       // the set a construction ends on is the list's first statement about itself rather than a change of one, so
       // the commit that closes the construction says nothing about it
       this.raw.announcedValue = this.value;
-      this._actions?.triggerEager(this, this.value, this.originalValue);
+      this.boundActions?.triggerEager(this, this.value, this.originalValue);
       this.validate();
     });
   }

@@ -55,7 +55,7 @@ class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
       // the value a construction ends on is the field's first statement about itself rather than a change of one,
       // so it is recorded as announced and the commit that follows says nothing about it
       this.raw.announcedValue = this._value;
-      this._actions?.triggerEager(this, this.value, this.originalValue);
+      this.boundActions?.triggerEager(this, this.value, this.originalValue);
       this.validate();
     });
   }
@@ -73,7 +73,7 @@ class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
       this.bumpValueVersion();
       // the validators run here rather than at the announcement, because the verdict they reach is what the
       // commit announces, and because they read the value that is being written and the one it replaces
-      this._actions?.triggerEager(this, newValue, oldValue);
+      this.boundActions?.triggerEager(this, newValue, oldValue);
       // the handlers hear about the change once the transaction closes, over the value the field ends up holding
       this.propagateValueChanged();
     });

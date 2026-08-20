@@ -237,7 +237,7 @@ describe('Conditional actions over the rows of a List', () => {
     expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
   });
 
-  it('drives the row it was registered on and no other', () => {
+  it('drives every row, wherever it was registered', () => {
     const template = new Group({ detail: new Field<string>({ value: '' }) });
     const form = new Group({
       showDetails: new Field<boolean>({ value: false }),
@@ -245,6 +245,8 @@ describe('Conditional actions over the rows of a List', () => {
     });
     const lines = form.fields.lines as List;
 
+    // registered on one row, which is a binding: the rule belongs to the declaration the row was bound from, and
+    // the rows that already existed are driven by it as much as the ones still to be added
     lines
       .get(0)!
       .fields.detail.registerAction(
@@ -252,13 +254,15 @@ describe('Conditional actions over the rows of a List', () => {
       );
 
     expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
 
     form.fields.showDetails.value = true;
-    form.fields.showDetails.value = false;
-
-    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
     expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+
+    form.fields.showDetails.value = false;
+    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
   });
 
   it('evaluates a row added later over the record it joins', () => {

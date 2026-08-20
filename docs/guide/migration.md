@@ -363,6 +363,30 @@ written, sees the difference. A handler meant to hold a value at a fixed mode is
 field it depends on — a `ConditionalVisibilityAction` — since it then states the mode rather than intercepting
 attempts to leave it.
 
+### An action belongs to the declaration
+
+A binding read a copy of its declaration's actions, made when the binding was made. It reads the declaration's own
+now, so a rule reaches every binding whenever it was registered:
+
+```typescript
+const template = new Group({ amount: new Field({ value: 0 }) });
+const list = new List(template);
+list.push({ amount: 1 });
+
+template.fields.amount.registerAction(new Validators.Required());
+list.get(0).fields.amount.valid;   // false — the row that already existed is validated too
+```
+
+Three things follow, and code that leaned on the old behaviour sees them:
+
+- **Registering on one row registers on every row.** A row is a binding of the item template, so the rule is the
+  template's. A handler meant for one row checks the element it is handed: `if (field.parent === list.get(0))`.
+- **`unregisterAction()` and `clearValidators()` reach every row** for the same reason. Clearing the validators of
+  one row clears the rule for all of them, and empties the errors it put on each.
+- **A handler that does not call `supr` stops the whole chain.** The handlers of one declaration stand in one
+  chain, so a handler watching one row and returning early silences the handlers registered before it — on every
+  row. Pass `supr` along and filter on the element instead.
+
 ### Comparing two elements answers identity
 
 `isEqual(fieldA, fieldB)` answered `true` for any two elements of the same class: an element's state is in private
@@ -691,7 +715,7 @@ field.registerActionBefore(new ValueChangedAction((f, supr, v, old) => supr(f, v
 ```
 
 `unregisterAction()` names one element: the same instance goes on serving every other element it was registered
-on, so dropping a validator from one row of a `List` leaves the other rows validating. A rollback puts back what a
+on, so dropping a validator names the declaration that holds it. A rollback puts back what a
 transaction registered or unregistered.
 
 

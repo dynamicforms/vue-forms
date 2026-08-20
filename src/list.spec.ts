@@ -1380,3 +1380,47 @@ describe('List.bind() and the class it builds', () => {
     );
   });
 });
+
+describe('a rule registered after the rows exist', () => {
+  it('reaches the rows that already stand', () => {
+    const template = new Group({ amount: new Field<number>({ value: 0 }) });
+    const list = new List(template);
+    list.push({ amount: 1 });
+    const existing = list.get(0)!;
+
+    expect(existing.fields.amount.valid).toBe(true);
+
+    // the rule is the declaration's, so it drives what was bound from it before the registration as well
+    template.fields.amount.registerAction(new Validators.MinValue(5));
+
+    expect(existing.fields.amount.valid).toBe(false);
+    list.push({ amount: 7 });
+    expect(list.get(1)!.fields.amount.valid).toBe(true);
+  });
+
+  it('reaches every row when it is registered on one of them', () => {
+    const template = new Group({ amount: new Field<number>({ value: 0 }) });
+    const list = new List(template, { value: [{ amount: 1 }, { amount: 9 }] });
+
+    // a row is a binding of the template, so naming a row names the template
+    list.get(0)!.fields.amount.registerAction(new Validators.MinValue(5));
+
+    expect(list.get(0)!.fields.amount.valid).toBe(false);
+    expect(list.get(1)!.fields.amount.valid).toBe(true);
+  });
+
+  it('drops from every row when it is dropped from one', () => {
+    const template = new Group({ amount: new Field<number>({ value: 0 }) });
+    const rule = new Validators.MinValue(5);
+    template.fields.amount.registerAction(rule);
+    const list = new List(template, { value: [{ amount: 1 }, { amount: 2 }] });
+
+    expect(list.get(0)!.fields.amount.valid).toBe(false);
+    expect(list.get(1)!.fields.amount.valid).toBe(false);
+
+    list.get(0)!.fields.amount.unregisterAction(rule);
+
+    expect(list.get(0)!.fields.amount.valid).toBe(true);
+    expect(list.get(1)!.fields.amount.valid).toBe(true);
+  });
+});

@@ -259,7 +259,7 @@ describe('CompareTo Validator', () => {
     expect(new List(resolved, { value: [{ dateFrom: 10, dateTo: 5 }] }).get(0)!.fields.dateTo.errors.length).toBe(1);
   });
 
-  it('is the rule of the row it was registered on and of no other', () => {
+  it('is the rule of every row, wherever it was registered', () => {
     const template = new Group({ amount: new Field<number>({ value: 0 }) });
     const form = new Group({
       limit: new Field<number>({ value: 100 }),
@@ -267,6 +267,7 @@ describe('CompareTo Validator', () => {
     });
     const lines = form.fields.lines as List;
 
+    // registered on one row: a row is a binding, and a rule belongs to the declaration it was bound from
     lines
       .get(0)!
       .fields.amount.registerAction(
@@ -276,8 +277,11 @@ describe('CompareTo Validator', () => {
     form.fields.limit.value = 0;
 
     expect(lines.get(0)!.fields.amount.errors.length).toBe(1);
-    expect(lines.get(1)!.fields.amount.errors.length).toBe(0);
-    expect(lines.get(1)!.valid).toBe(true);
+    expect(lines.get(1)!.fields.amount.errors.length).toBe(1);
+    // and each row answers against its own value: the rule is one, the verdicts are per row
+    form.fields.limit.value = 1;
+    expect(lines.get(0)!.fields.amount.valid).toBe(true);
+    expect(lines.get(1)!.fields.amount.valid).toBe(false);
   });
 
   it('answers to a name that only the form holding the list holds', () => {

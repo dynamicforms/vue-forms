@@ -87,16 +87,10 @@ export default class ActionsMap {
     return this.registeredActions.filter((action): action is Validator => action instanceof Validator);
   }
 
-  clone(): ActionsMap {
-    const copy = new ActionsMap();
-    this.registeredActions.forEach((action) => copy.register(action));
-    return copy;
-  }
-
   /**
-   * Tells every action in this map that it serves `owner`. A copied map holds the instances the original holds, so
-   * the element that took the copy on is announced to them here, the way registering an action announces the
-   * element it was registered on.
+   * Tells every action in this map that it serves `owner`. A binding reads the map its declaration holds, so this
+   * is what announces the new element to the actions already in it - the way registering an action announces the
+   * elements it comes to serve.
    */
   bindTo(owner: FieldBase): void {
     this.registeredActions.forEach((action) => action.boundToBinding(owner));

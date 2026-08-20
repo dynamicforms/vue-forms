@@ -49,7 +49,7 @@ export class Action<T extends ActionValue = ActionValue, X extends object = {}> 
       }
       // the value a construction ends on is the action's first statement about itself rather than a change of one
       this.raw.announcedValue = this._value;
-      this._actions?.triggerEager(this, this.value, this.originalValue);
+      this.boundActions?.triggerEager(this, this.value, this.originalValue);
       this.validate();
     });
   }

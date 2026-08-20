@@ -37,6 +37,13 @@ const validReads = new WeakMap<object, ComputedRef<boolean>>();
 const busyReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
+ * The bindings made from a declaration, held outside it and weakly: a binding is released with the record it
+ * belongs to, and the declaration must not be what keeps it alive. It is what lets a rule registered on an item
+ * template reach the rows that already exist - the declaration has no other way to name them.
+ */
+const bindingsMade = new WeakMap<object, Set<WeakRef<FieldBase>>>();
+
+/**
  * The parameter keys that name what to register on an element rather than what it holds. The constructor that
  * receives them registers them and applies the rest, and `bind()` hands its overrides over whole, so they are
  * named here to keep them out of both the element's members and its extended properties.
@@ -481,25 +488,68 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   /** Runs this element's eager actions over the value it holds and re-forms the verdict they reach. */
   private rerunEagerActions(): void {
     transactional((tx) => {
-      this._actions?.triggerEager(this, this.value, this.value);
+      this.boundActions?.triggerEager(this, this.value, this.value);
       tx.markValidityDirty(this);
     });
   }
 
   /**
-   * The map this element registers its actions in, absent while it has registered none. Code that only triggers
-   * reads this slot rather than `actions`, so an element with nothing registered stays free of a map: `actions`
-   * allocates one for whoever asks, and a trigger over an empty map does nothing anyway.
+   * The map an element that was declared rather than bound registers its actions in, absent while it has registered
+   * none. A binding holds no map of its own: `boundActions` reads the one its declaration holds.
    */
   declare protected _actions?: ActionsMap;
 
-  protected get actions(): ActionsMap {
-    if (!this._actions) this._actions = new ActionsMap();
+  /**
+   * The actions this element answers to, absent where nothing is registered. A binding holds the very map its
+   * declaration holds rather than a copy of it, so the slot is read directly: what a trigger costs is one property
+   * read, and a rule registered on a `List`'s item template reaches every row through the map they share - the
+   * rows built before the registration as much as the ones built after.
+   */
+  protected get boundActions(): ActionsMap | undefined {
     return this._actions;
   }
 
-  protected set actions(newValue: ActionsMap) {
-    this._actions = newValue;
+  /** Records that `binding` was made from this element, so a later registration can reach it. */
+  protected noteBinding(binding: FieldBase): void {
+    let made = bindingsMade.get(this);
+    if (!made) {
+      made = new Set();
+      bindingsMade.set(this, made);
+    }
+    made.add(new WeakRef(binding));
+  }
+
+  /**
+   * The bindings made from this element that are still alive, and this element itself. The dead references are
+   * dropped as they are found, which is what keeps the set from growing over the life of a long-lived declaration.
+   */
+  protected get boundElements(): FieldBase[] {
+    const declaration = this.declaration;
+    const made = bindingsMade.get(declaration);
+    const alive: FieldBase[] = [declaration];
+    if (!made) return alive;
+    made.forEach((ref) => {
+      const binding = ref.deref();
+      if (!binding) made.delete(ref);
+      else alive.push(binding);
+    });
+    return alive;
+  }
+
+  /**
+   * The map registrations go into: the declaration's, since that is where behaviour lives. The map is made on the
+   * first registration and handed to every binding already made from the declaration, so all of them go on reading
+   * one map through a slot of their own.
+   */
+  protected get actions(): ActionsMap {
+    const declaration = this.declaration;
+    if (!declaration._actions) {
+      const map = new ActionsMap();
+      declaration.boundElements.forEach((element) => {
+        element._actions = map;
+      });
+    }
+    return declaration._actions!;
   }
 
   /**
@@ -688,13 +738,13 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     // enrolment in the transaction, no *Changed* event. It is the rule the value setter states as well
     if (newValue === oldValue) return;
     transactional((tx) => {
-      const alteredValue = this._actions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
+      const alteredValue = this.boundActions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
       if (!DisplayMode.isDefined(alteredValue ?? newValue)) {
         throw new Error('visibility must be a DisplayMode constant');
       }
       tx.touch(this);
       this.#state.visibility = DisplayMode.fromAny(alteredValue ?? newValue);
-      this._actions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
+      this.boundActions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
     });
   }
 
@@ -707,14 +757,14 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     // as with visibility: what the element already holds is no change, and nothing runs for it
     if (newValue === oldValue) return;
     transactional((tx) => {
-      const alteredValue = this._actions?.trigger(EnabledChangingAction, this, newValue, oldValue);
+      const alteredValue = this.boundActions?.trigger(EnabledChangingAction, this, newValue, oldValue);
       if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
       tx.touch(this);
       this.#state.enabled = alteredValue ?? newValue;
       // a disabled field is left out of the value its group serializes, so the switch changes the value of every
       // container above it just as a write to the value itself would
       if (this.#state.enabled !== oldValue) this.bumpValueVersion();
-      this._actions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
+      this.boundActions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
     });
   }
 
@@ -745,9 +795,9 @@ export abstract class FieldBase<T = any, X extends object = {}> {
    * order the operations happened.
    */
   protected [TxAnnounceValue](tx: Transaction, dirty: boolean, force: boolean, structural?: TxStructuralEvent[]): void {
-    structural?.forEach((event) => this._actions?.trigger(event.actionClass, this, event.item, event.index));
+    structural?.forEach((event) => this.boundActions?.trigger(event.actionClass, this, event.item, event.index));
     if (!dirty) return;
-    const actions = this._actions;
+    const actions = this.boundActions;
     // the pair a container carries is only composed where something receives it: with no ValueChangedAction and
     // no eager action riding along, walking the members would produce an object nobody reads
     if (this.composesValue && !(actions?.willTrigger(ValueChangedActionClassIdentifier) || actions?.hasEager)) return;
@@ -785,12 +835,12 @@ export abstract class FieldBase<T = any, X extends object = {}> {
       holder.childValidityChanged(newValid);
       tx.markValidityDirty(holder);
     }
-    this._actions?.trigger(ValidChangedAction, this, newValid, oldValid);
+    this.boundActions?.trigger(ValidChangedAction, this, newValid, oldValid);
   }
 
   validate(revalidate: boolean = false) {
     transactional((tx) => {
-      if (revalidate) this._actions?.triggerEager(this, this.value, this.value);
+      if (revalidate) this.boundActions?.triggerEager(this, this.value, this.value);
       tx.markValidityDirty(this);
     });
   }
@@ -821,11 +871,16 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     this.#raw.declaration = source.declaration;
     const extended: Partial<X> = { ...source.extra, ...(overrides && this.extendedOf(overrides)) };
     if (!isEmpty(extended)) this.setExtendedValues(extended);
-    const actions = source._actions;
+    const declaration = this.declaration;
+    declaration.noteBinding(this);
+    // the map is the declaration's own and is taken on rather than copied, so a rule registered on the declaration
+    // after this binding was made reaches it too. A declaration with nothing registered has no map, and the one it
+    // makes later is handed to this element then
+    const actions = declaration._actions;
     if (!actions) return;
-    this._actions = actions.clone();
-    this._actions.bindTo(this);
-    this._actions.triggerEager(this, newValue, oldValue);
+    this._actions = actions;
+    actions.bindTo(this);
+    actions.triggerEager(this, newValue, oldValue);
   }
 
   /**
@@ -847,10 +902,6 @@ export abstract class FieldBase<T = any, X extends object = {}> {
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
       this.actions.register(action);
       this.registered(tx, action);
-      // an eager action states something about the value the element already holds, so it reaches that value at
-      // once rather than waiting for the next change. The group it joined runs whole: the new action may be
-      // wrapped by ones registered before it, and its own `supr` reaches the ones it now wraps
-      if (action.eager) this.actions.triggerEagerFor(action.classIdentifier, this, this.value, this.originalValue);
     });
     return this;
   }
@@ -866,7 +917,6 @@ export abstract class FieldBase<T = any, X extends object = {}> {
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
       this.actions.register(action, before);
       this.registered(tx, action);
-      if (action.eager) this.actions.triggerEagerFor(action.classIdentifier, this, this.value, this.originalValue);
     });
     return this;
   }
@@ -880,7 +930,7 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   unregisterAction(action: FieldActionBase): boolean {
     let dropped = false;
     transactional((tx) => {
-      const actions = this._actions;
+      const actions = this.boundActions;
       if (!actions) return;
       dropped = actions.unregister(action);
       if (!dropped) return;
@@ -888,11 +938,13 @@ export abstract class FieldBase<T = any, X extends object = {}> {
       // a run still in flight was started by a validator this element may no longer hold, and its verdict is one
       // the element must not take on
       if (action instanceof Validator) this.#state.validationEpoch++;
+      // the action served the declaration and every binding made from it, so it is released from all of them
+      const elements = this.boundElements;
       tx.whenRolledBack(() => {
         actions.register(action);
-        action.boundToBinding(this);
+        elements.forEach((element) => action.boundToBinding(element));
       });
-      action.unregisterFrom(this);
+      elements.forEach((element) => action.unregisterFrom(element));
     });
     return dropped;
   }
@@ -902,9 +954,19 @@ export abstract class FieldBase<T = any, X extends object = {}> {
    * registration is not one of the state slots the snapshot covers, so it hands its own undo in.
    */
   private registered(tx: Transaction, action: FieldActionBase): void {
-    action.boundToBinding(this);
+    // the action serves the declaration, so it serves every binding made from it - the ones that already exist as
+    // much as the ones still to be made. An eager action states something about the value each of them holds, so
+    // it reaches those values at once rather than waiting for the next change; the group it joined runs whole,
+    // because the new action may be wrapped by ones registered before it and its own `supr` reaches those.
+    const elements = this.boundElements;
+    elements.forEach((element) => {
+      action.boundToBinding(element);
+      if (action.eager) {
+        this.actions.triggerEagerFor(action.classIdentifier, element, element.value, element.originalValue);
+      }
+    });
     tx.whenRolledBack(() => {
-      if (this._actions?.unregister(action)) action.unregisterFrom(this);
+      if (this.boundActions?.unregister(action)) elements.forEach((element) => action.unregisterFrom(element));
     });
   }
 
@@ -913,7 +975,8 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     ...params: any[]
   ): any {
     // an element with no map has nothing registered, and ActionsMap.trigger answers null for exactly that case
-    return this._actions ? this._actions.trigger(actionClass, this, ...params) : null;
+    const actions = this.boundActions;
+    return actions ? actions.trigger(actionClass, this, ...params) : null;
   }
 
   /**
@@ -929,17 +992,19 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     transactional((tx) => {
       tx.touch(this);
       this.#state.validationEpoch++;
-      const actions = this._actions;
+      const actions = this.boundActions;
       if (actions) {
         // the release names this element, because the same instance goes on serving every other element it was
         // registered on
+        const elements = this.boundElements;
         actions.validators.forEach((validator) => {
           actions.unregister(validator);
           tx.whenRolledBack(() => {
             actions.register(validator);
-            validator.boundToBinding(this);
+            elements.forEach((element) => validator.boundToBinding(element));
           });
-          validator.unregisterFrom(this);
+          // each of them withdraws the errors it put on every element it validated
+          elements.forEach((element) => validator.unregisterFrom(element));
         });
       }
       this.errors = [];

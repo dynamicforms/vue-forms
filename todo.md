@@ -12,8 +12,6 @@ owner only, so treat this file as the authoritative copy).
 ## Can wait (non-breaking to add later)
 
 `AbortEventHandlingException` does not veto `*Changing*` events (documented as it behaves) ·
-an action registered on an item template after a row was built never reaches that row, because a binding carries
-the actions its declaration held at the moment it was bound ·
 a rejection out of `Action.execute()` has nowhere to go but the caller: a call that neither awaits the
 answer nor attaches a `.catch()` leaves it unhandled, and the library offers no configured error handler to
 route it to.

@@ -61,15 +61,33 @@ At the end of every chain sits a handler that returns `null`, so `supr` is alway
 An action instance is registered on an element, and every binding of that element carries the same instance — so an
 action registered on a `List`'s item template fires for **every row of the list**. The element the executor
 receives as its first argument is the one it fired for, and it is what a handler that cares about a single row
-checks. The same holds for validators, which are actions: one `Required` instance validates every row's field, and
-`clearValidators()` on one row leaves the instance validating the others.
+checks. The same holds for validators, which are actions: one `Required` instance validates every row's field.
 
-An action drives the elements it was registered on and their bindings, and no others. Registered on one row of a
-`List`, it stays that row's action: the other rows never took it on, and neither a change of the field a
-`CompareTo` compares against nor a change of a field a `Statement` reads reaches them. A row built **before** the
-registration never took it on either — a binding carries the actions the element it was bound from held at the
-moment it was bound — so an action meant for every row is registered on the item template before the rows are
-built.
+Actions belong to the **declaration**, and a binding reads the declaration's. A row of a list is a binding of the
+item template, so registering on a row registers on the template and the rule applies to every row — the ones that
+already exist as much as the ones added later, and whichever element the call named:
+
+```typescript
+list.push({ amount: 1 });
+// registered on a row that already exists, and every row is driven by it, this one included
+list.get(0).fields.amount.registerAction(new Validators.Required());
+```
+
+`unregisterAction()` and `clearValidators()` read the same way: they name the declaration, so they reach every row.
+What stays per row is the **data** — the value, the errors the rule produces there, the verdict.
+
+A handler that means to answer for one row checks the element it was handed, and one that does not care answers for
+all of them:
+
+```typescript
+template.fields.amount.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
+  if (field.parent === list.get(0)) console.log('the first row changed');
+  return supr(field, newValue, oldValue);
+}));
+```
+
+A handler that does not call `supr` ends the run for **every** handler registered before it, on that declaration
+and therefore on every row — the handlers of one declaration stand in one chain.
 
 An action that has to remember something between runs keeps it against the element it ran over, not on itself —
 see [Writing custom actions](#custom-actions). Anything it keeps on itself is shared by every row.
