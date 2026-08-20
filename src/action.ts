@@ -19,17 +19,15 @@ export interface ActionValue {
 const busyCounters = new WeakMap<object, Ref<number>>();
 
 /**
- * Whether a value object says nothing, in which case the default stands in for it.
+ * The value object where any member of it states something, and undefined where none does. A member holding
+ * `null` or `undefined` states nothing, so `{}` and the pair of `undefined`s an action starts from state nothing.
  *
- * The question is asked over every member the object carries rather than over `label` and `icon` alone: `T` is
- * whatever a subclass widened the value to, and an action that states a name, a render style or a set of
- * per-breakpoint options and no label is a value that says something. A member holding `null` or `undefined`
- * states nothing, so the pair of `undefined`s an action starts from is empty, as is `{}`.
+ * `T` is whatever a subclass widened the value to, so an object naming a render style, a name or a set of
+ * per-breakpoint options and no label is an object that states something.
  */
-function isValEmpty<T extends ActionValue>(val: T | undefined, defaultIfTrue: T): T {
-  if (val == null) return defaultIfTrue;
-  const states = Object.values(val).some((member) => member != null);
-  return states ? val : defaultIfTrue;
+function stated<T extends ActionValue>(val: T | undefined): T | undefined {
+  if (val == null) return undefined;
+  return Object.values(val).some((member) => member != null) ? val : undefined;
 }
 
 export class Action<T extends ActionValue = ActionValue, X extends object = {}> extends Field<T, X> {
@@ -39,8 +37,8 @@ export class Action<T extends ActionValue = ActionValue, X extends object = {}> 
 
   protected init(params?: IFieldParams<T, X>) {
     transactional(() => {
-      // an Action's value is always a shaped object, so the empty value is the pair of undefined members and not
-      // undefined itself - both this hook and isValEmpty below rely on that
+      // an Action's value is always a shaped object, so an action that is handed nothing holds the pair of
+      // undefined members rather than undefined itself
       this._value = { label: undefined, icon: undefined } as T;
       if (params) {
         const { value: paramValue, originalValue, validators, actions, ...otherParams } = params;
@@ -48,17 +46,21 @@ export class Action<T extends ActionValue = ActionValue, X extends object = {}> 
         // guards them too
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
         this.assignParams(otherParams);
-        const val = isValEmpty(paramValue, this._value);
-        // the baseline is a copy of the whole value it was declared with, over the empty shape: a subclass widens
-        // the value, and a baseline carrying two of its members would report every such action changed from
-        // construction, its containers with it
-        const orgVal = Object.freeze({ ...this._value, ...originalValue }) as T;
-        // the fallback is a copy of the baseline, never the frozen baseline itself: label and icon stay
-        // assignable on an action constructed without a value. A value that was given is kept by identity,
-        // so a reactive object passed in stays linked to the action.
-        this._value = isValEmpty(val, { ...orgVal });
-        this.originalValue = isValEmpty(orgVal, val);
+        const val = stated(paramValue);
+        const org = stated(originalValue);
+        // a value that was stated is kept by identity, so a reactive object passed in stays linked to the action;
+        // where none was, the action holds a copy of the baseline, never the frozen baseline itself
+        if (val) this._value = val;
+        else if (org) this._value = { ...org };
+        // the baseline carries exactly the members it was declared with: isChanged is a structural comparison,
+        // which reads own-key sets, so an action reads as unchanged from construction, and so does every
+        // container above it, where the baseline is shaped like the value it baselines
+        if (org) this.originalValue = Object.freeze({ ...org }) as T;
       }
+      this.constructed(params);
+      // an action nothing declared a baseline for is baselined on the value its construction ends on - the value
+      // itself, so the two carry the same members - and that value is what the hook above leaves
+      if (this.originalValue === undefined) this.originalValue = this._value;
       // the value a construction ends on is the action's first statement about itself rather than a change of one
       this.raw.announcedValue = this._value;
       this.boundActions?.triggerEager(this, this.value, this.originalValue);

@@ -291,6 +291,11 @@ assigning the very object the field already holds announces nothing, while a new
 when it is deeply equal to the old one — mutate a copy and assign it. `enabled` on a `Group` or a `List` does not
 refuse anything; there it only decides whether the container above serializes it.
 
+A write states what the caller wants the field to hold rather than what it ends up holding: a `ValueChangedAction`
+may write another value back, a disabled field drops the write, and a handler that throws unwinds it. Where the
+field ends up holding the value it started with, nothing a rendering layer reads moves — the case that layer has
+to handle itself is worked through in [Writing the value](/api/field#writing-the-value).
+
 A container composes its value from its members, and the object it hands out is **frozen** and reused until the
 next change:
 

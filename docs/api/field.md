@@ -104,9 +104,12 @@ exactly the members of `Presentation` alongside the ones every field takes.
 
 A parameter naming a member the class itself declares is that member and not an extended property. `enabled` sets
 `enabled`, and `valid` still throws a `TypeError`, on a field with extended properties as much as on one without.
-`Action` declares `label` and `icon`, so those two reach an action's value; name presentation properties on an
-`Action` something else. `List` declares `length` and `items`, both read-only, so a parameter of either name
-throws the same `TypeError` as `valid`. In a subclass of your own, an accessor is such a member and a class field is not: class
+`Action` declares `label` and `icon`, so those two reach an action's value; name an action's *other* presentation
+properties something else, and see
+[Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass) where a subclass reads `label` or
+`icon` in a shape of its own — that is an accessor pair on the subclass, getter and setter together, not an
+extended property. `List` declares `length` and `items`, both read-only, so a parameter of either name throws the
+same `TypeError` as `valid`. In a subclass of your own, an accessor is such a member and a class field is not: class
 fields are defined on the instance after the base constructor has applied the parameters, so a parameter named
 after one becomes an extended property while the field keeps its initializer. Declare the member as an accessor
 where a parameter of its name should reach it.
@@ -163,7 +166,7 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `T` | yes | Current value. The setter is a no-op on a disabled field. Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
+| `value` | `T` | yes | Current value. The setter is a no-op on a disabled field, and what a write settles on is [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
 | `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value`. Writing what the element already holds is not a change: no `EnabledChangingAction` runs, nothing is enrolled in an open transaction, and no `EnabledChangedAction` fires |
@@ -179,6 +182,76 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 | `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding — transitively, so a binding of a binding answers with the same element. Every row a `List` builds from an item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field`. On a `Group` and a `List` it states what the element holds rather than what it serializes — see [`Group`](/api/group#properties) and [`List`](/api/list#properties) |
 | `extra` | `Readonly<Partial<X>>` | no | The [extended properties](#extended-properties) the field carries, `{}` where none were declared. The object is frozen; write through `setExtendedValues()` |
+
+## Writing the value
+
+A write to `value` states what the caller wants the field to hold; what the field ends up holding is settled by
+what is registered on it. A `ValueChangedAction` may write another value back — a rule that trims, rounds or caps —
+a disabled field drops the write before it reaches the value slot, and a handler that throws unwinds the whole
+write and rethrows, leaving the field holding what it held before. The write is observed rather than gated: there
+is no `ValueChangingAction`, so nothing stands between a value and the slot the way an `EnabledChangingAction` or a
+`VisibilityChangingAction` stands in front of those two members. Inside an open `transaction()` the handlers run at
+the commit, so what the field settles on is settled once the outermost `transaction()` call returns.
+
+Read the field back to learn what it took:
+
+```typescript
+field.value = typed;
+if (field.value !== typed) {
+  // the field settled on something other than what was written
+}
+```
+
+### What a rendering layer sees
+
+Where the field ends up holding something other than what was written, every read of it moves: a `computed` over
+`field.value` answers the new value, an effect that reads it re-runs, and a control rendering from either repaints
+on its own.
+
+Where the field ends up holding the value it started with, nothing moves. A disabled field's setter reaches no slot
+at all; a rule that puts back the five characters a six-character write exceeded, and a handler that throws, both
+leave the slot holding what it held before. Either way a `computed` over `field.value` answers what it answered
+last, so nothing rendering through one re-runs; an effect reading the field directly re-runs where the slot was
+written and put back, and reads the same value both times.
+
+The control, meanwhile, already carries what was typed: a native input holds the text in its own DOM before the
+event that carries it to the field is dispatched at all. Nothing repaints it, so it goes on showing a value the
+field does not hold and stays out of step with it until some unrelated change repaints it — the field refused the
+sixth character and the user sees all six.
+
+**A binding layer has to close that gap itself.** The read the control renders from has to move even where the
+field did not, which means answering the written value for one tick and the field's value from the next one:
+
+```typescript
+import { computed, nextTick, shallowRef } from 'vue';
+
+// inside a composable holding the element as field: FieldBase<T>
+const pending = shallowRef<{ value: T } | null>(null);
+
+const model = computed<T>({
+  get: () => (pending.value ? pending.value.value : field.value),
+  set: (newValue: T) => {
+    try {
+      field.value = newValue;
+    } finally {
+      if (field.value !== newValue) {
+        pending.value = { value: newValue };
+        nextTick(() => {
+          pending.value = null;
+        });
+      }
+    }
+  },
+});
+```
+
+Wherever the field settles on something other than what was written — another value, or the value it already held —
+the read answers the written value for the rest of that tick and the field's value from the next one. The control
+is repainted from that second move, so it ends up showing what the field holds whether or not the field moved. The
+`finally` is what covers the handler that threw: the throw goes on to the caller and the read is corrected all the
+same. `@dynamicforms/vuetify-inputs` does this in
+[`useInputBase()`](https://github.com/dynamicforms/vuetify-inputs/blob/main/src/helpers/input-base.ts), which every
+input in that library binds through.
 
 ## Methods
 
@@ -383,6 +456,64 @@ it.
 ```typescript
 const row = list.get(0)!;
 row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
+```
+
+## Subclassing
+
+`new` constructs a subclass of `Field`, `Action`, `Group` or `List`, and `bind()` constructs through
+`this.constructor`, so a subclass binds into its own class. Two protected hooks shape a construction.
+
+`init(params)`, on `Field` and `Action`, applies the constructor parameters; `Group` and `List` apply theirs in
+their constructors. Override it where the subclass takes parameters of a shape of its own, and read nothing but
+the parameters in it: it runs from the base constructor, so a member the subclass declares as a class field is
+still `undefined` while it runs and anything it assigns to one is overwritten when the initializer runs.
+
+`constructed(params)` is the last step of a construction, and all four classes call it — inside the transaction
+the construction is, with the parameters applied and the value in place, before the element records what it was
+built as. Override it to complete what the element was built with: a value member the caller need not state, a
+baseline of its own, a member a container fills in. What it writes is part of the construction rather than a
+change of it:
+
+- no `ValueChangedAction` fires for the element;
+- `isChanged` starts `false`, because a construction the parameters gave no `originalValue` is baselined on the
+  value the hook leaves;
+- a write to `_value` reaches the value slot of an element built `enabled: false`, which the `value` setter
+  refuses;
+- the eager actions and the validators run once, over the completed value.
+
+```typescript
+class Money extends Field<{ amount: number; currency?: string }> {
+  protected constructed() {
+    // the currency a caller need not state
+    if (this._value?.currency === undefined) this._value = { ...this._value, currency: 'EUR' };
+  }
+}
+
+const price = new Money({ value: { amount: 12 }, enabled: false });
+price.value;      // { amount: 12, currency: 'EUR' }
+price.isChanged;  // false
+```
+
+A container completes itself through its members, and a member carries a construction of its own: the write
+reaches it the way any later write would, so the member announces its `ValueChangedAction` and reports itself
+changed, while the container is baselined on the record the hook leaves. Baseline the member as well where it is
+to start unchanged:
+
+```typescript
+class Address extends Group<{ street: Field<string>; country: Field<string> }> {
+  protected constructed() {
+    const country = this.fields.country;
+    if (!country.value) {
+      country.value = 'SI';
+      country.originalValue = country.value;
+    }
+  }
+}
+
+const address = new Address({ street: new Field<string>({ value: 'Main 1' }), country: new Field<string>() });
+address.value;                    // { street: 'Main 1', country: 'SI' }
+address.isChanged;                // false
+address.fields.country.isChanged; // false
 ```
 
 ## `NullableField<T>`

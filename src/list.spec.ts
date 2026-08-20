@@ -648,6 +648,61 @@ describe('List construction parameters', () => {
     expect(enabledSeen).toEqual([true]);
     expect(list.value).toEqual([{ a: 1 }]);
   });
+
+  /** a list of amounts whose rows all carry a currency: the one a row was given none is filled in */
+  class Amounts extends List<{ amount: Field<number>; currency: Field<string> }> {
+    protected constructed() {
+      this.items.forEach((row) => {
+        if (!row.fields.currency.value) row.fields.currency.value = 'EUR';
+      });
+    }
+  }
+
+  const amountTemplate = () => new Group({ amount: new Field<number>(), currency: new Field<string>() });
+
+  it('completes the rows it was built with and says nothing about them', () => {
+    const announced: unknown[] = [];
+    const added: number[] = [];
+    const validated: unknown[] = [];
+
+    const list = new Amounts(amountTemplate(), {
+      value: [{ amount: 1 }, { amount: 2, currency: 'USD' }],
+      enabled: false,
+      actions: [
+        new ValueChangedAction((field, supr, newValue) => {
+          announced.push(newValue);
+        }),
+        new ListItemAddedAction((field, supr, item, index) => {
+          added.push(index);
+        }),
+      ],
+      validators: [
+        new Validators.Validator<ListValue>((newValue) => {
+          validated.push(newValue);
+          return null;
+        }),
+      ],
+    });
+
+    expect(list.value).toEqual([
+      { amount: 1, currency: 'EUR' },
+      { amount: 2, currency: 'USD' },
+    ]);
+    expect(list.originalValue).toEqual([
+      { amount: 1, currency: 'EUR' },
+      { amount: 2, currency: 'USD' },
+    ]);
+    expect(list.isChanged).toBe(false);
+    expect(announced).toEqual([]);
+    expect(added).toEqual([]);
+    // the validators run over the rows the list ends up holding, once
+    expect(validated).toEqual([
+      [
+        { amount: 1, currency: 'EUR' },
+        { amount: 2, currency: 'USD' },
+      ],
+    ]);
+  });
 });
 
 describe('What remove() hands back', () => {

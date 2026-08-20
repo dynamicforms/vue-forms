@@ -1076,8 +1076,9 @@ Type inference is unchanged too: `new Field({ value: 'a' })` is a `Field<string>
 of `Field.create(` → `new Field(` and `Action.create(` → `new Action(`, including the generic forms
 `Field.create<T>(` → `new Field<T>(`.
 
-A subclass of `Field` no longer needs a factory of its own. Give it a constructor, or override the protected
-`init(params)` hook when all you want is different parameter handling. `bind()` constructs through
+A subclass of `Field` no longer needs a factory of its own. Give it a constructor, override the protected
+`init(params)` hook where all you want is different parameter handling, and override the protected
+`constructed(params)` hook where you want to complete what the element was built with. `bind()` constructs through
 `this.constructor`, so a subclass binds into its own class either way.
 
 `init` runs from `Field`'s constructor, that is, during your subclass's `super()` call and therefore **before**
@@ -1100,6 +1101,31 @@ A subclass field initializer also wins over anything `init` assigned to the same
 `class Sub extends Field<string> { protected _value = 'x' }` now ends up with `'x'` whatever `value` the caller
 passed. If your subclass needs its own initialized state during setup, assign it inside the overridden `init`
 instead of as a class field.
+
+Read the constructor parameters in `init`, and complete the element in `constructed(params)` — the hook the
+construction calls as its last step, with the parameters applied and the value in place. What it writes is part of
+the construction: nothing is announced, an element built `enabled: false` takes the write all the same, and the
+eager actions and the validators run once, over the completed value. An element whose parameters named no
+`originalValue` is baselined on the value the hook left, so `isChanged` starts `false`. The same work
+placed after a `super.init(params)` call lands on a finished element instead, which announces a
+`ValueChangedAction` during construction, starts `isChanged` `true`, is dropped by a disabled element and runs the
+constructor's validators a second time.
+
+```typescript
+class Money extends Field<{ amount: number; currency?: string }> {
+  protected constructed() {
+    // the currency a caller need not state
+    if (this._value?.currency === undefined) this._value = { ...this._value, currency: 'EUR' };
+  }
+}
+
+const price = new Money({ value: { amount: 12 } });
+price.value;      // { amount: 12, currency: 'EUR' }
+price.isChanged;  // false
+```
+
+`Action`, `Group` and `List` call `constructed` at the same point in their own construction. See
+[Subclassing](/api/field#subclassing) for what a container completing a member states about it.
 
 ### `reactiveValue` is gone — read `.value`
 

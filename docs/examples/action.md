@@ -20,7 +20,11 @@ shape is the affordance that makes that concept legible. Without it `Action` wou
 The shape is deliberately minimal because **a UI library is expected to extend it**. `Action<T extends ActionValue>`
 takes a wider value type, so a subclass adds accessors that read `this.value.X` and keeps everything the base class
 does — the `ExecuteAction` chain, `busy`, `enabled`, `visibility`, the conditional actions, the transaction
-semantics. `@dynamicforms/vuetify-inputs` does exactly that: its `Action` widens the value with render options and
+semantics. `label` and `icon` are members `Action` declares, and both reach its value, so a subclass reading either
+in a shape of its own narrows the getter and declares the setter beside it, delegating to the base — a getter
+declared alone leaves the property without a setter and the documented write throws a `TypeError`. The rules are in
+[Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass).
+`@dynamicforms/vuetify-inputs` does exactly that: its `Action` widens the value with render options and
 per-breakpoint variants, and adds `renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough
 attributes on top. Its
 [df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows what an
