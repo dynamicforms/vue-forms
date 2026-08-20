@@ -142,8 +142,8 @@ transaction its own undo and is put back exactly.
 **A validation run already in flight is left to finish.** `validatingCount` is the one slot a rollback does not
 restore: it counts runs that are in flight, and restoring it would put the count out of step with the
 `endValidating` calls still to come, so `validating` would read `false` with a run pending and then go negative
-when it settled. The run itself cannot be recalled — `ValidationFunction` receives no `AbortSignal`, which is a
-separate open item — so instead it is allowed to complete and its verdict is dropped: the transaction it started
+when it settled. A run is called off rather than undone — the `AbortSignal` its `ValidationFunction` was handed
+aborts, and work that honours it stops — so it is allowed to settle and its verdict is dropped: the transaction it started
 in is marked as unwound, and the validator's `isCurrent()` check reads that flag alongside the run counter and
 the validation epoch. The alternative, letting the verdict land, leaves a field invalid over a value the form
 never held, which is worse than a check that answers nothing.
@@ -174,27 +174,6 @@ assignment: 24.3 ms, against 18.8 ms for the same fixture without transactions.
 **Also measured, and rejected on the strength of it:** carrying the action map inside the snapshot object under a
 symbol key, so that `clearValidators()` needed no undo of its own. That put the whole-list assignment at 26.9 ms
 — 2.6 ms for a key that matters to one operation and is paid by every element every other operation touches.
-
----
-
-## D-008 — `clearValidators()` releases its validators when the operation finishes
-
-**Version:** 0.8.0
-
-A `Validator` may have installed listeners elsewhere — `CompareTo` registers a `ValueChangedAction` on the field
-it compares against — and `unregister()` is what releases them. It is called after the operation that dropped
-the validators has committed, not as it runs.
-
-**Why.** `unregister()` is not reversible: `CompareTo` sets a flag that permanently stops its listener. Called
-while the transaction is open, an operation that then unwound would put the map back with the validator in it
-and leave that validator dead, which is the state a rollback exists to prevent. The alternative — making
-`unregister()` reversible — widens the action protocol with a re-arm method that every overriding action would
-have to implement correctly, for one caller.
-
-**What it costs.** Between `clearValidators()` and the end of the operation it ran in, a cross-field validator
-that was dropped can still fire and push an error onto the field it was dropped from. That needs the compared
-field to be written later in the same transaction, and the error stands only until the next validation of that
-field.
 
 ---
 
@@ -740,11 +719,13 @@ declarations, so one hand-written type would free the whole range — at the cos
 component, and of a range spanning releases nothing has been run against. A declared range is a promise, not a
 mechanism; the narrow one is the promise CI can keep.
 
-## D-030 — one list per identifier, walked by index
+## D-030 — one list of actions, walked from the end
 
-**Decision.** `ActionsMap` holds `Map<symbol, FieldActionBase[]>` and walks a group from the end backwards, handing
-each action a `supr` that continues at the index before it. The composed closure chain — every registration wrapping
-the handler already there — is gone.
+**Decision.** `ActionsMap` holds one `FieldActionBase[]` in registration order and walks it from the end backwards,
+passing over the actions registered under another identifier and handing each of the rest a `supr` that continues at
+the index before it. The composed closure chain — every registration wrapping the handler already there — is gone.
+The order is the whole index: an element carries a handful of actions, and the walk is measured at about twice the
+speed of `Map.get` over three of them, with the keyed maps costing about 500 bytes per declaration.
 
 **What forced it.** A composed chain cannot be taken apart: the successor closure holds its predecessor, and
 `registeredActions` was only a record for copying. Every consequence followed from that. `clearValidators()` had to
@@ -753,14 +734,14 @@ could run handlers without a second eager pass, because `trigger()` ran one on t
 special case for the value-change identifier for the same reason. `eager` was tracked per identifier, so one eager
 action made every action under that identifier eager. And `unregisterAction` could not exist at all.
 
-**What went away.** `triggerChain()`, `cloneWithoutValidators()`, `willTrigger()`'s special case, the
-`eagerActions: Set<symbol>` and `Transaction.whenCommitted()` with its deferred-work array. **What arrived.**
-`unregister()`, `triggerEagerFor()`, `hasEager`, and a second grouping of the eager actions per identifier so both
-walks are the same plain walk. Net about flat, and one concept — a chain that composes itself — is gone.
+**What went away.** `triggerChain()`, `cloneWithoutValidators()`, `willTrigger()`'s special case and the
+`eagerActions: Set<symbol>`. **What arrived.** `unregister()`, `triggerEagerFor()` and `hasEager`, each a walk of
+the one array under a predicate of its own. Net about flat, and one concept — a chain that composes itself — is
+gone.
 
-**Alternative not taken: a filter on the walk.** One grouping, with `step` skipping the actions that are not eager.
-It saves the second map at the cost of a predicate on the hot path and two shapes of walk. Registration is rare and
-triggering is not, so the grouping is done once at registration instead.
+`Transaction.whenCommitted()` stands. `Validator.unregisterFrom` defers one step through it — abandoning a run
+already in flight, which is not something a rollback can put back — while the registration itself is released
+inside the operation.
 
 **`unregisterFrom` moved into the operation.** It used to run at commit, because releasing what an action installed
 elsewhere was held to be beyond a rollback's reach. With the list it is not: the rollback re-registers the action
