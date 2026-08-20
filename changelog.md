@@ -105,6 +105,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing is announced now. Thrown from a `*Changed*` handler it is unchanged: the value is already written by
   then, and ending the run stops the handlers below it and nothing else.
 
+- `Action.execute()` documents the failure path it always had: the promise it answers with rejects where the
+  handler throws, so awaiting it is how a failure is reported, and a call that neither awaits nor catches leaves
+  the rejection to the runtime. `busy` is cleared either way. The template case has its own example, since an
+  event handler there is not awaited.
+
 ### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that

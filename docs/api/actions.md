@@ -299,8 +299,46 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 | `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value |
 | `label` | Reads `value.label`; writing it assigns a new value object carrying the new label |
 | `icon` | Reads `value.icon`; writing it assigns a new value object carrying the new icon |
-| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise |
+| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call — see [Handling a failed run](#handling-a-failed-run) |
 | `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
+
+#### Handling a failed run
+
+`execute()` answers with a promise, so a handler that throws rejects it. The answer is the caller's, and awaiting it
+is how a failure is reported:
+
+```typescript
+try {
+  await form.fields.save.execute();
+  showSaved();
+} catch (error) {
+  showFailed(error);
+}
+```
+
+A call that neither awaits the answer nor attaches a `.catch()` leaves the rejection unhandled — it surfaces
+through the runtime rather than through the form, and the action carries no trace of it. `busy` is cleared either
+way, on the rejection as on the success.
+
+The place this is easy to miss is a template, where an event handler is not awaited:
+
+```vue
+<!-- the rejection has nowhere to go -->
+<button @click="save.execute()" :disabled="save.busy">Save</button>
+
+<!-- state what happens when it fails -->
+<button @click="onSave" :disabled="save.busy">Save</button>
+```
+
+```typescript
+async function onSave() {
+  try {
+    await save.execute();
+  } catch (error) {
+    showFailed(error);
+  }
+}
+```
 
 `ActionValue` is the exported shape of the value: `{ label?: string; icon?: string }`. `Action<T extends
 ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members is inferred from

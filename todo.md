@@ -9,12 +9,7 @@ owner only, so treat this file as the authoritative copy).
 
 ---
 
-## Can wait (non-breaking to add later)
-
-a rejection out of `Action.execute()` has nowhere to go but the caller: a call that neither awaits the
-answer nor attaches a `.catch()` leaves it unhandled, and the library offers no configured error handler to
-route it to.
-
 ## Pre-existing items
 
-- More coverage in unit tests (see the test-gap list above for where it actually matters).
+- More coverage in unit tests. The incremental check CI runs answers for the lines a pull request touches; what a
+  global figure would answer for is the rest.
