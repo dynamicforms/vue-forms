@@ -9,7 +9,7 @@ import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
-import { AbortEventHandlingException, IBindParams } from './field.interface';
+import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
 import { type Group } from './group';
 import { type List } from './list';
 import {
@@ -57,7 +57,7 @@ const registrationParams: ReadonlySet<string> = new Set(['validators', 'actions'
  */
 let incompleteRecords = 0;
 
-export abstract class FieldBase<T = any, X extends object = {}> {
+export abstract class FieldBase<T = any, X extends object = Extras> {
   /**
    * Vue's getTargetType answers INVALID for an object that carries __v_skip, so reactive() hands an element back
    * unwrapped and no element is ever behind a proxy of its own. isReactive() reads the second flag, and it stays
@@ -791,6 +791,25 @@ export abstract class FieldBase<T = any, X extends object = {}> {
       if (this.#state.enabled !== oldValue) this.bumpValueVersion();
       this.boundActions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
     });
+  }
+
+  /**
+   * Whether this element and every container above it are enabled. A rendering layer binds one read instead of
+   * walking the parent chain: a disabled `Group` states that its section cannot be edited, and the inputs
+   * rendered from the members inside it read that here.
+   *
+   * It is a read and nothing else. `enabled` on each element stays exactly what was written to it, a write to a
+   * member of a disabled container is accepted the way it always was, and what a container serializes is decided
+   * by the members' own `enabled`. Where a whole subtree is to stop serializing, the members are disabled.
+   *
+   * `enabled` is the only member with a reading of this kind, and it is not a scheme the other members follow.
+   * `visibility` has none because `SUPPRESS` states that an element is absent from the value as well, so folding
+   * it down the tree would decide serialization rather than report it; `value` has none because a container
+   * composes its own from its members rather than passing one down. A rendering layer that needs a third thing
+   * folded down the tree has `provide`/`inject`, which is where the render tree's own context belongs.
+   */
+  get effectiveEnabled(): boolean {
+    return this.enabled && (this.parent?.effectiveEnabled ?? true);
   }
 
   /**

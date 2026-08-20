@@ -299,7 +299,7 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 
 | Member | Description |
 |--------|-------------|
-| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value — `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
 | `label` | Reads `value.label`; writing it assigns a new value object carrying the new label |
 | `icon` | Reads `value.icon`; writing it assigns a new value object carrying the new icon |
 | `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call — see [Handling a failed run](#handling-a-failed-run) |
@@ -448,6 +448,11 @@ Naming an action's presentation property something else is the separate rule abo
 [extended properties](/api/field#extended-properties), and it applies to a property that is neither `label` nor
 `icon`: a construction parameter of either name reaches the value rather than `extra`. A subclass reading either
 member differently narrows the accessor pair above instead of taking a name of its own.
+
+The same rule sets an action's extended properties apart from every other element's. `Action` declares
+`X extends object = Omit<Extras, keyof ActionValue>`, so a `label` or an `icon` that something augmented
+[`Extras`](/api/field#extras) with is absent from `action.extra` — the members above are where an action's label
+and icon are, on an action that declares no extended properties and on one that does.
 
 ### `NullableAction`
 

@@ -23,8 +23,9 @@ Every element carries the same members, whatever its class: `value`, `originalVa
 its own — `fields`, `field()`, `addField()` and `removeField()` on a `Group`, `length`, `items`, `get()`,
 `push()`, `insert()`, `remove()` and `clear()` on a `List`. Anything your application needs an element to carry
 beyond those goes in `extra`, the element's
-[extended properties](/api/field#extended-properties): declared as its second type argument, given at
-construction, written with `setExtendedValues()` and read like every other member.
+[extended properties](/api/field#extended-properties): declared once by augmenting
+[`Extras`](/api/field#extras) or per element as its second type argument, given at construction, written with
+`setExtendedValues()` and read like every other member.
 
 ```typescript
 import { Field, Group, List } from '@dynamicforms/vue-forms';

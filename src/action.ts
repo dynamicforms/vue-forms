@@ -2,7 +2,7 @@ import { ref, type Ref } from 'vue';
 
 import { ExecuteAction } from './actions';
 import { Field } from './field';
-import { IFieldParams } from './field.interface';
+import { type Extras, IFieldParams } from './field.interface';
 import { transactional } from './transaction';
 
 export interface ActionValue {
@@ -30,7 +30,10 @@ function stated<T extends ActionValue>(val: T | undefined): T | undefined {
   return Object.values(val).some((member) => member != null) ? val : undefined;
 }
 
-export class Action<T extends ActionValue = ActionValue, X extends object = {}> extends Field<T, X> {
+export class Action<
+  T extends ActionValue = ActionValue,
+  X extends object = Omit<Extras, keyof ActionValue>,
+> extends Field<T, X> {
   get [Symbol.toStringTag](): string {
     return 'Action';
   }

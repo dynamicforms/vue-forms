@@ -3,17 +3,17 @@ import { isEmpty } from 'lodash-es';
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
-import { IBindParams, IFieldParams } from './field.interface';
+import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { FieldsToFullValues, GenericFieldsInterface, Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 /** what List.value reads back: one plain object per item, or null when the list is empty */
 export type ListValue = Record<string, any>[] | null;
 
-export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X extends object = {}> extends FieldBase<
-  ListValue,
-  X
-> {
+export class List<
+  T extends GenericFieldsInterface = GenericFieldsInterface,
+  X extends object = Extras,
+> extends FieldBase<ListValue, X> {
   get [Symbol.toStringTag](): string {
     return 'List';
   }

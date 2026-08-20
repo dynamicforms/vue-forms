@@ -3,7 +3,7 @@ import { isEmpty } from 'lodash-es';
 import { type GroupSlots, groupSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
-import { IBindParams, IFieldParams } from './field.interface';
+import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
@@ -77,10 +77,10 @@ const fieldsAreReadOnly = (track: () => number): ProxyHandler<GenericFieldsInter
   },
 });
 
-export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X extends object = {}> extends FieldBase<
-  GroupValue<T>,
-  X
-> {
+export class Group<
+  T extends GenericFieldsInterface = GenericFieldsInterface,
+  X extends object = Extras,
+> extends FieldBase<GroupValue<T>, X> {
   get [Symbol.toStringTag](): string {
     return 'Group';
   }

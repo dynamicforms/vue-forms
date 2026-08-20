@@ -5,6 +5,24 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-08-20
+
+### Added
+- `Extras`, an empty exported interface that is what the `X` type argument of every element defaults to. A UI
+  layer declares the properties it renders forms with once, by augmenting `Extras` in a `declare module` block,
+  and every element in the consuming application then carries them — including the fields written inline in a
+  `Group` declaration, which no type argument on the group can annotate. Where an element states an `X` of its own
+  it replaces the default, so `Field<string, Extras & Local>` is how it carries both, and `Action` defaults to
+  `Extras` without the keys of `ActionValue` because `label` and `icon` are members it declares itself. The
+  default reaches `FieldBase<T>` as well, so a validator or an action handler reads the augmented properties off
+  the element it receives without a cast. Nothing changes for existing code: `Extras` is empty until something
+  augments it, and an element that states its own `X` is unaffected.
+- `effectiveEnabled` on every element: `true` where the element and every container above it are enabled. A
+  rendering layer binds it to draw the inputs of a disabled section disabled, instead of walking the parent chain
+  for each of them. It is a read — `enabled` on each element stays what was written to it, a write to a member of
+  a disabled container is accepted as before, and what a container serializes is decided by the members' own
+  `enabled`.
+
 ## [0.16.1] - 2026-08-20
 
 ### Fixed
