@@ -10,7 +10,13 @@ import { Validators } from '../validators';
 
 import FieldActionBase from './field-action-base';
 
-import { ExecuteAction, ValueChangedAction, VisibilityChangedAction, VisibilityChangingAction } from '.';
+import {
+  EnabledChangingAction,
+  ExecuteAction,
+  ValueChangedAction,
+  VisibilityChangedAction,
+  VisibilityChangingAction,
+} from '.';
 
 describe('Form actions', () => {
   it('correctly executes action chain', () => {
@@ -299,14 +305,21 @@ describe('AbortEventHandlingException', () => {
     expect(field.value).toBe('new value');
   });
 
-  it('answers null from triggerAction for the run it ended', () => {
-    const field = new Field({ value: 1 }).registerAction(
+  it('answers with itself from triggerAction, so the caller can tell it from silence', () => {
+    const ended = new Field({ value: 1 }).registerAction(
       new ExecuteAction(() => {
-        throw new AbortEventHandlingException();
+        throw new AbortEventHandlingException('nothing to save');
       }),
     );
+    const answered = new Field({ value: 1 }).registerAction(new ExecuteAction(() => null));
+    const empty = new Field({ value: 1 });
 
-    expect(field.triggerAction(ExecuteAction)).toBeNull();
+    const abort = ended.triggerAction(ExecuteAction);
+    expect(abort).toBeInstanceOf(AbortEventHandlingException);
+    expect((abort as AbortEventHandlingException).message).toBe('nothing to save');
+    // the two runs that reached an end of their own are null, and the caller tells all three apart
+    expect(answered.triggerAction(ExecuteAction)).toBeNull();
+    expect(empty.triggerAction(ExecuteAction)).toBeNull();
   });
 
   it('ends only the run it was thrown in', () => {
@@ -345,8 +358,12 @@ describe('AbortEventHandlingException', () => {
     expect(field.value).toBe('initial');
   });
 
-  it('does not veto a *Changing* event: the value it guards is still written', () => {
-    const field = new Field({ value: 1 });
+  it('refuses the write a *Changing* handler ends the run over', () => {
+    const seen: string[] = [];
+    const field = new Field({ value: 1, visibility: DisplayMode.FULL });
+    field.registerAction(
+      new VisibilityChangedAction((f, supr, ...params) => (seen.push('changed'), supr(f, ...params))),
+    );
     field.registerAction(
       new VisibilityChangingAction(() => {
         throw new AbortEventHandlingException();
@@ -355,6 +372,21 @@ describe('AbortEventHandlingException', () => {
 
     field.visibility = DisplayMode.HIDDEN;
 
-    expect(field.visibility).toBe(DisplayMode.HIDDEN);
+    // nothing is written and nothing is announced: the handler refused the write rather than reshaping it
+    expect(field.visibility).toBe(DisplayMode.FULL);
+    expect(seen).toEqual([]);
+  });
+
+  it('refuses an enabled write the same way', () => {
+    const field = new Field({ value: 1 });
+    field.registerAction(
+      new EnabledChangingAction(() => {
+        throw new AbortEventHandlingException();
+      }),
+    );
+
+    field.enabled = false;
+
+    expect(field.enabled).toBe(true);
   });
 });

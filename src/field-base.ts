@@ -9,7 +9,7 @@ import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
-import { IBindParams } from './field.interface';
+import { AbortEventHandlingException, IBindParams } from './field.interface';
 import { type Group } from './group';
 import { type List } from './list';
 import {
@@ -739,6 +739,8 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     if (newValue === oldValue) return;
     transactional((tx) => {
       const alteredValue = this.boundActions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
+      // a handler that ended the run refused the write: nothing is written and nothing is announced
+      if (alteredValue instanceof AbortEventHandlingException) return;
       if (!DisplayMode.isDefined(alteredValue ?? newValue)) {
         throw new Error('visibility must be a DisplayMode constant');
       }
@@ -758,6 +760,8 @@ export abstract class FieldBase<T = any, X extends object = {}> {
     if (newValue === oldValue) return;
     transactional((tx) => {
       const alteredValue = this.boundActions?.trigger(EnabledChangingAction, this, newValue, oldValue);
+      // as with visibility: a handler that ended the run refused the write
+      if (alteredValue instanceof AbortEventHandlingException) return;
       if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
       tx.touch(this);
       this.#state.enabled = alteredValue ?? newValue;

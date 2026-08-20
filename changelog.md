@@ -95,6 +95,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   backwards and passes over the actions of other identifiers. Measured over three actions the walk is about twice
   as fast as `Map.get`, and a standalone field carrying one validator falls from about 1420 bytes to about 655.
 
+- **Breaking:** a trigger answers with the `AbortEventHandlingException` a handler threw, where it answered `null`.
+  A run a handler ended and a run that reached no handler at all were the same answer, so neither the library nor a
+  caller could tell them apart. `triggerAction()` hands the exception back, and code testing for `null` sees the
+  difference - which is the point, because the two mean different things.
+- **Breaking:** `AbortEventHandlingException` thrown from an `EnabledChangingAction` or a `VisibilityChangingAction`
+  refuses the write. Those handlers are asked before the value is written, and the exception was caught and the
+  write went through anyway, so a handler that meant to stop a change watched it happen. Nothing is written and
+  nothing is announced now. Thrown from a `*Changed*` handler it is unchanged: the value is already written by
+  then, and ending the run stops the handlers below it and nothing else.
+
 ### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that

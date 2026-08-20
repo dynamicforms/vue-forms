@@ -49,6 +49,11 @@ export type IBindParams<T = any, X extends object = {}> = Partial<
 > &
   Partial<NoInfer<X>>;
 
+/**
+ * Thrown from a handler to end the run it is in. What the trigger answers with is the exception itself rather than
+ * `null`, so a caller can tell a run a handler ended from one that reached no handler at all - and the setters
+ * that ask a `*Changing*` handler read it as a refusal and write nothing.
+ */
 export class AbortEventHandlingException extends Error {}
 
 export type FieldActionExecute<T = any> = (field: FieldBase<T>, ...params: any[]) => any;

@@ -75,7 +75,12 @@ export default class ActionsMap {
       if (!action.eager) continue;
       // the group is entered once, at the outermost of its eager actions; the ones below are reached through supr
       if (ActionsMap.outermostEager(actions, index)) {
-        this.walk(actions, index, action.classIdentifier, true, field, params);
+        try {
+          this.walk(actions, index, action.classIdentifier, true, field, params);
+        } catch (error) {
+          // one eager group ending its run says nothing about the others, which are separate rules
+          if (!(error instanceof AbortEventHandlingException)) throw error;
+        }
       }
     }
   }
@@ -108,15 +113,19 @@ export default class ActionsMap {
     return true;
   }
 
-  /** Enters a group at its outermost action. An abort ends the run and is not an error to the caller. */
+  /**
+   * Enters a group at its outermost action. An abort ends the run and is answered with rather than raised: the
+   * exception is what the caller receives, so a run a handler ended is told apart from one that reached no handler
+   * and from one whose handler answered null.
+   */
   private run(identifier: symbol, eagerOnly: boolean, field: FieldBase, params: any[]): any {
     const actions = this.actions;
     try {
       return this.walk(actions, actions.length - 1, identifier, eagerOnly, field, params);
     } catch (error) {
-      if (!(error instanceof AbortEventHandlingException)) throw error;
+      if (error instanceof AbortEventHandlingException) return error;
+      throw error;
     }
-    return null;
   }
 
   /**

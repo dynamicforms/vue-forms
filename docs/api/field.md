@@ -264,8 +264,9 @@ record in afterwards does the same. Only an action implementation calls it; see
 ### `triggerAction(actionClass, ...params): any`
 
 Manually fires a specific action class on this field. `actionClass` is the class itself, not an instance — it is
-looked up by its static `classIdentifier`, so abstract classes work too. Returns what the chain returns, or `null`
-when no action of that type is registered.
+looked up by its static `classIdentifier`, so abstract classes work too. Returns what the chain returns, `null`
+when no action of that type is registered, and the [`AbortEventHandlingException`](/api/actions#aborteventhandlingexception)
+itself where a handler threw one to end the run.
 
 ### `validate(revalidate?): void`
 

@@ -363,6 +363,32 @@ written, sees the difference. A handler meant to hold a value at a fixed mode is
 field it depends on — a `ConditionalVisibilityAction` — since it then states the mode rather than intercepting
 attempts to leave it.
 
+### An abort is an answer, and refuses a `*Changing*` write
+
+A trigger caught `AbortEventHandlingException` and answered `null`, which is also what it answers when nothing is
+registered. It answers with the exception now:
+
+```typescript
+const answer = field.triggerAction(ExecuteAction, params);
+// before: null, whether a handler ended the run or none was there
+// after:  the exception where a handler ended it, null where none was there
+if (answer instanceof AbortEventHandlingException) reportToUser(answer.message);
+```
+
+And in a `*Changing*` handler it now does what its name says. `EnabledChangingAction` and
+`VisibilityChangingAction` are asked before the value is written, so ending the run there refuses the write:
+
+```typescript
+field.registerAction(new VisibilityChangingAction(() => {
+  throw new AbortEventHandlingException('never suppressed');
+}));
+field.visibility = DisplayMode.SUPPRESS;
+field.visibility;   // before: SUPPRESS — the write went through. after: unchanged
+```
+
+A handler that threw one to stop the rest of the chain while still letting the write happen has to say so: call
+`supr` with the value it wants, or return that value, instead of throwing.
+
 ### An action belongs to the declaration
 
 A binding read a copy of its declaration's actions, made when the binding was made. It reads the declaration's own

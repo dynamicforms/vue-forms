@@ -94,18 +94,45 @@ see [Writing custom actions](#custom-actions). Anything it keeps on itself is sh
 
 ### `AbortEventHandlingException`
 
-Throwing `AbortEventHandlingException` from a handler aborts the rest of the chain. `ActionsMap` catches it, so it never escapes the setter and `triggerAction()` returns `null` for that trigger. All other exceptions propagate to the caller.
+Throwing `AbortEventHandlingException` from a handler ends the run it is in. It never escapes the setter: the
+trigger catches it and **answers with it**, so a caller tells a run a handler ended from one that reached no
+handler at all. All other exceptions propagate to the caller.
 
 ```typescript
 import { AbortEventHandlingException, ValueChangedAction } from '@dynamicforms/vue-forms';
 
 field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
-  if (newValue == null) throw new AbortEventHandlingException();
+  if (newValue == null) throw new AbortEventHandlingException('no value to report');
   return supr(field, newValue, oldValue);
+}));
+
+const answer = field.triggerAction(ExecuteAction, params);
+if (answer instanceof AbortEventHandlingException) {
+  // a handler ended the run, and said why
+  console.log(answer.message);
+}
+```
+
+| what happened | the trigger answers |
+|---|---|
+| a handler threw `AbortEventHandlingException` | that exception |
+| a handler returned `null`, or none is registered | `null` |
+
+**In a `*Changing*` handler it refuses the write.** `EnabledChangingAction` and `VisibilityChangingAction` are
+asked before the value is written, so ending the run there means the setter writes nothing and announces nothing —
+no `*Changed*` event, no enrolment in an open transaction. Returning the old value refuses the write just as well;
+the exception is the form that also says why, and that stops the handlers registered before it from running.
+
+```typescript
+field.registerAction(new VisibilityChangingAction((f, supr, newValue, oldValue) => {
+  if (newValue === DisplayMode.SUPPRESS) throw new AbortEventHandlingException('this field is never suppressed');
+  return supr(f, newValue, oldValue);
 }));
 ```
 
-Note that `ValueChangedAction` fires *after* the new value has already been stored, so aborting stops further event handling — it does not roll the change back. To undo the change as well, throw an ordinary error instead: a throw out of a handler rolls the whole [transaction](/api/transactions) back and rethrows.
+**In a `*Changed*` handler it does not.** `ValueChangedAction` and its kind fire *after* the value is written, so
+ending the run stops the handlers below it and nothing else — the change stands. To undo the change as well, throw
+an ordinary error: a throw out of a handler rolls the whole [transaction](/api/transactions) back and rethrows.
 
 ## Value events
 
