@@ -65,8 +65,25 @@ A `componentName` that is one of the common HTML tag names — the block, text, 
 rendered as that element directly. Every other name, an uncommon HTML tag included, is resolved as a globally
 registered component.
 
-For developers writing their own renderers, the type guards `isSimpleComponentDef(content)` and
-`isCallableFunction(content)` are exported as well.
+### Type guards
+
+Two are exported, for code that renders a `RenderContentRef` itself rather than through `MessagesWidget`.
+
+```typescript
+function isSimpleComponentDef(content?: RenderContentRef): content is SimpleComponentDef;
+function isCallableFunction(content?: RenderContentRef): content is RenderContentCallable;
+```
+
+Both resolve a `Ref` before they answer. `isSimpleComponentDef` is true for an object carrying a `componentName`,
+and false for everything else — a string, an `MdString`, a function, `undefined` and `null` alike. `isCallableFunction`
+is true for a function, which is the form to call before rendering what it answers with:
+
+```typescript
+const resolved = isCallableFunction(content) ? content() : unref(content);
+if (isSimpleComponentDef(resolved)) renderComponent(resolved.componentName, resolved.componentProps);
+else if (resolved instanceof MdString) renderMarkdown(resolved.toString(), resolved.options, resolved.plugins);
+else renderText(String(resolved));
+```
 
 ### `MdString`
 

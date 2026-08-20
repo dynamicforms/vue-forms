@@ -38,6 +38,8 @@ mechanism applies at every level of a nested form.
 - **Validation**: built-in validators, custom synchronous and asynchronous rules, cross-field comparisons, and
   errors that carry a `code` and render as text, markdown or a component of your own
 - **Conditional logic**: visibility, enablement and values declared as statements over other fields
+- **Extended properties**: a field carries whatever your UI renders it with — a label, a hint, a width — declared
+  as a second type argument, checked by the compiler and read through `extra`
 - **Display modes**: control field visibility with different display modes (Full, Hidden, Invisible, Suppress)
 - **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds
 - **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one
