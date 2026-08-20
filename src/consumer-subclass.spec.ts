@@ -1,11 +1,19 @@
+import { expectTypeOf } from 'vitest';
+
 import { Action, ActionValue } from './action';
 import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { IFieldParams } from './field.interface';
 import { Group } from './group';
 
-/** how a UI library renders an action: the value it widens `ActionValue` to */
+/**
+ * How a UI library renders an action: the value it widens `ActionValue` to. `label` and `icon` are restated at the
+ * type this library renders them as - `ActionValue` leaves both `unknown` for exactly that - and the accessors the
+ * base class declares answer at it, because they read their type off the value.
+ */
 interface RenderOptions extends ActionValue {
+  label?: string;
+  icon?: string;
   name?: string;
   renderAs?: 'button' | 'text';
   showLabel?: boolean;
@@ -331,5 +339,60 @@ describe('a Field subclass', () => {
     expect(bound.declaration).toBe(declaration);
     expect(bound.value).toBe(7);
     expect(bound.isChanged).toBe(false);
+  });
+});
+
+describe('an action whose label is not a string', () => {
+  /** a markup-carrying label of the kind a UI library renders */
+  class MdString {
+    constructor(readonly md: string) {}
+  }
+
+  interface RichValue extends ActionValue {
+    label?: string | MdString;
+    icon?: string;
+  }
+
+  class RichAction extends Action<RichValue> {}
+
+  it('carries and answers the label at the type the subclass stated', () => {
+    const action = new RichAction({ value: { label: new MdString('**Save**') } });
+
+    expectTypeOf(action.label).toEqualTypeOf<string | MdString | undefined>();
+    expect(action.label).toBeInstanceOf(MdString);
+
+    // the plain type the base class knows about is still one of them
+    action.label = 'Save';
+    expect(action.label).toBe('Save');
+
+    // @ts-expect-error and the subclass's type is what a write is measured against
+    action.label = 42;
+  });
+
+  it('reaches the base setter, so the write is an ordinary value change', () => {
+    const action = new RichAction({ value: { label: 'Save', icon: 'save' } });
+    const seen: unknown[] = [];
+    action.registerAction(
+      new ValueChangedAction((field, supr, newValue) => {
+        seen.push((newValue as RichValue).label);
+        return supr(field, newValue);
+      }),
+    );
+
+    action.label = new MdString('**Save**');
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toBeInstanceOf(MdString);
+    // the member the write did not name is carried over untouched
+    expect(action.icon).toBe('save');
+  });
+
+  it('drops a member written undefined, so isChanged stays honest', () => {
+    const action = new RichAction({ value: { label: new MdString('**Save**'), icon: 'save' } });
+
+    action.icon = undefined;
+
+    expect(Object.hasOwn(action.value, 'icon')).toBe(false);
+    expect(action.label).toBeInstanceOf(MdString);
   });
 });

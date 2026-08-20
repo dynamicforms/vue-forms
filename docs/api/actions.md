@@ -265,18 +265,19 @@ field.triggerAction(ExecuteAction, { reason: 'submit' });
 
 ### The `Action` class
 
-`Action` is a `Field` whose value is an `ActionValue` (`{ label?, icon? }`) — it represents a button or menu entry that runs an `ExecuteAction` chain.
+`Action` is a `Field` whose value is an `ActionValue` (`{ label?: unknown; icon?: unknown }`) — it represents a button or menu entry that runs an `ExecuteAction` chain.
 
 ::: tip Action is the one part of this library that is not UI-agnostic, deliberately
 Everything else here describes data and behaviour and says nothing about rendering. `Action` names a label and an
 icon because it exists as a *concept* — the element a form's submit, cancel and delete hang on — and that minimal
 pair is what makes the concept legible; without it, `Action` would be indistinguishable from `Field`.
 
-The shape is minimal because **a UI library is expected to extend it**. `Action<T extends ActionValue>` takes a
-wider value type, so a subclass adds accessors reading `this.value.X` for the members it added and keeps everything
-the base class does. `label` and `icon` are accessors the base class declares, and a subclass reading either in a
-shape of its own narrows the getter and declares the setter beside it —
-[Widening the value in a subclass](#widening-the-value-in-a-subclass) has both rules.
+The shape is minimal because **a UI library is expected to extend it**, and both members are typed `unknown` for
+that reason: `Action` names the concept and the library that renders it states what a label and an icon are. A
+subclass declares its value type with either member in whatever shape it renders — `string | MdString`, a
+per-breakpoint object — and the accessors the base class declares answer at that type, because they read it off the
+value rather than fixing one of their own.
+[Widening the value in a subclass](#widening-the-value-in-a-subclass) has the rules.
 `@dynamicforms/vuetify-inputs` widens the value with render options and per-breakpoint variants and adds
 `renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes on top; its
 [df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows what that
@@ -300,8 +301,8 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 | Member | Description |
 |--------|-------------|
 | `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value — `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
-| `label` | Reads `value.label`; writing it assigns a new value object carrying the new label |
-| `icon` | Reads `value.icon`; writing it assigns a new value object carrying the new icon |
+| `label` | Reads `value.label`, at the type `T` gives that member — `unknown` on an `Action` that states no value type; writing it assigns a new value object carrying the new label |
+| `icon` | Reads `value.icon`, at the type `T` gives that member; writing it assigns a new value object carrying the new icon |
 | `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call — see [Handling a failed run](#handling-a-failed-run) |
 | `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
 
@@ -343,9 +344,16 @@ async function onSave() {
 }
 ```
 
-`ActionValue` is the exported shape of the value: `{ label?: string; icon?: string }`. `Action<T extends
-ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members is inferred from
-`params.value` the same way `Field`'s is.
+`ActionValue` is the exported shape of the value: `{ label?: unknown; icon?: unknown }`. `Action<T extends
+ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members — or restating
+these two — is inferred from `params.value` the same way `Field`'s is.
+
+Both members are `unknown` because what a label and an icon are is the rendering library's to say, and `unknown` is
+what lets it say so: `interface RenderOptions extends ActionValue { label?: string | MdString }` is legal where a
+`string` in the base would have refused it, and a subclass cannot widen an accessor the base class typed. The
+consequence for an `Action` that states no value type is that `action.label` reads as `unknown` and the reader
+states what it expects. An action built from a literal is narrower than that on its own — `new Action({ value: {
+label: 'Save' } })` infers `T` from the literal, so its `label` reads as `string`.
 
 An `Action`'s value is always a shaped object, never `undefined`: `new Action()` starts out as
 `{ label: undefined, icon: undefined }`. A value object states something when any member it carries holds
@@ -392,14 +400,40 @@ worked through end to end in the [Action example](/examples/action).
 
 `Action<T extends ActionValue>` takes a wider value type, so a subclass declares accessors over the members it added
 and keeps everything the base class does — the `ExecuteAction` chain, `busy`, `enabled`, `visibility`, the
-conditional actions, the transaction semantics. `label` and `icon` are members `Action` declares, and both reach its
-value, so a subclass wanting a differently shaped read of either narrows the getter and declares the setter beside
-it, delegating to the base:
+conditional actions, the transaction semantics.
+
+**The type of `label` and of `icon` is stated in the value type, not on the accessors.** `ActionValue` leaves both
+`unknown`, so a subclass restates them at the type it renders and the inherited accessors answer at that type —
+`Action`'s own read them off `T`. This is the whole of it, and it is what a subclass has to do rather than override
+an accessor: a getter declared on a subclass has to be assignable to the base class's, so widening one there is
+`TS2416` and no cast on the subclass's side reaches it.
+
+```typescript
+import { Action, ActionValue } from '@dynamicforms/vue-forms';
+
+class MdString { constructor(readonly md: string) {} }
+
+interface RichValue extends ActionValue {
+  label?: string | MdString;
+  icon?: string;
+}
+
+class RichAction extends Action<RichValue> {}
+
+const save = new RichAction({ value: { label: new MdString('**Save**') } });
+save.label;                    // string | MdString | undefined
+save.label = 'Save';           // the plain type is still one of them
+```
+
+A subclass declares an accessor of its own only where the *read* is to differ from the value — filtering it, for
+one — and then it declares the setter beside it, delegating to the base:
 
 ```typescript
 import { Action, ActionValue } from '@dynamicforms/vue-forms';
 
 interface RenderOptions extends ActionValue {
+  label?: string;
+  icon?: string;
   name?: string;
   showLabel?: boolean;
   showIcon?: boolean;

@@ -23,6 +23,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a disabled container is accepted as before, and what a container serializes is decided by the members' own
   `enabled`.
 
+### Changed
+- **Breaking.** `ActionValue` declares `label` and `icon` as `unknown`, and `Action`'s accessors for them read
+  their type off the value rather than fixing `string | undefined`. What a label and an icon are is the rendering
+  library's to say, and `unknown` is what lets it say so: `interface RichValue extends ActionValue { label?: string
+  | MdString }` is legal where a `string` in the base refused it, and a subclass cannot widen an accessor the base
+  class typed — that is `TS2416`, which no cast on the subclass's side reaches. A subclass therefore restates the
+  two members in its value type and the inherited accessors answer at that type, with no accessor override needed
+  unless the read is to be filtered.
+
+  What moves for a consumer: on an `Action` that states no value type, `action.label` and `action.icon` read as
+  `unknown`, so `action.label?.toUpperCase()` no longer compiles and the reader states what it expects — `action
+  .label as string | undefined`, or a value type on the action. An action built from a literal is narrower on its
+  own, because `T` is inferred from it: `new Action({ value: { label: 'Save' } })` reads `label` as `string`.
+  Writes are unaffected at every shape, and nothing changes at runtime.
+
 ## [0.16.1] - 2026-08-20
 
 ### Fixed
