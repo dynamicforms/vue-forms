@@ -18,9 +18,18 @@ export interface ActionValue {
  */
 const busyCounters = new WeakMap<object, Ref<number>>();
 
-function isValEmpty(val: ActionValue | undefined, defaultIfTrue: ActionValue): ActionValue {
-  if (val?.label == null && val?.icon == null) return defaultIfTrue;
-  return val;
+/**
+ * Whether a value object says nothing, in which case the default stands in for it.
+ *
+ * The question is asked over every member the object carries rather than over `label` and `icon` alone: `T` is
+ * whatever a subclass widened the value to, and an action that states a name, a render style or a set of
+ * per-breakpoint options and no label is a value that says something. A member holding `null` or `undefined`
+ * states nothing, so the pair of `undefined`s an action starts from is empty, as is `{}`.
+ */
+function isValEmpty<T extends ActionValue>(val: T | undefined, defaultIfTrue: T): T {
+  if (val == null) return defaultIfTrue;
+  const states = Object.values(val).some((member) => member != null);
+  return states ? val : defaultIfTrue;
 }
 
 export class Action<T extends ActionValue = ActionValue, X extends object = {}> extends Field<T, X> {
@@ -40,12 +49,15 @@ export class Action<T extends ActionValue = ActionValue, X extends object = {}> 
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
         this.assignParams(otherParams);
         const val = isValEmpty(paramValue, this._value);
-        const orgVal = Object.freeze({ label: originalValue?.label, icon: originalValue?.icon } as ActionValue);
+        // the baseline is a copy of the whole value it was declared with, over the empty shape: a subclass widens
+        // the value, and a baseline carrying two of its members would report every such action changed from
+        // construction, its containers with it
+        const orgVal = Object.freeze({ ...this._value, ...originalValue }) as T;
         // the fallback is a copy of the baseline, never the frozen baseline itself: label and icon stay
         // assignable on an action constructed without a value. A value that was given is kept by identity,
         // so a reactive object passed in stays linked to the action.
-        this._value = isValEmpty(val, { ...orgVal }) as T;
-        this.originalValue = isValEmpty(orgVal, val) as T;
+        this._value = isValEmpty(val, { ...orgVal });
+        this.originalValue = isValEmpty(orgVal, val);
       }
       // the value a construction ends on is the action's first statement about itself rather than a change of one
       this.raw.announcedValue = this._value;

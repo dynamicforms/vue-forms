@@ -345,10 +345,13 @@ ActionValue = ActionValue>` accepts a wider value type, so a subclass value carr
 `params.value` the same way `Field`'s is.
 
 An `Action`'s value is always a shaped object, never `undefined`: `new Action()` starts out as
-`{ label: undefined, icon: undefined }`. A `params.value` whose `label` and `icon` are both `null`/absent counts as
-empty and is replaced — by `params.originalValue` if you passed one, otherwise by that pair of `undefined`s.
-`params.originalValue` is copied into a frozen `{ label, icon }` object; passing only `value` makes `originalValue`
-that same value object, so `isChanged` starts out `false`.
+`{ label: undefined, icon: undefined }`. A `params.value` counts as empty when every member it carries is
+`null`/absent, and an empty one is replaced — by `params.originalValue` if you passed one, otherwise by that pair of
+`undefined`s. The question is asked over the whole object rather than over `label` and `icon` alone, so a subclass
+value stating a name, a render style or a set of per-breakpoint options is a value that says something and is kept
+whether or not it names either of the two. `params.originalValue` is copied into a frozen object over that same
+empty shape, carrying every member it was given; passing only `value` makes `originalValue` that same value object,
+so `isChanged` starts out `false`.
 
 `label` and `icon` write through the value setter, so each is an ordinary value change: `ValueChangedAction` fires,
 `isChanged` answers over it, and a disabled action refuses the write. The value object the action holds is replaced

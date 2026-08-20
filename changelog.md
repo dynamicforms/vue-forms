@@ -5,6 +5,19 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2026-08-20
+
+### Fixed
+- An `Action` keeps a value that states something other than a label or an icon. `Action` is meant to be subclassed
+  with a wider value type, and the emptiness test read `label` and `icon` alone: a value naming a render style, a
+  name or a set of per-breakpoint options and neither of those two was taken for empty and replaced by the pair of
+  `undefined`s, so the action came out holding nothing at all and a button rendered from it came out blank. The
+  test now asks whether any member of the object states anything, which answers the same for the shape the base
+  class declares.
+- An `Action`'s baseline carries the whole value it was declared with. `params.originalValue` was copied into
+  `{ label, icon }`, so a subclass value declared with a matching baseline was measured against two of its members
+  and the action reported `isChanged` from construction, as did every `Group` holding it.
+
 ## [0.16.0] - 2026-08-20
 
 ### Changed
