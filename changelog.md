@@ -5,6 +5,60 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.1] - 2026-08-20
+
+### Fixed
+- An `Action` keeps a value that states something other than a label or an icon. `Action` is meant to be subclassed
+  with a wider value type, and the emptiness test read `label` and `icon` alone: a value naming a render style, a
+  name or a set of per-breakpoint options and neither of those two was taken for empty and replaced by the pair of
+  `undefined`s, so the action came out holding nothing at all and a button rendered from it came out blank. The
+  question is asked over every member the object carries, which answers the same for the shape the base class
+  declares.
+- An `Action`'s baseline carries exactly what it was declared with. `params.originalValue` was copied into
+  `{ label, icon }`, so a widened baseline lost every member beyond those two and the action it belonged to was
+  measured against a fraction of what was declared for it.
+- An `Action` declared with a value and a matching `originalValue` reports `isChanged` false from construction, and
+  so does every `Group` holding it. This is the base class and not only a subclass:
+  `new Action({ value: { label: 'S' }, originalValue: { label: 'S' } })` reported `isChanged` true, because
+  `isChanged` is a structural comparison and reads own-key sets, and the two objects were built differently - the
+  value kept by identity, carrying the one key it was declared with, and the baseline reshaped into the pair the
+  base class names. The baseline is a frozen copy of what was declared, and the value itself where nothing declared
+  one.
+- A bare `new Action()` reports `isChanged` false. Its baseline was never assigned, so the pair of `undefined`s it
+  holds was measured against `undefined` and every action constructed without parameters reported itself changed,
+  its containers with it.
+
+### Added
+- `FieldBase.constructed(params)`, the hook a subclass overrides to complete what the element was built with.
+  `Field`, `Action`, `Group` and `List` call it at the end of a construction, inside the transaction the
+  construction is and before the element records what it was built as, so what the override writes - `_value`, a
+  member, `originalValue` - belongs to the construction rather than being a change of it: no `ValueChangedAction`
+  announces it, an element built `enabled: false` does not refuse a write to `_value`, and what the hook leaves is
+  what the eager actions and the validators then run over. Where the parameters named no `originalValue` the
+  element is baselined on the value the hook left, so it starts unchanged; where they named one it is measured
+  against that, as any element is. It receives the parameter
+  object the constructor was given, where it was given one. A write made after `super.init()` returns is none of
+  that, being a change to a finished element.
+- Three specs holding the library from a consumer's seat rather than from its own: a binding layer's computed over
+  `value` and the reads it repaints from, an `Action` and a `Field` subclassed with a widened value, and a
+  serializer reading `value` and `fullValue` back and writing a record into a form.
+
+### Documentation
+- **[Widening the value in a subclass](https://docs.velis.si/dynamicforms/vue-forms/api/actions#widening-the-value-in-a-subclass)**
+  on the `Action` reference: what a subclass adds and what it keeps, and that a subclass reading `label` or `icon`
+  in a shape of its own declares the getter and the setter together, the setter delegating to the base with
+  `super.label = newValue`. A getter declared alone defines the whole property, which then has no setter at all, so
+  `action.label = 'Save'` - the documented way to write either member - throws a `TypeError` in module code. A
+  narrowed read and an unnarrowed write do not answer each other; `action.value.label` is the unfiltered read.
+- The value rules on the same page state what a construction settles on: a `params.value` counts as empty when
+  every member it carries is `null` or absent, and `params.originalValue` is frozen carrying every member it was
+  given.
+- [Extended properties](https://docs.velis.si/dynamicforms/vue-forms/api/field#extended-properties) and the
+  [extended properties example](https://docs.velis.si/dynamicforms/vue-forms/examples/extended-properties) hold the
+  two rules apart: an action's presentation property of another name is an extended property, while a differently
+  shaped read of `label` or `icon` is an accessor pair on the subclass. The
+  [Action example](https://docs.velis.si/dynamicforms/vue-forms/examples/action) points at the same section.
+
 ## [0.16.0] - 2026-08-20
 
 ### Changed

@@ -597,6 +597,27 @@ export abstract class FieldBase<T = any, X extends object = {}> {
   }
 
   /**
+   * The last step of a construction: it runs inside the transaction the construction is, with the parameters
+   * applied and the value in place, before the element records what it was built as.
+   *
+   * A subclass overrides it to complete what the element was built with. What it writes here is part of the
+   * construction rather than a change of it: the element announces no ValueChangedAction, and what the hook
+   * leaves is what its eager actions and its validators run over, once. An element whose parameters named no
+   * `originalValue` is baselined on the value the hook left and so starts unchanged; one that named a baseline is
+   * measured against it, as any element is. A `Field` writes
+   * `_value`, which reaches the slot on an element built `enabled: false` as well - the value setter, which a
+   * disabled field refuses, states a change, and this is not one.
+   *
+   * A container completes itself through its members, and a member carries a construction of its own: the write
+   * reaches it as any later one would, so the member announces it and reports itself changed. A member that is to
+   * start unchanged is baselined here as well - `this.fields.x.originalValue = this.fields.x.value`.
+   *
+   * `params` is the parameter object the constructor received, where it received one.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected constructed(params?: object): void {}
+
+  /**
    * Re-reads the value that the next ValueChangedAction will report as the one it replaces. A leaf records what
    * it announced at every announcement, so its copy is always current and there is nothing to re-read; a
    * container that skipped composing a value nobody was listening for overrides this.

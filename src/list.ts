@@ -50,6 +50,8 @@ export class List<T extends GenericFieldsInterface = GenericFieldsInterface, X e
         else if (this.originalValue !== undefined) this.setValueInternal(this.originalValue);
       }
 
+      this.constructed(params);
+
       if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
       // the set a construction ends on is the list's first statement about itself rather than a change of one, so
       // the commit that closes the construction says nothing about it

@@ -273,7 +273,10 @@ icon because it exists as a *concept* — the element a form's submit, cancel an
 pair is what makes the concept legible; without it, `Action` would be indistinguishable from `Field`.
 
 The shape is minimal because **a UI library is expected to extend it**. `Action<T extends ActionValue>` takes a
-wider value type, so a subclass adds accessors reading `this.value.X` and keeps everything the base class does.
+wider value type, so a subclass adds accessors reading `this.value.X` for the members it added and keeps everything
+the base class does. `label` and `icon` are accessors the base class declares, and a subclass reading either in a
+shape of its own narrows the getter and declares the setter beside it —
+[Widening the value in a subclass](#widening-the-value-in-a-subclass) has both rules.
 `@dynamicforms/vuetify-inputs` widens the value with render options and per-breakpoint variants and adds
 `renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes on top; its
 [df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows what that
@@ -345,10 +348,18 @@ ActionValue = ActionValue>` accepts a wider value type, so a subclass value carr
 `params.value` the same way `Field`'s is.
 
 An `Action`'s value is always a shaped object, never `undefined`: `new Action()` starts out as
-`{ label: undefined, icon: undefined }`. A `params.value` whose `label` and `icon` are both `null`/absent counts as
-empty and is replaced — by `params.originalValue` if you passed one, otherwise by that pair of `undefined`s.
-`params.originalValue` is copied into a frozen `{ label, icon }` object; passing only `value` makes `originalValue`
-that same value object, so `isChanged` starts out `false`.
+`{ label: undefined, icon: undefined }`. A value object states something when any member it carries holds
+something other than `null` or `undefined`, so a subclass value naming a name, a render style or a set of
+per-breakpoint options states something whether or not it names a label or an icon. A `params.value` that states
+something is the action's value, kept as the object you passed; one that states nothing — `{}`, or members all
+`null`/absent — is replaced, by a copy of `params.originalValue` where that states something and by the pair of
+`undefined`s otherwise.
+
+`params.originalValue` becomes the baseline where it states something: a frozen copy of itself, carrying exactly
+the members it was declared with. Where it states nothing the baseline is the value the construction ends on, that
+object itself. `isChanged` is a structural comparison and reads own-key sets, so a baseline shaped like the value
+it baselines is what makes an action declared with a value and a matching `originalValue` read as unchanged from
+construction, and every `Group` and `List` above it read as unchanged too.
 
 `label` and `icon` write through the value setter, so each is an ordinary value change: `ValueChangedAction` fires,
 `isChanged` answers over it, and a disabled action refuses the write. The value object the action holds is replaced
@@ -376,6 +387,67 @@ catch to the promise an event handler returns and routes the error to `app.confi
 
 An action declared, enabled by the form's validity, executed and reporting `busy` through an asynchronous submit is
 worked through end to end in the [Action example](/examples/action).
+
+#### Widening the value in a subclass
+
+`Action<T extends ActionValue>` takes a wider value type, so a subclass declares accessors over the members it added
+and keeps everything the base class does — the `ExecuteAction` chain, `busy`, `enabled`, `visibility`, the
+conditional actions, the transaction semantics. `label` and `icon` are members `Action` declares, and both reach its
+value, so a subclass wanting a differently shaped read of either narrows the getter and declares the setter beside
+it, delegating to the base:
+
+```typescript
+import { Action, ActionValue } from '@dynamicforms/vue-forms';
+
+interface RenderOptions extends ActionValue {
+  name?: string;
+  showLabel?: boolean;
+  showIcon?: boolean;
+}
+
+class RenderedAction extends Action<RenderOptions> {
+  get name() {
+    return this.value.name;
+  }
+
+  // the read is filtered by showLabel, so an action rendering icon-only answers undefined while carrying a label
+  get label() {
+    return this.value.showLabel ? this.value.label : undefined;
+  }
+
+  set label(newValue: string | undefined) {
+    super.label = newValue;
+  }
+
+  get icon() {
+    return this.value.showIcon ? this.value.icon : undefined;
+  }
+
+  set icon(newValue: string | undefined) {
+    super.icon = newValue;
+  }
+}
+```
+
+The setter is what keeps the write path alive. A class body stating `get label()` and nothing else defines the whole
+property from that body, so the property the subclass carries has no setter at all, and the base class's setter, one
+prototype further up, is shadowed rather than inherited alongside the narrowed getter. A write to a property that
+has a getter and no setter throws a `TypeError` in strict code, which module code always is, so
+`action.label = 'Save'` — the documented way to change either member — fails on such a subclass.
+TypeScript reads the getter-only accessor as read-only and refuses the assignment where the reference is typed as
+the subclass; a reference typed as `Action` compiles and throws at runtime. `super.label = newValue` calls the base
+setter with `this` bound to the action, so the write stays an ordinary value change: `ValueChangedAction` fires,
+`isChanged` answers over it, and a disabled action refuses it.
+
+A narrowed read and an unnarrowed write do not answer each other. The setter reaches `value.label` whatever the
+getter filters on, so an action whose filter answers `undefined` still answers `undefined` right after a label has
+been written to it. `value.label` is the unfiltered read — `action.value.label` on any subclass — and it is what to
+read where the answer has to be the label the action carries rather than the one it renders.
+
+Naming an action's presentation property something else is the separate rule about
+[extended properties](/api/field#extended-properties), and it applies to a property that is neither `label` nor
+`icon`: a construction parameter of either name reaches the value rather than `extra`. A subclass reading either
+member differently narrows the accessor pair above instead of taking a name of its own.
 
 ### `NullableAction`
 

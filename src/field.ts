@@ -50,8 +50,11 @@ class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
         this.assignParams(otherParams);
         // an absent value falls back to originalValue, an explicit null does not: null is a value a caller means
         this._value = paramValue !== undefined ? paramValue : this.originalValue;
-        if (this.originalValue === undefined) this.originalValue = this._value;
       }
+      this.constructed(params);
+      // a field the caller gave no baseline is baselined on the value its construction ends on, which is what the
+      // hook above leaves
+      if (this.originalValue === undefined) this.originalValue = this._value;
       // the value a construction ends on is the field's first statement about itself rather than a change of one,
       // so it is recorded as announced and the commit that follows says nothing about it
       this.raw.announcedValue = this._value;

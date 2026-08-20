@@ -174,6 +174,11 @@ describe('Field', () => {
   });
 });
 
+interface Amount {
+  amount: number;
+  currency?: string;
+}
+
 describe('Field construction', () => {
   it('constructs directly, with and without parameters', () => {
     expect(new Form.Field().value).toBeUndefined();
@@ -292,5 +297,55 @@ describe('Field construction', () => {
     expect(field.bind(undefined).value).toBe('a');
     expect(field.bind(null).value).toBeNull();
     expect(field.bind('b').value).toBe('b');
+  });
+
+  /** an amount carries the currency beside the number, and the field fills in the one the caller left to it */
+  class Money extends Form.Field<Amount> {
+    protected constructed() {
+      if (this._value?.currency === undefined) this._value = { ...this._value, currency: 'EUR' };
+    }
+  }
+
+  it('completes the value it was built with and says nothing about it', () => {
+    const announced: unknown[] = [];
+
+    const field = new Money({
+      value: { amount: 12 },
+      actions: [
+        new Form.ValueChangedAction((f, supr, newValue) => {
+          announced.push(newValue);
+        }),
+      ],
+    });
+
+    expect(field.value).toEqual({ amount: 12, currency: 'EUR' });
+    expect(field.originalValue).toEqual({ amount: 12, currency: 'EUR' });
+    expect(field.isChanged).toBe(false);
+    expect(announced).toEqual([]);
+  });
+
+  it('completes the value of a field constructed disabled', () => {
+    const field = new Money({ value: { amount: 12 }, enabled: false });
+
+    expect(field.enabled).toBe(false);
+    expect(field.value).toEqual({ amount: 12, currency: 'EUR' });
+    expect(field.isChanged).toBe(false);
+  });
+
+  it('runs a constructor-supplied validator once, over the completed value', () => {
+    const seen: unknown[] = [];
+
+    const field = new Money({
+      value: { amount: 12 },
+      validators: [
+        new Form.Validators.Validator<Amount>((newValue) => {
+          seen.push({ ...newValue });
+          return null;
+        }),
+      ],
+    });
+
+    expect(seen).toEqual([{ amount: 12, currency: 'EUR' }]);
+    expect(field.valid).toBe(true);
   });
 });

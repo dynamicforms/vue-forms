@@ -60,7 +60,7 @@ jobs:
         run: npm run docs:build
 
       - name: Incremental coverage check
-        uses: velis74/incremental-coverage-check@v2
+        uses: velis74/incremental-coverage-check@v3
         with:
           coverage-files: coverage/coverage-final.json
           # docs/ holds the VitePress site and its demo components - not library code, and not covered by
@@ -71,7 +71,9 @@ jobs:
           head-ref: HEAD
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pr-number: ${{ github.event.pull_request.number }}
-        if: github.event_name == 'pull_request'
+        # One report per pull request: the graded diff and the coverage file are the
+        # same on both Node versions, so the second run would only repeat the first.
+        if: github.event_name == 'pull_request' && matrix.node-version == 'lts/*'
 
   vue-floor:
     name: Type-check declarations against the lowest declared Vue

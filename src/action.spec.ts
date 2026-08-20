@@ -246,6 +246,11 @@ describe('Action execution', () => {
   });
 });
 
+/** what a UI layer widens an action's value to: the style it renders the action as */
+interface Rendered extends ActionValue {
+  renderAs?: 'button' | 'text';
+}
+
 describe('Action construction', () => {
   it('starts from an empty label/icon pair', () => {
     const action = new Action();
@@ -298,10 +303,121 @@ describe('Action construction', () => {
     expect(action.label).toBe('Save');
   });
 
+  it('keeps a value that states something other than a label or an icon', () => {
+    interface RenderOptions extends ActionValue {
+      name?: string;
+      showIcon?: boolean;
+      xs?: { icon?: string; showIcon?: boolean };
+    }
+
+    const action = new Action<RenderOptions>({
+      value: { name: 'save', showIcon: true, xs: { icon: 'mdi-content-save', showIcon: true } },
+    });
+
+    expect(action.value).toEqual({ name: 'save', showIcon: true, xs: { icon: 'mdi-content-save', showIcon: true } });
+    expect(action.label).toBeUndefined();
+  });
+
+  it('replaces a value whose every member states nothing', () => {
+    interface RenderOptions extends ActionValue {
+      name?: string;
+    }
+
+    const action = new Action<RenderOptions>({ value: { name: undefined, label: null as any } });
+
+    expect(action.value).toEqual({ label: undefined, icon: undefined });
+  });
+
+  it('baselines a widened value against the whole of the originalValue it was declared with', () => {
+    interface RenderOptions extends ActionValue {
+      name?: string;
+      renderAs?: number;
+    }
+    const declared = { name: 'save', label: 'Save', icon: 'i', renderAs: 1 };
+
+    const action = new Action<RenderOptions>({ value: { ...declared }, originalValue: { ...declared } });
+
+    expect(action.originalValue).toEqual(declared);
+    expect(action.isChanged).toBe(false);
+  });
+
+  it('takes a widened originalValue as its value where no value is declared', () => {
+    interface RenderOptions extends ActionValue {
+      name?: string;
+    }
+
+    const action = new Action<RenderOptions>({ originalValue: { name: 'save' } });
+
+    expect(action.value.name).toBe('save');
+    // isChanged is a structural comparison and reads own-key sets, so the value carries the keys the baseline
+    // carries and no others
+    expect(Object.keys(action.value)).toEqual(['name']);
+    expect(Object.keys(action.originalValue)).toEqual(['name']);
+    expect(action.isChanged).toBe(false);
+  });
+
+  it('reports a value and an originalValue declared alike unchanged', () => {
+    const action = new Action({ value: { label: 'S' }, originalValue: { label: 'S' } });
+
+    expect(Object.keys(action.value)).toEqual(['label']);
+    expect(Object.keys(action.originalValue)).toEqual(['label']);
+    expect(action.isChanged).toBe(false);
+  });
+
   it('freezes originalValue derived from the constructor parameters', () => {
     const action = new Action({ value: { label: 'Save' }, originalValue: { label: 'Original', icon: 'i' } });
 
     expect(action.originalValue).toEqual({ label: 'Original', icon: 'i' });
     expect(Object.isFrozen(action.originalValue)).toBe(true);
+  });
+
+  /** an action that renders as a button wherever the value it was declared with names no other style */
+  class RenderedAction extends Action<Rendered> {
+    protected constructed() {
+      if (this.value.renderAs === undefined) this._value = { ...this._value, renderAs: 'button' };
+    }
+  }
+
+  it('completes the value it was built with and says nothing about it', () => {
+    const announced: unknown[] = [];
+
+    const action = new RenderedAction({
+      value: { label: 'Save' },
+      actions: [
+        new ValueChangedAction((field, supr, newValue) => {
+          announced.push(newValue);
+        }),
+      ],
+    });
+
+    expect(action.value).toEqual({ label: 'Save', renderAs: 'button' });
+    expect(action.originalValue).toEqual({ label: 'Save', renderAs: 'button' });
+    expect(action.isChanged).toBe(false);
+    expect(announced).toEqual([]);
+  });
+
+  it('completes the value of an action constructed disabled', () => {
+    const action = new RenderedAction({ value: { label: 'Save' }, enabled: false });
+
+    expect(action.enabled).toBe(false);
+    expect(action.value).toEqual({ label: 'Save', renderAs: 'button' });
+    expect(action.isChanged).toBe(false);
+  });
+
+  it('runs a constructor-supplied validator once, over the completed value', () => {
+    const seen: Rendered[] = [];
+
+    const action = new RenderedAction({
+      value: { label: 'Save' },
+      validators: [
+        new Validators.Validator<Rendered>((newValue) => {
+          seen.push({ ...newValue });
+          return null;
+        }),
+      ],
+    });
+
+    expect(seen).toEqual([{ label: 'Save', renderAs: 'button' }]);
+    expect(action.valid).toBe(true);
   });
 });

@@ -126,6 +126,8 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
       // eager pass ran before the group existed - every member of a bound group - gets it here
       this.completeRecords();
 
+      this.constructed(params);
+
       // reading value walks every member and builds an object, so it is read once here and the result serves
       // every reader below
       const constructedValue = this.value;

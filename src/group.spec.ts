@@ -649,6 +649,61 @@ describe('Group construction parameters', () => {
     expect(group.bind(null).value).toEqual({ a: null, b: null });
     expect(group.bind({ a: 7 }).value).toEqual({ a: 7, b: 2 });
   });
+
+  /** an address whose country the caller need not state: the group fills in the one it defaults to */
+  class PostalAddress extends Group<{ street: Field<string>; country: Field<string> }> {
+    protected constructed() {
+      if (!this.fields.country.value) this.fields.country.value = 'SI';
+    }
+  }
+
+  it('completes the record it was built with and says nothing about it', () => {
+    const announced: unknown[] = [];
+    const validated: unknown[] = [];
+
+    const group = new PostalAddress(
+      { street: new Field<string>({ value: 'Main 1' }), country: new Field<string>() },
+      {
+        enabled: false,
+        actions: [
+          new ValueChangedAction((field, supr, newValue) => {
+            announced.push(newValue);
+          }),
+        ],
+        validators: [
+          new Validators.Validator<any>((newValue) => {
+            validated.push(newValue);
+            return null;
+          }),
+        ],
+      },
+    );
+
+    expect(group.value).toEqual({ street: 'Main 1', country: 'SI' });
+    expect(group.originalValue).toEqual({ street: 'Main 1', country: 'SI' });
+    expect(group.isChanged).toBe(false);
+    expect(announced).toEqual([]);
+    // the validators run over the record the group ends up holding, once
+    expect(validated).toEqual([{ street: 'Main 1', country: 'SI' }]);
+  });
+
+  it('leaves the member it completed reporting its own change', () => {
+    const announced: string[] = [];
+    const country = new Field<string>({
+      actions: [
+        new ValueChangedAction((field, supr, newValue) => {
+          announced.push(newValue);
+        }),
+      ],
+    });
+
+    const group = new PostalAddress({ street: new Field<string>({ value: 'Main 1' }), country });
+
+    // the member was baselined at its own construction, so what the group wrote into it is a change of the member
+    expect(announced).toEqual(['SI']);
+    expect(country.isChanged).toBe(true);
+    expect(group.isChanged).toBe(false);
+  });
 });
 
 describe('Group value = null', () => {
