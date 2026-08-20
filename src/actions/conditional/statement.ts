@@ -44,8 +44,16 @@ export class Statement {
     }
   }
 
-  /** @throws TypeError where an operand the statement reads is undefined or a function. */
-  constructor(operand1: OperandType, operator: Operator, operand2: OperandType) {
+  /**
+   * `NOT` reads one operand, so it is stated with one. Every other operator compares two and takes both, and so
+   * does an operator held in a variable - `Operator.fromString()` answers with the type rather than with the
+   * constant, and the compiler cannot tell from it which of the two forms is meant.
+   *
+   * @throws TypeError where an operand the statement reads is undefined or a function.
+   */
+  constructor(operand1: OperandType, operator: Operator.NOT);
+  constructor(operand1: OperandType, operator: Operator, operand2: OperandType);
+  constructor(operand1: OperandType, operator: Operator, operand2?: OperandType) {
     Statement.validateOperand(operand1, 1);
     // NOT reads operand1 alone, so whatever stands in the second position is never compared and never rejected
     if (operator !== Operator.NOT) Statement.validateOperand(operand2, 2);

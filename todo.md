@@ -14,13 +14,9 @@ owner only, so treat this file as the authoritative copy).
 `AbortEventHandlingException` does not veto `*Changing*` events (documented as it behaves) ·
 an action registered on an item template after a row was built never reaches that row, because a binding carries
 the actions its declaration held at the moment it was bound ·
-`Operator.NOT` requires a dummy third argument ·
 a rejection out of `Action.execute()` has nowhere to go but the caller: a call that neither awaits the
 answer nor attaches a `.catch()` leaves it unhandled, and the library offers no configured error handler to
-route it to · `Validator.claim()` copies an error another validator already owns, and `field.errors` reads back a
-Vue proxy of whatever instance the field holds, so `field.errors[0] === myError` is `false` ·
-`List.insert(item, index)` fills the gap position by position, so an index taken from an API response builds
-that many groups and fires that many events synchronously on the main thread.
+route it to.
 
 ## Pre-existing items
 

@@ -74,6 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `isSimpleComponentDef(null)` answers `false` rather than raising. `typeof null` is `'object'` and `in` refuses
   null, so the guard reached the operator and threw where it was asked a question it can answer.
 
+- `Operator.NOT` is stated with one operand. It reads its first alone, and the constructor asked for a second one
+  that it never read, so `new Statement(field, Operator.NOT)` did not compile. An operator held in a variable -
+  what `Operator.fromString()` answers with - still names both, because the compiler cannot tell it from `NOT`, and
+  a second operand under `NOT` is accepted as it always was.
+
 ### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that

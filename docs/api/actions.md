@@ -399,8 +399,23 @@ position the operand was written at:
 - a **function** — a field accessor handed over uncalled. State the field it answers with: `group.field('name')`.
 
 Everything else stands: a field, a nested statement, `null`, `NaN`, `0`, `''`, an array, an object with
-`includes`. `Operator.NOT` reads its first operand alone, so whatever stands in the second position under it is
-never compared and never checked.
+`includes`.
+
+`Operator.NOT` reads its first operand alone and is stated with one:
+
+```typescript
+new Statement(field, Operator.NOT);                   // what NOT means
+new Statement(field, Operator.EQUALS, 'admin');       // every other operator compares two
+```
+
+A second operand under `NOT` is accepted and never read. An operator held in a variable — what
+`Operator.fromString()` answers with, and the form a condition arriving from a server takes — needs both, because
+the compiler cannot tell it from `NOT`:
+
+```typescript
+const operator = Operator.fromString(fromServer);
+new Statement(field, operator, other);   // state both, whichever operator it turns out to be
+```
 
 ```typescript
 new Statement(form.fields.typo, Operator.EQUALS, 1);

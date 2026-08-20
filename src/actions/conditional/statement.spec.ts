@@ -333,3 +333,21 @@ describe('Statement operand rejection', () => {
     expect(new Statement(true, Operator.NOT, undefined as any).evaluate()).toBe(false);
   });
 });
+
+describe('NOT stated with one operand', () => {
+  it('reads the first operand and answers its negation', () => {
+    const flag = new Field<boolean>({ value: true });
+    const statement = new Statement(flag, Operator.NOT);
+
+    expect(statement.evaluate()).toBe(false);
+    flag.value = false;
+    expect(statement.evaluate()).toBe(true);
+  });
+
+  it('answers the same as the form that names a second operand', () => {
+    const flag = new Field<boolean>({ value: true });
+
+    expect(new Statement(flag, Operator.NOT).evaluate()).toBe(new Statement(flag, Operator.NOT, null).evaluate());
+    expect([...new Statement(flag, Operator.NOT).collectFields()]).toEqual([flag]);
+  });
+});
