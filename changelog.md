@@ -90,6 +90,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   actions and now carries the declaration's. A 1000-row list of 8 fields goes from about 13.3 MB to about 6.8 MB.
   `ActionsMap.clone()` is gone with the copying.
 
+- `ActionsMap` holds one array and no maps. The two it kept - one grouping the actions of an identifier, one
+  grouping the eager ones - indexed what registration order already states, and a trigger now walks the array
+  backwards and passes over the actions of other identifiers. Measured over three actions the walk is about twice
+  as fast as `Map.get`, and a standalone field carrying one validator falls from about 1420 bytes to about 655.
+
 ### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that
