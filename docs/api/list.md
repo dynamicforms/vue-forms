@@ -29,8 +29,9 @@ const list2 = new List(itemTemplate, {
 
 `params` is an `IFieldParams<ListValue, X>` — the same parameter type every form element takes, with the list's
 value shape substituted. A list takes [extended properties](/api/field#extended-properties) like every other
-element: declare them as the second type argument, `new List<Fields, Presentation>(template, { label: … })`, and
-read them back through `list.extra`. Every row the item template builds is a binding of it, so the template's
+element: augment [`Extras`](/api/field#extras) once and every list carries them, or declare them as the second
+type argument for one list, `new List<Fields, Presentation>(template, { label: … })`. Either way they read back
+through `list.extra`. Every row the item template builds is a binding of it, so the template's
 members carry theirs into each row. `length` and `items` are members `List` declares itself and are read-only,
 so a parameter of either name throws a `TypeError` the way `valid` and `busy` do — name a presentation property
 of that meaning something else.
@@ -64,6 +65,7 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 | `busy` | `boolean` | no | `true` while an `Action.execute()` in a row has yet to settle. A validation running in a row is answered by `validating`, not by this, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
 | `enabled` | `boolean` | yes | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is |
+| `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
 | `length` | `number` | no | The number of rows the list holds. Nothing is built to count them |

@@ -1,10 +1,10 @@
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
-import { IBindParams, IFieldParams } from './field.interface';
+import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { type Group } from './group';
 import { transactional } from './transaction';
 
-class Field<T = any, X extends object = {}> extends FieldBase<T, X> {
+class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
   get [Symbol.toStringTag](): string {
     return 'Field';
   }

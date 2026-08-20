@@ -5,6 +5,39 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.0] - 2026-08-20
+
+### Added
+- `Extras`, an empty exported interface that is what the `X` type argument of every element defaults to. A UI
+  layer declares the properties it renders forms with once, by augmenting `Extras` in a `declare module` block,
+  and every element in the consuming application then carries them — including the fields written inline in a
+  `Group` declaration, which no type argument on the group can annotate. Where an element states an `X` of its own
+  it replaces the default, so `Field<string, Extras & Local>` is how it carries both, and `Action` defaults to
+  `Extras` without the keys of `ActionValue` because `label` and `icon` are members it declares itself. The
+  default reaches `FieldBase<T>` as well, so a validator or an action handler reads the augmented properties off
+  the element it receives without a cast. Nothing changes for existing code: `Extras` is empty until something
+  augments it, and an element that states its own `X` is unaffected.
+- `effectiveEnabled` on every element: `true` where the element and every container above it are enabled. A
+  rendering layer binds it to draw the inputs of a disabled section disabled, instead of walking the parent chain
+  for each of them. It is a read — `enabled` on each element stays what was written to it, a write to a member of
+  a disabled container is accepted as before, and what a container serializes is decided by the members' own
+  `enabled`.
+
+### Changed
+- **Breaking.** `ActionValue` declares `label` and `icon` as `unknown`, and `Action`'s accessors for them read
+  their type off the value rather than fixing `string | undefined`. What a label and an icon are is the rendering
+  library's to say, and `unknown` is what lets it say so: `interface RichValue extends ActionValue { label?: string
+  | MdString }` is legal where a `string` in the base refused it, and a subclass cannot widen an accessor the base
+  class typed — that is `TS2416`, which no cast on the subclass's side reaches. A subclass therefore restates the
+  two members in its value type and the inherited accessors answer at that type, with no accessor override needed
+  unless the read is to be filtered.
+
+  What moves for a consumer: on an `Action` that states no value type, `action.label` and `action.icon` read as
+  `unknown`, so `action.label?.toUpperCase()` no longer compiles and the reader states what it expects — `action
+  .label as string | undefined`, or a value type on the action. An action built from a literal is narrower on its
+  own, because `T` is inferred from it: `new Action({ value: { label: 'Save' } })` reads `label` as `string`.
+  Writes are unaffected at every shape, and nothing changes at runtime.
+
 ## [0.16.1] - 2026-08-20
 
 ### Fixed

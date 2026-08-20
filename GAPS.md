@@ -46,20 +46,6 @@ b.value)` as the replacement.
 
 ---
 
-## D-002 — Steps 0, 1 and 2 are released together as 0.7.0
-
-**Version:** 0.7.0
-
-The three steps were developed and merged separately but none was published. Folding them into one version
-gives 0.7.0 a commit that can be tagged; numbering them 0.6.2 / 0.6.3 / 0.7.0 retroactively would leave the
-first two pointing at commits whose `package.json` never carried those numbers.
-
-A minor rather than a patch, because the batch carries three consumer-visible breaks: the object a value
-getter returns is frozen, `watch(field, cb)` with a bare element as the source stops firing, and
-`readonly(field)` hands back a mutable element. In `0.x`, semver puts a breaking change in the minor.
-
----
-
 ## D-003 — `transaction` is a free function, and rollback is reachable only from inside the callback
 
 **Version:** 0.8.0
@@ -156,8 +142,8 @@ transaction its own undo and is put back exactly.
 **A validation run already in flight is left to finish.** `validatingCount` is the one slot a rollback does not
 restore: it counts runs that are in flight, and restoring it would put the count out of step with the
 `endValidating` calls still to come, so `validating` would read `false` with a run pending and then go negative
-when it settled. The run itself cannot be recalled — `ValidationFunction` receives no `AbortSignal`, which is a
-separate open item — so instead it is allowed to complete and its verdict is dropped: the transaction it started
+when it settled. A run is called off rather than undone — the `AbortSignal` its `ValidationFunction` was handed
+aborts, and work that honours it stops — so it is allowed to settle and its verdict is dropped: the transaction it started
 in is marked as unwound, and the validator's `isCurrent()` check reads that flag alongside the run counter and
 the validation epoch. The alternative, letting the verdict land, leaves a field invalid over a value the form
 never held, which is worse than a check that answers nothing.
@@ -191,27 +177,6 @@ symbol key, so that `clearValidators()` needed no undo of its own. That put the 
 
 ---
 
-## D-008 — `clearValidators()` releases its validators when the operation finishes
-
-**Version:** 0.8.0
-
-A `Validator` may have installed listeners elsewhere — `CompareTo` registers a `ValueChangedAction` on the field
-it compares against — and `unregister()` is what releases them. It is called after the operation that dropped
-the validators has committed, not as it runs.
-
-**Why.** `unregister()` is not reversible: `CompareTo` sets a flag that permanently stops its listener. Called
-while the transaction is open, an operation that then unwound would put the map back with the validator in it
-and leave that validator dead, which is the state a rollback exists to prevent. The alternative — making
-`unregister()` reversible — widens the action protocol with a re-arm method that every overriding action would
-have to implement correctly, for one caller.
-
-**What it costs.** Between `clearValidators()` and the end of the operation it ran in, a cross-field validator
-that was dropped can still fire and push an error onto the field it was dropped from. That needs the compared
-field to be written later in the same transaction, and the error stands only until the next validation of that
-field.
-
----
-
 ## D-009 — A spent transaction handle throws
 
 **Version:** 0.8.0
@@ -225,34 +190,6 @@ they can still unwind; answering nothing lets them go on believing it.
 
 **Rejected: letting it unwind whatever transaction is open.** That is not a stale handle doing nothing, it is a
 stale handle rolling back an unrelated operation.
-
----
-
-## D-010 — 0.9.0 carries the `Action` changes alone; the declaration/binding split takes the next number
-
-**Version:** 0.9.0
-
-The plan assigns 0.9.0 to step 4 as a whole: declarations and bindings, `clone()` removed, `List` rows built by
-binding, `remove()` returning the instance, `TExtend`, and `Action`'s setter fix plus its asynchronous
-`execute()`. This release carries the `Action` half. The split follows in 0.10.0, with the steps behind it moving
-one number each.
-
-**Why the halves separate.** They share no code. The setters route through the value setter and `execute()` runs
-the `ExecuteAction` chain; neither reads or writes anything the split moves, and neither is easier to write once
-the split exists. What they do share is a release: both are breaking, and a consumer meets them in one upgrade
-whether or not one commit produced them.
-
-**Why the `Action` half goes first.** It is complete and its suite is green on its own, which the split's suite
-cannot be until it lands whole — the split's other half is step 5, which fixes `CompareTo` and
-`ConditionalStatementAction` against the binding it is validating, and neither of those compiles against a tree
-where half the declarations exist. A version that is green is a version the owner can tag.
-
-**Rejected: holding the `Action` work uncommitted until the split lands.** The two would then be one commit
-carrying two unrelated breaks, and the setter fix — which closes three defects a consumer can reach today — would
-wait for the largest change in the plan.
-
-**Rejected: numbering this 0.8.1.** `execute()` becoming asynchronous and the setters becoming ordinary value
-changes are both breaking. In `0.x` semver puts a breaking change in the minor.
 
 ---
 
@@ -307,33 +244,12 @@ value it is supposed to carry exists.
 
 ---
 
-## D-013 — `@dynamicforms/vuetify-inputs` is released alongside the split, not alongside 0.9.0
-
-**Version:** 0.9.0
-
-The plan names 0.9.0 as the version where the two packages must be released together, because it removes
-`clone()` and changes `Action`. With the split moved to 0.10.0 (D-010), the coupling moves with it: **0.10.0 is
-the version that needs a matching `@dynamicforms/vuetify-inputs` release**, and nothing may be published from
-either package for it alone.
-
-0.9.0 itself does not force one. Checked against that package rather than assumed: it calls `clone()` nowhere; it
-writes neither `label` nor `icon`, and its `Action` subclass declares both as getters with no setter, so the base
-accessors are shadowed entirely; and its single `execute()` call site is a template `@click` handler, where Vue
-catches the rejection. Its five `watch()` calls all take a ref.
-
-What the split does require of that package is a narrowed dependency range: code written against declarations and
-bindings does not run against a version that builds rows by cloning, so its release for 0.10.0 has to exclude
-every earlier one.
-
----
-
 ## D-014 — Actions per record ship before the declaration/binding split, and 0.10.0 carries them
 
 **Version:** 0.10.0
 
 The plan pairs step 5 (actions per binding) with step 4 (the declaration/binding split) and says step 5 must ship
-with it. It ships first instead, against a tree that still builds rows by cloning. D-010 gave 0.10.0 to the split;
-0.10.0 is this release, and the split takes the number after it.
+with it. It ships first instead, against a tree that still builds rows by cloning.
 
 **Why it does not wait.** The three defects step 5 closes — a conditional action dead in every row, `CompareTo`
 comparing against the item template, `clearValidators()` on one row silencing the validator in every row — are
@@ -354,9 +270,8 @@ index lookup, and the one case that has no cheap answer — an element declared 
 records below it, which is a form field every row of a list reads — is a walk of the subtree. Both are on the path
 of a value change of a field a rule reads, not of every write.
 
-**Rejected: implementing step 4 first.** It is the largest step in the plan and it cannot be verified in halves —
-D-010 already records that the split's suite is not green until the whole of it lands. Holding three reachable
-defects behind it buys nothing, and the work here is not thrown away by it.
+**Rejected: implementing step 4 first.** It is the largest step in the plan and it cannot be verified in halves.
+Holding three reachable defects behind it buys nothing, and the work here is not thrown away by it.
 
 ---
 
@@ -804,11 +719,13 @@ declarations, so one hand-written type would free the whole range — at the cos
 component, and of a range spanning releases nothing has been run against. A declared range is a promise, not a
 mechanism; the narrow one is the promise CI can keep.
 
-## D-030 — one list per identifier, walked by index
+## D-030 — one list of actions, walked from the end
 
-**Decision.** `ActionsMap` holds `Map<symbol, FieldActionBase[]>` and walks a group from the end backwards, handing
-each action a `supr` that continues at the index before it. The composed closure chain — every registration wrapping
-the handler already there — is gone.
+**Decision.** `ActionsMap` holds one `FieldActionBase[]` in registration order and walks it from the end backwards,
+passing over the actions registered under another identifier and handing each of the rest a `supr` that continues at
+the index before it. The composed closure chain — every registration wrapping the handler already there — is gone.
+The order is the whole index: an element carries a handful of actions, and the walk is measured at about twice the
+speed of `Map.get` over three of them, with the keyed maps costing about 500 bytes per declaration.
 
 **What forced it.** A composed chain cannot be taken apart: the successor closure holds its predecessor, and
 `registeredActions` was only a record for copying. Every consequence followed from that. `clearValidators()` had to
@@ -817,14 +734,14 @@ could run handlers without a second eager pass, because `trigger()` ran one on t
 special case for the value-change identifier for the same reason. `eager` was tracked per identifier, so one eager
 action made every action under that identifier eager. And `unregisterAction` could not exist at all.
 
-**What went away.** `triggerChain()`, `cloneWithoutValidators()`, `willTrigger()`'s special case, the
-`eagerActions: Set<symbol>` and `Transaction.whenCommitted()` with its deferred-work array. **What arrived.**
-`unregister()`, `triggerEagerFor()`, `hasEager`, and a second grouping of the eager actions per identifier so both
-walks are the same plain walk. Net about flat, and one concept — a chain that composes itself — is gone.
+**What went away.** `triggerChain()`, `cloneWithoutValidators()`, `willTrigger()`'s special case and the
+`eagerActions: Set<symbol>`. **What arrived.** `unregister()`, `triggerEagerFor()` and `hasEager`, each a walk of
+the one array under a predicate of its own. Net about flat, and one concept — a chain that composes itself — is
+gone.
 
-**Alternative not taken: a filter on the walk.** One grouping, with `step` skipping the actions that are not eager.
-It saves the second map at the cost of a predicate on the hot path and two shapes of walk. Registration is rare and
-triggering is not, so the grouping is done once at registration instead.
+`Transaction.whenCommitted()` stands. `Validator.unregisterFrom` defers one step through it — abandoning a run
+already in flight, which is not something a rollback can put back — while the registration itself is released
+inside the operation.
 
 **`unregisterFrom` moved into the operation.** It used to run at commit, because releasing what an action installed
 elsewhere was held to be beyond a rollback's reach. With the list it is not: the rollback re-registers the action

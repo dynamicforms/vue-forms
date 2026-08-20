@@ -18,8 +18,9 @@ const form = new Group({
 
 `params` is an `IFieldParams<GroupValueInput<T>, X>` — the same parameter type every form element takes, with the
 group's value shape substituted. A group takes [extended properties](/api/field#extended-properties) like every
-other element: declare them as the second type argument, `new Group<Fields, Presentation>(fields, { label: … })`,
-and read them back through `group.extra`.
+other element: augment [`Extras`](/api/field#extras) once and every group carries them, or declare them as the
+second type argument for one group, `new Group<Fields, Presentation>(fields, { label: … })`. Either way they read
+back through `group.extra`.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -77,7 +78,8 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the group itself or anywhere below it. The group keeps a tally of the members that answer `true`, so the read costs nothing however many members it holds |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the group has yet to settle. A validation is not an execution and is answered by `validating`, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | Group-level validation errors. Writable, but normally managed by validators |
-| `enabled` | `boolean` | yes | Setting this does **not** cascade to children; use child fields directly |
+| `enabled` | `boolean` | yes | Setting this does **not** cascade to children; use child fields directly. What a rendering layer reads to disable the inputs of a whole section is [`effectiveEnabled`](/api/field#properties) on each member |
+| `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint |
 | `touched` | `boolean` | yes | `true` when any child field has been touched; setting propagates to all children |
 | `fullValue` | `FieldsToFullValues<T>` | no | What the group holds, where `value` is what it serializes: every field is in it, disabled ones included, and every key is present rather than optional. A nested group contributes its own full structure, so the guarantee carries all the way down and no `?.` is needed to read through it |

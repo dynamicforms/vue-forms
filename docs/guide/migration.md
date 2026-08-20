@@ -219,6 +219,53 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.17.0 (from v0.16.x)
+
+One break, and the type checker finds it.
+
+### An action's `label` and `icon` are typed by the value, not by the accessor
+
+`ActionValue` declares both as `unknown`, and `Action`'s accessors read their type off the value type rather than
+fixing `string | undefined`. On an `Action` that states no value type, `action.label` therefore reads as `unknown`:
+
+```typescript
+const save = new Action();
+save.label = 'Save';               // unchanged: writes take what the value type takes
+save.label?.toUpperCase();         // no longer compiles
+```
+
+Three ways out, in the order to reach for them.
+
+**An action built from a literal needs nothing.** `T` is inferred from `params.value`, so the members of the
+literal keep their types:
+
+```typescript
+const save = new Action({ value: { label: 'Save', icon: 'save' } });
+save.label.toUpperCase();          // label is string
+```
+
+**State the value type** where the action is built empty and filled later:
+
+```typescript
+const save = new Action<{ label?: string; icon?: string }>();
+```
+
+**Cast at the read** where neither fits — a helper that takes any action, for one:
+
+```typescript
+const text = action.label as string | undefined;
+```
+
+Nothing changes at runtime, and no write is affected at any shape.
+
+**Why the members are `unknown`.** What a label and an icon *are* is the rendering library's to say, and this is
+what lets it say so. `interface RichValue extends ActionValue { label?: string | MdString }` is legal where a
+`string` in the base refused it, and a subclass cannot widen an accessor the base class typed — that is `TS2416`,
+and no cast on the subclass's side reaches it. A subclass now restates the two members in its value type and the
+inherited accessors answer at that type; an accessor override is needed only where the read is to be filtered. See
+[Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass).
+
+
 ## Upgrading to v0.16.0 (from v0.15.x)
 
 Both breaks are about what a trigger answers with and who an action belongs to. The type checker finds neither, so

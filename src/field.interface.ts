@@ -25,18 +25,41 @@ export type IFieldConstructorParams<T = any> = {
 } & IFieldConstructorActionsList;
 
 /**
+ * The extended properties an element carries when nothing states otherwise. It is empty as declared and exists
+ * to be augmented: the layer that renders the elements declares what it renders them with, and every element in
+ * the application then carries those properties without a type argument at any construction site.
+ *
+ * ```ts
+ * declare module '@dynamicforms/vue-forms' {
+ *   interface Extras {
+ *     label?: string;
+ *     hint?: string;
+ *     cssClass?: string;
+ *   }
+ * }
+ * ```
+ *
+ * The interface is one per application, so two packages that both declare a property of the same name must give
+ * it the same type; declaration merging refuses a second declaration that differs.
+ *
+ * An element that states an X of its own replaces this rather than adding to it, so an element that carries both
+ * is `Field<string, Extras & Local>`.
+ */
+export interface Extras {}
+
+/**
  * What an element's constructor accepts: the parameters the element answers for itself, together with the
  * extended properties its X parameter declares.
  *
- * X is left out of inference, so an element built without a type argument carries no extended properties and a
- * parameter object naming one is rejected as an excess property. A caller that wants them states them:
- * `new Field<string, { label: string }>({ value: 'a', label: 'Name' })`.
+ * X is left out of inference, so an element carries what its X states - `Extras` where no type argument replaces
+ * it - and a parameter object naming anything else is rejected as an excess property.
  *
  * The two halves are made partial separately. `Partial<A & X>` is a mapped type over an intersection, which is
  * what T is inferred through, and inference through it answers with one constituent of a union rather than the
  * union: `new Field({ value: someStringOrNumber })` would be a Field<string>.
  */
-export type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
+export type IFieldParams<T = any, X extends object = Extras> = Partial<IFieldConstructorParams<T>> &
+  Partial<NoInfer<X>>;
 
 /**
  * What bind() accepts beside the data it binds: the three members a binding takes over from the element it was
@@ -44,7 +67,7 @@ export type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstru
  * `validators` and `actions` are carried from the declaration rather than supplied, and `touched` and `errors`
  * are what the binding establishes for itself as it validates.
  */
-export type IBindParams<T = any, X extends object = {}> = Partial<
+export type IBindParams<T = any, X extends object = Extras> = Partial<
   Pick<IFieldConstructorParams<T>, 'originalValue' | 'enabled' | 'visibility'>
 > &
   Partial<NoInfer<X>>;

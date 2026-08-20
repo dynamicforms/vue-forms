@@ -63,9 +63,12 @@ describe('constructor inference', () => {
 
   it('carries the value type into Action', () => {
     const action = new Action({ value: { label: 'Save', icon: 'save' } });
-    expectTypeOf(action.label).toEqualTypeOf<string | undefined>();
-    expectTypeOf(action.icon).toEqualTypeOf<string | undefined>();
-    expectTypeOf(new Action().value.label).toEqualTypeOf<string | undefined>();
+    // the accessors read their type off the value, so an action built from a literal answers at that literal's type
+    expectTypeOf(action.label).toEqualTypeOf<string>();
+    expectTypeOf(action.icon).toEqualTypeOf<string>();
+    // and an action that states no value type at all answers what `ActionValue` leaves for a subclass to state
+    expectTypeOf(new Action().value.label).toEqualTypeOf<unknown>();
+    expectTypeOf(new Action().label).toEqualTypeOf<unknown>();
   });
 });
 

@@ -2,12 +2,22 @@ import { ref, type Ref } from 'vue';
 
 import { ExecuteAction } from './actions';
 import { Field } from './field';
-import { IFieldParams } from './field.interface';
+import { type Extras, IFieldParams } from './field.interface';
 import { transactional } from './transaction';
 
+/**
+ * The value an `Action` holds. Both members are `unknown` because `Action` states the concept and a UI library
+ * states what it renders: a subclass declares its value type with `label` and `icon` in whatever shape it renders
+ * them - `string | MdString`, a per-breakpoint object - and the accessors below answer at that type, because they
+ * read it off `T` rather than fixing one of their own.
+ *
+ * The consequence for an `Action` built without a type argument is that reading either member answers `unknown`
+ * and the reader states what it expects. That is the shape the class is for; an application that renders actions
+ * uses the subclass its UI library ships.
+ */
 export interface ActionValue {
-  label?: string;
-  icon?: string;
+  label?: unknown;
+  icon?: unknown;
 }
 
 /**
@@ -30,7 +40,10 @@ function stated<T extends ActionValue>(val: T | undefined): T | undefined {
   return Object.values(val).some((member) => member != null) ? val : undefined;
 }
 
-export class Action<T extends ActionValue = ActionValue, X extends object = {}> extends Field<T, X> {
+export class Action<
+  T extends ActionValue = ActionValue,
+  X extends object = Omit<Extras, keyof ActionValue>,
+> extends Field<T, X> {
   get [Symbol.toStringTag](): string {
     return 'Action';
   }
@@ -74,23 +87,23 @@ export class Action<T extends ActionValue = ActionValue, X extends object = {}> 
    * JSON, but lodash isEqual compares own-key sets, so writing one would leave the action permanently changed
    * against a baseline that never carried the key.
    */
-  private valueWith(member: keyof ActionValue, newValue: string | undefined): T {
+  private valueWith(member: keyof ActionValue, newValue: T[keyof ActionValue]): T {
     const res: ActionValue = { ...this.value };
     if (newValue === undefined) delete res[member];
     else res[member] = newValue;
     return res as T;
   }
 
-  get icon(): string | undefined {
+  get icon(): T['icon'] {
     return this.value.icon;
   }
 
-  set icon(newValue: string | undefined) {
+  set icon(newValue: T['icon']) {
     if (this.value.icon === newValue) return;
     this.value = this.valueWith('icon', newValue);
   }
 
-  get label(): string | undefined {
+  get label(): T['label'] {
     return this.value.label;
   }
 
@@ -101,7 +114,7 @@ export class Action<T extends ActionValue = ActionValue, X extends object = {}> 
    * identity and every copy is a new object, so without the comparison here a write of the value already held
    * would announce a change and invalidate the value cache of every container above.
    */
-  set label(newValue: string | undefined) {
+  set label(newValue: T['label']) {
     if (this.value.label === newValue) return;
     this.value = this.valueWith('label', newValue);
   }

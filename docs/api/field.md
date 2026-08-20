@@ -97,10 +97,11 @@ name.extra.label;                                 // 'First name'
 name.setExtendedValues({ label: 'Given name' });  // hint stays as it was
 ```
 
-The declaration is what makes them legal: `X` is left out of type inference, so `new Field({ value: 1 })` is a
-`Field<number, {}>` and `new Field({ value: 1, label: 'x' })` is rejected as an excess property. State both
-arguments to declare properties — `new Field<string, Presentation>(…)` — and the parameter object then accepts
-exactly the members of `Presentation` alongside the ones every field takes.
+The declaration is what makes them legal: `X` is left out of type inference, so a parameter object naming a
+property `X` does not declare is rejected as an excess property. State both arguments to declare properties for a
+single field — `new Field<string, Presentation>(…)` — and the parameter object then accepts exactly the members of
+`Presentation` alongside the ones every field takes. Where the second argument is left out, `X` is
+[`Extras`](#extras).
 
 A parameter naming a member the class itself declares is that member and not an extended property. `enabled` sets
 `enabled`, and `valid` still throws a `TypeError`, on a field with extended properties as much as on one without.
@@ -134,12 +135,59 @@ bare.extra.label; // string | undefined
 `Group`, `List` and `Action` take the same argument in the same position: `Group<Fields, X>`, `List<Fields, X>`,
 `Action<Value, X>`.
 
+### `Extras`
+
+`X` defaults to `Extras`, an empty interface exported for augmentation. The layer that renders the forms declares
+what it renders them with once, and every element in the application carries those properties — with no type
+argument at any construction site:
+
+```typescript
+// in the UI layer
+declare module '@dynamicforms/vue-forms' {
+  interface Extras {
+    label?: string;
+    hint?: string;
+    cssClass?: string;
+  }
+}
+
+// in the application
+const form = new Group({
+  name: new Field({ value: '', label: 'First name' }),
+  age: new Field({ value: 0, cssClass: 'w-25' }),
+});
+
+form.fields.name.extra.label; // string | undefined
+```
+
+The members of a `Group` declaration are what the default reaches that a type argument cannot: they are written
+inline and carry the properties without being annotated one by one.
+
+The interface is one per application. Two packages that declare a property of the same name have to give it the
+same type, because declaration merging rejects a second declaration that differs — a library that augments
+`Extras` therefore states in its own documentation what it puts there.
+
+An element that states an `X` of its own **replaces** the default rather than adding to it. `Extras & Local` is
+how it carries both:
+
+```typescript
+new Field<string, Extras & { badge: string }>({ value: 'a', label: 'Name', badge: 'new' });
+```
+
+`Action` is the one element whose default differs: it is `Extras` without the keys of
+[`ActionValue`](/api/actions#the-action-class), because `label` and `icon` are members an action declares itself and a
+parameter of either name reaches its value. An augmented `label` is therefore `action.label` and never
+`action.extra.label`.
+
+Because the default applies to `FieldBase<T>` as well, a validator or an action handler — both of which receive
+their element as `FieldBase<T>` — reads the augmented properties without a cast.
+
 ### `IFieldParams<T, X>`
 
 The exported type of the parameter object itself, taken by `new Field`, `new Action`, `new Group` and `new List`:
 
 ```typescript
-type IFieldParams<T = any, X extends object = {}> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
+type IFieldParams<T = any, X extends object = Extras> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
 ```
 
 The two halves are made partial separately rather than as `Partial<IFieldConstructorParams<T> & X>`, because `T`
@@ -152,7 +200,7 @@ The exported type of the second argument of `bind()`: the three members a bindin
 was bound from, plus the extended properties.
 
 ```typescript
-type IBindParams<T = any, X extends object = {}> = Partial<
+type IBindParams<T = any, X extends object = Extras> = Partial<
   Pick<IFieldConstructorParams<T>, 'originalValue' | 'enabled' | 'visibility'>
 > &
   Partial<NoInfer<X>>;
@@ -170,6 +218,7 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
 | `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value`. Writing what the element already holds is not a change: no `EnabledChangingAction` runs, nothing is enrolled in an open transaction, and no `EnabledChangedAction` fires |
+| `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization. Writing the mode the element already holds is not a change, the same way it is not for `enabled`. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
@@ -252,6 +301,27 @@ is repainted from that second move, so it ends up showing what the field holds w
 same. `@dynamicforms/vuetify-inputs` does this in
 [`useInputBase()`](https://github.com/dynamicforms/vuetify-inputs/blob/main/src/helpers/input-base.ts), which every
 input in that library binds through.
+
+### Disabling a section
+
+`enabled` on a `Group` or a `List` states that the container is disabled and nothing further: the members keep the
+`enabled` they were given, go on accepting writes, and go on serializing. What a rendering layer binds to draw a
+whole section disabled is `effectiveEnabled`, which is `true` where the element and every container above it are
+enabled:
+
+```vue
+<df-input :disabled="!field.effectiveEnabled" :control="field" />
+```
+
+The read is tracked like every other read through an element, so switching a group re-renders the inputs of every
+member below it without anything walking the tree.
+
+`effectiveEnabled` is the only member with a reading of this kind, and it is not a scheme the others follow.
+`visibility` has none: `SUPPRESS` states that an element is absent from the value as well, so folding it down the
+tree would decide serialization rather than report it. `value` has none: a container composes its own from its
+members rather than passing one down. Anything else a rendering layer needs folded down its own tree is what
+`provide` and `inject` are for — a section is a component wrapping its members, and the render tree's context
+belongs to the render tree.
 
 ## Methods
 
@@ -529,10 +599,11 @@ form element": every library signature that takes a field — action executors, 
 `T` is the type of `value`, and each subclass passes its own through: `Field<T>` and `Action<T>` extend
 `FieldBase<T>`, `Group<T>` extends `FieldBase<GroupValue<T>>`, and `List<T>` extends `FieldBase<ListValue>`. `X`
 is the second argument every one of them takes, the [extended properties](#extended-properties) the element
-carries; it defaults to `{}`, which is what makes `FieldBase` on its own the type of any form element.
+carries; it defaults to [`Extras`](#extras), which is what makes `FieldBase` on its own the type of any form
+element, and what lets a validator or an action handler read the augmented properties off the element it receives.
 
-It provides `originalValue`, `enabled`, `visibility`, `valid`, `errors`, `validating`, `busy`, `validationEpoch`,
-`isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `registerActionBefore()`,
+It provides `originalValue`, `enabled`, `effectiveEnabled`, `visibility`, `valid`, `errors`, `validating`, `busy`,
+`validationEpoch`, `isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()`, `validate()`, `clearValidators()`, `setExtendedValues()`, `rebind()`,
 `beginValidating()` and `endValidating()` — which is why those work the same way on every form
 element. `value`, `touched` and `bind()` are abstract and supplied by each subclass.
