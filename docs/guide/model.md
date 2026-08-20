@@ -110,9 +110,10 @@ serves. What belongs to one element goes into `protected state(key, init)`, keye
 it belongs to, and is released with the key. `boundToBinding(binding)` is called once for every element the action
 comes to serve, and `unregisterFrom(binding)` once for an element the action is dropped from.
 
-An action drives the elements it was registered on and their bindings, and no others. Registered on one row of a
-list, it stays that row's action. A row built *before* the registration never took it on, which is why an action
-meant for every row is registered on the item template before the rows exist.
+An action belongs to the declaration, and a binding reads the declaration's actions rather than a copy of them.
+Registering on one row of a list therefore registers on the item template, and the rule drives every row: the rows
+that already exist as much as the ones added later. `unregisterAction()` and `clearValidators()` reach every row for
+the same reason. What stays per row is the data — the value, the errors the rule produces there, the verdict.
 
 ## How a `List` builds rows
 
@@ -261,11 +262,11 @@ field.validate(); // now it does, and the container re-forms its verdict
 actions — the validators among them — over the value the element holds; on a container it does that for every
 member first and forms the container's own verdict once, over the finished set.
 
-`clearValidators()` drops the validators of one element, empties its `errors` and announces the verdict that
-leaves. It names that element only: the same validator instance goes on validating every other element it was
-registered on, so clearing one row of a list leaves the other rows validating. It does not descend into members.
-`unregisterAction()` drops a single action — a validator among them — and withdraws only the errors that validator
-contributed.
+`clearValidators()` drops the validators of an element's declaration, empties the `errors` of every element that
+reads them, and announces the verdicts that leave. Called on one row of a list it therefore clears the rule for
+every row, because the rule was the declaration's. It does not descend into members. `unregisterAction()` drops a
+single action — a validator among them — and withdraws the errors that validator contributed, wherever it put
+them.
 
 Validators are **eager**: they run once at construction, once at registration, at every value change, on
 `validate(true)`, and once more where a run reached no verdict because its record was not assembled yet. A field

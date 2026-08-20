@@ -136,7 +136,7 @@ export class Group<T extends GenericFieldsInterface = GenericFieldsInterface, X 
       // the group, and it is what the first later change of a member is reported against
       this.raw.announcedValue = constructedValue;
 
-      this._actions?.triggerEager(this, constructedValue, this.originalValue);
+      this.boundActions?.triggerEager(this, constructedValue, this.originalValue);
       this.validate();
     });
   }

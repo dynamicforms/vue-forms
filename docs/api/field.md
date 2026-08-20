@@ -171,7 +171,7 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
-| `validationEpoch` | `number` | no | Generation counter of the validators attached to the field, raised by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
+| `validationEpoch` | `number` | no | Generation counter of the validators the field reads, raised by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
 | `parent` | `Group \| undefined` on a `Field` or an `Action`, `Group \| List \| undefined` on a `Group`, a `List` and `FieldBase` | no | Container the element belongs to, installed by that container and taken away again when the container releases the element — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses an element that still carries one, so hand on the released instance or a `bind()` of it. A `List` holds rows and a row is a `Group`, so a field's container is a `Group` wherever there is one and the sibling lookup `field.parent?.fields.other` is typed on a field; an element that can itself be a row answers with either container, and reaching for `fields` through it is a compile error. Where you hold the element as a `FieldBase` — the type every action executor and `ValidationFunction` receives — narrow it: `(field.parent as Group)?.fields.other`, or name the sibling and let [`CompareTo`](/api/validators#compareto) resolve it. The read is tracked, so a template rendering off `field.parent` follows the element from one container to the next |
@@ -264,8 +264,9 @@ record in afterwards does the same. Only an action implementation calls it; see
 ### `triggerAction(actionClass, ...params): any`
 
 Manually fires a specific action class on this field. `actionClass` is the class itself, not an instance — it is
-looked up by its static `classIdentifier`, so abstract classes work too. Returns what the chain returns, or `null`
-when no action of that type is registered.
+looked up by its static `classIdentifier`, so abstract classes work too. Returns what the chain returns, `null`
+when no action of that type is registered, and the [`AbortEventHandlingException`](/api/actions#aborteventhandlingexception)
+itself where a handler threw one to end the run.
 
 ### `validate(revalidate?): void`
 
@@ -283,10 +284,12 @@ goes through the same path as any other: a field that was invalid fires `ValidCh
 re-evaluates its own validity. A validation still in flight is cancelled, so it cannot push an error onto a field
 that no longer carries the validator that produced it. A validator that installed a listener elsewhere —
 `CompareTo`, on the field it compares against — has that listener released with the registration, and an operation
-that unwinds puts both back, the cancelled run included: it goes on and the verdict it reaches counts. The release names this element only: the same validator instance goes on
-validating every other element it was registered on, so clearing the validators of one row of a `List` leaves the
-other rows validating. `unregisterAction()` drops a single validator instead of all of them, and withdraws only the
-errors that validator contributed.
+that unwinds puts both back, the cancelled run included: it goes on and the verdict it reaches counts.
+
+Validators belong to the element's **declaration**, so the call names that: clearing the validators of one row of a
+`List` clears the rule for every row, because the rule was the item template's. The `errors` of every element that
+carried it are emptied with it. `unregisterAction()` drops a single validator instead of all of them, and withdraws
+the errors that validator contributed, wherever it put them.
 
 It does not descend into members. A `Group` or a `List` composes `valid` from its members as well, so
 `group.clearValidators()` leaves `group.valid` at `false` while any member is still invalid — call

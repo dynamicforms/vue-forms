@@ -1,6 +1,8 @@
 import { expectTypeOf } from 'vitest';
 
 import { Action, type ActionValue } from './action';
+import Operator from './actions/conditional/operator';
+import { Statement } from './actions/conditional/statement';
 import DisplayMode from './display-mode';
 import { Field } from './field';
 import { FieldBase } from './field-base';
@@ -215,5 +217,32 @@ describe('field members', () => {
     // @ts-expect-error the field itself is reactive, so there is no wrapper member
     expect(field.reactiveValue).toBeUndefined();
     expect('reactiveValue' in field).toBe(false);
+  });
+});
+
+describe('Statement construction', () => {
+  it('asks for one operand under NOT and two under every other operator', () => {
+    const flag = new Field<boolean>({ value: true });
+    // an operator resolved at runtime, which is the shape a condition arriving from a server takes
+    const fromServer: Operator = Operator.fromString('not');
+
+    expectTypeOf(new Statement(flag, Operator.NOT)).toEqualTypeOf<Statement>();
+    expectTypeOf(new Statement(flag, Operator.EQUALS, true)).toEqualTypeOf<Statement>();
+    // NOT reads the first operand alone, so a second one is accepted and ignored
+    expectTypeOf(new Statement(flag, Operator.NOT, null)).toEqualTypeOf<Statement>();
+    expectTypeOf(new Statement(flag, fromServer, true)).toEqualTypeOf<Statement>();
+
+    // never called: the assertion is that these do not compile, and the constructor would throw at runtime too
+    const refused = () => {
+      // @ts-expect-error a binary operator compares two operands and needs both
+      new Statement(flag, Operator.EQUALS);
+      // @ts-expect-error the compiler cannot tell a variable operator from NOT, so it asks for both
+      new Statement(flag, fromServer);
+    };
+    expect(refused).toBeInstanceOf(Function);
+
+    // what the compiler now refuses, the constructor refused at runtime all along
+    // @ts-expect-error the call under test is the one the overload rejects
+    expect(() => new Statement(flag, Operator.EQUALS)).toThrow(TypeError);
   });
 });

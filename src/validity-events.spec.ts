@@ -17,11 +17,17 @@ import { ValidationFunctionResult, Validator } from './validators/validator';
  */
 type Transition = [boolean, boolean];
 
+/**
+ * The verdict transitions of `field` alone. An action is registered on the element's declaration and fires for
+ * every binding of it, so the executor is handed the element it fired for and the ones that are not this element
+ * are left out - which is what a handler watching one row of a list has to do.
+ */
 function watch(field: FieldBase<any>): Transition[] {
   const seen: Transition[] = [];
   field.registerAction(
     new ValidChangedAction((f, supr, newValue: boolean, oldValue: boolean) => {
-      seen.push([newValue, oldValue]);
+      if (f === field) seen.push([newValue, oldValue]);
+      return supr(f, newValue, oldValue);
     }),
   );
   return seen;
@@ -506,18 +512,37 @@ describe('Validity events that reach a parent whose own value did not change', (
  * records is the causal one - a value announced deepest first, then the verdicts formed over it, deepest first
  * again.
  */
+/**
+ * What each named element announces, in the order the announcements happen. Every handler is registered on the
+ * element's declaration and fires for every binding of it, so each one answers only for the element it was asked
+ * about - the executor is handed the element it fired for.
+ */
 function log(elements: Record<string, FieldBase<any>>): string[] {
   const seen: string[] = [];
   Object.entries(elements).forEach(([name, element]) => {
-    element.registerAction(new ValueChangedAction(() => seen.push(`${name}.value`)));
     element.registerAction(
-      new ValidChangedAction((f, supr, newValue: boolean) => seen.push(`${name}.valid=${newValue}`)),
+      new ValueChangedAction((f, supr, ...params) => {
+        if (f === element) seen.push(`${name}.value`);
+        return supr(f, ...params);
+      }),
     );
     element.registerAction(
-      new ListItemAddedAction((f, supr, item, index: number) => seen.push(`${name}.added@${index}`)),
+      new ValidChangedAction((f, supr, newValue: boolean, ...rest) => {
+        if (f === element) seen.push(`${name}.valid=${newValue}`);
+        return supr(f, newValue, ...rest);
+      }),
     );
     element.registerAction(
-      new ListItemRemovedAction((f, supr, item, index: number) => seen.push(`${name}.removed@${index}`)),
+      new ListItemAddedAction((f, supr, item, index: number) => {
+        if (f === element) seen.push(`${name}.added@${index}`);
+        return supr(f, item, index);
+      }),
+    );
+    element.registerAction(
+      new ListItemRemovedAction((f, supr, item, index: number) => {
+        if (f === element) seen.push(`${name}.removed@${index}`);
+        return supr(f, item, index);
+      }),
     );
   });
   return seen;

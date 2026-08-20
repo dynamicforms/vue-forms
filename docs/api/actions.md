@@ -61,33 +61,78 @@ At the end of every chain sits a handler that returns `null`, so `supr` is alway
 An action instance is registered on an element, and every binding of that element carries the same instance — so an
 action registered on a `List`'s item template fires for **every row of the list**. The element the executor
 receives as its first argument is the one it fired for, and it is what a handler that cares about a single row
-checks. The same holds for validators, which are actions: one `Required` instance validates every row's field, and
-`clearValidators()` on one row leaves the instance validating the others.
+checks. The same holds for validators, which are actions: one `Required` instance validates every row's field.
 
-An action drives the elements it was registered on and their bindings, and no others. Registered on one row of a
-`List`, it stays that row's action: the other rows never took it on, and neither a change of the field a
-`CompareTo` compares against nor a change of a field a `Statement` reads reaches them. A row built **before** the
-registration never took it on either — a binding carries the actions the element it was bound from held at the
-moment it was bound — so an action meant for every row is registered on the item template before the rows are
-built.
+Actions belong to the **declaration**, and a binding reads the declaration's. A row of a list is a binding of the
+item template, so registering on a row registers on the template and the rule applies to every row — the ones that
+already exist as much as the ones added later, and whichever element the call named:
+
+```typescript
+list.push({ amount: 1 });
+// registered on a row that already exists, and every row is driven by it, this one included
+list.get(0).fields.amount.registerAction(new Validators.Required());
+```
+
+`unregisterAction()` and `clearValidators()` read the same way: they name the declaration, so they reach every row.
+What stays per row is the **data** — the value, the errors the rule produces there, the verdict.
+
+A handler that means to answer for one row checks the element it was handed, and one that does not care answers for
+all of them:
+
+```typescript
+template.fields.amount.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
+  if (field.parent === list.get(0)) console.log('the first row changed');
+  return supr(field, newValue, oldValue);
+}));
+```
+
+A handler that does not call `supr` ends the run for **every** handler registered before it, on that declaration
+and therefore on every row — the handlers of one declaration stand in one chain.
 
 An action that has to remember something between runs keeps it against the element it ran over, not on itself —
 see [Writing custom actions](#custom-actions). Anything it keeps on itself is shared by every row.
 
 ### `AbortEventHandlingException`
 
-Throwing `AbortEventHandlingException` from a handler aborts the rest of the chain. `ActionsMap` catches it, so it never escapes the setter and `triggerAction()` returns `null` for that trigger. All other exceptions propagate to the caller.
+Throwing `AbortEventHandlingException` from a handler ends the run it is in. It never escapes the setter: the
+trigger catches it and **answers with it**, so a caller tells a run a handler ended from one that reached no
+handler at all. All other exceptions propagate to the caller.
 
 ```typescript
 import { AbortEventHandlingException, ValueChangedAction } from '@dynamicforms/vue-forms';
 
 field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
-  if (newValue == null) throw new AbortEventHandlingException();
+  if (newValue == null) throw new AbortEventHandlingException('no value to report');
   return supr(field, newValue, oldValue);
+}));
+
+const answer = field.triggerAction(ExecuteAction, params);
+if (answer instanceof AbortEventHandlingException) {
+  // a handler ended the run, and said why
+  console.log(answer.message);
+}
+```
+
+| what happened | the trigger answers |
+|---|---|
+| a handler threw `AbortEventHandlingException` | that exception |
+| a handler returned `null`, or none is registered | `null` |
+
+**In a `*Changing*` handler it refuses the write.** `EnabledChangingAction` and `VisibilityChangingAction` are
+asked before the value is written, so ending the run there means the setter writes nothing and announces nothing —
+no `*Changed*` event, no enrolment in an open transaction. Returning the old value refuses the write just as well;
+the exception is the form that also says why, and that stops the handlers registered before it from running.
+
+```typescript
+field.registerAction(new VisibilityChangingAction((f, supr, newValue, oldValue) => {
+  if (newValue === DisplayMode.SUPPRESS) throw new AbortEventHandlingException('this field is never suppressed');
+  return supr(f, newValue, oldValue);
 }));
 ```
 
-Note that `ValueChangedAction` fires *after* the new value has already been stored, so aborting stops further event handling — it does not roll the change back. To undo the change as well, throw an ordinary error instead: a throw out of a handler rolls the whole [transaction](/api/transactions) back and rethrows.
+**In a `*Changed*` handler it does not.** `ValueChangedAction` and its kind fire *after* the value is written, so
+ending the run stops the handlers below it and nothing else — the change stands. To undo the change as well, throw
+an ordinary error: a throw out of a handler rolls the whole [transaction](/api/transactions) back and rethrows.
 
 ## Value events
 
@@ -254,8 +299,46 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 | `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value |
 | `label` | Reads `value.label`; writing it assigns a new value object carrying the new label |
 | `icon` | Reads `value.icon`; writing it assigns a new value object carrying the new icon |
-| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise |
+| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call — see [Handling a failed run](#handling-a-failed-run) |
 | `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
+
+#### Handling a failed run
+
+`execute()` answers with a promise, so a handler that throws rejects it. The answer is the caller's, and awaiting it
+is how a failure is reported:
+
+```typescript
+try {
+  await form.fields.save.execute();
+  showSaved();
+} catch (error) {
+  showFailed(error);
+}
+```
+
+A call that neither awaits the answer nor attaches a `.catch()` leaves the rejection unhandled — it surfaces
+through the runtime rather than through the form, and the action carries no trace of it. `busy` is cleared either
+way, on the rejection as on the success.
+
+The place this is easy to miss is a template, where an event handler is not awaited:
+
+```vue
+<!-- the rejection has nowhere to go -->
+<button @click="save.execute()" :disabled="save.busy">Save</button>
+
+<!-- state what happens when it fails -->
+<button @click="onSave" :disabled="save.busy">Save</button>
+```
+
+```typescript
+async function onSave() {
+  try {
+    await save.execute();
+  } catch (error) {
+    showFailed(error);
+  }
+}
+```
 
 `ActionValue` is the exported shape of the value: `{ label?: string; icon?: string }`. `Action<T extends
 ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members is inferred from
@@ -399,8 +482,23 @@ position the operand was written at:
 - a **function** — a field accessor handed over uncalled. State the field it answers with: `group.field('name')`.
 
 Everything else stands: a field, a nested statement, `null`, `NaN`, `0`, `''`, an array, an object with
-`includes`. `Operator.NOT` reads its first operand alone, so whatever stands in the second position under it is
-never compared and never checked.
+`includes`.
+
+`Operator.NOT` reads its first operand alone and is stated with one:
+
+```typescript
+new Statement(field, Operator.NOT);                   // what NOT means
+new Statement(field, Operator.EQUALS, 'admin');       // every other operator compares two
+```
+
+A second operand under `NOT` is accepted and never read. An operator held in a variable — what
+`Operator.fromString()` answers with, and the form a condition arriving from a server takes — needs both, because
+the compiler cannot tell it from `NOT`:
+
+```typescript
+const operator = Operator.fromString(fromServer);
+new Statement(field, operator, other);   // state both, whichever operator it turns out to be
+```
 
 ```typescript
 new Statement(form.fields.typo, Operator.EQUALS, 1);

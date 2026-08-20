@@ -132,7 +132,7 @@ it('clears the validators of one field without silencing the same validator on a
   expect(second.errors.length).toBe(1);
 });
 
-it('clears the validators of one row and leaves the other rows validating', () => {
+it('clears the validators of every row, because the rule was the declarations', () => {
   const template = new Group({
     from: new Field<number>({ value: 0 }),
     to: new Field<number>({ value: 0 }),
@@ -150,18 +150,15 @@ it('clears the validators of one row and leaves the other rows validating', () =
   expect(list.get(0)!.fields.to.errors.length).toBe(1);
   expect(list.get(1)!.fields.to.errors.length).toBe(1);
 
+  // the call names one row and reaches the rule every row reads, so each of them withdraws what it contributed
   list.get(0)!.fields.to.clearValidators();
 
   expect(list.get(0)!.fields.to.errors.length).toBe(0);
-  expect(list.get(1)!.fields.to.errors.length).toBe(1);
-
-  // the row that kept its validators still answers to a change of the field it compares against
-  list.get(1)!.fields.from.value = 0;
   expect(list.get(1)!.fields.to.errors.length).toBe(0);
-  list.get(1)!.fields.from.value = 20;
-  expect(list.get(1)!.fields.to.errors.length).toBe(1);
 
-  // and the row that dropped them stays out of it
+  // and no row answers to the field it used to compare against
+  list.get(1)!.fields.from.value = 20;
+  expect(list.get(1)!.fields.to.errors.length).toBe(0);
   list.get(0)!.fields.from.value = 20;
   expect(list.get(0)!.fields.to.errors.length).toBe(0);
 });

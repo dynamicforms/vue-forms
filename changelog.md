@@ -5,6 +5,45 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.16.0] - 2026-08-20
+
+### Changed
+- **Breaking:** a trigger answers with the `AbortEventHandlingException` a handler threw, where it answered `null`.
+  A run a handler ended and a run that reached no handler at all were the same answer, so neither the library nor a
+  caller could tell them apart. `triggerAction()` hands the exception back, and code testing for `null` sees the
+  difference - which is the point, because the two mean different things.
+- **Breaking:** `AbortEventHandlingException` thrown from an `EnabledChangingAction` or a `VisibilityChangingAction`
+  refuses the write. Those handlers are asked before the value is written, and the exception was caught and the
+  write went through anyway, so a handler that meant to stop a change watched it happen. Nothing is written and
+  nothing is announced now. Thrown from a `*Changed*` handler it is unchanged: the value is already written by
+  then, and ending the run stops the handlers below it and nothing else.
+
+- **Breaking:** an action belongs to the element's declaration, and a binding reads that one rather than a copy of
+  it. A rule registered on a `List`'s item template therefore drives every row - the rows that already exist as
+  much as the ones added later - and registering on one row registers on the template, because a row is a binding
+  of it. `unregisterAction()` and `clearValidators()` read the same way, so a call on one row names the rule every
+  row reads. What stays per row is the data: the value, the errors the rule produces there, the verdict.
+  A handler that does not call `supr` now ends the run for every handler registered before it on that declaration,
+  since the handlers of one declaration stand in one chain.
+- Memory per field drops by about half, from roughly 1700 bytes to roughly 870: a row carried its own map of
+  actions and now carries the declaration's. A 1000-row list of 8 fields goes from about 13.3 MB to about 6.8 MB.
+  `ActionsMap.clone()` is gone with the copying.
+
+- `ActionsMap` holds one array and no maps. The two it kept - one grouping the actions of an identifier, one
+  grouping the eager ones - indexed what registration order already states, and a trigger now walks the array
+  backwards and passes over the actions of other identifiers. Measured over three actions the walk is about twice
+  as fast as `Map.get`, and a standalone field carrying one validator falls from about 1420 bytes to about 655.
+
+- `Operator.NOT` is stated with one operand. It reads its first alone, and the constructor asked for a second one
+  that it never read, so `new Statement(field, Operator.NOT)` did not compile. An operator held in a variable -
+  what `Operator.fromString()` answers with - still names both, because the compiler cannot tell it from `NOT`, and
+  a second operand under `NOT` is accepted as it always was.
+
+- `Action.execute()` documents the failure path it always had: the promise it answers with rejects where the
+  handler throws, so awaiting it is how a failure is reported, and a call that neither awaits nor catches leaves
+  the rejection to the runtime. `busy` is cleared either way. The template case has its own example, since an
+  event handler there is not awaited.
+
 ## [0.15.0] - 2026-08-19
 
 ### Changed
@@ -74,7 +113,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `isSimpleComponentDef(null)` answers `false` rather than raising. `typeof null` is `'object'` and `in` refuses
   null, so the guard reached the operator and threw where it was asked a question it can answer.
 
-### Added
 - `AbortEventHandlingException` is covered by tests: what a run it ends leaves unreached, that it does not escape
   the setter and leaves the value that was written standing, that `triggerAction()` answers null for that run, that
   it ends only the run it was thrown in, that every other exception reaches the caller and unwinds the transaction,
