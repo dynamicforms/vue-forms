@@ -219,6 +219,34 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v0.17.1 (from v0.17.0)
+
+One break, and nothing announces it: a `catch` branch stops being reached.
+
+### An abort out of an asynchronous chain resolves rather than rejects
+
+`AbortEventHandlingException` is answered with rather than raised, and that now holds where a handler in the chain
+returns a promise. `Action.execute()` resolves with the exception:
+
+```typescript
+// before: the abort arrived as a rejection where a handler in the chain was asynchronous
+try {
+  await save.execute();
+} catch (error) {
+  if (error instanceof AbortEventHandlingException) reportRefusal(error.message);
+}
+
+// after: it arrives as the answer, which is the shape a synchronous chain already needed
+const answer = await save.execute();
+if (answer instanceof AbortEventHandlingException) reportRefusal(answer.message);
+```
+
+Search for a `catch` around `execute()`. The branch keeps compiling and stops running, and the abort falls through
+it as a successful answer.
+
+Two things are unchanged. A handler that reads an abort off its own `supr` call still catches it: inside the chain
+it is a throw, and only the trigger converts it. A rejection carrying anything other than an abort still rejects.
+
 ## Upgrading to v0.17.0 (from v0.16.x)
 
 One break, and the type checker finds it.

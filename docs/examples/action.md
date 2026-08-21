@@ -148,10 +148,11 @@ stands until the last of them is done — which is what makes `:loading="save.bu
 enough to keep a user from submitting twice.
 
 ::: warning
-A handler that throws rejects the promise instead of throwing out of the `execute()` call. Await it or attach a
-`.catch()`, as `submit()` above does; a call that does neither leaves the rejection unhandled, which under node's
-default settings ends the process. A template handler such as `@click="save.execute()"` is safe — Vue attaches its
-own catch to the promise an event handler returns and routes the error to `app.config.errorHandler`.
+A handler that throws rejects the promise instead of throwing out of the `execute()` call — except an
+`AbortEventHandlingException`, which the promise resolves with. Await it or attach a `.catch()`, as `submit()`
+above does; a call that does neither leaves the rejection unhandled, which under node's default settings ends the
+process. A template handler such as `@click="save.execute()"` is safe — Vue attaches its own catch to the promise
+an event handler returns and routes the error to `app.config.errorHandler`.
 :::
 
 ## API Reference
@@ -167,7 +168,7 @@ own catch to the promise an event handler returns and routes the error to `app.c
 - **Conditional enablement**: the form's verdict drives `enabled` through a `Statement`
 - **Asynchronous execution**: `execute()` answers a promise and awaits the handler
 - **`busy`**: form state a button binds to, cleared whether the run resolves or rejects
-- **Failure**: a throwing handler rejects the promise the caller holds
+- **Failure**: a throwing handler rejects the promise the caller holds — an `AbortEventHandlingException` resolves it
 
 ## Try It Yourself
 

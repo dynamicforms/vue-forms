@@ -5,6 +5,29 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.17.1] - 2026-08-21
+
+### Changed
+- An `AbortEventHandlingException` raised in a chain that has an asynchronous handler in it is answered with rather
+  than raised, the way it is in a wholly synchronous one. `Action.execute()` resolves with the
+  exception instead of rejecting with it, so a caller that read it off a `catch` branch reads it off the answer:
+
+  ```typescript
+  const answer = await save.execute();
+  if (answer instanceof AbortEventHandlingException) reportRefusal(answer.message);
+  ```
+
+  A handler that reads an abort off its own `supr` call is unaffected: inside the chain it is a throw, and only the
+  trigger converts it. A rejection carrying anything other than an abort still reaches the caller as a rejection.
+
+### Fixed
+- A handler that ends its run from an asynchronous handler leaves no unhandled rejection behind. The `*Changed*`
+  setters discard what the trigger answers with, so an abort travelling as a rejection reached nothing but the
+  runtime's unhandled-rejection reporting - under node's default settings, the end of the process.
+- `ActionsMap.triggerEager()` ends only the identifier group the abort was raised in where that group is
+  asynchronous, as it does where it is synchronous. The other groups run, and the abort is not reported as
+  unhandled.
+
 ## [0.17.0] - 2026-08-20
 
 ### Added

@@ -815,3 +815,40 @@ per field from 2642 to about 1490 bytes.
 **Who does pay for the whitespace.** Anyone loading `dist` directly - a `<script type="module">` tag, a CDN, an
 import map - since nothing minifies it for them. A separate minified output is what that would need, and it is a
 packaging addition rather than a change to this artifact.
+
+---
+
+## D-033 — an abort is answered with on the asynchronous path too, and D-012 stands for everything else
+
+**Version:** 0.17.1
+
+`ActionsMap.run()` answers an `AbortEventHandlingException` with itself where the chain answered with a `Promise`:
+the trigger's answer is a promise resolving to the exception rather than one rejecting with it, so
+`Action.execute()` resolves with it. `triggerEager()` ends only the identifier group an abort was raised in on that
+path as on the synchronous one.
+
+**What forced it.** An abort is an answer, and one of the three the documented table names — a run a handler ended,
+a run that reached no handler, a run whose handler answered `null`. The conversion sat in a synchronous `catch`, so
+a single asynchronous handler anywhere in the chain took the answer out of that table and made it a rejection, and
+the `*Changed*` setters discard what the trigger answers with, so on those paths it reached nothing but the
+runtime's unhandled-rejection reporting.
+
+**This does not reverse D-012.** That
+entry decided that a handler that *fails* rejects the promise `execute()` answers, and that swallowing a submit
+failure is worse than an unhandled rejection. It still holds: every exception but this one rejects, and nothing
+routes a failure to a library-configured handler. What changed is only which of the two an abort is counted as.
+Its sentence "nothing catches it inside the library" reads at the width the library then had, where the abort was
+caught for the synchronous chain and not the asynchronous one.
+
+**Rejected: a `then` member as the test for a promise.** A handler may answer with a value object that carries one,
+and calling `then` on such an object replaces the answer with whatever that call returns — a `*Changing*` handler
+answering with `{ then: () => 5 }` would have had `5` written as a `DisplayMode` where the setter previously threw.
+The test is `value instanceof Promise`, which costs a promise from another realm or another promise library: an
+abort raised under one of those still leaves as a rejection.
+
+**Rejected: catching in `supr` as well as at the trigger.** Inside the chain the abort stays an exception, so a
+handler that does not ask about it is unwound rather than handed an exception object as if it were the answer the
+chain reached. A handler that means to observe one catches it, which is what the middle of a chain has to do for
+any exception.
+
+Documented in `docs/api/actions.md`, `docs/guide/migration.md` and `changelog.md`.

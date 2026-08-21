@@ -142,7 +142,8 @@ export class Action<
    *
    * The answer is a promise whatever the handler returns, so a handler that throws rejects it rather than throwing
    * out of this call: a caller that does not await the answer and does not attach a catch handler leaves that
-   * rejection unhandled.
+   * rejection unhandled. An `AbortEventHandlingException` is the one exception that does not reject: the answer
+   * resolves with it, in a synchronous chain as in an asynchronous one.
    */
   async execute(params?: any): Promise<any> {
     const runs = this.busyRuns;
