@@ -274,6 +274,52 @@ describe('Eager actions', () => {
 });
 
 describe('AbortEventHandlingException', () => {
+  const EagerAbortIdentifier = Symbol('EagerAbort');
+  const EagerWitnessIdentifier = Symbol('EagerWitness');
+
+  class EagerAbortAction extends FieldActionBase {
+    static get classIdentifier() {
+      return EagerAbortIdentifier;
+    }
+
+    get eager() {
+      return true;
+    }
+  }
+
+  class EagerWitnessAction extends FieldActionBase {
+    static get classIdentifier() {
+      return EagerWitnessIdentifier;
+    }
+
+    get eager() {
+      return true;
+    }
+  }
+
+  /**
+   * What the process reports as unhandled while `run` settles. The listeners already installed are taken off for
+   * the length of the call, so a rejection the library leaves to the runtime is observed here instead of ending the
+   * test run, and two turns of the macrotask queue are what node needs to have decided.
+   */
+  async function unhandledRejectionsOf(run: () => void): Promise<unknown[]> {
+    const installed = process.listeners('unhandledRejection');
+    const seen: unknown[] = [];
+    const record = (reason: unknown) => seen.push(reason);
+
+    process.removeAllListeners('unhandledRejection');
+    process.on('unhandledRejection', record);
+    try {
+      run();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+      process.off('unhandledRejection', record);
+      installed.forEach((listener) => process.on('unhandledRejection', listener as any));
+    }
+    return seen;
+  }
+
   it('ends the run and leaves the handlers below it unreached', () => {
     const calls: string[] = [];
     const inner = new ValueChangedAction((field, supr, ...params) => {
@@ -388,5 +434,128 @@ describe('AbortEventHandlingException', () => {
     field.enabled = false;
 
     expect(field.enabled).toBe(true);
+  });
+
+  it('is an exception inside the chain, so what a handler wrote after its supr call is unreached', () => {
+    const calls: string[] = [];
+    const inner = new ExecuteAction(() => {
+      calls.push('inner');
+      throw new AbortEventHandlingException('the inner handler ended it');
+    });
+    const outer = new ExecuteAction((field, supr, ...params) => {
+      calls.push('outer');
+      const answer = supr(field, ...params);
+      calls.push('after supr');
+      return answer;
+    });
+
+    const field = new Field({ value: 1 }).registerAction(inner).registerAction(outer);
+    const abort = field.triggerAction(ExecuteAction);
+
+    expect(calls).toEqual(['outer', 'inner']);
+    expect(abort).toBeInstanceOf(AbortEventHandlingException);
+    expect((abort as AbortEventHandlingException).message).toBe('the inner handler ended it');
+  });
+
+  it('is answered with by a promise that resolves where the handler that ended the run is asynchronous', async () => {
+    const field = new Field({ value: 1 }).registerAction(
+      new ExecuteAction(async () => {
+        throw new AbortEventHandlingException('nothing to save');
+      }),
+    );
+
+    const [settled] = await Promise.allSettled([field.triggerAction(ExecuteAction)]);
+
+    // a rejection would read as a throw at the await, so the outcome is asserted rather than only the value
+    expect(settled.status).toBe('fulfilled');
+    const answer = (settled as PromiseFulfilledResult<any>).value;
+    expect(answer).toBeInstanceOf(AbortEventHandlingException);
+    expect((answer as AbortEventHandlingException).message).toBe('nothing to save');
+  });
+
+  it('is answered with the same way where only a handler above the one that raised it is asynchronous', async () => {
+    const inner = new ExecuteAction(() => {
+      throw new AbortEventHandlingException('the inner handler ended it');
+    });
+    const outer = new ExecuteAction(async (field, supr, ...params) => supr(field, ...params));
+
+    const field = new Field({ value: 1 }).registerAction(inner).registerAction(outer);
+    const [settled] = await Promise.allSettled([field.triggerAction(ExecuteAction)]);
+
+    expect(settled.status).toBe('fulfilled');
+    const answer = (settled as PromiseFulfilledResult<any>).value;
+    expect(answer).toBeInstanceOf(AbortEventHandlingException);
+    expect((answer as AbortEventHandlingException).message).toBe('the inner handler ended it');
+  });
+
+  it('leaves an asynchronous handler that failed over anything else rejecting', async () => {
+    const field = new Field({ value: 1 }).registerAction(
+      new ExecuteAction(async () => {
+        throw new Error('a handler failed');
+      }),
+    );
+
+    await expect(field.triggerAction(ExecuteAction)).rejects.toThrow('a handler failed');
+  });
+
+  it('is not reported as unhandled where an asynchronous eager action ends its group', async () => {
+    const seen: string[] = [];
+    const field = new Field({ value: 1 })
+      .registerAction(
+        new EagerWitnessAction((f, supr, ...params) => {
+          seen.push('witness');
+          return supr(f, ...params);
+        }),
+      )
+      .registerAction(
+        new EagerAbortAction(async () => {
+          seen.push('abort');
+          throw new AbortEventHandlingException();
+        }),
+      );
+
+    seen.length = 0;
+    const unhandled = await unhandledRejectionsOf(() => field.validate(true));
+
+    // the group that ended says nothing about the other identifier's, which is a rule of its own
+    expect(seen).toEqual(['abort', 'witness']);
+    expect(unhandled).toEqual([]);
+  });
+
+  it('is what an eager group swallows, and an ordinary failure is left to the runtime', async () => {
+    const failure = new Error('an eager handler failed');
+    let failing = false;
+    const field = new Field({ value: 1 }).registerAction(
+      new EagerAbortAction(async () => {
+        if (failing) throw failure;
+      }),
+    );
+
+    failing = true;
+    const unhandled = await unhandledRejectionsOf(() => field.validate(true));
+
+    expect(unhandled).toEqual([failure]);
+  });
+
+  it('leaves a value object carrying a then member the answer the handler gave, and does not call it', () => {
+    let called = false;
+    const answer = { label: 'a value', then: () => ((called = true), 'not the answer') };
+    const field = new Field({ value: 1 }).registerAction(new ExecuteAction(() => answer));
+
+    // what a run answers with is what the handler returned: a `then` member does not make an object the run's promise
+    expect(field.triggerAction(ExecuteAction)).toBe(answer);
+    expect(called).toBe(false);
+  });
+
+  it('leaves a *Changing* handler answering with one refused by the type the setter requires', () => {
+    const field = new Field({ value: 1, visibility: DisplayMode.FULL }).registerAction(
+      // the setter's type is what a handler answers with, so the value object reaches it through a cast
+      new VisibilityChangingAction(() => ({ then: () => DisplayMode.HIDDEN }) as unknown as DisplayMode),
+    );
+
+    expect(() => {
+      field.visibility = DisplayMode.HIDDEN;
+    }).toThrow('visibility must be a DisplayMode constant');
+    expect(field.visibility).toBe(DisplayMode.FULL);
   });
 });

@@ -409,7 +409,8 @@ record in afterwards does the same. Only an action implementation calls it; see
 Manually fires a specific action class on this field. `actionClass` is the class itself, not an instance — it is
 looked up by its static `classIdentifier`, so abstract classes work too. Returns what the chain returns, `null`
 when no action of that type is registered, and the [`AbortEventHandlingException`](/api/actions#aborteventhandlingexception)
-itself where a handler threw one to end the run.
+itself where a handler threw one to end the run — a promise resolving to it where the chain went through an
+asynchronous handler.
 
 ### `validate(revalidate?): void`
 

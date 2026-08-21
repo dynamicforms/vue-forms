@@ -25,7 +25,8 @@ discards it. Two things follow, and neither is reported as an error by the libra
 
 - **A rejection is unhandled.** It surfaces the way any unhandled rejection does, through the runtime rather than
   through the form: the browser console, or Node's `unhandledRejection`. The element carries no error and no
-  handler downstream is told.
+  handler downstream is told. An [`AbortEventHandlingException`](#aborteventhandlingexception) is the one
+  exception: the trigger answers with it rather than rejecting, so the discarded promise carries no rejection.
 - **Everything after the first `await` runs outside the transaction.** The write has committed by then, so a
   rollback cannot take that work back, and a value the continuation writes opens a transaction of its own.
 
@@ -115,13 +116,55 @@ if (answer instanceof AbortEventHandlingException) {
 
 | what happened | the trigger answers |
 |---|---|
-| a handler threw `AbortEventHandlingException` | that exception |
+| a handler threw `AbortEventHandlingException` | that exception, or a promise resolving to it where the chain ran through an asynchronous handler |
 | a handler returned `null`, or none is registered | `null` |
+
+**Inside the chain it stays an exception.** `supr` hands on what the handler below it raised: a throw where that
+handler is synchronous, a rejected promise where it is not. A synchronous handler is therefore unwound and does not
+reach the code after its own `supr` call, and a handler that awaits `supr` reaches the same exception through the
+await. A handler that means to carry on catches it, and answers with it so the caller reads it off the answer:
+
+```typescript
+field.registerAction(new ExecuteAction(async (field, supr, params) => {
+  try {
+    return await supr(field, params);
+  } catch (error) {
+    if (!(error instanceof AbortEventHandlingException)) throw error;
+    reportToUser(error.message);
+    return error;
+  }
+}));
+```
+
+The conversion happens once, at the trigger, and what the trigger answers with carries it whether the chain ran
+synchronously or not: where the chain answered with a `Promise`, the abort is answered with on that promise, so
+`Action.execute()` resolves with the exception rather than rejecting. It is the type that decides, not a `then`
+member — a value object carrying one is answered with untouched, and so a promise from another realm or another
+library is not converted.
+
+**The eager pass does not answer with it.** `triggerEager()` runs each identifier's eager group on its own, and a
+group that ends this way ends only itself: the remaining groups run and nothing reaches the caller. The paths a
+consumer knows by name are where this happens:
+
+- `registerAction()` and `registerActionBefore()` — both go through `triggerEagerFor()`, which returns the
+  exception, and the caller discards it, so nothing reaches the consumer there either;
+- the trigger that closes a constructor;
+- binding an element — `bind()`, and every `List` row built from an item template with it;
+- a write to a leaf's `value`, where the validators run — the commonest of them all;
+- a container re-forming its composed value;
+- `validate(true)`;
+- a container completing a record — a `Group` that has written its members, a `List` that has taken a row.
+  `group.addField()` sets it off directly, as does a row taken into a `List`: `list.value = [...]`, an insert, an
+  append.
+
+An eager action therefore states a refusal through the element's verdict — an error — rather than by throwing.
 
 **In a `*Changing*` handler it refuses the write.** `EnabledChangingAction` and `VisibilityChangingAction` are
 asked before the value is written, so ending the run there means the setter writes nothing and announces nothing —
 no `*Changed*` event, no enrolment in an open transaction. Returning the old value refuses the write just as well;
-the exception is the form that also says why, and that stops the handlers registered before it from running.
+the exception is the form that also says why, and that stops the handlers registered before it from running. The
+two setters read what the chain answered as the value to write, so an asynchronous handler answers them with a
+promise and is refused by the type each of them requires.
 
 ```typescript
 field.registerAction(new VisibilityChangingAction((f, supr, newValue, oldValue) => {
@@ -261,7 +304,7 @@ field.registerAction(new ExecuteAction((field, supr, params) => {
 field.triggerAction(ExecuteAction, { reason: 'submit' });
 ```
 
-`triggerAction()` returns whatever the chain returns, or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and answers the same value, wrapped in a promise.
+`triggerAction()` returns whatever the chain returns, the `AbortEventHandlingException` a handler threw to end the run — a promise resolving to it where the chain went through an asynchronous handler — or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and answers the same value, wrapped in a promise.
 
 ### The `Action` class
 
@@ -303,13 +346,14 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 | `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value — `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
 | `label` | Reads `value.label`, at the type `T` gives that member — `unknown` on an `Action` that states no value type; writing it assigns a new value object carrying the new label |
 | `icon` | Reads `value.icon`, at the type `T` gives that member; writing it assigns a new value object carrying the new icon |
-| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call — see [Handling a failed run](#handling-a-failed-run) |
+| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call, except for `AbortEventHandlingException`, which the promise resolves with — see [Handling a failed run](#handling-a-failed-run) |
 | `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
 
 #### Handling a failed run
 
-`execute()` answers with a promise, so a handler that throws rejects it. The answer is the caller's, and awaiting it
-is how a failure is reported:
+`execute()` answers with a promise, so a handler that throws rejects it — every exception but
+[`AbortEventHandlingException`](#aborteventhandlingexception), which the promise resolves with. The answer is the
+caller's, and awaiting it is how a failure is reported:
 
 ```typescript
 try {
@@ -383,10 +427,11 @@ its own. `busy` stands for that whole span, on the action rather than in its val
 resolves or rejects; overlapping runs are counted, so it stands until the last of them settles.
 
 ::: warning
-A handler that throws rejects the promise instead of throwing out of the `execute()` call, so a caller that
-neither awaits the answer nor attaches a `.catch()` leaves the rejection unhandled — which under node's default
-settings ends the process. A template handler such as `@click="save.execute()"` is safe: Vue attaches its own
-catch to the promise an event handler returns and routes the error to `app.config.errorHandler`.
+A handler that throws anything but `AbortEventHandlingException` rejects the promise instead of throwing out of the
+`execute()` call, so a caller that neither awaits the answer nor attaches a `.catch()` leaves the rejection
+unhandled — which under node's default settings ends the process. A template handler such as
+`@click="save.execute()"` is safe: Vue attaches its own catch to the promise an event handler returns and routes the
+error to `app.config.errorHandler`.
 :::
 
 ```vue
@@ -710,7 +755,7 @@ Optional overrides:
 
 | Member | Description |
 |--------|-------------|
-| `get eager()` | Return `true` to have the action executed immediately on `registerAction()`, and on every `ValueChangedAction` trigger and `validate(true)`. Defaults to `false`, and it is read per instance: a lazy action standing under the same `classIdentifier` as an eager one is not run by the eager pass |
+| `get eager()` | Return `true` to have the action run over the value the element holds at every point the eager pass reaches it: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` — inside the write, before any `ValueChangedAction` fires — and a container re-forming its composed value, which is what re-runs a group's eager action when a member changes. [The full set is listed with `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: a lazy action standing under the same `classIdentifier` as an eager one is not run by the eager pass |
 | `boundToBinding(binding)` | Called once for every element this action comes to serve: the element it is registered on, and every binding of that element as the binding takes the action on. Use it to record the elements the action answers for |
 | `unregisterFrom(binding)` | Called by `unregisterAction()` and by `clearValidators()`, naming the element the action was dropped from. Override it to release what the action installed for that element — `CompareTo` stops answering for it, and `Validator` withdraws the errors it put there. It runs inside the operation that dropped the registration, so a rollback puts back both the registration and what this took back |
 
@@ -752,7 +797,7 @@ The actions one element has registered, grouped by `classIdentifier`. It is the 
 action store and is exported so that type can be named; `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()` and `clearValidators()` on the field are the supported way to drive it. Its
 own surface is `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerFor()`, `willTrigger()`,
-`hasEager`, `validators`, `clone()` and `bindTo()`.
+`hasEager`, `validators` and `bindTo()`.
 
 Within a group the actions stand in registration order and are run from the end backwards, so the newest
 registration is the outermost handler and reaches the ones before it through the `supr` it is handed.
@@ -764,13 +809,15 @@ run already walking one finishes on the list it started with and the removal tak
 
 `trigger(ActionClass, field, ...params)` runs the group registered under that class and answers with what its
 outermost handler returned. `triggerEager(field, ...params)` runs the eager actions of every identifier, each group
-on its own, and `triggerEagerFor(identifier, field, ...params)` runs those of one identifier.
+on its own, and `triggerEagerFor(identifier, field, ...params)` runs those of one identifier. `trigger` and
+`triggerEagerFor` answer with an `AbortEventHandlingException` a handler threw, and with a promise resolving to it
+where the chain ran through an asynchronous handler; `triggerEager` answers with nothing, and such an exception ends
+the group it was thrown in and no other, on the asynchronous path as on the synchronous one.
 `willTrigger(identifier)` answers whether anything stands under that identifier and `hasEager` whether any eager
 action is registered at all, so a caller that has to build the parameters first can skip building them.
 
-`clone()` returns a copy holding the same action instances, and `bindTo(owner)` tells each of them that it now
-serves `owner`. Binding an element does both, which is what makes an action registered on an item template serve
-every row.
+Binding an element takes on the declaration's map itself rather than a copy, and `bindTo(owner)` tells each action
+in it that it now serves `owner`. That is what makes an action registered on an item template serve every row.
 
 A handler reaches the one before it by calling `supr`, so a chain is walked on the call stack and its depth is
 bounded by it: about 1300 handlers under one identifier on one element, after which firing it throws a

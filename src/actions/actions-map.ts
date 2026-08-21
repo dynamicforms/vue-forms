@@ -76,7 +76,14 @@ export default class ActionsMap {
       // the group is entered once, at the outermost of its eager actions; the ones below are reached through supr
       if (ActionsMap.outermostEager(actions, index)) {
         try {
-          this.walk(actions, index, action.classIdentifier, true, field, params);
+          const result = this.walk(actions, index, action.classIdentifier, true, field, params);
+          // an abort out of an asynchronous handler arrives as a rejection, which the catch below never sees; ending
+          // it here is what keeps it from being reported as unhandled. Any other rejection stays the runtime's.
+          if (ActionsMap.isPromise(result)) {
+            result.then(undefined, (error: unknown) => {
+              if (!(error instanceof AbortEventHandlingException)) throw error;
+            });
+          }
         } catch (error) {
           // one eager group ending its run says nothing about the others, which are separate rules
           if (!(error instanceof AbortEventHandlingException)) throw error;
@@ -114,14 +121,38 @@ export default class ActionsMap {
   }
 
   /**
+   * True where `value` is a promise, which is what a walk through an asynchronous handler answers with. The test is
+   * the type rather than a `then` member: a handler may answer with a value object that carries one, and calling
+   * `then` on such an object replaces the answer with whatever that call returns.
+   */
+  private static isPromise(value: any): value is Promise<any> {
+    return value instanceof Promise;
+  }
+
+  /**
+   * Answers an abort with itself on the asynchronous path as well. Where a handler in the chain is asynchronous, the
+   * walk answers with a promise and the abort raised under it arrives as that promise's rejection; this turns it back
+   * into the value the caller receives, so a promise the trigger answers with resolves to the exception instead of
+   * rejecting with it. Anything else keeps rejecting.
+   */
+  private static answerAbort(value: any): any {
+    if (!ActionsMap.isPromise(value)) return value;
+    return value.then(undefined, (error: unknown) => {
+      if (error instanceof AbortEventHandlingException) return error;
+      throw error;
+    });
+  }
+
+  /**
    * Enters a group at its outermost action. An abort ends the run and is answered with rather than raised: the
-   * exception is what the caller receives, so a run a handler ended is told apart from one that reached no handler
-   * and from one whose handler answered null.
+   * exception is what the caller receives - directly where the chain ran synchronously, as what the answered promise
+   * resolves to where it did not - so a run a handler ended is told apart from one that reached no handler and from
+   * one whose handler answered null.
    */
   private run(identifier: symbol, eagerOnly: boolean, field: FieldBase, params: any[]): any {
     const actions = this.actions;
     try {
-      return this.walk(actions, actions.length - 1, identifier, eagerOnly, field, params);
+      return ActionsMap.answerAbort(this.walk(actions, actions.length - 1, identifier, eagerOnly, field, params));
     } catch (error) {
       if (error instanceof AbortEventHandlingException) return error;
       throw error;
