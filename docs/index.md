@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: DynamicForms Vue
+  name: Vue Forms
   text: A lightweight, reactive data entry forms library for Vue.js
   tagline: Manage form data and state without dictating your UI components
   actions:
@@ -11,6 +11,9 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/dynamicforms/vue-forms
+    - theme: alt
+      text: Changelog
+      link: /guide/changelog
 features:
   - title: UI-agnostic
     details: A logic layer for form state, validation and the behaviour between fields. Any Vue components render it, your own included
