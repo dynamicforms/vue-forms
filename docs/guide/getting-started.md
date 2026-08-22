@@ -139,7 +139,7 @@ options are reachable without the plugin, through `getConfig()` and `setConfig()
 The package is in `0.x`, where a breaking change goes in the **minor** version: `0.9.0` → `0.10.0` may break your
 code, `0.10.0` → `0.10.1` does not. Every such change is listed in the
 [migration guide](/guide/migration) with before/after code and in the
-[changelog](https://github.com/dynamicforms/vue-forms/blob/main/changelog.md). The public surface is not frozen
+[changelog](/guide/changelog). The public surface is not frozen
 until 1.0.
 
 | | Supported |

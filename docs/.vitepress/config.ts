@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress';
 import vuetify from 'vite-plugin-vuetify';
 
 export default defineConfig({
-  title: 'DynamicForms Vue Forms',
+  title: 'Vue Forms',
   description: 'A lightweight, reactive data entry forms library for Vue.js',
   ignoreDeadLinks: [
     /^https?:\/\/localhost/
@@ -14,7 +14,6 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'API', link: '/api/field' },
       { text: 'Examples', link: '/examples/basic-form' },
-      { text: 'Changelog', link: 'https://github.com/dynamicforms/vue-forms/blob/main/changelog.md' }
     ],
     sidebar: {
       '/guide/': [
@@ -28,6 +27,7 @@ export default defineConfig({
         {
           text: 'Upgrading',
           items: [
+            { text: 'Changelog', link: '/guide/changelog' },
             { text: 'Migration guide', link: '/guide/migration' },
           ]
         }
