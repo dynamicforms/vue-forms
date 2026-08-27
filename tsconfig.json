@@ -10,7 +10,7 @@
       "@/*": ["./src/*"],
       "~/*": ["./node_modules/*"],
     },
-    "types": ["vitest/globals"],
+    "types": ["vitest/globals", "node"],
     "skipLibCheck": true
   },
   "include": ["src/**/*", "bench/**/*"],

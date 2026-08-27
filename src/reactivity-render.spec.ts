@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils';
-import { vi } from 'vitest';
+import { type MockInstance, vi } from 'vitest';
 import { nextTick } from 'vue';
 
 import MessagesWidget from './components/messages-widget.vue';
@@ -29,7 +29,7 @@ const FieldHost = {
 };
 
 describe('rendering a live form', () => {
-  let warn: ReturnType<typeof vi.spyOn>;
+  let warn: MockInstance<typeof console.warn>;
 
   beforeEach(() => {
     warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

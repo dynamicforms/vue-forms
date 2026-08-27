@@ -22,8 +22,8 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': resolve(__dirname, './src'),
-      '~': resolve(__dirname, '../../node_modules'),
+      '@': resolve(import.meta.dirname, './src'),
+      '~': resolve(import.meta.dirname, '../../node_modules'),
     },
     extensions: [
       '.js',
@@ -35,7 +35,7 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: true,
     lib: {
-      entry: resolve(__dirname, 'src/index.ts'),
+      entry: resolve(import.meta.dirname, 'src/index.ts'),
       fileName: 'dynamicforms-vue-forms',
     },
     rollupOptions: {
