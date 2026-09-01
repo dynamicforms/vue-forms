@@ -1,23 +1,6 @@
 # Getting Started
 
-## Introduction & Rationale
-
-Headless form libraries are not scarce. What varies between them is how much of a form's *behaviour* they model,
-as opposed to just its state.
-
-`@dynamicforms/vue-forms` treats behaviour between fields as part of the form definition rather than as wiring you
-add in your components. A field's visibility, enablement or value can be declared as a condition over other fields.
-Every change travels through an action pipeline in which each handler receives the previous one and decides whether
-to call it, transform its result, or abort the event outright. Groups and lists compose recursively, so a nested
-section or a list row behaves the same way a single field does — and rendering stays entirely yours.
-
-### Design Goals
-
-- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The only component the library ships is the optional `MessagesWidget` for rendering validation errors, and the one deliberate exception is [`Action`](/examples/action#why-action-is-not-ui-agnostic), whose value is a label and an icon.
-- **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
-- **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read — assign a property and whatever read it re-renders, with no `ref` to unwrap. A group's value type is inferred from the fields it holds, nested structures included.
-- **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
-- **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one.
+See [Rationale](/guide/rationale) for what the library is trying to do and why it is shaped the way it is.
 
 ## Installation
 
@@ -121,10 +104,32 @@ of spaces alone is no value; pass `new Validators.Required({ trim: false })` whe
 
 ## Translation
 
-Every built-in validator's message has an English default and a key naming what it validates, not its English
-text (`Required`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `Pattern`,
-`InAllowedValues`, `ValidationFailed`). The library never picks a locale itself — call `translateStrings` once
-per locale to supply translations for as many of them as you have:
+Every built-in validator's message has an English default and a key naming what it validates, not its English text.
+The library never picks a locale itself — call `translateStrings` once per locale to supply translations for as
+many of them as you have.
+
+The authoritative list of keys and their English defaults is
+[`src/validators/translations.ts`](https://github.com/dynamicforms/vue-forms/blob/main/src/validators/translations.ts)
+in this repository - the object passed to `createTranslatable` there is the whole catalogue, kept current with the
+code by construction rather than copied into this page where it could drift. As of this writing it holds:
+
+| Key | English default |
+|-----|-----------------|
+| `Required` | `Please enter a value` |
+| `MinValue` | `Value must be larger or equal to **{minValue}**` |
+| `MaxValue` | `Value must be less than or equal to **{maxValue}**` |
+| `ValueInRange` | `Value must be between **{minValue}** and **{maxValue}**` |
+| `MinLength` | `Length must be larger or equal to **{minLength}**` |
+| `MaxLength` | `Length must be less than or equal to **{maxLength}**` |
+| `LengthInRange` | `Length must be between **{minLength}** and **{maxLength}**` |
+| `Pattern` | `Value must match pattern "**{pattern}**"` |
+| `InAllowedValues` | `Must be one of [**{allowedAsText}**]` |
+| `ValidationFailed` | `Validation could not be completed` |
+
+A translation keeps a message's `{name}` placeholders as they stand — the validator substitutes them, against the
+value it is currently validating, after translation.
+
+Call `translateStrings` once per locale to supply translations for as many of these keys as you have:
 
 ```typescript
 import { translateStrings } from '@dynamicforms/vue-forms';

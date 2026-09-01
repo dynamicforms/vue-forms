@@ -1,6 +1,6 @@
 # @dynamicforms/vue-forms
 
-A lightweight, reactive data entry forms library for Vue.js that handles form state management without dictating your
+A reactive data entry forms library for Vue.js that handles form state management without dictating your
 UI components.
 
 ## Introduction
@@ -18,7 +18,6 @@ mechanism applies at every level of a nested form.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read, and a group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
-- **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one.
 
 ## Features
 
@@ -42,7 +41,6 @@ mechanism applies at every level of a nested form.
   as a second type argument, checked by the compiler and read through `extra`
 - **Display modes**: control field visibility with different display modes (Full, Hidden, Invisible, Suppress)
 - **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds
-- **Lightweight**: `vue` (^3.5.2) is the only peer dependency and `lodash-es` the only runtime one
 
 ## Installation
 
