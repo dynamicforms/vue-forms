@@ -17,8 +17,10 @@ Nothing outside the class can reach it: not `Object.keys`, not `Object.getOwnPro
 `JSON.stringify`, not lodash's `getAllKeys`.
 
 The consequence, which is broader than the problem it solves: `isEqual` over two elements reads nothing
-either of them holds, so **any two instances of the same class compare equal** —
-`isEqual(new Field({ value: 1 }), new Field({ value: 2 }))` is `true`.
+either of them holds. Since 0.15.0 a `Symbol.toStringTag` accessor on `FieldBase` gives lodash a tag to check
+before it looks at own keys, so a mismatched tag makes `isEqual` answer `false` for two distinct instances —
+**two elements compare equal only where they are the same instance** —
+`isEqual(new Field({ value: 1 }), new Field({ value: 2 }))` is `false`, and `isEqual(field, field)` is `true`.
 
 **What forced it.** The back-reference to the container must be invisible to any walker, or `JSON.stringify`
 and `isEqual` recurse from a child into its parent and back. Three shapes were tried:
@@ -31,10 +33,11 @@ and `isEqual` recurse from a child into its parent and back. Three shapes were t
   was walked twice.
 - *Private class fields.* Cheap and correct about the parent link, at the cost above.
 
-**Why the cost is acceptable.** Nothing in the library compares elements — every internal `isEqual` is over a
-value (`isChanged`, the announced-value guards) or over a `ValidationError`. No documented behaviour promised
-element comparison. Comparing two form elements structurally is an odd thing to want; comparing what they
-hold is the meaningful question, and `isEqual(a.value, b.value)` answers it.
+**Why the cost is acceptable.** Nothing in the library compares elements structurally — every internal `isEqual`
+is over a value (`isChanged`, the announced-value guards) or over a `ValidationError`. No documented behaviour
+promises a structural comparison between elements; identity is what `isEqual` answers now, and comparing two
+form elements structurally is an odd thing to want in the first place. Comparing what they hold is the meaningful
+question, and `isEqual(a.value, b.value)` answers it.
 
 **Rejected alternative worth naming.** Splitting the state in two — links private, values reachable — would
 restore element comparison. It was rejected because `parent` has to be a *tracked* read, so the links half
@@ -128,16 +131,14 @@ would return without recording and `rollback` would find no snapshots.
 **Version:** 0.8.0
 
 The snapshot a transaction takes covers an element's state slots, which is everything an ordinary write touches.
-Two things stay outside it.
+One thing stays outside it.
 
-**Actions registered while the transaction was open stay registered.** `ActionsMap` nests each handler in a
-closure that calls the previous one, so a registration cannot be taken back link by link; undoing one means
-replacing the whole map, which means copying it on every registration, and every registration runs inside a
-transaction. The chosen shape is that `registerAction` is not transactional, and the alternative — a copy per
-registration, turning N registrations on one element from `O(N)` into `O(N²)` and paying it on the path a
-conditional action uses to install its source listeners — buys back an unwind nobody has asked for. What
-`clearValidators()` does is different in kind: it *replaces* the map rather than adding to it, so it hands the
-transaction its own undo and is put back exactly.
+**Registering or unregistering an action is transactional.** `ActionsMap` holds a flat array rather than a
+composed chain (D-030), so adding or dropping one entry needs no rebuild of the rest. `registerAction`,
+`registerActionBefore`, `unregisterAction` and `clearValidators()` each hand the transaction a `whenRolledBack`
+undo that reverses exactly what they did — re-registering what was dropped, or dropping what was added.
+`clearValidators()` no longer replaces the whole map; it unregisters each validator individually, through the
+same mechanism as any other registration.
 
 **A validation run already in flight is left to finish.** `validatingCount` is the one slot a rollback does not
 restore: it counts runs that are in flight, and restoring it would put the count out of step with the
@@ -285,9 +286,11 @@ the listener with it. The listener then re-runs the comparison over the fields o
 in*, rather than over the field that installed it.
 
 **Rejected: one listener per row.** The plan's wording — move `listenerSet` into per-binding state — reads as one
-installation per row. A thousand rows would then nest a thousand handlers into one chain, and `ActionsMap` builds a
-chain as nested closures, so a row cloned late would carry a chain deep enough to overflow the stack when it fires.
-It is also the shape `todo.md` records as the source of a `RangeError`.
+installation per row. A thousand rows would then register a thousand handlers under the same identifier, and a
+trigger reaches each one through `supr`, so a row cloned late would still recurse one frame per registration —
+deep enough to overflow the stack when it fires (D-030 measures the flat-array walk at about 1300 deep before
+`RangeError`). That risk comes from registering many handlers under one identifier, independent of whether the
+structure holding them is a closure chain or a flat array.
 
 **What is per binding.** The values the last run saw and the flag `clearValidators()` sets. Both are facts about
 one element, and the flag is what makes clearing the validators of one row leave the others validating.
@@ -336,43 +339,14 @@ factor on a path that is already linear in the same subtree.
 
 ---
 
-## D-017 — An action drives the elements it was registered on, not every element its declaration stands for
-
-**Version:** 0.10.0
-
-An action shared by every row has to find, from the element that changed, the elements it applies to. It searches
-by declaration — one entry stands for a thousand rows — and then keeps the elements of that search **that took the
-action on**, which is recorded per element in a `WeakSet`.
-
-**What forced it.** Without the second half, a rule registered on one row of a list applies to every row: the field
-it compares against pushes an error onto rows that do not carry the validator, and a row with no validator has
-nothing that can withdraw it, so the form is invalid for good. `registerAction` on one row is ordinary — a row the
-user is editing under a rule the others are not — and a `List` is not the only place a declaration stands for
-several elements.
-
-**Rejected: recording the elements themselves in a `Set`.** It is the direct reading, and it grows without bound:
-every row of every list registers as it is cloned, and a list churning rows never gives an entry back. The pair
-kept here is bounded — one declaration per registration site, and weak references for the rest.
-
-**Rejected: a flag in the per-element state a validator already keeps.** It works for `CompareTo`, whose state is
-keyed by the element it validates, but not for a conditional action, which keys its state by the *record*: a rule
-on a bare field has the field for its own record, and the two entries would be the same object.
-
-**What it also settles.** `unregisterFrom(binding)` deletes the entry, and registering again puts it back, so a
-validator registered on a field that had `clearValidators()` called listens to the compared field again. The state
-before this release set a flag that nothing ever cleared, and the field stayed half-armed: validating its own
-writes, deaf to the field it compared against.
-
----
-
 ## D-018 — The model is written down as one page, ahead of the reference
 
 **Version:** 0.10.1
 
 `docs/guide/model.md` states the whole design in one place: elements, declarations and clones, how a `List`
 builds rows, what a record is, when events fire, where validity comes from and where a value comes from. It is
-listed first in the API sidebar as well as in the guide sidebar, so a reader who arrives at the reference meets
-it before the first symbol.
+listed first in the API sidebar's Concepts section, and second in the guide sidebar's Introduction — after
+Getting Started — so a reader who arrives at the reference meets it before the first symbol.
 
 **What forced it.** Six releases added six mechanisms — value version counters, a validity computed beside a
 validity tally, transactions, declarations, records, per-element action state — and each was documented where it
@@ -397,7 +371,7 @@ and still never states what the five have in common, which is the whole content 
 
 **Version:** 0.10.1
 
-`docs/guide/migration.md` opens with one pass from 0.6.1 to 0.10.x, ordered by how likely a change is to bite
+`docs/guide/migration.md` opens with one pass from 0.6.1 to 0.12.x, ordered by how likely a change is to bite
 rather than by which release produced it, and keeps the per-release sections below it unchanged.
 
 **Why both.** The two readers are different. A project upgrading across four releases wants the silent breaks
@@ -408,7 +382,8 @@ one release wants exactly that release and nothing else.
 **What it costs.** The same change is described twice, in two orderings. The journey is a summary with a
 checklist and the per-release section is the full account, so the two are not copies; but a future release adds
 its section and has to be folded into the journey as well, and a release that is not folded in leaves the
-journey silently incomplete.
+journey silently incomplete. That drift has since happened: the per-release sections now run through 0.17.1,
+five releases past where the journey pass stops at 0.12.x.
 
 **Rejected: replacing the per-release sections.** Their headings are what a changelog entry and a release note
 can link to, and a consumer crossing one release would have to read four releases' worth of prose to find their
@@ -468,11 +443,6 @@ very error that validator returned. `docs/api/field.md` and `docs/api/validators
 re-render when the message behind a `Ref` changes, and handing out raw instances would take that away. Unwrapping
 only the array and not its members would leave the same trap one level down.
 
-**What it leaves open.** Two runs of one validator that produce the same message leave the field holding the
-newer instance, because the `isEqual` that would have kept the older one compares two
-`ValidationErrorRenderContent` objects including the `computed` each carries. Recorded in `todo.md`; error
-identity across validations is not something the library promises today.
-
 ---
 
 ## D-023 — Extended properties live in one tracked slot, are merged on write, and are routed by declaration
@@ -480,8 +450,9 @@ identity across validations is not something the library promises today.
 **Version:** 0.10.2
 
 `FieldBase<T, X extends object = {}>` carries whatever a consumer declares beyond the members of the class:
-`extra` reads them, `setExtendedValues(values)` writes them, the constructor and `clone()` take them in the same
-parameter object as everything else, and `Field`, `Action`, `Group` and `List` thread `X` through. The default
+`extra` reads them, `setExtendedValues(values)` writes them, the constructor takes them in the same parameter
+object as everything else and `bind()` takes them through the narrower `IBindParams<T, X>`, and `Field`,
+`Action`, `Group` and `List` thread `X` through. The default
 `{}` is what keeps every existing annotation compiling and what makes `new Field({ value: 1, label: 'x' })` an
 excess-property error for an element that declared none.
 
@@ -515,10 +486,11 @@ readable at that moment names a field that does not exist yet, so the rule a sub
 the parameters may reach is declared as an accessor.
 
 `validators` and `actions` are named explicitly rather than routed. They state what to register on the element
-instead of what it carries; a constructor takes them out of the parameter object before it applies the rest, but
-`clone()` hands its overrides over whole, so a `clone({ validators: [v] })` — which the parameter type accepts and
-`clone()` ignores — would otherwise attach the array as an extended property and carry it into every further
-clone.
+instead of what it carries; a constructor takes them out of the parameter object before it applies the rest.
+`bind()`'s overrides are typed narrower still — `IBindParams<T, X>` excludes `validators`, `actions`, `value`,
+`errors` and `touched` altogether, since a binding carries them from the declaration rather than accepting new
+ones — so `bind(data, { validators: [v] })` is a compile error rather than a parameter the type accepts and the
+method silently ignores.
 
 The set the routing accumulates into is prototype-less, and ownership in it is tested with `Object.hasOwn`. A
 parameter object parsed out of JSON — the case the feature exists for — can carry a `__proto__` key, and a plain
@@ -649,15 +621,11 @@ bought was about 11% of an element's memory in exchange for rewriting every stat
 (`this.#state.originalValue`) into an indexed lookup. Readability beat it.
 
 **What the model keeps.** A row has an identity of its own, so `v-for` keying and component reuse need no
-machinery; per-element property access is direct; and `registerAction()` on one row is that row's action rather
-than every row's, which a shared definition could not offer without a composition order for a shared chain plus a
-per-row one.
+machinery, and per-element property access is direct.
 
-**What it leaves standing.** Every row rebuilds an `ActionsMap` and its closure chain, which is the dominant cost
-of creating one, and resolving a second element of a record is a path walk per evaluation rather than an index
-lookup. `bind()` names the operation the model rests on (D-025), and `rebind()` covers what the split was reached
-for last — recycling one row across records — without moving where state lives.
-
+**What it leaves standing.** Resolving a second element of a record is a path walk per evaluation rather than an
+index lookup. `bind()` names the operation the model rests on (D-025), and `rebind()` covers what the split was
+reached for last — recycling one row across records — without moving where state lives.
 
 ---
 
@@ -671,7 +639,7 @@ together with the `paths: { 'lodash-es': 'lodash' }` and `globals` mapping the U
 `dependencies`; `lodash-es` remains as the only runtime dependency. `engines.node` moves from `>=18` to `>=22`.
 
 **What forced it.** The library establishes identity two ways that a duplicated module graph breaks: 24
-`instanceof` sites, and 20 module-level `Symbol()` calls without `Symbol.for`. A program that loads both the ESM
+`instanceof` sites, and 15 module-level `Symbol()` calls without `Symbol.for`. A program that loads both the ESM
 and the CJS build — an ESM application whose test runner or SSR path requires the CJS one — holds two of every
 class and two of every symbol, so a `Field` built by one half fails the `instanceof` in the other and surfaces as
 `Invalid fields object provided` on a value that is correct. The message names nothing that would lead a consumer
@@ -769,10 +737,10 @@ from registration time to trigger time and the write does not notice.
 
 **Decision.** `build.target` is `es2022`.
 
-**What it costs and saves.** `field-base.ts` is the only file in `src/` that uses private class fields, with 51
-access sites. An ES2015 output cannot express them, so esbuild lowers every one to a WeakMap lookup behind an
-access check. Measured by building both: 92 715 → 87 902 bytes, 25 728 → 24 547 gzipped, and the whole difference
-sits in that one file, which is 30 % of the shipped artifact.
+**What it costs and saves.** `field-base.ts` is the only file in `src/` that uses private class fields. An ES2015 output cannot express them,
+so esbuild lowers every one to a WeakMap lookup behind an access check. Measured by building both: 57 497 → 65 216
+bytes, 14 394 → 16 175 gzipped — es2022 saves about 12 % raw and 11 % gzipped over es2015, and the whole
+difference sits in that one file.
 
 **Why the number is not a matter of taste.** A library's target is the syntax its consumer's toolchain has to
 parse, not the runtime it ends up on — a consuming bundler re-transpiles the chunk to its own target. What
@@ -793,8 +761,9 @@ every `format: 'es'` library build, in the default branch and in the branch that
 Setting `esbuild.minifyWhitespace: true` produces a byte-identical file. `build.minify` is already `'esbuild'` and
 already applies; whitespace is the one thing it does not reach.
 
-**What it costs, measured.** Re-minifying the published file: 87 902 → 38 307 bytes, 24 547 → 11 022 gzipped. More
-than half of the artifact is whitespace and doc comments.
+**What it costs, measured.** Re-minifying the published file: 57 497 → 48 260 bytes, a 16 % reduction. The output
+carries no doc comments to strip — the switch to rolldown's bundling removed them from the shipped file — so what
+remains is whitespace alone.
 
 **Why that is not a cost to a consumer.** A consumer's bundler minifies and tree-shakes the chunk it produces, so
 what the artifact weighs on disk is not what an application ships. Bundled and minified from the published files,

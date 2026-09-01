@@ -5,6 +5,12 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-09-01
+
+### Changed
+- No functional change from 0.18.0. This release is the stability commitment: the public API is frozen, and a
+  further breaking change bumps the major version rather than the minor one, per Semantic Versioning.
+
 ## [0.18.0] - 2026-09-01
 
 ### Added
