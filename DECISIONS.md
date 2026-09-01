@@ -82,28 +82,6 @@ that case is a snapshot of the row's value, restored by assignment, not a transa
 
 ---
 
-## D-004 — The `invalidChildren` tally is applied at settle time rather than recomputed at commit
-
-**Version:** 0.8.0
-
-The plan for this step said to mark a container's tally dirty during a transaction and recompute it once at
-commit by walking the members. The implementation keeps the tally incremental and applies each child's delta at
-the moment that child's verdict settles, which is bottom-up, so a container reads a finished tally when its own
-turn comes.
-
-**Why.** Both shapes compute a container's verdict exactly once per transaction, which is what the plan was
-after. Recomputing by walking would make it `O(members)` per container: a `List.insert` would go back to walking
-its thousand rows, undoing the step-1 result that made filling a list linear. The delta is `O(1)` and needs no
-extra bookkeeping, because the invariant it rests on — the tally counts *announced* verdicts, and a verdict is
-announced exactly once, at settle — is the same invariant the commit already maintains for values.
-
-**What it costs.** `adoptChild` and `releaseChild` read the child's last announced verdict rather than its
-working one. That is correct rather than approximate: a row whose field turned invalid inside the transaction was
-never counted as invalid, so removing it must subtract nothing, and at settle the row's own transition finds no
-container to report to.
-
----
-
 ## D-005 — Copy-on-first-write snapshots are not optional
 
 **Version:** 0.8.0
@@ -149,79 +127,6 @@ aborts, and work that honours it stops — so it is allowed to settle and its ve
 in is marked as unwound, and the validator's `isCurrent()` check reads that flag alongside the run counter and
 the validation epoch. The alternative, letting the verdict land, leaves a field invalid over a value the form
 never held, which is worse than a check that answers nothing.
-
----
-
-## D-007 — The announcement order is held by restarting a pass, not by a priority queue
-
-**Version:** 0.8.0
-
-The commit announces the deepest element first. A handler running inside the commit may write, and its writes
-join the transaction, so an element can become dirty after the pass that would have carried it has moved on. The
-implementation drains one depth at a time from buckets built once per pass, and abandons the pass the moment an
-element at or below the depth being drained is enrolled; the next pass takes fresh buckets and finds it.
-
-**Rejected: re-selecting the deepest dirty participant before every announcement.** Exactly ordered and simple,
-but `O(participants)` per announcement. A whole-list assignment over 1000 rows of 8 fields enrols about 9000
-participants, so it is quadratic on precisely the operation that has the most of them.
-
-**Rejected: a persistent depth-bucketed queue filled at enrolment.** `O(1)` per enrolment, but an element's depth
-is not final when it is enrolled: a row's fields are written while the row is being built, before the list adopts
-it, so they would be queued at depth 0 and announced after the list.
-
-**What it costs.** Nothing in the ordinary case — no handler writes during the commit, so the buckets are built
-once and drained. Each interleaving costs one more scan of the participants. Measured on the whole-list
-assignment: 24.3 ms, against 18.8 ms for the same fixture without transactions.
-
-**Also measured, and rejected on the strength of it:** carrying the action map inside the snapshot object under a
-symbol key, so that `clearValidators()` needed no undo of its own. That put the whole-list assignment at 26.9 ms
-— 2.6 ms for a key that matters to one operation and is paid by every element every other operation touches.
-
----
-
-## D-009 — A spent transaction handle throws
-
-**Version:** 0.8.0
-
-The handle `transaction(fn)` passes its callback is marked spent when the transaction closes, and `rollback()`
-on a spent handle throws a `TypeError` naming the reason.
-
-**Rejected: making it a no-op.** Silence would hide the one mistake the shape exists to prevent — keeping the
-handle and calling it later, which D-003 records as the rejected design. A caller who saved the handle believes
-they can still unwind; answering nothing lets them go on believing it.
-
-**Rejected: letting it unwind whatever transaction is open.** That is not a stale handle doing nothing, it is a
-stale handle rolling back an unrelated operation.
-
----
-
-## D-011 — `label` and `icon` compare before writing, and clear a member rather than writing `undefined`
-
-**Version:** 0.9.0
-
-Both setters answer early when the value handed in is the one already held, and a member assigned `undefined` is
-deleted from the new value object instead of being written into it.
-
-**What forces the comparison.** `Field`'s value setter compares by identity, and every write through these
-setters allocates a fresh object, so the setter's own guard can never catch a write of the value already held.
-Without a comparison here, `action.label = action.label` announces a `ValueChangedAction` and bumps the value
-version of the action and of every container above it, which is exactly the invalidation the memoised container
-value exists to avoid. A consumer reassigning a label on every locale change or every render would pay for it
-tree-wide.
-
-**What forces the delete.** An own key holding `undefined` is invisible to a reader and to `JSON.stringify`, but
-lodash `isEqual` compares own-key sets. An action constructed from `{ label: 'Save' }` holds that same object as
-its baseline, so writing `icon: undefined` into a copy would leave `isChanged` permanently `true` for two objects
-that serialise identically, and a form containing the action would report itself dirty for a write nobody can
-see.
-
-**Rejected: comparing with `isEqual` inside `Field`'s value setter.** It would catch this case and every other
-one, at the cost of a deep comparison on the hot path of every field write, to serve a value shape only `Action`
-has.
-
-**Rejected: writing `undefined` and teaching `isChanged` to ignore undefined members.** That makes the comparison
-`Action`-specific and leaves the odd value object in place, where a consumer reading `Object.keys(action.value)`
-still sees a key that was never set.
 
 ---
 
@@ -274,32 +179,6 @@ of a value change of a field a rule reads, not of every write.
 
 **Rejected: implementing step 4 first.** It is the largest step in the plan and it cannot be verified in halves.
 Holding three reachable defects behind it buys nothing, and the work here is not thrown away by it.
-
----
-
-## D-015 — A cross-field listener is installed once per compared element, not once per row
-
-**Version:** 0.10.0
-
-`CompareTo` installs a `ValueChangedAction` on the field it compares against, so that a change there re-runs the
-comparison. It installs it once, on the first element that resolves to it, and every clone of that element carries
-the listener with it. The listener then re-runs the comparison over the fields of *the record the change happened
-in*, rather than over the field that installed it.
-
-**Rejected: one listener per row.** The plan's wording — move `listenerSet` into per-binding state — reads as one
-installation per row. A thousand rows would then register a thousand handlers under the same identifier, and a
-trigger reaches each one through `supr`, so a row cloned late would still recurse one frame per registration —
-deep enough to overflow the stack when it fires (D-030 measures the flat-array walk at about 1300 deep before
-`RangeError`). That risk comes from registering many handlers under one identifier, independent of whether the
-structure holding them is a closure chain or a flat array.
-
-**What is per binding.** The values the last run saw and the flag `clearValidators()` sets. Both are facts about
-one element, and the flag is what makes clearing the validators of one row leave the others validating.
-
-**What it costs.** A clone made *before* the declaration ever validated carries no listener, and would install one
-of its own — which is correct, if redundant. That cannot arise for a row, because a row that has the validator was
-cloned from an element that already had it, and a validator validates the element it is registered on at
-registration.
 
 ---
 
@@ -368,30 +247,6 @@ and still never states what the five have in common, which is the whole content 
 
 ---
 
-## D-019 — The migration guide carries the journey and the per-release sections both
-
-**Version:** 0.10.1
-
-`docs/guide/migration.md` opens with one pass from 0.6.1 to 0.12.x, ordered by how likely a change is to bite
-rather than by which release produced it, and keeps the per-release sections below it unchanged.
-
-**Why both.** The two readers are different. A project upgrading across four releases wants the silent breaks
-first — `watch(field, cb)`, `readonly(field)`, `isEqual` over elements — because those fail with nothing in the
-console and nothing in the type checker; which release introduced each is of no use to them. A project crossing
-one release wants exactly that release and nothing else.
-
-**What it costs.** The same change is described twice, in two orderings. The journey is a summary with a
-checklist and the per-release section is the full account, so the two are not copies; but a future release adds
-its section and has to be folded into the journey as well, and a release that is not folded in leaves the
-journey silently incomplete. That drift has since happened: the per-release sections now run through 0.17.1,
-five releases past where the journey pass stops at 0.12.x.
-
-**Rejected: replacing the per-release sections.** Their headings are what a changelog entry and a release note
-can link to, and a consumer crossing one release would have to read four releases' worth of prose to find their
-own.
-
----
-
 ## D-020 — `Action`'s exception to UI-agnosticism is stated, not hedged
 
 **Version:** 0.10.1
@@ -410,39 +265,6 @@ the value the way the shape invites.
 **Why it is not softened into a general-purpose name.** Renaming the members to something domain-neutral would
 hide the exception rather than remove it, and would take away the affordance that makes `Action` a concept
 instead of a `Field` with extra steps.
-
----
-
-## D-021 — A hand-written cross-field validator is documented as calling `markRecordIncomplete()`
-
-**Version:** 0.10.1
-
-The `List` example and the validators reference both show a validator that reads a sibling answering
-`field.markRecordIncomplete()` and returning `null` while `field.parent` is absent, rather than the containing
-list revalidating each row from a `ListItemAddedAction`.
-
-**Why.** Reaching nothing has to read as *no verdict*, and the container that completes the record is the one
-that can run the pass again — which is exactly what `markRecordIncomplete()` asks for. Revalidating from
-`ListItemAddedAction` covers `push()` and `insert()` and misses every other way a row comes into being: the
-initial `value`, a whole-list assignment, the padding items an out-of-range `insert()` creates.
-
-**What it costs.** A hand-written rule has to say so explicitly, where `CompareTo` and the conditional actions
-do it themselves. The alternative — treating an absent container as a signal on its own — cannot tell a rule
-that legitimately has no container from one whose record is still being built.
-
----
-
-## D-022 — `field.errors` reads back Vue proxies, and that is documented rather than unwrapped
-
-**Version:** 0.10.1
-
-An element's state is a `reactive` object, so `field.errors` is a reactive array and its members are proxies of
-the `ValidationError` instances a validator produced. `field.errors[0] === myError` is therefore `false` for the
-very error that validator returned. `docs/api/field.md` and `docs/api/validators.md` say so and name `toRaw()`.
-
-**Why not unwrap in the getter.** The tracked read is the point: a template rendering `error.componentBody` must
-re-render when the message behind a `Ref` changes, and handing out raw instances would take that away. Unwrapping
-only the array and not its members would leave the same trap one level down.
 
 ---
 
@@ -510,27 +332,6 @@ a validator's or an action's own callback is not decided here — see `GAPS.md`.
 
 ---
 
-## D-024 — `extra` reads back as `Readonly<Partial<X>>`
-
-**Version:** 0.10.2
-
-The parameter object makes every extended property optional and `setExtendedValues` takes a `Partial<X>`, so
-nothing on the way in guarantees that a property `X` declares as required is present. The read type says so: a
-member of `X` reads as `T | undefined`, and a consumer that renders one handles its absence.
-
-The alternative that keeps `Readonly<X>` honest is to require the required members of `X` where an element is
-constructed. It does not close the hole and costs a great deal to reach: `params` is optional on every
-constructor, so `new Field<string, Presentation>()` would go on producing an element whose `extra` is `{}` while
-the type promises a label, and making the parameter conditionally required is a second parameter type for
-`clone()` — which must go on accepting a partial set — plus a variadic signature on all four classes and on the
-`init` hook a subclass overrides.
-
-The cost of the type chosen is that `X` declaring a member required states an intention rather than a guarantee.
-`setExtendedValues` never takes a property away, so a property is present from the write that put it there
-onwards.
-
----
-
 ## D-025 — `clone()` becomes `bind(data, overrides)`, and `rebind(data)` is the in-place half of it
 
 **Version:** 0.11.0
@@ -576,30 +377,6 @@ tally of invalid children is what `valid` is composed from, so a rebound row tha
 leaves that member to the declaration, so a recycled row is indistinguishable from a fresh `bind()` of the item
 template rather than carrying a remnant of the record before it. An element that was declared rather than bound
 answers `declaration` with itself, so the rule reads the same on both.
-
----
-
-## D-026 — `List.remove()` hands back the row itself
-
-**Version:** 0.11.0
-
-`remove()` and `pop()` answer with the row instance the list held, and `ListItemRemovedAction` receives that same
-instance. The copy they used to answer with existed to shed the container back-reference, which `releaseChild()`
-has done since 0.7.0: the row leaves without a `parent` and any container will take it.
-
-The copy erased what a caller asks a removed row for. `originalValue` is baselined at construction, so a row
-edited before it was removed came back reporting `isChanged` as `false`, its errors re-established from the values
-rather than the ones its validators had reached, and its identity gone — the instance a handler had kept from
-`list.get(index)` was not the one the event carried. Everything a caller can do with a removed row — undo it back
-into the list, ask what changed in it, hand it to another list — needs the row rather than a likeness of it.
-
-The cost is that a caller who kept the removed row keeps the whole element alive, actions and all. That is what
-they asked for by keeping it; a caller that wants a detached likeness has `bind()`.
-
-**The sibling packages need no change for either rename.** `@dynamicforms/vuetify-inputs`,
-`@dynamicforms/vuetify-modal-form-kit` and `@dynamicforms/vue-grid` never called `clone()` — the only `clone`
-in any of them is lodash's — and none of them calls `List.remove()` or `List.pop()`, so the peer range is the
-only thing that moves for them.
 
 ---
 
@@ -729,60 +506,6 @@ held for the element's lifetime: closures are now made at trigger time and only 
 **Cost.** S2a — one field write in a 1000-row list, the keystroke path — is unchanged: 0.0100 ms before, 0.0101 ms
 after (plain), 0.0091 ms both (conditional), taking the minimum as the least noisy statistic. The closures moved
 from registration time to trigger time and the write does not notice.
-
-## D-031 — the build target follows the floors the package already declares
-
-**Decision.** `build.target` is `es2022`.
-
-**What it costs and saves.** `field-base.ts` is the only file in `src/` that uses private class fields. An ES2015 output cannot express them,
-so esbuild lowers every one to a WeakMap lookup behind an access check. Measured by building both: 57 497 → 65 216
-bytes, 14 394 → 16 175 gzipped — es2022 saves about 12 % raw and 11 % gzipped over es2015, and the whole
-difference sits in that one file.
-
-**Why the number is not a matter of taste.** A library's target is the syntax its consumer's toolchain has to
-parse, not the runtime it ends up on — a consuming bundler re-transpiles the chunk to its own target. What
-settles it here is that the package already declares `engines.node >= 22` and ships ESM only. There is no
-consumer those declarations admit that ES2022 excludes, so the lower target bought compatibility with nobody.
-
-**Alternative not taken.** Deriving the target from a browserslist query. It is the right instrument for an
-application, whose target is a browser support matrix; a library published to npm has no browser matrix of its
-own, because the application it lands in decides that.
-
-## D-032 — the artifact ships with its whitespace, and that is Vite's call
-
-**Decision.** `dist/dynamicforms-vue-forms.js` is published as Vite emits it: identifiers and syntax minified,
-whitespace and comments kept. No plugin is added to strip them.
-
-**Why the option does not exist.** Vite's `resolveEsbuildTranspileOptions()` sets `minifyWhitespace: false` for
-every `format: 'es'` library build, in the default branch and in the branch that reads `esbuild` options alike.
-Setting `esbuild.minifyWhitespace: true` produces a byte-identical file. `build.minify` is already `'esbuild'` and
-already applies; whitespace is the one thing it does not reach.
-
-**What it costs, measured.** Re-minifying the published file: 57 497 → 48 260 bytes, a 16 % reduction. The output
-carries no doc comments to strip — the switch to rolldown's bundling removed them from the shipped file — so what
-remains is whitespace alone.
-
-**Why that is not a cost to a consumer.** A consumer's bundler minifies and tree-shakes the chunk it produces, so
-what the artifact weighs on disk is not what an application ships. Bundled and minified from the published files,
-against 0.5.1 bundled the same way:
-
-| | 0.5.1 | 0.12.1 |
-|---|---:|---:|
-| the whole library | 7 391 | 11 103 |
-| `Field` alone | 3 104 | 7 784 |
-
-*(gzipped bytes)*
-
-The library as a whole costs a consumer 1.5× what it did; a single `Field` costs 2.5×, because the base every
-element sits on grew from 42 % of the library to 70 % of it. What that base bought is a complexity class: filling
-a 1000-row list went from 13 132 ms to 364 ms, a single field write in one from 32.95 ms to 0.0087 ms, and memory
-per field from 2642 to about 1490 bytes.
-
-**Who does pay for the whitespace.** Anyone loading `dist` directly - a `<script type="module">` tag, a CDN, an
-import map - since nothing minifies it for them. A separate minified output is what that would need, and it is a
-packaging addition rather than a change to this artifact.
-
----
 
 ## D-033 — an abort is answered with on the asynchronous path too, and D-012 stands for everything else
 

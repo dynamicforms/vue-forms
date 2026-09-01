@@ -1,6 +1,6 @@
 # @dynamicforms/vue-forms
 
-A lightweight, reactive data entry forms library for Vue.js that handles form state management without dictating your
+A reactive data entry forms library for Vue.js that handles form state management without dictating your
 UI components.
 
 ## Introduction

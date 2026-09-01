@@ -3,7 +3,7 @@
   "private": false,
   "version": "1.0.0",
   "type": "module",
-  "description": "A lightweight Vue.js library for form state management with built-in validation, conditional logic, nested structures, and a rich event system. UI-agnostic and TypeScript-first.",
+  "description": "A Vue.js library for form state management with built-in validation, conditional logic, nested structures, and a rich event system. UI-agnostic and TypeScript-first.",
   "author": "Jure Erzno\u017enik",
   "files": [
     "dist/*"

@@ -379,6 +379,10 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * List of errors. The array handed out is the one the element holds, and a validator writes into it in place,
    * so a transaction that is open takes the element into its record here: a rollback that put back everything
    * except the errors would leave a state the form never held.
+   *
+   * The array and its members are Vue proxies, not the raw instances a validator returned - `field.errors[0] ===
+   * myError` is `false` for the very error that produced it. Unwrapping here would lose the tracked read a
+   * template needs to re-render when a message behind a `Ref` changes; `toRaw()` compares identity instead.
    */
   get errors(): ValidationError[] {
     this.touchState();
@@ -724,6 +728,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   /**
    * Records a child's new verdict in this element's tally. The child reports it as it settles, and the commit
    * settles the deepest element first, so the tally a container reads when its own turn comes is finished.
+   * The delta is applied here rather than recomputed by walking the members at commit, which would cost
+   * `O(members)` per container and turn a list fill back into the quadratic walk this tally exists to avoid.
    */
   protected childValidityChanged(nowValid: boolean): void {
     this.#raw.invalidChildren += nowValid ? -1 : 1;
