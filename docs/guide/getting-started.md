@@ -121,10 +121,32 @@ of spaces alone is no value; pass `new Validators.Required({ trim: false })` whe
 
 ## Translation
 
-Every built-in validator's message has an English default and a key naming what it validates, not its English
-text (`Required`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `Pattern`,
-`InAllowedValues`, `ValidationFailed`). The library never picks a locale itself — call `translateStrings` once
-per locale to supply translations for as many of them as you have:
+Every built-in validator's message has an English default and a key naming what it validates, not its English text.
+The library never picks a locale itself — call `translateStrings` once per locale to supply translations for as
+many of them as you have.
+
+The authoritative list of keys and their English defaults is
+[`src/validators/translations.ts`](https://github.com/dynamicforms/vue-forms/blob/main/src/validators/translations.ts)
+in this repository - the object passed to `createTranslatable` there is the whole catalogue, kept current with the
+code by construction rather than copied into this page where it could drift. As of this writing it holds:
+
+| Key | English default |
+|-----|-----------------|
+| `Required` | `Please enter a value` |
+| `MinValue` | `Value must be larger or equal to **{minValue}**` |
+| `MaxValue` | `Value must be less than or equal to **{maxValue}**` |
+| `ValueInRange` | `Value must be between **{minValue}** and **{maxValue}**` |
+| `MinLength` | `Length must be larger or equal to **{minLength}**` |
+| `MaxLength` | `Length must be less than or equal to **{maxLength}**` |
+| `LengthInRange` | `Length must be between **{minLength}** and **{maxLength}**` |
+| `Pattern` | `Value must match pattern "**{pattern}**"` |
+| `InAllowedValues` | `Must be one of [**{allowedAsText}**]` |
+| `ValidationFailed` | `Validation could not be completed` |
+
+A translation keeps a message's `{name}` placeholders as they stand — the validator substitutes them, against the
+value it is currently validating, after translation.
+
+Call `translateStrings` once per locale to supply translations for as many of these keys as you have:
 
 ```typescript
 import { translateStrings } from '@dynamicforms/vue-forms';
