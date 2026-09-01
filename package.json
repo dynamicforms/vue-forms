@@ -1,7 +1,7 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "0.17.1",
+  "version": "0.18.0",
   "type": "module",
   "description": "A lightweight Vue.js library for form state management with built-in validation, conditional logic, nested structures, and a rich event system. UI-agnostic and TypeScript-first.",
   "author": "Jure Erzno\u017enik",
@@ -55,6 +55,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@dynamicforms/translatable": "^0.1.0",
     "lodash-es": "^4.17.21"
   },
   "peerDependencies": {

@@ -119,6 +119,39 @@ Validators run eagerly — the field above is already invalid right after creati
 the template checks `touched` before showing the errors. `Required` trims a string before measuring it, so a value
 of spaces alone is no value; pass `new Validators.Required({ trim: false })` where the spaces belong to the field.
 
+## Translation
+
+Every built-in validator's message has an English default and a key naming what it validates, not its English
+text (`Required`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `Pattern`,
+`InAllowedValues`, `ValidationFailed`). The library never picks a locale itself — call `translateStrings` once
+per locale to supply translations for as many of them as you have:
+
+```typescript
+import { translateStrings } from '@dynamicforms/vue-forms';
+
+function applyLocale(locale: string) {
+  const dictionary = translations[locale]; // however your app keeps its translations
+  translateStrings((key, defaultValue) => dictionary[key] ?? defaultValue);
+}
+```
+
+The callback receives the key and its English default, and returns the translation for the current locale, or
+`null`/`undefined` to leave the English default in place — so a locale can be adopted before every message is
+translated. An error already on screen updates in place when `translateStrings` is called, `{minValue}`-style
+placeholders re-interpolated against the value being validated, without the field revalidating. Wiring an
+existing i18n setup in is the same shape:
+
+```typescript
+import { useI18n } from 'vue-i18n';
+
+const { t } = useI18n();
+translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
+```
+
+`translateStrings` comes from [`@dynamicforms/translatable`](https://github.com/dynamicforms/translatable), the
+primitive this library and its sibling `@dynamicforms` packages share — its own readme covers the same recipe in
+more general terms, and how a library declares translatable strings in the first place.
+
 ## Plugin Setup
 
 The library ships a Vue plugin for its global options:

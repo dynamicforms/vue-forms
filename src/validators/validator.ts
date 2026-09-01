@@ -1,3 +1,4 @@
+import { interpolate } from '@dynamicforms/translatable';
 import { isRef, unref } from 'vue';
 
 import { ValueChangedAction } from '../actions/value-changed-action';
@@ -5,7 +6,7 @@ import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
 import { currentTransaction, transaction, transactional } from '../transaction';
 
-import { buildErrorMessage } from './error-message-builder';
+import { translatedMessage } from './translations';
 import {
   isCallableFunction,
   isSimpleComponentDef,
@@ -47,7 +48,7 @@ const ValidatorClassIdentifier = Symbol('Validator');
  * Message shown when a validation run rejects. It is built per rejection because the markdown setting it reads is
  * a runtime configuration value.
  */
-const validationFailedMessage = (): RenderContentRef => buildErrorMessage('Validation could not be completed');
+const validationFailedMessage = (): RenderContentRef => translatedMessage('ValidationFailed');
 
 /**
  * Validator is a specialized action that performs validation when a field's value changes.
@@ -245,10 +246,8 @@ export class Validator<T = any> extends ValueChangedAction {
     if (isRef(text)) {
       return this.replacePlaceholdersFunction(() => unref(text) as RenderContentNonCallable, replace);
     }
-    let ret = unref(text) as string | MdString;
-    Object.keys(replace).forEach((key) => {
-      ret = ret.replaceAll(`{${key}}`, replace[key]);
-    });
-    return text instanceof MdString ? new MdString(ret.toString(), text.options, text.plugins) : ret;
+    const ret = unref(text) as string | MdString;
+    const substituted = interpolate(ret.toString(), replace);
+    return ret instanceof MdString ? new MdString(substituted, ret.options, ret.plugins) : substituted;
   }
 }

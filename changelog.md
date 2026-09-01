@@ -5,6 +5,17 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0] - 2026-09-01
+
+### Added
+- Every built-in validator's message is translatable. `translateStrings`, from `@dynamicforms/translatable`,
+  replaces the English default of one or more of `Required`, `MinValue`, `MaxValue`, `ValueInRange`,
+  `MinLength`, `MaxLength`, `LengthInRange`, `Pattern`, `InAllowedValues`, and `ValidationFailed` - an error
+  already on screen updates in place, placeholders re-interpolated, the moment it is called; a key it is not
+  given for keeps its English default.
+- `buildErrorMessage` accepts a `Ref<string>` in addition to a plain string, returning a `ComputedRef` that
+  re-applies the markdown/plain-text choice as the ref's value changes.
+
 ## [0.17.1] - 2026-08-21
 
 ### Changed
