@@ -1,4 +1,4 @@
-import { isRef, unref } from 'vue';
+import { isRef, toRef, unref } from 'vue';
 
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
@@ -6,6 +6,7 @@ import { FieldActionExecute } from '../field.interface';
 import { currentTransaction, transaction, transactional } from '../transaction';
 
 import { buildErrorMessage } from './error-message-builder';
+import { strings } from './translations';
 import {
   isCallableFunction,
   isSimpleComponentDef,
@@ -47,7 +48,7 @@ const ValidatorClassIdentifier = Symbol('Validator');
  * Message shown when a validation run rejects. It is built per rejection because the markdown setting it reads is
  * a runtime configuration value.
  */
-const validationFailedMessage = (): RenderContentRef => buildErrorMessage('Validation could not be completed');
+const validationFailedMessage = (): RenderContentRef => buildErrorMessage(toRef(strings, 'ValidationFailed'));
 
 /**
  * Validator is a specialized action that performs validation when a field's value changes.

@@ -1,9 +1,10 @@
 import { isArray, isObject, isString } from 'lodash-es';
-import { isRef, unref } from 'vue';
+import { isRef, toRef, unref } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
 import { buildErrorMessage } from './error-message-builder';
+import { strings } from './translations';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
@@ -40,7 +41,7 @@ export default class Required extends Validator {
   constructor(messageOrOptions?: RenderContentRef | RequiredOptions, options?: RequiredOptions) {
     const message = isOptions(messageOrOptions) ? undefined : messageOrOptions;
     const trim = (isOptions(messageOrOptions) ? messageOrOptions : options)?.trim ?? true;
-    const msg = message || buildErrorMessage('Please enter a value');
+    const msg = message || buildErrorMessage(toRef(strings, 'Required'));
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       const value = unref(newValue);
       if (toLength(trim && isString(value) ? value.trim() : value) === 0) {

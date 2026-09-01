@@ -1,9 +1,10 @@
 import { truncate } from 'lodash-es';
-import { type Ref, unref } from 'vue';
+import { type Ref, toRef, unref } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
 import { buildErrorMessage } from './error-message-builder';
+import { strings } from './translations';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
@@ -15,7 +16,7 @@ export type AllowedValues<T> = T[] | Ref<T[]> | (() => T[]);
 
 export default class InAllowedValues<T = any> extends Validator {
   constructor(allowedValues: AllowedValues<T>, message?: RenderContentRef) {
-    const msg = message || buildErrorMessage('Must be one of [**{allowedAsText}**]');
+    const msg = message || buildErrorMessage(toRef(strings, 'InAllowedValues'));
     // the list is read at each validation rather than at construction, so a list that arrives later is the one the
     // value is measured against and the one the message names
     const resolve = (): T[] => {

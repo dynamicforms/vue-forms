@@ -1,8 +1,10 @@
 import { isArray, isObject, isString } from 'lodash-es';
+import { toRef } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
 import { buildErrorMessage } from './error-message-builder';
+import { strings } from './translations';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
@@ -16,7 +18,7 @@ function toLength(a: any): number {
 
 export class MinLength extends Validator {
   constructor(minLength: number, message?: RenderContentRef) {
-    const msg = message || buildErrorMessage('Length must be larger or equal to **{minLength}**');
+    const msg = message || buildErrorMessage(toRef(strings, 'MinLength'));
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       if (toLength(newValue) < minLength) {
         return [
@@ -36,7 +38,7 @@ export class MinLength extends Validator {
 
 export class MaxLength extends Validator {
   constructor(maxLength: number, message?: RenderContentRef) {
-    const msg = message || buildErrorMessage('Length must be less than or equal to **{maxLength}**');
+    const msg = message || buildErrorMessage(toRef(strings, 'MaxLength'));
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       if (toLength(newValue) > maxLength) {
         return [
@@ -56,7 +58,7 @@ export class MaxLength extends Validator {
 
 export class LengthInRange extends Validator {
   constructor(minLength: number, maxLength: number, message?: RenderContentRef) {
-    const msg = message || buildErrorMessage('Length must be between **{minLength}** and **{maxLength}**');
+    const msg = message || buildErrorMessage(toRef(strings, 'LengthInRange'));
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       const len = toLength(newValue);
       if (len < minLength || len > maxLength) {
