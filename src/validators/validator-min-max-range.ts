@@ -1,15 +1,12 @@
-import { toRef } from 'vue';
-
 import type { FieldBase } from '../field-base';
 
-import { buildErrorMessage } from './error-message-builder';
-import { strings } from './translations';
+import { translatedMessage } from './translations';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 export class MinValue<T = any> extends Validator {
   constructor(minValue: T, message?: RenderContentRef) {
-    const msg = message || buildErrorMessage(toRef(strings, 'MinValue'));
+    const msg = message || translatedMessage('MinValue');
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue < minValue || newValue === undefined) {
         return [
@@ -29,7 +26,7 @@ export class MinValue<T = any> extends Validator {
 
 export class MaxValue<T = any> extends Validator {
   constructor(maxValue: T, message?: RenderContentRef) {
-    const msg = message || buildErrorMessage(toRef(strings, 'MaxValue'));
+    const msg = message || translatedMessage('MaxValue');
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue > maxValue || newValue === undefined) {
         return [
@@ -49,7 +46,7 @@ export class MaxValue<T = any> extends Validator {
 
 export class ValueInRange<T = any> extends Validator {
   constructor(minValue: T, maxValue: T, message?: RenderContentRef) {
-    const msg = message || buildErrorMessage(toRef(strings, 'ValueInRange'));
+    const msg = message || translatedMessage('ValueInRange');
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue < minValue || newValue > maxValue || newValue === undefined) {
         return [

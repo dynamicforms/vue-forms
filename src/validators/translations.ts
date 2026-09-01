@@ -1,4 +1,7 @@
 import { createTranslatable } from '@dynamicforms/translatable';
+import { toRef } from 'vue';
+
+import { buildErrorMessage } from './error-message-builder';
 
 /**
  * The built-in validators' default English messages, keyed by what each one validates rather than by its text -
@@ -18,3 +21,8 @@ export const { strings, translateStrings } = createTranslatable({
   InAllowedValues: 'Must be one of [**{allowedAsText}**]',
   ValidationFailed: 'Validation could not be completed',
 });
+
+/** A built-in validator's default message, translated and reactive to a later `translateStrings` call. */
+export function translatedMessage(key: keyof typeof strings) {
+  return buildErrorMessage(toRef(strings, key));
+}
