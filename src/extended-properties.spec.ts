@@ -250,3 +250,22 @@ describe('a subclass naming a parameter after one of its own members', () => {
     expect(field.extra.code).toBe('given');
   });
 });
+
+describe('an emptyValue extended property, as the recipe in the model guide', () => {
+  interface Emptyable<T> {
+    emptyValue: T;
+  }
+
+  it('clears a field to it, with the usual reset', () => {
+    const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 });
+    amount.touched = true;
+
+    // extra reads back Readonly<Partial<X>>, so emptyValue is `number | undefined` to the type checker even
+    // though this field's params always supplied one
+    amount.rebind(amount.extra.emptyValue!);
+
+    expect(amount.value).toBe(0);
+    expect(amount.touched).toBe(false);
+    expect(amount.isChanged).toBe(false);
+  });
+});

@@ -364,8 +364,13 @@ A field that wants an empty value of its own, without widening `T`, declares one
 interface Emptyable<T> { emptyValue: T }
 
 const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 });
-amount.rebind(amount.extra.emptyValue);   // 0, with the usual reset
+amount.rebind(amount.extra.emptyValue!);   // 0, with the usual reset
 ```
+
+`extra` reads back `Readonly<Partial<X>>`, so `emptyValue` is `number | undefined` to the type checker regardless
+of whether `X` marks it optional — the `!` is asserting what the field's own parameters guarantee, not working
+around a real gap. `extended-properties.spec.ts` exercises exactly this, under "an emptyValue extended property, as
+the recipe in the model guide".
 
 Clearing a whole group this way is a walk your application writes, not something the library imposes as one fixed
 policy: visit `group.fields`, and reach for each member's `extra.emptyValue` where one is declared.
