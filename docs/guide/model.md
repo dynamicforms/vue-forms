@@ -377,23 +377,13 @@ policy: visit `group.fields`, and reach for each member's `extra.emptyValue` whe
 
 ## Comparing elements
 
-A structural comparison of two elements reaches nothing either holds — their state is in private class fields — so
-plain lodash `isEqual(fieldA, fieldB)` is `false` unless the two are the same element, never `true` for two that
-merely hold the same data. The package exports its own `isEqual(a, b)` for that case: it treats a `FieldBase`
-anywhere in `a` or `b` as the value it holds rather than as itself, so `isEqual(fieldA, fieldB)` and
-`isEqual(list.items, other.items)` answer what `isEqual(fieldA.value, fieldB.value)` already does, without
-unwrapping every element by hand — including one buried inside a plain object or an array, at any depth.
+An element's state is private, so a structural comparison of two elements reaches none of it: `isEqual(fieldA,
+fieldB)` is `false` unless the two are the same element. Compare `isEqual(fieldA.value, fieldB.value)` instead —
+that alone is enough for a pair of elements.
 
-```typescript
-isEqual(fieldA, fieldB);                 // fieldA.value compared against fieldB.value
-isEqual(list.items, other.items);        // each row compared against its counterpart, by value
-isEqual(fieldA.value, fieldB.value);     // the manual equivalent, still exact where you'd rather spell it out
-```
-
-What it does not fix: unwrapping stops at `.value`. Where a field's own `T` is a class instance with state of its
-own — a custom `Money`, a wrapped `Date` — comparing two of them is the same structural comparison that answers
-nothing useful for a `FieldBase`, for the same reason. Give such a value a plain, comparable shape, or compare it
-with whatever equality that class provides, before handing it to `isEqual`.
+For a collection of them, the package's own `isEqual(a, b)` — built on `lodash-es`, already a dependency — saves
+the unwrapping: it treats a `FieldBase` anywhere in `a` or `b` as its `value`, so `isEqual(list.items, other.items)`
+compares row by row without a loop.
 
 ## Where to read next
 
