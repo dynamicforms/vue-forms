@@ -375,6 +375,18 @@ the recipe in the model guide".
 Clearing a whole group this way is a walk your application writes, not something the library imposes as one fixed
 policy: visit `group.fields`, and reach for each member's `extra.emptyValue` where one is declared.
 
+## Comparing elements
+
+An element's state is private, so a structural comparison of two elements reaches none of it: `isEqual(fieldA,
+fieldB)` is `false` unless the two are the same element. Compare `isEqual(fieldA.value, fieldB.value)` instead —
+that alone is enough, and `value` already unwraps a container fully, so plain lodash `isEqual(list.value,
+other.value)` needs nothing further.
+
+`items`, unlike `value`, hands out the rows themselves — live `Group` instances, not their data — so comparing two
+of those arrays hits the same private-state wall as comparing two fields directly. The package's own `isEqual(a,
+b)` — built on `lodash-es`, already a dependency — is for that case: it treats a `FieldBase` anywhere in `a` or `b`
+as its `value`, so `isEqual(list.items, other.items)` compares row by row without a loop.
+
 ## Where to read next
 
 | Question | Page |

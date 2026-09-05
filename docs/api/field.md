@@ -626,7 +626,16 @@ holds — the state is in private class fields — so it would answer `true` for
 comparison reads and a tag it does not know ends it there. Two elements are therefore equal only where they are
 the same element, and what they hold is compared as `isEqual(a.value, b.value)`. The accessor sits on the
 prototype, so an element carries nothing for it, and `Object.prototype.toString.call(field)` answers
-`[object Field]`.
+`[object Field]`. See [Comparing elements](/guide/model#comparing-elements) for the package's own `isEqual`,
+pitfalls it avoids and where it still falls to you.
+
+### `isEqual(a, b): boolean`
+
+Structural equality that treats a `FieldBase` anywhere in `a` or `b` as the value it holds. Two `FieldBase`
+operands compare `a.value` against `b.value` directly; anything else is handed to lodash's own `isEqual`, with a
+`FieldBase` found at any depth unwrapped the same way. See
+[Comparing elements](/guide/model#comparing-elements) for when this is worth reaching for over `isEqual(a.value,
+b.value)`.
 
 `instanceof FieldBase` is both the recommended type guard and the runtime check the library itself performs:
 `new Group({...})` rejects a member that is not a `FieldBase` with `Error('Invalid fields object provided')`.
