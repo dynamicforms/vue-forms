@@ -169,7 +169,8 @@ as the data it was bound to.
 ### `clear()`
 
 Removes all items and triggers a value-changed notification. Every row is released, exactly as `remove()` releases
-the one it takes out.
+the one it takes out. It does not touch the list's own `touched`, `errors` or `originalValue` — for a reset that
+revalidates, see [Clearing and resetting](/guide/model#clearing-and-resetting) and use `rebind(null)` instead.
 
 ### `registerAction(action): this`
 
@@ -209,7 +210,9 @@ and `Field` alike: an explicit `null` is data the caller supplied, so `bind(null
 
 Exchanges the rows this list holds for `data`, in place: the same list instance, the row standing at a position
 reused the way a whole-value assignment reuses it, and the change history started over. No `ValueChangedAction`
-fires for the list itself. See [`rebind()`](/api/field#rebind-data-this) for the whole of it.
+fires for the list itself. See [`rebind()`](/api/field#rebind-data-this) for the whole of it, and
+[Clearing and resetting](/guide/model#clearing-and-resetting) for `rebind(list.originalValue)` and `rebind(null)`
+as the reset and the empty recipes.
 
 ## `NullableList`
 

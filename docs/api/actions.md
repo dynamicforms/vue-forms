@@ -349,6 +349,9 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 | `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call, except for `AbortEventHandlingException`, which the promise resolves with — see [Handling a failed run](#handling-a-failed-run) |
 | `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
 
+`Action` is a `Field`, so resetting one — rarely needed, since a label and an icon are not normally form data — is
+`action.rebind(action.originalValue)`; see [Clearing and resetting](/guide/model#clearing-and-resetting).
+
 #### Handling a failed run
 
 `execute()` answers with a promise, so a handler that throws rejects it — every exception but

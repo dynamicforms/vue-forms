@@ -321,6 +321,35 @@ nesting rather than the size of the tree.
 container it is a copy of its own, never the frozen object `value` reads back, so it is writable where the value
 is not.
 
+## Clearing and resetting
+
+No element has a `clear()` method, and the omission is deliberate rather than a gap: `Group` and `List` structurally
+allow "holds nothing" — `GroupValue<T>` and `ListValue` both include `null` — so emptying one is a value like any
+other. A `Field`'s empty state is not: an empty string, a zero and `false` are three different answers for three
+different `T`s, and nothing about the type tells the library which one you mean, so it does not guess.
+
+[`rebind()`](/api/field#rebind-data-this) covers both cases you actually want:
+
+```typescript
+group.rebind(group.originalValue);   // back to what the group was declared with
+group.rebind(null);                  // empty — every member cleared
+field.rebind(field.originalValue);   // back to what the field was declared with
+field.rebind('');                    // an explicit empty value of the field's own type
+list.rebind(list.originalValue);     // back to the rows the list was declared with
+list.rebind(null);                   // empty — every row released
+```
+
+Each call re-baselines `originalValue`, resets `touched` to `false`, clears the element's own errors and re-runs
+validation over the result — a form reset this way reports exactly what the data it landed on calls for, not
+whatever it reported before. `List.clear()` is narrower: it releases the rows but touches none of that state, so
+`list.rebind(null)` is the one to reach for where a fresh verdict matters.
+
+The record you pass is yours to get right. `rebind()` falls back to the element's `declaration` for a key a `Group`
+record leaves out, so a partial record resets the rest to what the form was declared with rather than to whatever
+it held a moment ago — the same as a fresh `bind()`. The plain value setter has the opposite gap: `group.value =
+{}` writes nothing at all, because it patches by key rather than replacing, and every key the object does not carry
+is left exactly as it was. Reaching for `rebind()` when you mean a full reset avoids both traps.
+
 ## Where to read next
 
 | Question | Page |
