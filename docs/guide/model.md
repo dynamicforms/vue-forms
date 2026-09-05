@@ -350,6 +350,13 @@ it held a moment ago — the same as a fresh `bind()`. The plain value setter ha
 {}` writes nothing at all, because it patches by key rather than replacing, and every key the object does not carry
 is left exactly as it was. Reaching for `rebind()` when you mean a full reset avoids both traps.
 
+Emptying a `Group` or a `List` this way pushes `null` into every member underneath it, regardless of what the
+member's own `T` allows — a `Field<string>` inside a cleared group ends up holding `null` at runtime, its type
+still saying `string`. The library does not guard against this: a member's type is that field's own contract, not
+its container's, and a `Field` cannot say what its own empty value is any more than the container above it can. A
+form meant to be cleared this way declares every field it reaches `T | null`; one that must keep a stricter type
+resets field by field with `rebind(field.originalValue)` instead of reaching for `null` at the group.
+
 ## Where to read next
 
 | Question | Page |
