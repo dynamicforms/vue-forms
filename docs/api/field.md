@@ -529,6 +529,11 @@ const row = list.get(0)!;
 row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
 ```
 
+There is no `clear()`: an empty `Field` is a value of its own `T`, which the library cannot guess, so
+`rebind(field.originalValue)` and an explicit `rebind('')` (or `rebind(null)` where `T` allows it) are how a field
+resets. See [Clearing and resetting](/guide/model#clearing-and-resetting) for `Group` and `List`, which do have a
+structural "empty".
+
 ## Subclassing
 
 `new` constructs a subclass of `Field`, `Action`, `Group` or `List`, and `bind()` constructs through

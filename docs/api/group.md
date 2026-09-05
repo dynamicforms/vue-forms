@@ -184,7 +184,10 @@ Exchanges the record this group holds for `data`, in place: the same instance, i
 history started over and the validators run. A key `data` leaves out is taken from the group's `declaration`, so a
 row recycled this way ends up as a fresh `bind()` of the item template would. No `ValueChangedAction` fires for the
 group itself; its members announce the values they took on, and a verdict that moves is announced as always. See
-[`rebind()`](/api/field#rebind-data-this) for the whole of it.
+[`rebind()`](/api/field#rebind-data-this) for the whole of it, and
+[Clearing and resetting](/guide/model#clearing-and-resetting) for `rebind(group.originalValue)` and
+`rebind(null)` as the reset and the empty recipes — `group.value = null` empties too, but only `rebind` resets
+`touched`, clears the group's own errors and revalidates.
 
 ## `NullableGroup`
 
