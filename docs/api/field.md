@@ -626,7 +626,8 @@ holds — the state is in private class fields — so it would answer `true` for
 comparison reads and a tag it does not know ends it there. Two elements are therefore equal only where they are
 the same element, and what they hold is compared as `isEqual(a.value, b.value)`. The accessor sits on the
 prototype, so an element carries nothing for it, and `Object.prototype.toString.call(field)` answers
-`[object Field]`.
+`[object Field]`. See [Comparing elements](/guide/model#comparing-elements) for the package's own `isEqual`,
+pitfalls it avoids and where it still falls to you.
 
 `instanceof FieldBase` is both the recommended type guard and the runtime check the library itself performs:
 `new Group({...})` rejects a member that is not a `FieldBase` with `Error('Invalid fields object provided')`.
