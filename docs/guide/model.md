@@ -357,6 +357,19 @@ its container's, and a `Field` cannot say what its own empty value is any more t
 form meant to be cleared this way declares every field it reaches `T | null`; one that must keep a stricter type
 resets field by field with `rebind(field.originalValue)` instead of reaching for `null` at the group.
 
+A field that wants an empty value of its own, without widening `T`, declares one as an
+[extended property](/api/field#extended-properties) instead — nothing the library needs to know about:
+
+```typescript
+interface Emptyable<T> { emptyValue: T }
+
+const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 });
+amount.rebind(amount.extra.emptyValue);   // 0, with the usual reset
+```
+
+Clearing a whole group this way is a walk your application writes, not something the library imposes as one fixed
+policy: visit `group.fields`, and reach for each member's `extra.emptyValue` where one is declared.
+
 ## Where to read next
 
 | Question | Page |
