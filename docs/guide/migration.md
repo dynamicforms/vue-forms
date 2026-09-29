@@ -1,221 +1,14 @@
 # Migration guide
 
-If you are crossing several releases at once, read **[the whole journey](#the-whole-journey-0-6-1-to-0-12-x)**
-first: it is those releases in one pass, ordered by how likely each change is to bite rather than by which version
-produced it. The per-release sections follow it, newest first — take the ones above `v0.12.0` in that order for
-the releases the journey does not cover, or a single one for a project crossing a single release.
+The sections are newest first, one per release. A project crossing a single release reads that release's section;
+one crossing several reads them oldest first, from the release it is on up to the one it upgrades to.
+
+A project coming from before 0.12 starts with **[the whole journey](#the-whole-journey-0-6-1-to-0-12-x)**, after the
+`v0.12.0` section: it is the releases from 0.6.1 to 0.12.x in one pass, ordered by how likely each change is to bite
+rather than by which version produced it. The sections above it take the project on from there.
 
 This is the only page that names superseded APIs; everywhere else in this documentation only the current one
 exists.
-
-## The whole journey: 0.6.1 to 0.12.x
-
-Six releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
-
-### 1. The four silent breaks — do these first
-
-Nothing is logged and nothing throws for any of them. Code that used them keeps compiling and simply stops
-working, so they are the ones to search for before you upgrade rather than after.
-
-**`watch(field, cb)` no longer fires.** A form element is no longer a Vue proxy of itself: its state lives in a
-reactive object beside it, and the deep traversal Vue starts for a reactive watch source stops immediately. The
-watcher registers and its callback is never called. Search for `watch(` with a field, group, list or action passed
-directly, the array form included, and watch what you read instead.
-
-```typescript
-// before
-watch(field, () => save());
-watch([field, other], () => save());
-watch(form.fields.people, () => recount());
-
-// after
-watch(() => field.value, () => save());
-watch([() => field.value, () => other.value], () => save());
-watch(() => form.fields.people.value, () => recount());
-```
-
-Every other read is unchanged: templates, `computed`, `watchEffect` and a getter passed to `watch` all track
-element members exactly as before.
-
-**`readonly(field)` no longer protects anything.** Vue's `readonly()` stops on the same flag and hands the element
-straight back, so `readonly(field) === field`, `isReadonly()` on the result is `false`, and a write through it
-reaches the field. Hand out the value — `field.value` and `group.value` are frozen — or a `computed` over it.
-
-```typescript
-// before: writes through the wrapper were refused, with a warning
-const view = readonly(field);
-
-// after
-const view = computed(() => field.value);
-```
-
-**`isEqual` over two elements answers `true` for any two of the same class.** An element's state is held in
-private class fields, so `Object.keys`, `Object.getOwnPropertySymbols`, `JSON.stringify` and lodash `isEqual` reach
-none of it. From 0.15.0 the comparison throws rather than answering — see
-[Comparing two elements answers identity](#comparing-two-elements-answers-identity). Compare what the elements hold:
-
-```typescript
-// before
-if (isEqual(rowA, rowB)) …
-
-// after
-if (isEqual(rowA.value, rowB.value)) …
-```
-
-**A lazy action under an eager action's identifier is no longer run by the eager pass.** `eager` used to be
-tracked per `classIdentifier`, so one eager action carried every action registered under that identifier into
-every eager run. A custom action that relied on it declares `get eager() { return true; }` for itself.
-
-### 2. Three breaks the type checker finds for you
-
-**`clone()` is `bind()`.** The data comes first and the rest of the overrides second, so `f.clone()` is
-`f.bind(f.value)`, `f.clone({ value: x })` is `f.bind(x)` and `f.clone({ value: x, label: 'Name' })` is
-`f.bind(x, { label: 'Name' })`. Everything else about it stands: the same class, the same action instances, the
-same extended properties, `originalValue` read by key presence, and a `null` that clears where an `undefined`
-counts as none supplied.
-
-**The value objects a binding works over are frozen.** `group.value` and `list.value` hand out
-one object per change, reused by every reader until the next one, and it is frozen — rows included. Writing into it
-throws in strict mode and is silently dropped outside it. Assign a new value instead. `originalValue` holds a copy
-of its own and is not frozen.
-
-**`Action.execute(params?)` is asynchronous**, `params` is optional, and it answers what the `ExecuteAction` chain
-returned rather than discarding it. Run the type checker and every `execute()` call site that used the return value
-or wrapped the call in `try`/`catch` surfaces:
-
-```typescript
-// before
-save.execute({ reason: 'toolbar' });                       // returned undefined
-const stored = save.triggerAction(ExecuteAction, params);  // the only way to read the result
-try { save.execute(); } catch (e) { report(e); }
-
-// after
-const stored = await save.execute({ reason: 'toolbar' });
-try { await save.execute(); } catch (e) { report(e); }
-save.execute().catch(report);
-```
-
-The chain is still entered synchronously, so a handler has already run by the time the call returns. What moves is
-where a failure surfaces: a throwing handler rejects the promise, and a call that neither awaits nor catches leaves
-an unhandled rejection, which under node's default settings ends the process. Template handlers need no change —
-Vue attaches its own catch and routes the error to `app.config.errorHandler`.
-
-**Custom action classes: two renamed hooks.** `boundToField(field)` is `boundToBinding(binding)` and
-`unregister()` is `unregisterFrom(binding)`. Both are optional overrides, so an action that overrode neither needs
-no change.
-
-```typescript
-// before
-class MyAction extends FieldActionBase {
-  boundToField(field) { this.fields.add(field); }
-  unregister() { this.dead = true; }
-}
-
-// after
-class MyAction extends FieldActionBase {
-  private readonly elements = new WeakSet();
-  boundToBinding(binding) { this.elements.add(binding); }
-  unregisterFrom(binding) { this.elements.delete(binding); }
-}
-```
-
-**Assigning `parent` or `fieldName` yourself now throws a `TypeError`.** Both are read-only accessors; the
-container writes them.
-
-### 3. Behaviour that changed under code you do not have to edit
-
-Nothing here needs a source change. It changes what your handlers see, and what the form looks like after one of
-them fails.
-
-**Events are announced once, when the operation finishes.** Every mutating operation is a transaction; a single
-write is a transaction of its own, so it still produces exactly one `ValueChangedAction`. What changes:
-
-- repeated changes to one element coalesce — `list.value = rows` no longer announces a row member once per
-  intermediate state, and an element that ends the operation holding what it started with announces nothing;
-- handlers see the finished state. `insert(item, 5)` on a three-item list pads the gap and then announces three
-  `ListItemAddedAction`s; a handler reading `list.value` in all three now sees six items, where it used to see
-  four, then five, then six;
-- the order within one operation is causal. An element announces its value first and the verdict formed over it
-  second, and the deepest element announces before the container above it. A field carrying a validator used to
-  announce its new verdict *before* its new value.
-
-Wrap several writes to get one announcement instead of one per write:
-
-```typescript
-import { transaction } from '@dynamicforms/vue-forms';
-
-transaction(() => {
-  form.fields.firstName.value = 'Janez';
-  form.fields.lastName.value = 'Novak';
-});
-```
-
-`transaction()` throws a `TypeError` the moment its callback returns a thenable, so a transaction cannot cross an
-`await`. Do the awaiting outside; an asynchronous validator settling later opens one of its own.
-
-**A handler that throws now undoes the operation.** A `ValueChangedAction` that threw partway through
-`group.value = {...}` used to leave the group half-applied. The operation now rolls back — every element it
-modified goes back to what it held — and the error propagates as before. If you want the writes to stand, catch
-inside the handler, or use `AbortEventHandlingException`, which still stops the chain without undoing anything.
-
-**Cross-field rules inside a `List` start working.** A conditional action or a `CompareTo` registered on an item
-template used to be dead or wrong in every row: the rows shared one result, and a comparison read the template's
-own field. Each row now answers for itself, a row holding exactly the values its template holds included. **A form
-that looked valid may now report the errors it always had**, and a field that never appeared may now appear in the
-rows whose data calls for it. `clearValidators()` on one row likewise stops affecting the others.
-
-```typescript
-const row = new Group({ password: new Field(), confirmation: new Field() });
-row.fields.confirmation.registerAction(
-  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, 'Passwords must match'),
-);
-// every row of new List(row, …) compares its own two fields; before, they all compared the template's
-```
-
-**`label` and `icon` on an `Action` are ordinary value changes.** Both setters used to write into the value object
-the action held, so nothing observed them. Each now assigns a new value object through the value setter:
-`ValueChangedAction` fires, `isChanged` answers over them, and a disabled action refuses the write. If you kept a
-reference to the object you passed as `params.value` and read your later writes to it back off the action, that
-link breaks the first time either setter runs. `new Action({}).label = 'X'` threw a `TypeError` and now works.
-
-**A `List` releases the rows it drops, and hands the dropped one back.** `remove()`, `pop()`, `clear()` and a
-shortening assignment leave the row instance without a `parent`, so it can be pushed into another list or back into
-this one. `remove()` and `pop()` answer with that instance itself, holding what it held in the list — its values,
-its errors, and an `isChanged` that reports the edits made to it. An assignment of the same length reuses the row
-objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops remounting.
-
-### 4. What newly works
-
-- **`Action.busy`** — `true` from the call to `execute()` until the run settles, however it settles. Overlapping
-  runs are counted. `<button :disabled="!save.enabled || save.busy">`.
-- **`CompareTo` accepts a name or a callback**, so a cross-field rule needs no reference to the item template:
-  `new Validators.CompareTo('password', (mine, other) => mine === other, '…')`.
-- **`transaction(fn)` and `tx.rollback()`** — see [Transactions](/api/transactions).
-- **`field.declaration`, `field.bindingsOf(declaration)` and `field.markRecordIncomplete()`** — what a shared
-  action uses to tell one row's field from another's. [The model](/guide/model) describes the mechanism.
-- **`FieldActionBase.state(key, init)`** — per-element memory for an action instance shared by every row.
-- **`element.rebind(data)`** — the same element over the next record, in place: the instance, its actions and its
-  extended properties all stand, and it announces no value change of its own. It is what recycles a row in a
-  virtualised list.
-- **Extended properties** — whatever your application attaches to an element beyond the members of its class,
-  declared as its second type argument, read through `extra` and written with `setExtendedValues()`.
-- **Lists got fast.** Filling a 1000-row list by `push()` went from 13.1 s to 0.20 s, writing one field from
-  33 ms to 0.011 ms, and reading `list.valid` from 11.3 ms to microseconds.
-
-### Checklist
-
-1. Search for `watch(` with an element as the source and rewrite each to a getter.
-2. Search for `readonly(` over an element and hand out the value or a `computed` instead.
-3. Search for `isEqual` over elements and compare `.value` instead.
-4. Run the type checker: rename every `clone(` to `bind(` and move the value out of the override object,
-   `await` or `.catch()` every `execute()`, and rename `boundToField` / `unregister` on any custom action class.
-5. Search for writes into a value object read back from `group.value` or `list.value` — it is frozen now.
-6. Re-check any handler that relied on seeing a half-applied state, or on a validity event arriving before the
-   value event that caused it.
-7. Load every form that contains a `List` whose item template carries a `CompareTo` or a conditional action: those
-   rules now apply, and the verdicts are the ones the data always called for.
-8. Move onto Node 22 and Vue 3.5.2 or newer, and drop any bundler or test-runner configuration that pointed at
-   the CJS build — the package is ESM-only.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
@@ -991,6 +784,215 @@ field.registerActionBefore(new ValueChangedAction((f, supr, v, old) => supr(f, v
 on, so dropping a validator names the declaration that holds it. A rollback puts back what a
 transaction registered or unregistered.
 
+
+## The whole journey: 0.6.1 to 0.12.x
+
+Six releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
+
+### 1. The four silent breaks — do these first
+
+Nothing is logged and nothing throws for any of them. Code that used them keeps compiling and simply stops
+working, so they are the ones to search for before you upgrade rather than after.
+
+**`watch(field, cb)` no longer fires.** A form element is no longer a Vue proxy of itself: its state lives in a
+reactive object beside it, and the deep traversal Vue starts for a reactive watch source stops immediately. The
+watcher registers and its callback is never called. Search for `watch(` with a field, group, list or action passed
+directly, the array form included, and watch what you read instead.
+
+```typescript
+// before
+watch(field, () => save());
+watch([field, other], () => save());
+watch(form.fields.people, () => recount());
+
+// after
+watch(() => field.value, () => save());
+watch([() => field.value, () => other.value], () => save());
+watch(() => form.fields.people.value, () => recount());
+```
+
+Every other read is unchanged: templates, `computed`, `watchEffect` and a getter passed to `watch` all track
+element members exactly as before.
+
+**`readonly(field)` no longer protects anything.** Vue's `readonly()` stops on the same flag and hands the element
+straight back, so `readonly(field) === field`, `isReadonly()` on the result is `false`, and a write through it
+reaches the field. Hand out the value — `field.value` and `group.value` are frozen — or a `computed` over it.
+
+```typescript
+// before: writes through the wrapper were refused, with a warning
+const view = readonly(field);
+
+// after
+const view = computed(() => field.value);
+```
+
+**`isEqual` over two elements answers `true` for any two of the same class.** An element's state is held in
+private class fields, so `Object.keys`, `Object.getOwnPropertySymbols`, `JSON.stringify` and lodash `isEqual` reach
+none of it. From 0.15.0 the comparison throws rather than answering — see
+[Comparing two elements answers identity](#comparing-two-elements-answers-identity). Compare what the elements hold:
+
+```typescript
+// before
+if (isEqual(rowA, rowB)) …
+
+// after
+if (isEqual(rowA.value, rowB.value)) …
+```
+
+**A lazy action under an eager action's identifier is no longer run by the eager pass.** `eager` used to be
+tracked per `classIdentifier`, so one eager action carried every action registered under that identifier into
+every eager run. A custom action that relied on it declares `get eager() { return true; }` for itself.
+
+### 2. Three breaks the type checker finds for you
+
+**`clone()` is `bind()`.** The data comes first and the rest of the overrides second, so `f.clone()` is
+`f.bind(f.value)`, `f.clone({ value: x })` is `f.bind(x)` and `f.clone({ value: x, label: 'Name' })` is
+`f.bind(x, { label: 'Name' })`. Everything else about it stands: the same class, the same action instances, the
+same extended properties, `originalValue` read by key presence, and a `null` that clears where an `undefined`
+counts as none supplied.
+
+**The value objects a binding works over are frozen.** `group.value` and `list.value` hand out
+one object per change, reused by every reader until the next one, and it is frozen — rows included. Writing into it
+throws in strict mode and is silently dropped outside it. Assign a new value instead. `originalValue` holds a copy
+of its own and is not frozen.
+
+**`Action.execute(params?)` is asynchronous**, `params` is optional, and it answers what the `ExecuteAction` chain
+returned rather than discarding it. Run the type checker and every `execute()` call site that used the return value
+or wrapped the call in `try`/`catch` surfaces:
+
+```typescript
+// before
+save.execute({ reason: 'toolbar' });                       // returned undefined
+const stored = save.triggerAction(ExecuteAction, params);  // the only way to read the result
+try { save.execute(); } catch (e) { report(e); }
+
+// after
+const stored = await save.execute({ reason: 'toolbar' });
+try { await save.execute(); } catch (e) { report(e); }
+save.execute().catch(report);
+```
+
+The chain is still entered synchronously, so a handler has already run by the time the call returns. What moves is
+where a failure surfaces: a throwing handler rejects the promise, and a call that neither awaits nor catches leaves
+an unhandled rejection, which under node's default settings ends the process. Template handlers need no change —
+Vue attaches its own catch and routes the error to `app.config.errorHandler`.
+
+**Custom action classes: two renamed hooks.** `boundToField(field)` is `boundToBinding(binding)` and
+`unregister()` is `unregisterFrom(binding)`. Both are optional overrides, so an action that overrode neither needs
+no change.
+
+```typescript
+// before
+class MyAction extends FieldActionBase {
+  boundToField(field) { this.fields.add(field); }
+  unregister() { this.dead = true; }
+}
+
+// after
+class MyAction extends FieldActionBase {
+  private readonly elements = new WeakSet();
+  boundToBinding(binding) { this.elements.add(binding); }
+  unregisterFrom(binding) { this.elements.delete(binding); }
+}
+```
+
+**Assigning `parent` or `fieldName` yourself now throws a `TypeError`.** Both are read-only accessors; the
+container writes them.
+
+### 3. Behaviour that changed under code you do not have to edit
+
+Nothing here needs a source change. It changes what your handlers see, and what the form looks like after one of
+them fails.
+
+**Events are announced once, when the operation finishes.** Every mutating operation is a transaction; a single
+write is a transaction of its own, so it still produces exactly one `ValueChangedAction`. What changes:
+
+- repeated changes to one element coalesce — `list.value = rows` no longer announces a row member once per
+  intermediate state, and an element that ends the operation holding what it started with announces nothing;
+- handlers see the finished state. `insert(item, 5)` on a three-item list pads the gap and then announces three
+  `ListItemAddedAction`s; a handler reading `list.value` in all three now sees six items, where it used to see
+  four, then five, then six;
+- the order within one operation is causal. An element announces its value first and the verdict formed over it
+  second, and the deepest element announces before the container above it. A field carrying a validator used to
+  announce its new verdict *before* its new value.
+
+Wrap several writes to get one announcement instead of one per write:
+
+```typescript
+import { transaction } from '@dynamicforms/vue-forms';
+
+transaction(() => {
+  form.fields.firstName.value = 'Janez';
+  form.fields.lastName.value = 'Novak';
+});
+```
+
+`transaction()` throws a `TypeError` the moment its callback returns a thenable, so a transaction cannot cross an
+`await`. Do the awaiting outside; an asynchronous validator settling later opens one of its own.
+
+**A handler that throws now undoes the operation.** A `ValueChangedAction` that threw partway through
+`group.value = {...}` used to leave the group half-applied. The operation now rolls back — every element it
+modified goes back to what it held — and the error propagates as before. If you want the writes to stand, catch
+inside the handler, or use `AbortEventHandlingException`, which still stops the chain without undoing anything.
+
+**Cross-field rules inside a `List` start working.** A conditional action or a `CompareTo` registered on an item
+template used to be dead or wrong in every row: the rows shared one result, and a comparison read the template's
+own field. Each row now answers for itself, a row holding exactly the values its template holds included. **A form
+that looked valid may now report the errors it always had**, and a field that never appeared may now appear in the
+rows whose data calls for it. `clearValidators()` on one row likewise stops affecting the others.
+
+```typescript
+const row = new Group({ password: new Field(), confirmation: new Field() });
+row.fields.confirmation.registerAction(
+  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, 'Passwords must match'),
+);
+// every row of new List(row, …) compares its own two fields; before, they all compared the template's
+```
+
+**`label` and `icon` on an `Action` are ordinary value changes.** Both setters used to write into the value object
+the action held, so nothing observed them. Each now assigns a new value object through the value setter:
+`ValueChangedAction` fires, `isChanged` answers over them, and a disabled action refuses the write. If you kept a
+reference to the object you passed as `params.value` and read your later writes to it back off the action, that
+link breaks the first time either setter runs. `new Action({}).label = 'X'` threw a `TypeError` and now works.
+
+**A `List` releases the rows it drops, and hands the dropped one back.** `remove()`, `pop()`, `clear()` and a
+shortening assignment leave the row instance without a `parent`, so it can be pushed into another list or back into
+this one. `remove()` and `pop()` answer with that instance itself, holding what it held in the list — its values,
+its errors, and an `isChanged` that reports the edits made to it. An assignment of the same length reuses the row
+objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops remounting.
+
+### 4. What newly works
+
+- **`Action.busy`** — `true` from the call to `execute()` until the run settles, however it settles. Overlapping
+  runs are counted. `<button :disabled="!save.enabled || save.busy">`.
+- **`CompareTo` accepts a name or a callback**, so a cross-field rule needs no reference to the item template:
+  `new Validators.CompareTo('password', (mine, other) => mine === other, '…')`.
+- **`transaction(fn)` and `tx.rollback()`** — see [Transactions](/api/transactions).
+- **`field.declaration`, `field.bindingsOf(declaration)` and `field.markRecordIncomplete()`** — what a shared
+  action uses to tell one row's field from another's. [The model](/guide/model) describes the mechanism.
+- **`FieldActionBase.state(key, init)`** — per-element memory for an action instance shared by every row.
+- **`element.rebind(data)`** — the same element over the next record, in place: the instance, its actions and its
+  extended properties all stand, and it announces no value change of its own. It is what recycles a row in a
+  virtualised list.
+- **Extended properties** — whatever your application attaches to an element beyond the members of its class,
+  declared as its second type argument, read through `extra` and written with `setExtendedValues()`.
+- **Lists got fast.** Filling a 1000-row list by `push()` went from 13.1 s to 0.20 s, writing one field from
+  33 ms to 0.011 ms, and reading `list.valid` from 11.3 ms to microseconds.
+
+### Checklist
+
+1. Search for `watch(` with an element as the source and rewrite each to a getter.
+2. Search for `readonly(` over an element and hand out the value or a `computed` instead.
+3. Search for `isEqual` over elements and compare `.value` instead.
+4. Run the type checker: rename every `clone(` to `bind(` and move the value out of the override object,
+   `await` or `.catch()` every `execute()`, and rename `boundToField` / `unregister` on any custom action class.
+5. Search for writes into a value object read back from `group.value` or `list.value` — it is frozen now.
+6. Re-check any handler that relied on seeing a half-applied state, or on a validity event arriving before the
+   value event that caused it.
+7. Load every form that contains a `List` whose item template carries a `CompareTo` or a conditional action: those
+   rules now apply, and the verdicts are the ones the data always called for.
+8. Move onto Node 22 and Vue 3.5.2 or newer, and drop any bundler or test-runner configuration that pointed at
+   the CJS build — the package is ESM-only.
 
 ## Upgrading to v0.11.0 (from v0.10.x)
 

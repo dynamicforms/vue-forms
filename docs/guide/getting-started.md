@@ -196,5 +196,5 @@ loading and submitting a record, server errors, optional sections, fields that d
 member: [Field](/api/field), [Group](/api/group),
 [Validators](/api/validators) and [Configuration](/api/config).
 
-Upgrading an existing project? The [migration guide](/guide/migration) walks the whole journey from 0.6.1 onwards,
-silent breaks first.
+Upgrading an existing project? The [migration guide](/guide/migration) has a section per release, newest first,
+starting with 1.x to 2.0.
