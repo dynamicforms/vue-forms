@@ -23,7 +23,7 @@ export default defineConfig({
             { text: 'Getting Started', link: '/guide/getting-started' },
             { text: 'Rationale', link: '/guide/rationale' },
             { text: 'The model', link: '/guide/model' },
-            { text: 'Null and empty values', link: '/guide/null-and-empty' },
+            { text: 'Cookbook', link: '/guide/cookbook' },
           ]
         },
         {

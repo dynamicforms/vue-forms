@@ -63,8 +63,8 @@ of that meaning something else.
 | `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
 | `params.value` | `ListValueInput<R>` (`ListValue<R> \| null`) | `[]` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
 | `params.originalValue` | `ListValueInput<R>` | same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
-| `params.enabled` | `boolean` | `true` | Whether the list is sent. A disabled list still accepts value assignment and all mutations, like every element; `enabled` causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is. See [Handling null and empty values](/guide/null-and-empty). |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). See [Handling null and empty values](/guide/null-and-empty). |
+| `params.enabled` | `boolean` | `true` | Whether the list is sent. A disabled list still accepts value assignment and all mutations, like every element; `enabled` causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). |
 | `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
 | `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
@@ -86,9 +86,9 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the list itself or in any row. The list keeps a tally of the rows that answer `true`, so the read costs nothing however many rows it holds |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` in a row has yet to settle. A validation running in a row is answered by `validating`, not by this, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
-| `enabled` | `boolean` | yes | Whether the list is sent. A disabled list still accepts value assignment and all mutations, like every element; `enabled` causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is. See [Handling null and empty values](/guide/null-and-empty). |
+| `enabled` | `boolean` | yes | Whether the list is sent. A disabled list still accepts value assignment and all mutations, like every element; `enabled` causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is. See [What a container serializes](/api/container#what-a-container-serializes). |
 | `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). See [Handling null and empty values](/guide/null-and-empty). |
+| `visibility` | `DisplayMode` | yes | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
 | `length` | `number` | no | The number of rows the list holds. Nothing is built to count them |
 | `items` | `readonly R[]` | no | The rows themselves — see [The rows](#the-rows) |
@@ -194,7 +194,7 @@ as the data it was bound to.
 
 Removes all items and triggers a value-changed notification. Every row is released, exactly as `remove()` releases
 the one it takes out. It does not touch the list's own `touched`, `errors` or `originalValue` — for a reset that
-revalidates, see [Clearing and resetting](/guide/model#clearing-and-resetting) and use `rebind(null)` instead.
+revalidates, see [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) and use `rebind(null)` instead.
 
 ### `registerAction(action): this`
 
@@ -236,7 +236,7 @@ and `Field` alike: an explicit `null` is data the caller supplied, so `bind(null
 Exchanges the rows this list holds for `data`, in place: the same list instance, the row standing at a position
 reused the way a whole-value assignment reuses it, and the change history started over. No `ValueChangedAction`
 fires for the list itself. See [`rebind()`](/api/field#rebind-data-this) for the whole of it, and
-[Clearing and resetting](/guide/model#clearing-and-resetting) for `rebind(list.originalValue)` and `rebind(null)`
+[Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `rebind(list.originalValue)` and `rebind(null)`
 as the reset and the empty recipes.
 
 ## `NullableList`
