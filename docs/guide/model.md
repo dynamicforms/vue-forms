@@ -317,7 +317,8 @@ rule. It reads back `[]` while the list is empty. A container is never `null`.
 
 `visibility` decides the rest, in `value` and `fullValue` alike: a `HIDDEN` member or row is sent as `null`, a
 `SUPPRESS` one is left out, and neither counts in the container's validity. The whole rule, with what to declare for
-each outcome, is in [What a container serializes](/api/container#what-a-container-serializes).
+each outcome, is in [What a container serializes](/api/container#what-a-container-serializes). [Handling null and empty values](/guide/null-and-empty)
+applies it recipe by recipe.
 
 The composed object is cached behind a version counter that a write raises along its own branch, so a container
 does not walk its members again while nothing below it has moved, and a write of one field costs the depth of the
@@ -399,6 +400,7 @@ as its `value`, so `isEqual(list.items, other.items)` compares row by row withou
 |---|---|
 | every member of `Field` and `FieldBase` | [Field](/api/field) |
 | members, serialization, `fields` | [Group](/api/group) |
+| what a form sends: `null`, empty containers, hidden and suppressed members | [Handling null and empty values](/guide/null-and-empty) |
 | rows, mutations, cost | [List](/api/list) |
 | every event, the action chain, `Action`, conditionals | [Actions](/api/actions) |
 | built-in rules, custom and asynchronous validators | [Validators](/api/validators) |

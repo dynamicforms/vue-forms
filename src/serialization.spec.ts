@@ -1,4 +1,4 @@
-import { nextTick, watchEffect } from 'vue';
+import { nextTick, ref, watchEffect } from 'vue';
 
 import { ValidChangedAction, ValueChangedAction } from './actions';
 import DisplayMode from './display-mode';
@@ -231,5 +231,75 @@ describe('Patterns', () => {
     await nextTick();
 
     expect(form.value).toEqual({ sub: null, name: 'x' });
+  });
+});
+
+describe('The recipes in the null and empty values guide', () => {
+  it('suppresses the fields that do not apply to a type, and brings them back as they were', async () => {
+    const form = new Group({
+      kind: new Field({ value: 'text' }),
+      text: new Field({ value: 'hello' }),
+      src: new Field({ value: '' }),
+    });
+    watchEffect(() => {
+      const image = form.fields.kind.value === 'image';
+      form.fields.src.visibility = image ? DisplayMode.FULL : DisplayMode.SUPPRESS;
+      form.fields.text.visibility = image ? DisplayMode.SUPPRESS : DisplayMode.FULL;
+    });
+
+    expect(form.value).toEqual({ kind: 'text', text: 'hello' });
+    form.fields.kind.value = 'image';
+    await nextTick();
+    expect(form.value).toEqual({ kind: 'image', src: '' });
+    form.fields.kind.value = 'text';
+    await nextTick();
+    expect(form.value).toEqual({ kind: 'text', text: 'hello' });
+  });
+
+  it('sends an optional section as null while it is off, keeps what it holds, and does not count it', async () => {
+    const club = new Group({ name: required(''), city: new Field({ value: '' }) });
+    const form = new Group({ member: new Field({ value: 'Ada' }), club });
+    const hasClub = ref(false);
+    watchEffect(() => {
+      club.visibility = hasClub.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+    });
+
+    expect(form.value).toEqual({ member: 'Ada', club: null });
+    expect(form.valid).toBe(true);
+    expect(form.fullValue.club).toBeNull();
+    club.fields.name.value = 'NK';
+    expect(club.fullValue).toEqual({ name: 'NK', city: '' });
+
+    hasClub.value = true;
+    await nextTick();
+    expect(form.value).toEqual({ member: 'Ada', club: { name: 'NK', city: '' } });
+  });
+
+  it('loads a record without touching visibility, and follows the data where the rule says so', async () => {
+    const club = new Group({ name: new Field({ value: 'NK' }) });
+    const form = new Group({ member: new Field({ value: '' }), club });
+    const hasClub = ref(true);
+    watchEffect(() => {
+      club.visibility = hasClub.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+    });
+
+    const record = { member: 'Grace', club: null };
+    form.value = record;
+    expect(club.visibility).toBe(DisplayMode.FULL);
+    expect(form.value).toEqual({ member: 'Grace', club: { name: null } });
+
+    hasClub.value = record.club != null;
+    await nextTick();
+    expect(form.value).toEqual({ member: 'Grace', club: null });
+  });
+
+  it('clears a form with rebind(null)', () => {
+    const form = new Group({ name: new Field<string | null>({ value: 'x' }), rows: new List(new Field<string>()) });
+    form.fields.rows.push('r');
+
+    form.rebind(null);
+
+    expect(form.value).toEqual({ name: null, rows: [] });
+    expect(form.isChanged).toBe(false);
   });
 });

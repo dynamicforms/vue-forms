@@ -31,6 +31,11 @@ Every other member — `value`, `fullValue`, `errors`, `enabled`, `bind()`, `reb
 
 ## What a container serializes
 
+::: tip
+[Handling null and empty values](/guide/null-and-empty) applies these rules recipe by recipe: what to declare
+for the payload you want.
+:::
+
 A container has two values. `value` is what the form sends: the payload a save hands to the server. `fullValue`
 is what the form holds, for a view to read. Two members of each child decide what it contributes to both, and each
 answers one question.

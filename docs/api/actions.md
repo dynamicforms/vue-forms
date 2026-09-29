@@ -842,6 +842,7 @@ to the validity of its container.
 
 An element that is hidden or suppressed keeps what it holds. [What a container serializes](/api/container#what-a-container-serializes)
 has the whole rule, `enabled` included.
+[Handling null and empty values](/guide/null-and-empty) shows what to declare for the payload you want.
 
 ```typescript
 import { DisplayMode } from '@dynamicforms/vue-forms';

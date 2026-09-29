@@ -27,8 +27,8 @@ back through `group.extra`.
 | `fields` | `GenericFieldsInterface` (`Record<string, FieldBase>`) | required | Map of field name → field/group/list instance |
 | `params.value` | `GroupValueInput<T>` (`Partial<FieldsToValues<T>> \| null`) | not assigned | Initial values applied to matching fields; keys left out keep the value their field was created with. Parameters that carry no value assign nothing, and an explicitly `undefined` value counts as carrying none, so every child keeps the value it was created with; an explicit `null` clears all of them |
 | `params.originalValue` | `GroupValueInput<T>` | same as `value` | Baseline for `isChanged`. Passed without a value of its own — an explicitly `undefined` `value` included — it is also applied to the fields as their initial value |
-| `params.enabled` | `boolean` | `true` | Whether the group itself is enabled. Not propagated to child fields, and it does not remove the group from its parent's `value` — a disabled subgroup is still serialized as long as its own value is non-empty |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
+| `params.enabled` | `boolean` | `true` | Whether the group itself is enabled. Not propagated to child fields, and it does not remove the group from its parent's `value` — a disabled subgroup is still serialized as long as its own value is non-empty. See [Handling null and empty values](/guide/null-and-empty). |
+| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the group is shown, and what it contributes to its own container. See [Handling null and empty values](/guide/null-and-empty). |
 | `params.touched` | `boolean` | `false` | Initial interaction flag, propagated to every child |
 | `params.errors` | `ValidationError[]` | `[]` | Initial group-level validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | Group-level validators |
@@ -79,9 +79,9 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the group itself or anywhere below it. The group keeps a tally of the members that answer `true`, so the read costs nothing however many members it holds |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the group has yet to settle. A validation is not an execution and is answered by `validating`, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | Group-level validation errors. Writable, but normally managed by validators |
-| `enabled` | `boolean` | yes | Setting this does **not** cascade to children; use child fields directly. What a rendering layer reads to disable the inputs of a whole section is [`effectiveEnabled`](/api/field#properties) on each member |
+| `enabled` | `boolean` | yes | Setting this does **not** cascade to children; use child fields directly. What a rendering layer reads to disable the inputs of a whole section is [`effectiveEnabled`](/api/field#properties) on each member. See [Handling null and empty values](/guide/null-and-empty). |
 | `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Whether the group is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes) |
+| `visibility` | `DisplayMode` | yes | Whether the group is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). See [Handling null and empty values](/guide/null-and-empty). |
 | `touched` | `boolean` | yes | `true` when any child field has been touched; setting propagates to all children |
 | `fullValue` | `FieldsToFullValues<T>` | no | What the group holds, where `value` is what it serializes: disabled members are in it too. Visibility applies as it does to `value`: a `HIDDEN` member reads `null` and a `SUPPRESS` one is left out, so every key is optional and nullable. A nested group contributes its own full structure |
 
