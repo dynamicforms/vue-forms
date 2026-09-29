@@ -15,22 +15,8 @@ section or a list row behaves the same way a single field does — and rendering
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read — assign a property and whatever read it re-renders, with no `ref` to unwrap. A group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
-- **Application state, not only forms**: A form is state that happens to be shown. The same elements hold state no screen shows — a shopping cart, the filters of a list view, the settings of an editor — with everything a form gets: reads tracked per element, changes made in transactions and announced once, validity and validators, rules for what is sent, and actions that react to a change. [`view()`](/api/view) reads such state as plain data.
-
-## Application state: what to know
-
-The library keeps application state under these conditions:
-
-- **An element made at module level is one object for the whole process.** Under server-side rendering every request
-  shares it, and in tests every test sees what the one before it left. State an application owns is built by a
-  function, called once per application and once per test — see [Application state](/guide/cookbook#application-state).
-- **State is declared.** Every part of it is an element, and a key the declaration does not have is added with
-  `addField()`. An object held by one field is one value: a write into it, rather than to the field, goes through
-  no transaction and announces nothing.
-- **Each value is an element**, carrying its state, its actions and its validity; that costs more per value than a
-  plain reactive object does.
-- **The library has no integration of its own** with the Vue devtools, keeps no state across a hot module
-  replacement, and does not persist state between page loads.
+- **Application state, not only forms**: A form is state that happens to be shown. The same elements hold state no screen shows — a shopping cart, the filters of a list view, the settings of an editor — with everything a form gets: reads tracked per element, changes made in transactions and announced once, validity and validators, rules for what is sent, and actions that react to a change. [`view()`](/api/view) reads such state as plain data, and the cookbook's
+  [Application state](/guide/cookbook#application-state) recipe keeps a shopping cart that way.
 
 ## What this library will not do
 

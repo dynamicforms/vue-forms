@@ -23,10 +23,9 @@ Application state is a design goal (`docs/guide/rationale.md`), and eight things
 relies on are not settled. Each needs to be looked at and decided — implemented, left to the application with a
 documented pattern, or declined — not necessarily built:
 
-1. **Scope per application.** An element built at module level is one object for the process, so under server-side
-   rendering every request shares it and every test sees the one before it. A factory called per application is the
-   documented pattern; undecided whether the library offers a scope of its own (an element registry bound to a Vue
-   app, created lazily on first use).
+1. **Scope per application.** Where state lives is the application's choice — a module, `provide()`, a component —
+   and the library ties it to none. Undecided whether it offers a way to bind state to a Vue app, created on first
+   use, for applications that render on the server or run many apps in one process.
 2. **Server-side rendering hydration.** Nothing carries state serialized on the server into the client.
 3. **Vue devtools.** No inspector of the element tree, no timeline of changes and actions, no editing from devtools.
 4. **Hot module replacement.** Replacing a module that builds state builds it again and loses what it held.

@@ -279,7 +279,9 @@ A `Field` holds its value, and it takes a write whether it is enabled or not: `e
 container above serializes the element and whether a rendering layer accepts input into it, never whether a write
 reaches it. Values are compared by identity, so assigning the very object the field already holds announces
 nothing, while a new object announces a change even when it is deeply equal to the old one — mutate a copy and
-assign it.
+assign it. An object a field holds is one value to the library: a write into it — `field.value.push(item)` on a
+`Field<string[]>` — goes through no transaction and announces nothing, and neither the field nor a container above
+it reports a change.
 
 A write states what the caller wants the field to hold rather than what it ends up holding: a `ValueChangedAction`
 may write another value back, and a handler that throws unwinds it. Where the

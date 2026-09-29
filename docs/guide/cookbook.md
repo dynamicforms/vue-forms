@@ -314,6 +314,5 @@ does, and `total` follows the prices and quantities. While the cart is collected
 `delivery: null` and the address does not count in `cart.$.valid`; switching back to delivery brings the address
 back as it was typed.
 
-The state is built by a function rather than at module level. An element made at module level is one object for the
-whole process: under server-side rendering every request would share it, and every test would see what the one
-before it left. `createCart()` is called once per application, and once per test.
+`createCart()` builds a cart wherever it is called, so where the state lives is the caller's choice — a module, a
+`provide()` in the component that owns it, or anywhere else — and a test builds a cart of its own.

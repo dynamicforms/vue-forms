@@ -313,3 +313,23 @@ describe('A change of enabled', () => {
     expect(seen).toEqual([{ inner: { a: 1 } }]);
   });
 });
+
+describe('An object a field holds', () => {
+  it('is one value: a write into it announces nothing on the field or above it', () => {
+    const tags = new Field<string[]>({ value: ['a'] });
+    const form = new Group({ tags });
+    const seenField = watchOwn(tags, 'value');
+    const seenForm = watchOwn(form, 'value');
+
+    tags.value.push('b');
+    transaction(() => {
+      tags.value.push('c');
+    });
+
+    expect(seenField).toEqual([]);
+    expect(seenForm).toEqual([]);
+
+    tags.value = [...tags.value, 'd'];
+    expect(seenField).toEqual([['a', 'b', 'c', 'd']]);
+  });
+});
