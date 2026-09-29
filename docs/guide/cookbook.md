@@ -26,7 +26,7 @@ form.rebind(record);
 It writes the record, starts the change history over and re-runs validation, and it takes a key the record leaves
 out from the form's declaration rather than from whatever the form held a moment ago.
 
-Loading does not decide what is shown. `{ club: null }` empties the club's fields and leaves the club shown or hidden
+Loading does not decide what is shown. `{ billing: null }` empties the billing address and leaves it shown or hidden
 as the form's own rule has it; where the form should follow the data, state it in the rule — see
 [An optional section](#an-optional-section).
 
@@ -147,19 +147,20 @@ field that does not apply, use `HIDDEN`: the field is sent as `null`.
 
 ## An optional section
 
-You want a section the user switches on and off — a club that may or may not be selected, an invoice address that
-may be the same as the delivery one — to be sent as `null` while it is off, and to keep what was entered.
+You want a section the user switches on and off — an invoice address that may be the same as the delivery one, a
+company that may or may not be named on the order — to be sent as `null` while it is off, and to keep what was
+entered.
 
 ```typescript
-const club = new Group({ name: new Field({ value: '' }), city: new Field({ value: '' }) });
-const form = new Group({ member: new Field({ value: 'Ada' }), club });
+const billing = new Group({ street: new Field({ value: '' }), city: new Field({ value: '' }) });
+const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
 
-const hasClub = ref(false);
+const separateBilling = ref(false);
 watchEffect(() => {
-  club.visibility = hasClub.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+  billing.visibility = separateBilling.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
 });
 
-form.value;   // { member: 'Ada', club: null } while hasClub is false
+form.value;   // { customer: 'Ada', billing: null } while separateBilling is false
 ```
 
 A hidden section is not counted in the form's validity, so a required field inside it does not block the submit
@@ -167,7 +168,7 @@ while the section is off. Where the section should follow a loaded record, the r
 
 ```typescript
 form.value = record;
-hasClub.value = record.club != null;
+separateBilling.value = record.billing != null;
 ```
 
 ## A field or a section that is shown but not editable
