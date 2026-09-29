@@ -5,7 +5,7 @@ describe('Display Mode', () => {
   it('Create Display Mode From String', () => {
     expect(DisplayMode.fromString('SUPPRESS')).toBe(DisplayMode.SUPPRESS);
     expect(DisplayMode.fromString('HIDDEN')).toBe(DisplayMode.HIDDEN);
-    expect(DisplayMode.fromString('INVISIBLE')).toBe(DisplayMode.INVISIBLE);
+    expect(() => DisplayMode.fromString('INVISIBLE')).toThrow("'INVISIBLE' is not a DisplayMode constant");
     expect(DisplayMode.fromString('FULL')).toBe(DisplayMode.FULL);
     expect(DisplayMode.fromString('hidden')).toBe(DisplayMode.HIDDEN);
 
@@ -23,10 +23,6 @@ describe('Display Mode', () => {
     expect(DisplayMode.fromAny('HIDDEN')).toBe(DisplayMode.HIDDEN);
     expect(DisplayMode.fromAny('HIDDEN')).toBe(DisplayMode.fromAny(DisplayMode.HIDDEN));
 
-    expect(DisplayMode.fromAny(DisplayMode.INVISIBLE)).toBe(DisplayMode.INVISIBLE);
-    expect(DisplayMode.fromAny('INVISIBLE')).toBe(DisplayMode.INVISIBLE);
-    expect(DisplayMode.fromAny('INVISIBLE')).toBe(DisplayMode.fromAny(DisplayMode.INVISIBLE));
-
     expect(DisplayMode.fromAny(DisplayMode.FULL)).toBe(DisplayMode.FULL);
     expect(DisplayMode.fromAny('FULL')).toBe(DisplayMode.FULL);
     expect(DisplayMode.fromAny('FULL')).toBe(DisplayMode.fromAny(DisplayMode.FULL));
@@ -42,7 +38,8 @@ describe('Display Mode', () => {
     expect(DisplayMode.isDefined(DisplayMode.SUPPRESS)).toBe(true);
     expect(DisplayMode.isDefined('SUPPRESS')).toBe(true);
     expect(DisplayMode.isDefined('HIDDEN')).toBe(true);
-    expect(DisplayMode.isDefined('INVISIBLE')).toBe(true);
+    expect(DisplayMode.isDefined('INVISIBLE')).toBe(false);
+    expect(DisplayMode.isDefined(8)).toBe(false);
     expect(DisplayMode.isDefined('FULL')).toBe(true);
     expect(DisplayMode.isDefined('hidden')).toBe(true);
 
@@ -62,8 +59,8 @@ describe('Display Mode', () => {
     field.visibility = 'HIDDEN' as any;
     expect(field.visibility).toBe(DisplayMode.HIDDEN);
 
-    field.visibility = DisplayMode.INVISIBLE;
-    expect(field.visibility).toBe(DisplayMode.INVISIBLE);
+    field.visibility = DisplayMode.SUPPRESS;
+    expect(field.visibility).toBe(DisplayMode.SUPPRESS);
 
     expect(() => {
       field.visibility = 'HIDEN' as any;
@@ -71,6 +68,6 @@ describe('Display Mode', () => {
     expect(() => {
       field.visibility = 999 as any;
     }).toThrow('visibility must be a DisplayMode constant');
-    expect(field.visibility).toBe(DisplayMode.INVISIBLE);
+    expect(field.visibility).toBe(DisplayMode.SUPPRESS);
   });
 });

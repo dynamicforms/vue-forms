@@ -221,6 +221,86 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 ## Upgrading to v2.0.0 (from v1.x)
 
+Five of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
+first. [What a container serializes](/api/container#what-a-container-serializes) states the rules they add up to.
+
+### An enabled container is never `null`
+
+A `Group` none of whose members serializes reads `{}`, and a `List` without rows reads `[]`, where both read `null`
+before. `GroupValue<T>` and `ListValue<R>` no longer include `null`.
+
+```typescript
+const list = new List(template);
+list.value;              // before: null     after: []
+form.value.lines ?? [];  // the fallback is no longer needed
+```
+
+Search for `=== null`, `== null` and `?? ` over a container's `value`: a check for an empty container now reads
+`length === 0` or `isEmpty(...)`. Assigning `null` still empties a container — every member of a group is set to
+`null`, every row of a list is released — and the container then reads `{ a: null, … }` or `[]`.
+
+### `visibility` decides what an element contributes to its container
+
+`HIDDEN` sends an element as `null` and `SUPPRESS` leaves it out, in the container's `value` and `fullValue` alike,
+and neither counts in the container's validity. Before, `visibility` affected rendering only.
+
+```typescript
+form.fields.notes.visibility = DisplayMode.HIDDEN;
+form.value;      // before: { …, notes: 'draft' }   after: { …, notes: null }
+form.valid;      // an invalid hidden field no longer makes the form invalid
+```
+
+A form that hid a field and disabled it to keep it out of the payload can drop the `enabled` write: `SUPPRESS`
+leaves it out on its own, and `HIDDEN` sends `null`. The element keeps what it holds, so showing it again brings its
+value back, and `bind()` carries it.
+
+Every key of `FieldsToValues<T>` and `FieldsToFullValues<T>` is `| null`, because any member may be hidden, and
+every key of `FieldsToFullValues<T>` is optional, because any member may be suppressed. `fullValue` therefore no
+longer reads through without a check:
+
+```typescript
+form.fullValue.address.city;    // before: string    after: a compile error
+form.fullValue.address?.city;   // string | null | undefined
+```
+
+### A disabled row is left out of a list's value
+
+A `List` applies the rule a `Group` applies to its members, so a disabled row is left out of `list.value`; before,
+every row was sent whatever its `enabled`. A disabled row that is itself a container is kept while it is non-empty,
+and `fullValue` carries every row as before.
+
+```typescript
+list.get(1).enabled = false;
+list.value;       // before: ['a', 'b', 'c']   after: ['a', 'c']
+list.fullValue;   // ['a', 'b', 'c'] either way
+```
+
+### A disabled field takes a write
+
+`field.value = x` on a disabled `Field` or `Action` writes `x`, where it was silently dropped before; `rebind()`
+writes it as well. `enabled` decides what a field serializes and whether a rendering layer accepts input into it,
+not whether a write reaches it. A record assigned to a form therefore reaches every member whatever the form's rules
+have left enabled:
+
+```typescript
+// before: the visibility of the new record's type had to be applied first, or its fields dropped their values
+applyVisibility(record.type);
+form.value = record;
+
+// after: the order no longer matters
+form.value = record;
+```
+
+Search for code that relied on a disabled field refusing a write — a guard that disabled a field to protect it from
+an assignment now needs the assignment itself to be conditional.
+
+### `DisplayMode.INVISIBLE` is gone
+
+`DisplayMode` has three members: `FULL`, `HIDDEN` and `SUPPRESS`. `DisplayMode.INVISIBLE` is a compile error, and
+`DisplayMode.fromAny(8)` and `fromString('invisible')` throw. A rendering layer that kept an element's box with
+`visibility: hidden` for `INVISIBLE` states that through an [extended property](/api/field#extended-properties) of its
+own; for the form's data it was the same as `FULL`.
+
 ### `parent` is a `Container` on every element
 
 `Group` and `List` extend a common base, [`Container`](/api/container), and every element's `parent` is typed

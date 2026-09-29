@@ -21,7 +21,7 @@ import { Validators, ValidationErrorText } from './validators';
 describe('List', () => {
   it('correctly initializes with empty array', () => {
     const list = new List();
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
     expect(list.get(0)).toBeUndefined();
   });
 
@@ -130,7 +130,7 @@ describe('List', () => {
       expect.any(Object), // The removed Group
       0, // Index
     );
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
     expect(popped?.value).toEqual({ name: 'John' });
   });
 
@@ -183,10 +183,10 @@ describe('List', () => {
     // Insert at index 3 in an empty list
     list.insert({ name: 'Test' }, 3);
 
-    // Should create null entries to fill gaps
-    expect(list.get(0)?.value).toBeNull();
-    expect(list.get(1)?.value).toBeNull();
-    expect(list.get(2)?.value).toBeNull();
+    // Should create empty rows to fill gaps
+    expect(list.get(0)?.value).toEqual({});
+    expect(list.get(1)?.value).toEqual({});
+    expect(list.get(2)?.value).toEqual({});
     expect(list.get(3)?.value).toEqual({ name: 'Test' });
 
     // Check length
@@ -227,7 +227,7 @@ describe('List', () => {
 
     list.clear();
 
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
   });
 
   it('binds a list correctly', () => {
@@ -273,7 +273,7 @@ describe('List', () => {
 
     // Set to empty array
     list.value = [];
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
   });
 
   it('creates items using the template', () => {
@@ -304,7 +304,7 @@ describe('List', () => {
     list.get(0)!.fields.a.value = 2;
 
     expect(seen).toEqual([
-      [[{ a: 1 }], null],
+      [[{ a: 1 }], []],
       [[{ a: 2 }], [{ a: 1 }]],
     ]);
   });
@@ -598,7 +598,7 @@ describe('List construction parameters', () => {
   ])('starts empty when the constructor value is %s', (name, params) => {
     const list = new List(new Group({ a: new Field({ value: 'template' }) }), params);
 
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
     expect(list.get(0)).toBeUndefined();
   });
 
@@ -618,7 +618,7 @@ describe('List construction parameters', () => {
       originalValue: [{ a: 'one' }],
     });
 
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
     expect(list.length).toBe(0);
     expect(list.isChanged).toBe(true);
   });
@@ -770,11 +770,11 @@ describe('List binding', () => {
     const copy = list.bind();
 
     expect(copy).not.toBe(list);
-    expect(copy.value).toBeNull();
+    expect(copy.value).toEqual([]);
 
     copy.push({ name: 'John' });
     expect(copy.value).toEqual([{ name: 'John' }]);
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
   });
 
   it('takes the data it binds only from an argument the caller supplied', () => {
@@ -782,7 +782,7 @@ describe('List binding', () => {
 
     expect(list.bind().value).toEqual([{ name: 'John' }]);
     expect(list.bind(undefined).value).toEqual([{ name: 'John' }]);
-    expect(list.bind(null).value).toBeNull();
+    expect(list.bind(null).value).toEqual([]);
     expect(list.bind([{ name: 'Jane' }]).value).toEqual([{ name: 'Jane' }]);
   });
 });
@@ -978,7 +978,7 @@ describe('List whole-value assignment', () => {
 
     list.value = null as unknown as Record<string, any>[];
 
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
     expect(list.get(0)).toBeUndefined();
   });
 });
@@ -1072,7 +1072,7 @@ describe('List membership of the rows it counts', () => {
     const other = new List(new Group({ a: new Field({ value: 'x' }) }));
 
     expect(() => other.push(list.get(0)!)).toThrow(TypeError);
-    expect(other.value).toBeNull();
+    expect(other.value).toEqual([]);
     expect(list.value).toEqual([{ a: 'ok' }]);
   });
 
@@ -1369,7 +1369,7 @@ describe('List value assignment types', () => {
 
     list.value = null;
 
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
     expect(list.length).toBe(0);
   });
 
@@ -1400,7 +1400,7 @@ describe('List.fullValue', () => {
     const list = new List(template);
 
     expect(list.fullValue).toEqual([]);
-    expect(list.value).toBeNull();
+    expect(list.value).toEqual([]);
 
     list.push({ a: 'Ada', b: 'Lovelace' });
     list.get(0)!.fields.b.enabled = false;
@@ -1542,7 +1542,7 @@ describe('List of fields', () => {
     group.value = { tags: ['t1', 't2'] };
     expect(group.value).toEqual({ tags: ['t1', 't2'], name: 'n' });
     group.value = null;
-    expect(group.fields.tags.value).toBeNull();
+    expect(group.fields.tags.value).toEqual([]);
   });
 
   it('nests a list of lists', () => {
@@ -1583,11 +1583,11 @@ describe('List without an item template', () => {
     const records = new List();
     records.insert({ a: 1 }, 1);
     expect(records.get(0)).toBeInstanceOf(Group);
-    expect(records.get(0)!.value).toBeNull();
+    expect(records.get(0)!.value).toEqual({});
 
     const lists = new List<List<Field<number>>>();
     lists.insert([1], 1);
     expect(lists.get(0)).toBeInstanceOf(List);
-    expect(lists.get(0)!.value).toBeNull();
+    expect(lists.get(0)!.value).toEqual([]);
   });
 });

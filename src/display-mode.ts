@@ -1,12 +1,16 @@
 /**
- * DisplayMode enum provides an enumeration for supported ways of rendering a particular object in the DOM
+ * How a form element takes part in its form: whether it is shown, and what it contributes to the value and to the
+ * validity of the container holding it.
  */
 enum DisplayMode {
-  // This enum is actually declared in dynamicforms.mixins.field_render.py
-  SUPPRESS = 1, // Field will be entirely suppressed. it will not render (not even to JSON) and will not parse for PUT
-  HIDDEN = 5, // Field will render as <input type="hidden"> or <tr data-field_name>
-  INVISIBLE = 8, // Field will render completely, but with display: none. Equal to setting its style = {display: none}
-  FULL = 10, // Field will render completely
+  /** Not part of the form: not rendered, left out of its container's value and fullValue, and not counted in its
+   * container's validity. */
+  SUPPRESS = 1,
+  /** Part of the form but not shown (`display: none`): its container's value and fullValue carry `null` in its
+   * place, and its validity is not counted. The element keeps what it holds, so showing it again brings it back. */
+  HIDDEN = 5,
+  /** Shown and serialized: its container carries its value, subject to `enabled`, and counts its validity. */
+  FULL = 10,
 }
 
 /** What a form element's visibility is when nothing sets it. It is a starting value, never a fallback for input. */
@@ -41,7 +45,6 @@ namespace DisplayMode {
     const name = typeof mode === 'string' ? mode.toUpperCase() : '';
     if (name === 'SUPPRESS') return DisplayMode.SUPPRESS;
     if (name === 'HIDDEN') return DisplayMode.HIDDEN;
-    if (name === 'INVISIBLE') return DisplayMode.INVISIBLE;
     if (name === 'FULL') return DisplayMode.FULL;
     throw notADisplayMode(mode);
   }

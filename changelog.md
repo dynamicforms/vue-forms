@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and reads back `['abc']`.
 
 ### Changed
+- **Breaking:** an enabled container is never `null`. A `Group` none of whose members serializes reads `{}` and a
+  `List` without rows reads `[]`; `GroupValue<T>` and `ListValue<R>` no longer include `null`.
+- **Breaking:** `visibility` decides what an element contributes to its container. A `HIDDEN` member or row is sent
+  as `null` and a `SUPPRESS` one is left out, in `value` and `fullValue` alike, and neither counts in the
+  container's validity. The element keeps what it holds, and `bind()` carries it. Every key of `FieldsToValues<T>`
+  and `FieldsToFullValues<T>` is nullable, and every key of `FieldsToFullValues<T>` optional.
+- **Breaking:** a disabled row is left out of a `List`'s `value`, by the rule a `Group` applies to its members; a
+  disabled row that is a container is kept while it is non-empty. The rule for both is stated once, in the protected
+  `FieldBase.serializesAs(purpose)`, which a subclass of an element may override.
+- **Breaking:** a disabled `Field` or `Action` takes a write to `value`; `enabled` decides serialization and input,
+  not whether a write reaches the element. A record assigned to a form reaches every member whatever is enabled.
+- **Breaking:** `DisplayMode.INVISIBLE` is removed; `DisplayMode` is `FULL`, `HIDDEN` and `SUPPRESS`.
 - **Breaking:** `parent` is typed `Container | undefined` on every element. `Field` and `Action` no longer narrow it
   to `Group | undefined`, so `field.parent?.fields.other` needs `instanceof Group` or a cast first.
 - **Breaking:** `List`'s type argument is the row rather than the row's fields: `List<Group<Fields>>` where it was

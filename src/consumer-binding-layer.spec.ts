@@ -117,7 +117,7 @@ describe('a value bound through a computed', () => {
   });
 
   // A disabled field's setter reaches no slot at all, so neither read has anything to re-run for.
-  it('drops a write to a disabled field and re-runs neither read', async () => {
+  it('writes through to a disabled field and re-runs both reads', async () => {
     const field = new Field({ value: 'a', enabled: false });
     const bound = bindValue(field);
     const direct = track(() => field.value);
@@ -125,11 +125,11 @@ describe('a value bound through a computed', () => {
 
     bound.value = 'b';
 
-    expect(field.value).toBe('a');
+    expect(field.value).toBe('b');
 
     await nextTick();
-    expect(direct).toEqual(['a']);
-    expect(runs).toEqual(['a']);
+    expect(direct).toEqual(['a', 'b']);
+    expect(runs).toEqual(['a', 'b']);
   });
 
   // A handler that throws unwinds the whole write and the throw reaches the caller: the slot is written and put

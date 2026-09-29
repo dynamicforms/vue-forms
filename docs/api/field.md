@@ -24,8 +24,8 @@ const age  = new Field<number>({ value: 30 });
 |-----------|------|---------|-------------|
 | `params.value` | `T` | `undefined` | Initial value. Leaving it out, or passing `undefined`, falls back to `originalValue`; an explicit `null` is kept as the value |
 | `params.originalValue` | `T` | same as `value` | Baseline for `isChanged`, and the initial value when no `value` is given |
-| `params.enabled` | `boolean` | `true` | Whether the field accepts input and serializes |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
+| `params.enabled` | `boolean` | `true` | Whether the field is sent and accepts input; it takes a write either way. See [Handling null and empty values](/guide/null-and-empty). |
+| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the field is shown, and what it contributes to its container. See [Handling null and empty values](/guide/null-and-empty). |
 | `params.touched` | `boolean` | `false` | Initial interaction flag |
 | `params.errors` | `ValidationError[]` | `[]` | Initial validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | Validator actions; each runs once over the constructed value |
@@ -214,12 +214,12 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `T` | yes | Current value. The setter is a no-op on a disabled field, and what a write settles on is [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
+| `value` | `T` | yes | Current value. A disabled field takes a write like an enabled one, and what a write settles on is [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
-| `enabled` | `boolean` | yes | When `false`, the field ignores value changes and is excluded from `Group.value`. Writing what the element already holds is not a change: no `EnabledChangingAction` runs, nothing is enrolled in an open transaction, and no `EnabledChangedAction` fires |
+| `enabled` | `boolean` | yes | When `false`, the field is excluded from its container's `value` and a rendering layer does not accept input into it; it still takes a write to `value`, so a record loaded into the form reaches it. Writing what the element already holds is not a change: no `EnabledChangingAction` runs, nothing is enrolled in an open transaction, and no `EnabledChangedAction` fires. See [Handling null and empty values](/guide/null-and-empty). |
 | `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Rendering visibility hint — does not affect serialization. Writing the mode the element already holds is not a change, the same way it is not for `enabled`. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive |
+| `visibility` | `DisplayMode` | yes | Whether the element is shown, and what it contributes to its container: a `HIDDEN` element is sent as `null` and a `SUPPRESS` one is left out, and neither counts in the container's validity — see [What a container serializes](/api/container#what-a-container-serializes). The element keeps what it holds either way. Writing the mode the element already holds is not a change, the same way it is not for `enabled`. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive. See [Handling null and empty values](/guide/null-and-empty). |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
@@ -236,8 +236,7 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 
 A write to `value` states what the caller wants the field to hold; what the field ends up holding is settled by
 what is registered on it. A `ValueChangedAction` may write another value back — a rule that trims, rounds or caps —
-a disabled field drops the write before it reaches the value slot, and a handler that throws unwinds the whole
-write and rethrows, leaving the field holding what it held before. The write is observed rather than gated: there
+and a handler that throws unwinds the whole write and rethrows, leaving the field holding what it held before. The write is observed rather than gated: there
 is no `ValueChangingAction`, so nothing stands between a value and the slot the way an `EnabledChangingAction` or a
 `VisibilityChangingAction` stands in front of those two members. Inside an open `transaction()` the handlers run at
 the commit, so what the field settles on is settled once the outermost `transaction()` call returns.
@@ -257,8 +256,8 @@ Where the field ends up holding something other than what was written, every rea
 `field.value` answers the new value, an effect that reads it re-runs, and a control rendering from either repaints
 on its own.
 
-Where the field ends up holding the value it started with, nothing moves. A disabled field's setter reaches no slot
-at all; a rule that puts back the five characters a six-character write exceeded, and a handler that throws, both
+Where the field ends up holding the value it started with, nothing moves. A write of the value the field already
+holds reaches no slot at all; a rule that puts back the five characters a six-character write exceeded, and a handler that throws, both
 leave the slot holding what it held before. Either way a `computed` over `field.value` answers what it answered
 last, so nothing rendering through one re-runs; an effect reading the field directly re-runs where the slot was
 written and put back, and reads the same value both times.
@@ -317,7 +316,7 @@ The read is tracked like every other read through an element, so switching a gro
 member below it without anything walking the tree.
 
 `effectiveEnabled` is the only member with a reading of this kind, and it is not a scheme the others follow.
-`visibility` has none: `SUPPRESS` states that an element is absent from the value as well, so folding it down the
+`visibility` has none: it decides what an element contributes to its container's value, so folding it down the
 tree would decide serialization rather than report it. `value` has none: a container composes its own from its
 members rather than passing one down. Anything else a rendering layer needs folded down its own tree is what
 `provide` and `inject` are for — a section is a component wrapping its members, and the render tree's context

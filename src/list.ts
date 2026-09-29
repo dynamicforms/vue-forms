@@ -1,4 +1,4 @@
-import { isEmpty, isPlainObject } from 'lodash-es';
+import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
@@ -9,8 +9,18 @@ import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
-/** what a List of R reads back: the value of each row, or null when the list is empty */
-export type ListValue<R extends FieldBase = Group> = R['value'][] | null;
+/**
+ * What a List of R reads back: the value of each row, `null` for a row that is hidden, and `[]` while the list holds
+ * none
+ */
+export type ListValue<R extends FieldBase = Group> = (R['value'] | null)[];
+/** what List.value and the List constructor accept: an array of rows, or null, which empties the list */
+export type ListValueInput<R extends FieldBase = Group> = ListValue<R> | null;
+/** what List.fullValue reads back: the full value of each row, `null` for a row that is hidden */
+export type ListFullValue<R extends FieldBase = Group> = (R['fullValue'] | null)[];
+
+/** the value a list without rows reads back; it is frozen like every value a list builds */
+const emptyListValue: readonly any[] = Object.freeze([]);
 
 export class List<R extends FieldBase = Group, X extends object = Extras> extends Container<ListValue<R>, X> {
   get [Symbol.toStringTag](): string {
@@ -27,9 +37,9 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
   private _itemTemplate?: R;
 
-  constructor(itemTemplate?: undefined, params?: IFieldParams<ListValue<R>, X>);
-  constructor(itemTemplate: R, params?: IFieldParams<ListValue<R>, X>);
-  constructor(itemTemplate?: R, params?: IFieldParams<ListValue<R>, X>) {
+  constructor(itemTemplate?: undefined, params?: IFieldParams<ListValueInput<R>, X>);
+  constructor(itemTemplate: R, params?: IFieldParams<ListValueInput<R>, X>);
+  constructor(itemTemplate?: R, params?: IFieldParams<ListValueInput<R>, X>) {
     super(listSlots<R>());
 
     this._itemTemplate = itemTemplate;
@@ -178,17 +188,29 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     const version = this.valueVersion;
     if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
 
-    const value = this.state.rows?.map((item) => item.value);
+    const value: unknown[] = [];
+    (this.state.rows ?? []).forEach((row) => {
+      switch (this.childSerializesAs(row, 'value')) {
+        case 'value':
+          value.push(row.value);
+          break;
+        case 'null':
+          value.push(null);
+          break;
+        case 'omit':
+          break;
+      }
+    });
     // the array outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen, as is every row object in it; a caller writing into either would change what the list reports
-    // without any row holding that value
-    const built = isEmpty(value) ? null : (Object.freeze(value) as R['value'][]);
+    // without any row holding that value. A list without rows reads [].
+    const built = (value.length ? Object.freeze(value) : emptyListValue) as ListValue<R>;
     this.raw.cachedValue = built;
     this.raw.cachedValueVersion = version;
     return built;
   }
 
-  set value(newValue: ListValue<R>) {
+  set value(newValue: ListValueInput<R>) {
     transactional(() => {
       this.setValueInternal(newValue);
       // an assignment is a statement about the whole list, and it is announced as one without being compared away
@@ -204,7 +226,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     transactional((tx) => {
       tx.touch(this);
       if (this.errors.length) this.errors = [];
-      this.setValueInternal(value === undefined ? (source as List<R>).value : value);
+      this.setValueInternal(value === undefined ? (source as List<R>).heldRows : value);
       const built = this.value;
       // a list brought to the state a fresh one would be in makes no statement of its own: the container that
       // reset it announces the whole of it
@@ -214,17 +236,18 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     });
   }
 
-  bind(data?: ListValue<R>, overrides?: IBindParams<ListValue<R>, X>): List<R, X> {
+  bind(data?: ListValueInput<R>, overrides?: IBindParams<ListValueInput<R>, X>): List<R, X> {
     const template = this._itemTemplate?.bind() as R | undefined;
     // construction goes through this.constructor so that a subclass binds into its own type
-    const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValue<R>, X>) => List<R, X>;
+    const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValueInput<R>, X>) => List<R, X>;
     const res = new Ctor(template, {
       // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
-      value: [...((data !== undefined ? data : this.value) ?? [])],
+      // what the list holds is carried rather than what it serializes, so a hidden or suppressed row keeps its data
+      value: [...((data !== undefined ? data : this.heldRows) ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
-    } as IFieldParams<ListValue<R>, X>);
+    } as IFieldParams<ListValueInput<R>, X>);
     // a subclass whose constructor does not take (itemTemplate, params) never sees either, so it would answer
     // with a list built from its own declaration rather than from this record. That is a difference no reader
     // would find, so it is refused here rather than returned.
@@ -248,18 +271,36 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   /**
+   * The full value of every row. Where `value` states what the list sends, this states what the list holds: a
+   * disabled row is in it, and a group row carries its disabled fields too. Visibility applies as it does to
+   * `value`: a suppressed row is left out and a hidden one reads `null`.
+   */
+  get fullValue(): ListFullValue<R> {
+    const value: ListFullValue<R> = [];
+    (this.state.rows ?? []).forEach((row) => {
+      switch (this.childSerializesAs(row, 'fullValue')) {
+        case 'value':
+          value.push(row.fullValue);
+          break;
+        case 'null':
+          value.push(null);
+          break;
+        case 'omit':
+          break;
+      }
+    });
+    return value;
+  }
+
+  /** The value of every row the list holds, whatever the row's visibility: what a binding or a reset carries. */
+  private get heldRows(): R['value'][] {
+    return (this.raw.rows ?? []).map((row) => row.value);
+  }
+
+  /**
    * How many rows this list holds. The read is tracked, so a template rendering off it re-renders as rows come and
    * go.
    */
-  /**
-   * Every row of this list, each one built from all of its fields. Where `value` states what the list serializes -
-   * rows composed of the fields that are enabled, and null where the list is empty - this states what the list
-   * holds: the disabled fields are in it too, and an empty list reads back as an empty array rather than as null.
-   */
-  get fullValue(): R['fullValue'][] {
-    return (this.state.rows ?? []).map((row) => row.fullValue);
-  }
-
   get length(): number {
     return this.state.rows?.length ?? 0;
   }

@@ -84,7 +84,7 @@ describe('Group', () => {
 
     sub.fields.a.enabled = false;
 
-    expect(group.value).toBeNull();
+    expect(group.value).toEqual({});
   });
 
   it('keeps a disabled list while its rows compose something, and leaves an empty one out', () => {
@@ -716,7 +716,7 @@ describe('Group value = null', () => {
 
     group.value = null;
 
-    expect(group.value).toEqual({ f: null, l: null });
+    expect(group.value).toEqual({ f: null, l: [] });
   });
 
   it('clears a nested List through a binding that supplies null', () => {
@@ -726,7 +726,7 @@ describe('Group value = null', () => {
       l: new List(template, { value: [{ a: '1' }] }),
     });
 
-    expect(group.bind(null).value).toEqual({ f: null, l: null });
+    expect(group.bind(null).value).toEqual({ f: null, l: [] });
   });
 });
 

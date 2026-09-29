@@ -575,9 +575,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * construction rather than a change of it: the element announces no ValueChangedAction, and what the hook
    * leaves is what its eager actions and its validators run over, once. An element whose parameters named no
    * `originalValue` is baselined on the value the hook left and so starts unchanged; one that named a baseline is
-   * measured against it, as any element is. A `Field` writes
-   * `_value`, which reaches the slot on an element built `enabled: false` as well - the value setter, which a
-   * disabled field refuses, states a change, and this is not one.
+   * measured against it, as any element is. A `Field` writes `_value`: the value setter states a change, and
+   * this is not one.
    *
    * A container completes itself through its members, and a member carries a construction of its own: the write
    * reaches it as any later one would, so the member announces it and reports itself changed. A member that is to
@@ -627,7 +626,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected adoptChild(child: FieldBase): void {
     transactional((tx) => {
       tx.touch(this);
-      if (!child.#raw.valid) this.#raw.invalidChildren++;
+      if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren++;
       // a run in flight below the child now runs below this element too. The validation counters are outside the
       // snapshot, so the transfer hands the rollback an undo of its own, and that undo reads the child at rollback
       // time: a run that starts below the child while the transaction holds it is one this element counts too, and
@@ -650,7 +649,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     transactional((tx) => {
       tx.touch(this);
       tx.touch(child);
-      if (!child.#raw.valid) this.#raw.invalidChildren--;
+      if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren--;
       // the undo reads the child at rollback time for the same reason adoptChild's does: what this element carries
       // again is the runs the child has in flight when it comes back, not the ones it had when it left
       if (child.validating) this.childValidatingChanged(false);
@@ -678,7 +677,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       const dropped = this.errors.length > 0;
       if (dropped) this.errors = [];
       this.touched = false;
-      const assigned = this.enabled && this.value !== target;
+      const assigned = this.value !== target;
       this.value = target;
       this.originalValue = this.value;
       // an assignment that went through ran the validators over the new value. Where it was a no-op they run here
@@ -718,9 +717,57 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
         throw new Error('visibility must be a DisplayMode constant');
       }
       tx.touch(this);
+      const counted = this.countsInContainer;
       this.#state.visibility = DisplayMode.fromAny(alteredValue ?? newValue);
+      // every mode contributes differently to the container's fullValue, so a change of mode is always one of what
+      // the container holds
+      this.contributionChanged(tx, counted);
       this.boundActions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
     });
+  }
+
+  /**
+   * What this element contributes to its container's `value` or `fullValue`: its own value, `null` in its place, or
+   * nothing. It is the one place the rule is stated - every container composes its values by asking it, and the
+   * container's validity counts the elements whose own value is part of what the container holds.
+   *
+   * A suppressed element is not part of the form. `enabled` decides whether an element is sent, so it applies to
+   * `value` and not to `fullValue`, which states what the form holds; a disabled container is still sent while
+   * what its own children compose is not empty. A hidden element is sent as `null`.
+   */
+  protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
+    const visibility = this.visibility;
+    if (visibility === DisplayMode.SUPPRESS) return 'omit';
+    if (purpose === 'value' && !this.enabled && !(this.composesValue && !isEmpty(this.value))) return 'omit';
+    return visibility === DisplayMode.HIDDEN ? 'null' : 'value';
+  }
+
+  /** What `child` contributes to this container, asked the way `childComposesValue` asks what it is. */
+  protected childSerializesAs(child: FieldBase, purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
+    return child.serializesAs(purpose);
+  }
+
+  /** Whether the container holding this element counts its verdict: only an element whose own value it holds. */
+  private get countsInContainer(): boolean {
+    return this.serializesAs('fullValue') === 'value';
+  }
+
+  /**
+   * Carries a change of what this element contributes to its container: the container's value is built again, and
+   * an element that is invalid enters or leaves the container's tally as it starts or stops being counted.
+   */
+  private contributionChanged(tx: Transaction, wasCounted: boolean): void {
+    this.bumpValueVersion();
+    const holder = this.container;
+    if (!holder) return;
+    const counted = this.countsInContainer;
+    if (counted !== wasCounted && !this.#raw.valid) {
+      tx.touch(holder);
+      // an invalid element that stops being counted is, to the tally, one that turned valid, and the other way round
+      holder.childValidityChanged(!counted);
+      tx.markValidityDirty(holder);
+    }
+    this.parent!.notifyValueChanged();
   }
 
   get enabled(): boolean {
@@ -826,7 +873,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     // the verdict goes to the container that holds this element, and a container that released it holds it no
     // longer: the link is gone with the release, so a dropped row moves no tally
     const holder = this.container;
-    if (holder) {
+    // an element that is hidden or suppressed is kept out of its container's tally, so a verdict it reaches there
+    // moves nothing above it
+    if (holder && this.countsInContainer) {
       tx.touch(holder);
       holder.childValidityChanged(newValid);
       tx.markValidityDirty(holder);

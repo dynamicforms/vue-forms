@@ -51,10 +51,10 @@ describe('The payload a form reads back', () => {
     expect(form.fullValue).toEqual(record);
   });
 
-  it('states an empty list as null, where fullValue states it as an array', () => {
+  it('states an empty list as an array in value and in fullValue alike', () => {
     const form = orderForm();
 
-    expect(form.value).toEqual({ reference: '', address: { city: '', zip: '' }, lines: null });
+    expect(form.value).toEqual({ reference: '', address: { city: '', zip: '' }, lines: [] });
     expect(form.fullValue).toEqual({ reference: '', address: { city: '', zip: '' }, lines: [] });
   });
 
@@ -90,16 +90,16 @@ describe('The payload a form is written from', () => {
     expect(form.value).toEqual({ ...record, reference: 'ORD-2' });
   });
 
-  it('leaves a disabled member holding what it holds', () => {
+  it('writes a disabled member, and leaves it out of the payload', () => {
     const form = orderForm();
     form.value = record;
     form.fields.address.fields.zip.enabled = false;
 
     form.value = { address: { city: 'Maribor', zip: '2000' } };
 
-    expect(form.fields.address.fields.zip.value).toBe('1000');
+    expect(form.fields.address.fields.zip.value).toBe('2000');
     expect(form.value).toEqual({ ...record, address: { city: 'Maribor' } });
-    expect(form.fullValue).toEqual({ ...record, address: { city: 'Maribor', zip: '1000' } });
+    expect(form.fullValue).toEqual({ ...record, address: { city: 'Maribor', zip: '2000' } });
   });
 
   it('refuses a record whose rows are not an array, and leaves the form as it was', () => {
@@ -135,20 +135,27 @@ describe('The visibility a payload names', () => {
  * an expression that in fact type-checks.
  */
 describe('The types a serializer is written against', () => {
-  it('reads a member off value as possibly absent, and off fullValue as present', () => {
+  it('reads a member off value and fullValue as possibly absent or null', () => {
     const form = orderForm();
     const send = (reference: string) => reference;
 
-    expectTypeOf(form.value!.reference).toEqualTypeOf<string | undefined>();
-    expectTypeOf(form.value!.address).toEqualTypeOf<{ city?: string; zip?: string } | null | undefined>();
-    expectTypeOf(form.fullValue.reference).toEqualTypeOf<string>();
-    expectTypeOf(form.fullValue.address.city).toEqualTypeOf<string>();
-    expectTypeOf(form.fullValue.lines).toEqualTypeOf<{ sku: string; qty: number }[]>();
+    // the form itself is never null: an enabled group serializes, as {} where no member contributes
+    expectTypeOf(form.value.reference).toEqualTypeOf<string | null | undefined>();
+    expectTypeOf(form.value.address).toEqualTypeOf<{ city?: string | null; zip?: string | null } | null | undefined>();
+    expectTypeOf(form.fullValue.reference).toEqualTypeOf<string | null | undefined>();
+    expectTypeOf(form.fullValue.address).toEqualTypeOf<
+      { city?: string | null; zip?: string | null } | null | undefined
+    >();
+    expectTypeOf(form.fullValue.lines).toEqualTypeOf<
+      ({ sku?: string | null; qty?: number | null } | null)[] | null | undefined
+    >();
 
-    // never evaluated: the assertion is that a serializer handing a member on has to account for its absence
+    // never evaluated: the assertion is that a serializer handing a member on has to account for a member that is
+    // left out (disabled or suppressed) and for one that is hidden
     const rejected = () => [
-      // @ts-expect-error a disabled member is left out of value, so every key of it reads as possibly undefined
-      send(form.value!.reference),
+      // @ts-expect-error a member may be left out of value or be null there
+      send(form.value.reference),
+      // @ts-expect-error visibility applies to fullValue as it does to value
       send(form.fullValue.reference),
     ];
     expect(rejected).toBeInstanceOf(Function);
