@@ -17,13 +17,13 @@ describe('Field', () => {
     expect(onValueChanged).toHaveBeenCalledWith(field, expect.any(Function), 'test', undefined);
   });
 
-  it('does not trigger onValueChanged, when the field is read only', () => {
+  it('triggers onValueChanged for a write to a disabled field', () => {
     const onValueChanged = vi.fn();
     const field = new Form.Field({ enabled: false }).registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
 
-    expect(onValueChanged).not.toHaveBeenCalled();
+    expect(onValueChanged).toHaveBeenCalledTimes(1);
   });
 
   it('sets originalValue', () => {

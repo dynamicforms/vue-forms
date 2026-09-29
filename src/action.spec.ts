@@ -44,15 +44,15 @@ describe('Action', () => {
     expect(Object.isFrozen(withAction.value)).toBe(false);
   });
 
-  it('prevents changes when disabled', () => {
+  it('takes a write while disabled', () => {
     const action = new Action({
       value: { label: 'Action', icon: 'plus' },
       enabled: false,
     });
 
     action.value = { label: 'New', icon: 'minus' };
-    expect(action.label).toBe('Action');
-    expect(action.icon).toBe('plus');
+    expect(action.label).toBe('New');
+    expect(action.icon).toBe('minus');
   });
 
   it('keeps reading a value object the caller goes on to write', () => {
@@ -131,12 +131,12 @@ describe('Action', () => {
     expect(action.isChanged).toBe(false);
   });
 
-  it('refuses a label written on a disabled action', () => {
+  it('takes a label written on a disabled action', () => {
     const action = new Action({ value: { label: 'Save' }, enabled: false });
 
-    action.label = 'Submit';
+    action.label = 'Saving';
 
-    expect(action.label).toBe('Save');
+    expect(action.label).toBe('Saving');
   });
 
   it('should execute action with ExecuteAction', async () => {

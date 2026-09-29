@@ -39,7 +39,8 @@ mechanism applies at every level of a nested form.
 - **Conditional logic**: visibility, enablement and values declared as statements over other fields
 - **Extended properties**: a field carries whatever your UI renders it with — a label, a hint, a width — declared
   as a second type argument, checked by the compiler and read through `extra`
-- **Display modes**: control field visibility with different display modes (Full, Hidden, Invisible, Suppress)
+- **Display modes**: `FULL`, `HIDDEN` and `SUPPRESS` decide whether an element is shown and what it contributes to
+  the value its form sends — its own value, `null`, or nothing
 - **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds
 
 ## Installation
@@ -409,11 +410,11 @@ const email: string = userForm.fields.email.value;
 const age: number = userForm.fields.age.value;
 const darkMode: boolean = userForm.fields.preferences.fields.darkMode.value;
 
-// The serialized value is typed too, member by member. Every member is optional, because a disabled field is
-// left out of the object the group builds
-const values = userForm.value!;
-const emailFromValue: string | undefined = values.email;
-const prefs: { darkMode?: boolean; notifications?: boolean } | null | undefined = values.preferences;
+// The serialized value is typed too, member by member. Every member is optional, because a disabled or
+// suppressed member is left out of the object the group builds, and nullable, because a hidden one is sent as null
+const values = userForm.value;
+const emailFromValue: string | null | undefined = values.email;
+const prefs: { darkMode?: boolean | null; notifications?: boolean | null } | null | undefined = values.preferences;
 
 // Type safety prevents errors
 // userForm.fields.age.value = 'not a number'; // Error: Type 'string' is not assignable to type 'number'

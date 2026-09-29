@@ -381,7 +381,9 @@ describe('Validity events across nesting levels', () => {
 
   it('says nothing on the root whose own validator takes over the invalidity a list assignment sheds', () => {
     const list = new List(new Group({ a: new Field() }), {
-      validators: [new Validator((value: any) => (value == null ? [new ValidationErrorText('list is empty')] : null))],
+      validators: [
+        new Validator((value: any) => (value.length === 0 ? [new ValidationErrorText('list is empty')] : null)),
+      ],
     });
     const root = new Group(
       { list },
@@ -473,7 +475,7 @@ describe('Validity events that reach a parent whose own value did not change', (
   it('carries a disabled list item change up to the root', () => {
     const list = new List(new Group({ a: new Field() }), {
       enabled: false,
-      validators: [new Validator((value: any) => (value == null ? [new ValidationErrorText('empty')] : null))],
+      validators: [new Validator((value: any) => (value.length === 0 ? [new ValidationErrorText('empty')] : null))],
     });
     const root = new Group({ list, c: new Field({ value: 'y' }) });
     const seenList = watch(list);
@@ -491,7 +493,7 @@ describe('Validity events that reach a parent whose own value did not change', (
   it('carries a disabled list assignment up to the root', () => {
     const list = new List(new Group({ a: new Field() }), {
       enabled: false,
-      validators: [new Validator((value: any) => (value == null ? [new ValidationErrorText('empty')] : null))],
+      validators: [new Validator((value: any) => (value.length === 0 ? [new ValidationErrorText('empty')] : null))],
     });
     const root = new Group({ list, c: new Field({ value: 'y' }) });
     const seenList = watch(list);

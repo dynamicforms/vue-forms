@@ -49,7 +49,7 @@ Without a template every row is built from its own item: a plain object becomes 
 
 ## `new List(itemTemplate?, params?)`
 
-`params` is an `IFieldParams<ListValue<R>, X>` — the same parameter type every form element takes, with the list's
+`params` is an `IFieldParams<ListValueInput<R>, X>` — the same parameter type every form element takes, with the list's
 value shape substituted. A list takes [extended properties](/api/field#extended-properties) like every other
 element: augment [`Extras`](/api/field#extras) once and every list carries them, or declare them as the second
 type argument for one list, `new List<Group<Fields>, Presentation>(template, { label: … })`. Either way they read back
@@ -61,10 +61,10 @@ of that meaning something else.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
-| `params.value` | `ListValue<R>` (`R['value'][] \| null`) | `null` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
-| `params.originalValue` | `ListValue<R>` | same as `value` (`null` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
+| `params.value` | `ListValueInput<R>` (`ListValue<R> \| null`) | `[]` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
+| `params.originalValue` | `ListValueInput<R>` | same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
 | `params.enabled` | `boolean` | `true` | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
+| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes) |
 | `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
 | `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
@@ -79,22 +79,23 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `ListValue<R>` | yes | Array of row values — every row is included regardless of its own `enabled` flag, and each row contributes what its own `value` reads back: a `Group` row follows the `Group` serialization rule. Reads back `null` when the list has no items. Getter and setter share the type, so `list.value = null` — the write `group.value = null` makes into a nested list — type-checks, and it releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows standing: the setter is typed, so that write reaches it from JavaScript or through an `as any` |
+| `value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Array of row values — every row is included regardless of its own `enabled` flag, and each row contributes what its own `value` reads back: a `Group` row follows the `Group` serialization rule. A `HIDDEN` row is sent as `null` and a `SUPPRESS` row is left out. Reads back `[]` when the list has no rows; the list itself is never `null`. The setter takes `null` as well — the write `group.value = null` makes into a nested list — and it releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows standing: the setter is typed, so that write reaches it from JavaScript or through an `as any` |
 | `originalValue` | `ListValue<R>` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
-| `valid` | `boolean` | no | `true` when the list itself and all items are valid |
+| `valid` | `boolean` | no | `true` when the list itself and every row it counts are valid; a `HIDDEN` or `SUPPRESS` row is not counted |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the list itself or in any row. The list keeps a tally of the rows that answer `true`, so the read costs nothing however many rows it holds |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` in a row has yet to settle. A validation running in a row is answered by `validating`, not by this, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
 | `enabled` | `boolean` | yes | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is |
 | `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Rendering visibility hint |
+| `visibility` | `DisplayMode` | yes | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes) |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
 | `length` | `number` | no | The number of rows the list holds. Nothing is built to count them |
 | `items` | `readonly R[]` | no | The rows themselves — see [The rows](#the-rows) |
-| `fullValue` | `R['fullValue'][]` | no | The `fullValue` of every row. Where `value` states what the list serializes — `Group` rows composed of their enabled fields, and `null` where the list is empty — this states what the list holds: the disabled fields of a `Group` row are in it too, and an empty list reads back as `[]` |
+| `fullValue` | `ListFullValue<R>` | no | The `fullValue` of every row. Where `value` states what the list serializes — `Group` rows composed of their enabled fields — this states what the list holds: the disabled fields of a `Group` row are in it too. Visibility applies as it does to `value`: a `HIDDEN` row reads `null` and a `SUPPRESS` row is left out |
 
-`ListValue` is exported as `ListValue<R extends FieldBase = Group> = R['value'][] | null`.
+`ListValue<R>` is exported as `(R['value'] | null)[]`, `ListValueInput<R>` as `ListValue<R> | null` and
+`ListFullValue<R>` as `(R['fullValue'] | null)[]`, each with `R` defaulting to `Group`.
 
 Every mutation — `push()`, `insert()`, `remove()`, `pop()`, `clear()` and assigning `value` — is tracked by Vue, so
 a `v-for` over `list.items` or `list.value` re-renders on its own without any additional wiring.
@@ -216,9 +217,10 @@ re-forms the verdict. The mutation methods call it themselves; you rarely need t
 ### `bind(data?, overrides?): List<R>`
 
 Returns a new `List` over `data`, carrying a binding of the item template, the actions and the extended
-properties. `overrides` is an [`IBindParams<ListValue<R>, X>`](/api/field#ibindparams-t-x): `originalValue`,
+properties. `overrides` is an [`IBindParams<ListValueInput<R>, X>`](/api/field#ibindparams-t-x): `originalValue`,
 `enabled`, `visibility` and the extended properties, which are written over the ones carried from the source.
-Binding an empty list gives an empty list.
+Binding an empty list gives an empty list. Without `data`, the new list carries every row this one holds, a
+`HIDDEN` or `SUPPRESS` row included, rather than what it serializes.
 
 The new list is constructed through `this.constructor`, so a subclass of `List` binds into its own class. A
 subclass whose constructor does not take `(itemTemplate, params)` never sees the template it is handed and would

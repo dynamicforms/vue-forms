@@ -91,15 +91,15 @@ describe('rebind()', () => {
     expect(field.extra).toEqual({ label: 'Name' });
   });
 
-  it('leaves a disabled element holding what it holds, and baselines that', () => {
+  it('rebinds a disabled element like any other', () => {
     const field = new Field({ value: 'a' });
     field.value = 'b';
     field.enabled = false;
 
     field.rebind('c');
 
-    expect(field.value).toBe('b');
-    expect(field.originalValue).toBe('b');
+    expect(field.value).toBe('c');
+    expect(field.originalValue).toBe('c');
     expect(field.isChanged).toBe(false);
   });
 

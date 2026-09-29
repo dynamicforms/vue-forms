@@ -1,6 +1,7 @@
 import { isEmpty } from 'lodash-es';
 
 import { Container } from './container';
+import { contributionOf } from './display-mode';
 import { type GroupSlots, groupSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
@@ -8,30 +9,35 @@ import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
-// Utility type converting a field structure into the matching value structure.
-// The indexed access reads each field's value getter, so a nested Group contributes its own value structure and
-// a List contributes its row array. Inferring from FieldBase<infer U> instead would pick up the value setter,
-// which is deliberately wider than the getter on Group.
+/**
+ * Converts a field structure into the matching value structure. The indexed access reads each field's value
+ * getter, so a nested Group contributes its own value structure and a List contributes its row array; inferring
+ * from FieldBase<infer U> instead would pick up the value setter, which is deliberately wider than the getter on
+ * Group. Every member may be `null`, because a member that is hidden contributes `null` in place of its value.
+ */
 export type FieldsToValues<T extends GenericFieldsInterface> = {
-  [K in keyof T]: T[K]['value'];
+  [K in keyof T]: T[K]['value'] | null;
 };
 
 /**
  * What Group.fullValue reads back. The indexed access reads each field's fullValue getter, so a nested group
- * contributes its own full structure rather than the partial one its `value` builds, and the recursion carries
- * the guarantee all the way down: every key is present and none of them is null.
+ * contributes its own full structure rather than the partial one its `value` builds. A member that is suppressed
+ * is left out and one that is hidden reads `null`, so every key is optional and may be `null`.
  */
 export type FieldsToFullValues<T extends GenericFieldsInterface> = {
-  [K in keyof T]: T[K]['fullValue'];
+  [K in keyof T]?: T[K]['fullValue'] | null;
 };
 
 /**
- * What Group.value reads back: the values of the fields that serialize, or null when none does. Every key is
- * optional, because a field that is disabled is left out of the object the group builds.
+ * What Group.value reads back: the values of the members that serialize, and `{}` where none does. Every key is
+ * optional, because a member that is disabled or suppressed is left out of the object the group builds.
  */
-export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
-/** what Group.value and the Group constructor accept: keys left out are simply not assigned */
+export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>>;
+/** what Group.value and the Group constructor accept: keys left out are simply not assigned, and null clears */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
+
+/** the value a group none of whose members serializes reads back; it is frozen like every value a group builds */
+const emptyGroupValue = Object.freeze({});
 
 /**
  * The guarded view of a group's member map, held outside the group it belongs to. It is a proxy over the very map
@@ -298,15 +304,22 @@ export class Group<
     // accumulator's prototype; the spread on return hands back an ordinary object
     const val = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
+      // a suppressed member is not part of the form and is left out whatever else holds
+      const contribution = contributionOf(field.visibility);
+      if (contribution === 'none') return;
       const fieldValue = field.value;
       // a disabled field does not serialize, and a disabled container is the one exception: a Group or a List
       // that is disabled is kept while what its own members compose is non-empty, because a member of it that is
       // enabled holds a value the form still has to carry. Empty, it is left out like any other disabled field.
-      if (field.enabled || (this.childComposesValue(field) && !isEmpty(fieldValue))) val[name] = fieldValue;
+      if (!field.enabled && !(this.childComposesValue(field) && !isEmpty(fieldValue))) return;
+      // a hidden member is sent as null: the form states that it holds nothing there, while the member keeps what
+      // it holds for when it is shown again
+      val[name] = contribution === 'null' ? null : fieldValue;
     });
     // the object outlives the read that built it - the next reader is answered with the very same one - so it is
-    // frozen: a caller writing into it would change what the group reports without any member holding that value
-    const built = isEmpty(val) ? null : (Object.freeze({ ...val }) as Partial<FieldsToValues<T>>);
+    // frozen: a caller writing into it would change what the group reports without any member holding that value.
+    // A group that serializes at all serializes as an object, so one none of whose members contributes reads {}.
+    const built = (isEmpty(val) ? emptyGroupValue : Object.freeze({ ...val })) as GroupValue<T>;
     this.raw.cachedValue = built;
     this.raw.cachedValueVersion = version;
     return built;
@@ -364,9 +377,22 @@ export class Group<
   get fullValue(): FieldsToFullValues<T> {
     const value = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
-      value[name] = field.fullValue;
+      // visibility decides fullValue the way it decides value; enabled does not, since fullValue states what the
+      // form holds rather than what it sends
+      const contribution = contributionOf(field.visibility);
+      if (contribution === 'none') return;
+      value[name] = contribution === 'null' ? null : field.fullValue;
     });
     return { ...value } as FieldsToFullValues<T>;
+  }
+
+  /** The value of every member, whatever its visibility or enabled state: what a binding carries. */
+  private get heldValue(): Partial<FieldsToValues<T>> {
+    const value = Object.create(null) as Record<string, any>;
+    Object.entries(this._fields).forEach(([name, field]) => {
+      value[name] = field.value;
+    });
+    return { ...value } as Partial<FieldsToValues<T>>;
   }
 
   /**
@@ -396,8 +422,9 @@ export class Group<
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
     const res = new Ctor(newFields, {
-      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
-      value: data !== undefined ? data : this.value,
+      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears. What the
+      // group holds is carried rather than what it serializes, so a hidden or suppressed member keeps its data
+      value: data !== undefined ? data : this.heldValue,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,

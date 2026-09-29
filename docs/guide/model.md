@@ -288,13 +288,14 @@ element that is not an action executes nothing and answers false, so `busy` neve
 
 ## Where a value comes from
 
-A `Field` holds its value, and a **disabled** field refuses writes to it. Values are compared by identity, so
-assigning the very object the field already holds announces nothing, while a new object announces a change even
-when it is deeply equal to the old one — mutate a copy and assign it. `enabled` on a `Group` or a `List` does not
-refuse anything; there it only decides whether the container above serializes it.
+A `Field` holds its value, and it takes a write whether it is enabled or not: `enabled` decides whether the
+container above serializes the element and whether a rendering layer accepts input into it, never whether a write
+reaches it. Values are compared by identity, so assigning the very object the field already holds announces
+nothing, while a new object announces a change even when it is deeply equal to the old one — mutate a copy and
+assign it.
 
 A write states what the caller wants the field to hold rather than what it ends up holding: a `ValueChangedAction`
-may write another value back, a disabled field drops the write, and a handler that throws unwinds it. Where the
+may write another value back, and a handler that throws unwinds it. Where the
 field ends up holding the value it started with, nothing a rendering layer reads moves — the case that layer has
 to handle itself is worked through in [Writing the value](/api/field#writing-the-value).
 
@@ -306,13 +307,17 @@ group.value === group.value;     // true until something below changes
 Object.isFrozen(group.value);    // true — assign a new value instead of writing into it
 ```
 
-A `Group` serializes its **enabled** members only, and reads back `null` when nothing serializes. A disabled
-nested container is the one exception: a `Group` or a `List` that is disabled is still included while its own
-value is non-empty, and left out where it is empty. `fullValue` is the same object built without the `enabled`
-rule — but a `List` does not override it, so values a disabled field hides inside a row stay hidden there.
+A `Group` serializes its **enabled** members only, and reads back `{}` when nothing serializes. A disabled nested
+container is the one exception: a `Group` or a `List` that is disabled is still included while its own value is
+non-empty, and left out where it is empty. `fullValue` is the same object built without the `enabled` rule, and a
+`List`'s `fullValue` is built from each row's `fullValue`, so it carries the disabled fields inside a row as well.
 
 A `List` serializes every row regardless of the row's own `enabled` flag, and each row's object follows the group
-rule. It reads back `null` while the list is empty.
+rule. It reads back `[]` while the list is empty. A container is never `null`.
+
+`visibility` decides the rest, in `value` and `fullValue` alike: a `HIDDEN` member or row is sent as `null`, a
+`SUPPRESS` one is left out, and neither counts in the container's validity. The whole rule, with what to declare for
+each outcome, is in [What a container serializes](/api/container#what-a-container-serializes).
 
 The composed object is cached behind a version counter that a write raises along its own branch, so a container
 does not walk its members again while nothing below it has moved, and a write of one field costs the depth of the
@@ -324,9 +329,9 @@ is not.
 
 ## Clearing and resetting
 
-No element has a `clear()` method, and the omission is deliberate rather than a gap: `Group` and `List` structurally
-allow "holds nothing" — `GroupValue<T>` and `ListValue` both include `null` — so emptying one is a value like any
-other. A `Field`'s empty state is not: an empty string, a zero and `false` are three different answers for three
+No element has a `clear()` method, and the omission is deliberate rather than a gap: a `Group` and a `List` have an
+empty state of their own — assigning `null` writes `null` into every member of a group and releases every row of a
+list — so emptying one is a value like any other. A `Field`'s empty state is not: an empty string, a zero and `false` are three different answers for three
 different `T`s, and nothing about the type tells the library which one you mean, so it does not guess.
 
 [`rebind()`](/api/field#rebind-data-this) covers both cases you actually want:

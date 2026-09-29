@@ -688,7 +688,8 @@ Use `Operator.fromString('and')` to parse a string at runtime. It is case insens
 
 ### `ConditionalVisibilityAction(statement)`
 
-Sets `field.visibility` to `DisplayMode.FULL` when `statement` is `true`, `DisplayMode.SUPPRESS` when `false`.
+Sets `field.visibility` to `DisplayMode.FULL` when `statement` is `true`, `DisplayMode.SUPPRESS` when `false`, so a
+field the statement turns off is left out of its container's value until it turns on again.
 
 ```typescript
 import { ConditionalVisibilityAction, Statement, Operator } from '@dynamicforms/vue-forms';
@@ -830,14 +831,17 @@ bounded by it: about 1300 handlers under one identifier on one element, after wh
 
 ## `DisplayMode`
 
-Used by visibility properties.
+The value of every element's `visibility`: whether the element is shown, and what it contributes to the value and
+to the validity of its container.
 
-| Constant | Value | Meaning |
-|----------|-------|---------|
-| `DisplayMode.FULL` | `10` | Render normally (default) |
-| `DisplayMode.INVISIBLE` | `8` | Render but hide with `display: none` |
-| `DisplayMode.HIDDEN` | `5` | Render as `<input type="hidden">` |
-| `DisplayMode.SUPPRESS` | `1` | Do not render at all |
+| Constant | Value | Rendered | Contributes to its container |
+|----------|-------|----------|------------------------------|
+| `DisplayMode.FULL` | `10` | normally (default) | its value, counted in validity |
+| `DisplayMode.HIDDEN` | `5` | `display: none` | `null` in its place, not counted in validity |
+| `DisplayMode.SUPPRESS` | `1` | not at all | nothing, not counted in validity |
+
+An element that is hidden or suppressed keeps what it holds. [What a container serializes](/api/container#what-a-container-serializes)
+has the whole rule, `enabled` included.
 
 ```typescript
 import { DisplayMode } from '@dynamicforms/vue-forms';

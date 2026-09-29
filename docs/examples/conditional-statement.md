@@ -78,7 +78,7 @@ conditionsForm.fields.submitAction.registerAction(
 ```
 
 ::: tip
-`visibility` controls rendering only. Suppressed fields are still part of `group.value`; use `enabled = false` if you want a field left out of the serialized value.
+`visibility` decides serialization as well as rendering: a suppressed field is left out of `group.value`, and a hidden one is sent as `null`. See [What a container serializes](/api/container#what-a-container-serializes).
 :::
 
 ### Vue Template

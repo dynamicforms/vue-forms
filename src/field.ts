@@ -68,7 +68,9 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
 
   set value(newValue: T) {
     const oldValue = this._value;
-    if (!this.enabled || oldValue === newValue) return; // a disabled field does not allow changing value
+    // a disabled field takes the write like any other: enabled decides what the field serializes and whether an
+    // input accepts typing, and a record loaded into the form reaches every member whatever its state
+    if (oldValue === newValue) return;
     transactional((tx) => {
       tx.touch(this);
       this._value = newValue;

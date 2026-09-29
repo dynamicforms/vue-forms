@@ -158,20 +158,13 @@ describe('Field reactivity', () => {
     expect(errorCount).toEqual([0, 1, 0]);
   });
 
-  it('does not re-run when the setter ignores the write', async () => {
-    // a write the setter refuses reaches no slot, so nothing is triggered and the reader keeps the value it has
+  it('does not re-run when the value written is the one the field holds', async () => {
+    // writing what the field already holds reaches no slot, so nothing is triggered and the reader keeps its value
     const same = new Field({ value: 1 });
     const sameRuns = track(() => same.value);
     same.value = 1;
     await nextTick();
     expect(sameRuns).toEqual([1]);
-
-    const disabled = new Field({ value: 1, enabled: false });
-    const disabledRuns = track(() => disabled.value);
-    disabled.value = 5;
-    await nextTick();
-    expect(disabledRuns).toEqual([1]);
-    expect(disabled.value).toBe(1);
   });
 
   it('re-runs on validationEpoch', async () => {
@@ -356,7 +349,7 @@ describe('List reactivity', () => {
     list.push({ n: 1 });
     await nextTick();
 
-    expect(runs).toEqual(['null', '[{"n":1}]']);
+    expect(runs).toEqual(['[]', '[{"n":1}]']);
   });
 
   it('re-runs on insert', async () => {
@@ -402,7 +395,7 @@ describe('List reactivity', () => {
     list.clear();
     await nextTick();
 
-    expect(runs).toEqual(['[{"n":1}]', 'null']);
+    expect(runs).toEqual(['[{"n":1}]', '[]']);
   });
 
   it('tracks the item count', async () => {
@@ -449,11 +442,11 @@ describe('List reactivity', () => {
 
     rows.push({ n: 1 });
     await nextTick();
-    expect(runs).toEqual(['{"rows":null,"name":"x"}', '{"rows":[{"n":1}],"name":"x"}']);
+    expect(runs).toEqual(['{"rows":[],"name":"x"}', '{"rows":[{"n":1}],"name":"x"}']);
 
     rows.remove(0);
     await nextTick();
-    expect(runs).toEqual(['{"rows":null,"name":"x"}', '{"rows":[{"n":1}],"name":"x"}', '{"rows":null,"name":"x"}']);
+    expect(runs).toEqual(['{"rows":[],"name":"x"}', '{"rows":[{"n":1}],"name":"x"}', '{"rows":[],"name":"x"}']);
   });
 });
 

@@ -67,7 +67,7 @@ quantity above zero turns the whole list invalid; removing that row makes it val
 
 ### Reading the Value
 
-`list.value` is the plain data: one object per row, in row order, `null` while the list is empty. It is recomputed
+`list.value` is the plain data: one object per row, in row order, `[]` while the list is empty. It is recomputed
 whenever a field, a row or the list itself changes, so the output panel below the form re-renders on its own.
 
 ## Tags: a Field per Row
