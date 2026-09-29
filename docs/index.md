@@ -25,6 +25,8 @@ features:
     details: A list's item template is the declaration every row is built from — one validator instance, one conditional rule, and each row answers for itself
   - title: Extended properties
     details: A field carries whatever your UI needs to render it — a label, a hint, a width — declared as a type and checked by the compiler
+  - title: Application state, not only forms
+    details: The elements that hold a form hold state no screen shows as well — reactive per value, transactional, validated — and view() reads it as plain data
   - title: Validation that composes
     details: Built-in and custom rules, synchronous or asynchronous, comparing fields across a record; errors carry a code and render as text, markdown or your own component
 ---

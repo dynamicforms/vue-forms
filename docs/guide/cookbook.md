@@ -266,61 +266,53 @@ Every row is a `Field` bound from the template, so every tag carries the `Requir
 input through `tag.value`. A list of lists is `new List(new List(...))`. The
 [List example](/examples/list) shows both in a running form.
 
-## A group as a store
+## Application state
 
-You want application state — the logged-in user, the clubs they belong to, the selected club — in one reactive
-object, the way a Pinia store holds it. A group is that object, and [`view()`](/api/view) reads it as one:
+You want state that is not a form on screen — a shopping cart, say, with its items, a coupon and a delivery address
+— kept with the same reactivity, transactions and validation a form has. Build it once as a group, and read it
+through [`view()`](/api/view):
 
 ```typescript
-import { computed } from 'vue';
-import { DisplayMode, Field, Group, List, transaction, view } from '@dynamicforms/vue-forms';
+import { computed, watchEffect } from 'vue';
+import { DisplayMode, Field, Group, List, Validators, view } from '@dynamicforms/vue-forms';
 
-interface Account { email: string; full_name: string; is_superuser: boolean }
-interface Club { slug: string; name: string }
-interface SessionState { account: Account | null; clubs: Club[]; club: Club | null; permissions: string[] }
-
-const clubGroup = () => new Group({ slug: new Field({ value: '' }), name: new Field({ value: '' }) });
-
-export const session = view(new Group({
-  account: new Group({
-    email: new Field({ value: '' }),
-    full_name: new Field({ value: '' }),
-    is_superuser: new Field({ value: false }),
-  }),
-  clubs: new List(clubGroup()),
-  club: clubGroup(),
-  permissions: new Field<string[]>({ value: [] }),
-}));
-
-// a section nobody is logged into, or no club is selected in, is hidden: it reads null
-session.$fields.account.visibility = DisplayMode.HIDDEN;
-session.$fields.club.visibility = DisplayMode.HIDDEN;
-
-export const loggedIn = computed(() => session.account != null);
-export const userDisplayName = computed(() => session.account?.full_name || session.account?.email);
-export const hasPermission = (codename: string) =>
-  !!session.account?.is_superuser || !!session.permissions?.includes(codename);
-
-// takes what the server sent: a section it sends as null is hidden, one it sends is shown
-export function apply(state: Partial<SessionState>) {
-  transaction(() => {
-    session.$value = state;
-    (['account', 'club'] as const).forEach((name) => {
-      if (name in state) session.$fields[name].visibility = state[name] ? DisplayMode.FULL : DisplayMode.HIDDEN;
-    });
+export function createCart() {
+  const cart = view(new Group({
+    items: new List(new Group({
+      sku: new Field({ value: '' }),
+      name: new Field({ value: '' }),
+      price: new Field({ value: 0 }),
+      quantity: new Field({ value: 1, validators: [new Validators.MinValue(1)] }),
+    })),
+    coupon: new Field<string | null>({ value: null }),
+    pickup: new Field({ value: false }),
+    delivery: new Group({
+      street: new Field({ value: '', validators: [new Validators.Required()] }),
+      city: new Field({ value: '', validators: [new Validators.Required()] }),
+    }),
+  }));
+  // a cart collected in the shop sends no delivery address, and keeps the one typed in
+  watchEffect(() => {
+    cart.$.fields.delivery.visibility = cart.pickup ? DisplayMode.HIDDEN : DisplayMode.FULL;
   });
+  return cart;
 }
+
+const cart = createCart();
+const total = computed(() =>
+  (cart.items ?? []).reduce((sum, item) => sum + (item?.price ?? 0) * (item?.quantity ?? 0), 0));
+
+cart.items!.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 2 });
+cart.items!.sort((a, b) => a!.name!.localeCompare(b!.name!));
+cart.coupon = 'SPRING';
 ```
 
-No placeholder values stand for "nobody" or "none": a hidden section reads `null` through the view and is sent as
-`null` in `session.$value`, and its fields are simply written over by the next `apply()`. The transaction makes the
-record and its visibility one change, so nothing reads a session that is half applied.
+The list's view is an array whose mutations are the list's own, so a sort moves the rows themselves. Every read is
+tracked on the field it reaches: `watch(() => cart.coupon, …)` runs when the coupon changes and not when a quantity
+does, and `total` follows the prices and quantities. While the cart is collected in the shop, `cart.$.value` sends
+`delivery: null` and the address does not count in `cart.$.valid`; switching back to delivery brings the address
+back as it was typed.
 
-Every read through the view is tracked on the field it reaches, so `watch(() => session.account?.email, …)` runs when
-the e-mail changes and not when the permissions do. A component binds a field directly, once it knows the section
-is there:
-
-```vue
-<input v-if="session.account" v-model="session.account.full_name" />
-```
-
+The state is built by a function rather than at module level. An element made at module level is one object for the
+whole process: under server-side rendering every request would share it, and every test would see what the one
+before it left. `createCart()` is called once per application, and once per test.

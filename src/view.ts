@@ -1,7 +1,7 @@
 import { Container } from './container';
 import { FieldBase } from './field-base';
-import { type GenericFieldsInterface, Group, type GroupValueInput } from './group';
-import { List, type ListValueInput } from './list';
+import { type GenericFieldsInterface, Group } from './group';
+import { List } from './list';
 import { transaction } from './transaction';
 
 /**
@@ -37,36 +37,15 @@ type ListData<R extends FieldBase> = Omit<Slot<R>[], 'push' | 'unshift' | 'splic
   splice(start: number, deleteCount?: number, ...items: RowInput<R>[]): Slot<R>[];
 };
 
-/** the members of an element under a `$` prefix, and the element itself as `$element` */
-type Members<E extends FieldBase> = {
-  [K in keyof E as K extends string ? (K extends `__${string}` | 'value' ? never : `$${K}`) : never]: E[K];
-} & {
-  readonly $element: E;
-};
-
-/** `$value` reads what the element reads and takes what its setter takes, which on a container is wider */
-type ValueMember<E extends FieldBase> = {
-  get $value(): E['value'];
-  set $value(
-    value: E extends Group<infer F, any>
-      ? GroupValueInput<F>
-      : E extends List<infer R, any>
-        ? ListValueInput<R>
-        : E['value'],
-  );
-};
-
 /**
- * An element seen as its data: the members of a group, or the rows of a list, as plain properties, and everything
- * the element itself answers to under a `$` prefix. See `view()`.
+ * An element seen as its data: the members of a group, or the rows of a list, as plain properties, and the element
+ * itself as `$`. See `view()`.
  */
 export type View<E extends FieldBase> = (E extends Group<infer F, any>
   ? GroupData<F>
   : E extends List<infer R, any>
     ? ListData<R>
-    : unknown) &
-  Members<E> &
-  ValueMember<E>;
+    : unknown) & { readonly $: E };
 
 /** the views made so far, one per element, and the element behind each */
 const views = new WeakMap<FieldBase, object>();
@@ -101,13 +80,6 @@ function writeSlot(element: FieldBase, value: unknown): void {
   element.value = unwrap(value) instanceof FieldBase ? (unwrap(value) as FieldBase).value : value;
 }
 
-/** a `$`-prefixed key, answered by the element: members read, accessors written, methods bound to the element */
-function member(element: FieldBase, key: string): unknown {
-  if (key === '$element') return element;
-  const value = (element as any)[key.slice(1)];
-  return typeof value === 'function' ? value.bind(element) : value;
-}
-
 /** the keys a view answers to on behalf of Vue and the language rather than as data */
 function special(key: string | symbol): { answered: boolean; value?: unknown } {
   // reactive() leaves the view as it is, and a template reads through it: every read already reaches the tracked
@@ -121,30 +93,26 @@ function special(key: string | symbol): { answered: boolean; value?: unknown } {
 
 function groupHandler(group: Group<any, any>): ProxyHandler<object> {
   const memberOf = (key: string | symbol) =>
-    typeof key === 'string' && !key.startsWith('$') ? (group.field(key) ?? undefined) : undefined;
+    typeof key === 'string' && key !== '$' ? (group.field(key) ?? undefined) : undefined;
   const dataKeys = () => Object.keys(group.fields).filter((key) => contributionOf(group.fields[key]) !== 'omit');
   return {
     get(target, key) {
       const answered = special(key);
       if (answered.answered) return answered.value;
-      if (typeof key === 'string' && key.startsWith('$')) return member(group, key);
+      if (key === '$') return group;
       if (key === Symbol.toStringTag) return 'View';
       const element = memberOf(key);
       return element ? slotOf(element) : undefined;
     },
     set(target, key, value) {
-      if (typeof key === 'string' && key.startsWith('$')) {
-        (group as any)[key.slice(1)] = value;
-        return true;
-      }
+      if (key === '$') throw new TypeError('$ is the element a view stands for, and cannot be replaced');
       const element = memberOf(key);
       if (!element) throw new TypeError(`${String(key)} is not a member of this group - use $addField() to add one`);
       writeSlot(element, value);
       return true;
     },
     has(target, key) {
-      if (typeof key === 'string' && key.startsWith('$')) return key === '$element' || key.slice(1) in group;
-      return typeof key === 'string' && dataKeys().includes(key);
+      return key === '$' || (typeof key === 'string' && dataKeys().includes(key));
     },
     ownKeys() {
       return dataKeys();
@@ -257,7 +225,7 @@ function listView(list: List<any, any>): unknown[] {
     get(target, key, receiver) {
       const answered = special(key);
       if (answered.answered) return answered.value;
-      if (typeof key === 'string' && key.startsWith('$')) return member(list, key);
+      if (key === '$') return list;
       if (key === 'length') return shown().length;
       if (isIndex(key)) {
         const row = shown()[Number(key)];
@@ -268,10 +236,7 @@ function listView(list: List<any, any>): unknown[] {
       return Reflect.get(target, key, receiver);
     },
     set(target, key, value) {
-      if (typeof key === 'string' && key.startsWith('$')) {
-        (list as any)[key.slice(1)] = value;
-        return true;
-      }
+      if (key === '$') throw new TypeError('$ is the element a view stands for, and cannot be replaced');
       if (key === 'length') {
         const length = Number(value);
         const rows = shown();
@@ -289,8 +254,7 @@ function listView(list: List<any, any>): unknown[] {
       throw new TypeError(`${String(key)} cannot be set on a list view`);
     },
     has(target, key) {
-      if (typeof key === 'string' && key.startsWith('$')) return key === '$element' || key.slice(1) in list;
-      if (key === 'length') return true;
+      if (key === '$' || key === 'length') return true;
       if (isIndex(key)) return Number(key) < shown().length;
       return Reflect.has(target, key);
     },
@@ -318,18 +282,14 @@ function fieldHandler(field: FieldBase): ProxyHandler<object> {
     get(target, key) {
       const answered = special(key);
       if (answered.answered) return answered.value;
-      if (typeof key === 'string' && key.startsWith('$')) return member(field, key);
+      if (key === '$') return field;
       return undefined;
     },
-    set(target, key, value) {
-      if (typeof key === 'string' && key.startsWith('$')) {
-        (field as any)[key.slice(1)] = value;
-        return true;
-      }
-      throw new TypeError(`${String(key)} cannot be set on the view of a field - its value is $value`);
+    set(target, key) {
+      throw new TypeError(`${String(key)} cannot be set on the view of a field - its value is $.value`);
     },
     has(target, key) {
-      return typeof key === 'string' && key.startsWith('$') && (key === '$element' || key.slice(1) in field);
+      return key === '$';
     },
     ownKeys() {
       return [];
@@ -340,10 +300,10 @@ function fieldHandler(field: FieldBase): ProxyHandler<object> {
 /** a group member whose name a view cannot hand out as a data key */
 function refuseReservedNames(group: Group<any, any>): void {
   Object.keys(group.fields).forEach((name) => {
-    if (name.startsWith('$') || name === 'then' || name.startsWith('__v_')) {
+    if (name === '$' || name === 'then' || name.startsWith('__v_')) {
       throw new TypeError(
-        `A view cannot hold a member named ${name}: a name starting with $ is an element member, and then and ` +
-          '__v_* are read by the language and by Vue',
+        `A view cannot hold a member named ${name}: $ is the element the view stands for, and then and __v_* ` +
+          'are read by the language and by Vue',
       );
     }
   });
@@ -351,8 +311,8 @@ function refuseReservedNames(group: Group<any, any>): void {
 
 /**
  * The element seen as its data. A group's members and a list's rows are plain properties of the view - a field as
- * its value, a container as its own view - and everything the element answers to is there under a `$` prefix:
- * `view.$valid`, `view.$errors`, `view.$registerAction(...)`. `$element` is the element itself.
+ * its value, a container as its own view - and `$` is the element itself: `view.$.valid`, `view.$.enabled = false`,
+ * `view.$.registerAction(...)`.
  *
  * A member reads what the element holds by the rule `fullValue` follows: a hidden member is `null`, a suppressed one
  * is not there, and `enabled` does not matter, so a disabled field reads and writes like any other. Every read goes

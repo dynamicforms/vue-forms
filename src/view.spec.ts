@@ -9,70 +9,70 @@ import { List } from './list';
 import { Validators } from './validators';
 import { type View, view } from './view';
 
-const session = () =>
+const order = () =>
   new Group({
-    account: new Group({ id: new Field({ value: 7 }), email: new Field({ value: 'ada@x' }) }),
-    clubs: new List(new Group({ slug: new Field({ value: '' }) }), { value: [{ slug: 'nk' }, { slug: 'sk' }] }),
-    permissions: new Field<string[]>({ value: ['read'] }),
+    customer: new Group({ id: new Field({ value: 7 }), email: new Field({ value: 'ada@x' }) }),
+    lines: new List(new Group({ sku: new Field({ value: '' }) }), { value: [{ sku: 'a-1' }, { sku: 'b-7' }] }),
+    tags: new Field<string[]>({ value: ['gift'] }),
   });
 
 describe('view() of a group', () => {
   it('reads a field as its value and a container as its view', () => {
-    const s = view(session());
+    const s = view(order());
 
-    expect(s.account?.email).toBe('ada@x');
-    expect(s.permissions).toEqual(['read']);
-    expect(s.clubs?.[1]?.slug).toBe('sk');
+    expect(s.customer?.email).toBe('ada@x');
+    expect(s.tags).toEqual(['gift']);
+    expect(s.lines?.[1]?.sku).toBe('b-7');
   });
 
   it('writes a field through its key', () => {
-    const group = session();
+    const group = order();
     const s = view(group);
 
-    s.account!.email = 'grace@x';
+    s.customer!.email = 'grace@x';
 
-    expect(group.fields.account.fields.email.value).toBe('grace@x');
+    expect(group.fields.customer.fields.email.value).toBe('grace@x');
   });
 
-  it('answers every member of the element under a $ prefix, and the element as $element', () => {
+  it('answers the element as $, its members read and written through it', () => {
     const group = new Group({ name: new Field({ value: '', validators: [new Validators.Required()] }) });
     const s = view(group);
 
-    expect(s.$valid).toBe(false);
-    expect(s.$element).toBe(group);
-    s.$enabled = false;
+    expect(s.$.valid).toBe(false);
+    expect(s.$).toBe(group);
+    s.$.enabled = false;
     expect(group.enabled).toBe(false);
     s.name = 'Ada';
-    expect(s.$value).toEqual({ name: 'Ada' });
-    s.$value = null;
+    expect(s.$.value).toEqual({ name: 'Ada' });
+    s.$.value = null;
     expect(group.fields.name.value).toBeNull();
-    // methods are bound to the element
-    const { $validate } = s;
-    $validate(true);
-    expect(s.$bind({ name: 'x' })).toBeInstanceOf(Group);
+    expect(s.$.bind({ name: 'x' })).toBeInstanceOf(Group);
+    expect(() => {
+      (s as any).$ = group;
+    }).toThrow(TypeError);
   });
 
   it('hands out one view per element, and a view of a view is the view', () => {
-    const group = session();
+    const group = order();
 
     expect(view(group)).toBe(view(group));
     expect(view(view(group))).toBe(view(group));
-    expect(view(group).account).toBe(view(group.fields.account));
+    expect(view(group).customer).toBe(view(group.fields.customer));
   });
 
   it('reads a hidden member as null and leaves a suppressed one out, whatever is enabled', () => {
-    const group = session();
+    const group = order();
     const s = view(group);
 
-    group.fields.account.visibility = DisplayMode.HIDDEN;
-    expect(s.account).toBeNull();
-    group.fields.permissions.visibility = DisplayMode.SUPPRESS;
-    expect(s.permissions).toBeUndefined();
-    expect(Object.keys(s)).toEqual(['account', 'clubs']);
+    group.fields.customer.visibility = DisplayMode.HIDDEN;
+    expect(s.customer).toBeNull();
+    group.fields.tags.visibility = DisplayMode.SUPPRESS;
+    expect(s.tags).toBeUndefined();
+    expect(Object.keys(s)).toEqual(['customer', 'lines']);
 
-    group.fields.account.visibility = DisplayMode.FULL;
-    group.fields.account.enabled = false;
-    expect(s.account!.email).toBe('ada@x');
+    group.fields.customer.visibility = DisplayMode.FULL;
+    group.fields.customer.enabled = false;
+    expect(s.customer!.email).toBe('ada@x');
   });
 
   it('spreads, lists its keys and stringifies as the data it holds', () => {
@@ -82,45 +82,46 @@ describe('view() of a group', () => {
     expect({ ...s.b }).toEqual({ c: 2 });
     expect(JSON.parse(JSON.stringify(s))).toEqual({ a: 1, b: { c: 2 } });
     expect('a' in s).toBe(true);
-    expect('$valid' in s).toBe(true);
+    expect('$' in s).toBe(true);
   });
 
   it('re-runs an effect reading one field only when that field changes', async () => {
-    const group = session();
+    const group = order();
     const s = view(group);
     const seen: string[] = [];
     watchEffect(() => {
-      seen.push(s.account!.email!);
+      seen.push(s.customer!.email!);
     });
 
-    group.fields.account.fields.id.value = 8;
+    group.fields.customer.fields.id.value = 8;
     await nextTick();
-    s.account!.email = 'b@x';
+    s.customer!.email = 'b@x';
     await nextTick();
 
     expect(seen).toEqual(['ada@x', 'b@x']);
   });
 
   it('is left as it is by reactive(), and is never a thenable', async () => {
-    const s = view(session());
+    const s = view(order());
 
     expect(reactive({ s }).s).toBe(s);
     expect(await Promise.resolve(s)).toBe(s);
   });
 
   it('refuses a group whose member names a view cannot hand out', () => {
-    expect(() => view(new Group({ $x: new Field() }))).toThrow(TypeError);
+    expect(() => view(new Group({ $: new Field() }))).toThrow(TypeError);
+    expect(view(new Group({ $x: new Field({ value: 1 }) })).$x).toBe(1);
     expect(() => view(new Group({ then: new Field() }))).toThrow(TypeError);
   });
 
   it('refuses a key that is not a member', () => {
-    const s = view(session()) as any;
+    const s = view(order()) as any;
 
     expect(() => {
       s.nope = 1;
     }).toThrow(TypeError);
     expect(() => {
-      delete s.account;
+      delete s.customer;
     }).toThrow(TypeError);
   });
 });
@@ -210,8 +211,8 @@ describe('view() of a list', () => {
   });
 
   it('reads group rows as views, a hidden row as null, and leaves a suppressed row out of its indices', () => {
-    const list = new List(new Group({ slug: new Field({ value: '' }) }), {
-      value: [{ slug: 'a' }, { slug: 'b' }, { slug: 'c' }],
+    const list = new List(new Group({ sku: new Field({ value: '' }) }), {
+      value: [{ sku: 'a' }, { sku: 'b' }, { sku: 'c' }],
     });
     const t = view(list);
 
@@ -220,16 +221,16 @@ describe('view() of a list', () => {
 
     expect(t.length).toBe(2);
     expect(t[0]).toBeNull();
-    expect(t[1]!.slug).toBe('c');
-    t.push({ slug: 'd' });
-    expect(list.value).toEqual([null, { slug: 'c' }, { slug: 'd' }]);
+    expect(t[1]!.sku).toBe('c');
+    t.push({ sku: 'd' });
+    expect(list.value).toEqual([null, { sku: 'c' }, { sku: 'd' }]);
     expect(list.length).toBe(4);
   });
 
   it('takes a view or an element as a row as readily as data', () => {
-    const list = new List(new Group({ slug: new Field({ value: '' }) }));
+    const list = new List(new Group({ sku: new Field({ value: '' }) }));
     const t = view(list);
-    const row = new Group({ slug: new Field({ value: 'r' }) });
+    const row = new Group({ sku: new Field({ value: 'r' }) });
 
     t.push(view(row));
 
@@ -245,45 +246,45 @@ describe('view() of a list', () => {
 });
 
 describe('view() of a field', () => {
-  it('answers every member under a $ prefix and holds no data keys', () => {
+  it('answers the field as $ and holds no data keys', () => {
     const field = new Field({ value: 1 });
     const f = view(field);
 
-    expect(f.$value).toBe(1);
-    f.$value = 2;
+    expect(f.$.value).toBe(1);
+    f.$.value = 2;
     expect(field.value).toBe(2);
     expect(Object.keys(f)).toEqual([]);
   });
 });
 
 describe('The types a view carries', () => {
-  it('types a field member by its value, a container member by its view, and members under $', () => {
-    const s = view(session());
+  it('types a field member by its value, a container member by its view, and the element as $', () => {
+    const s = view(order());
 
-    expectTypeOf(s.account).toEqualTypeOf<
+    expectTypeOf(s.customer).toEqualTypeOf<
       View<Group<{ id: Field<number>; email: Field<string> }>> | null | undefined
     >();
-    expectTypeOf(s.account!.email).toEqualTypeOf<string | null | undefined>();
-    expectTypeOf(s.permissions).toEqualTypeOf<string[] | null | undefined>();
-    expectTypeOf(s.$valid).toEqualTypeOf<boolean>();
-    expectTypeOf(s.$element).toEqualTypeOf<ReturnType<typeof session>>();
-    expectTypeOf(s.clubs!.length).toEqualTypeOf<number>();
+    expectTypeOf(s.customer!.email).toEqualTypeOf<string | null | undefined>();
+    expectTypeOf(s.tags).toEqualTypeOf<string[] | null | undefined>();
+    expectTypeOf(s.$.valid).toEqualTypeOf<boolean>();
+    expectTypeOf(s.$).toEqualTypeOf<ReturnType<typeof order>>();
+    expectTypeOf(s.lines!.length).toEqualTypeOf<number>();
   });
 
-  it('takes on $value what the element takes, which on a group includes null', () => {
-    const s = view(session());
-    s.$value = null;
-    s.$value = { permissions: ['x'] };
+  it('replaces a container through its element, whose value takes null', () => {
+    const s = view(order());
+    s.$.value = null;
+    s.$.value = { tags: ['fragile'] };
 
     const rejected = () => {
-      // @ts-expect-error a container member is replaced through its $value
-      s.account = null;
+      // @ts-expect-error a container member is replaced through its element: s.$.fields.customer.value
+      s.customer = null;
     };
     expect(rejected).toBeInstanceOf(Function);
   });
 
   it('announces what a write through the view changes, as a write to the element does', () => {
-    const group = session();
+    const group = order();
     const seen: unknown[] = [];
     group.registerAction(
       new ValueChangedAction((field, supr, newValue, oldValue) => {
@@ -292,7 +293,7 @@ describe('The types a view carries', () => {
       }),
     );
 
-    view(group).permissions = ['write'];
+    view(group).tags = ['urgent'];
 
     expect(seen).toHaveLength(1);
   });

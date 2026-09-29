@@ -3,7 +3,7 @@
 Settled decisions, with the alternatives that were weighed and the reason for the one chosen. History belongs
 here and nowhere else: the source states what the code does, the changelog states what changed for a consumer,
 and this file states why the shape is what it is. An open question — something not yet decided — belongs in
-`GAPS.md`, not here.
+`TODO.md`, not here.
 
 Entries are append-only. A decision that is later reversed keeps its entry and gains a successor.
 
@@ -328,7 +328,7 @@ through this type, and inference through a mapped type over an intersection answ
 union rather than the union: `new Field({ value: stringOrNumber })` came out a `Field<string>`, which the
 `Required` validator's spec caught. `NoInfer` is what keeps `X` out of inference, so an element that declared no
 extended properties rejects one instead of inferring it from the parameter object. Whether `X` should also reach
-a validator's or an action's own callback is not decided here — see `GAPS.md`.
+a validator's or an action's own callback is not decided here — see `TODO.md`.
 
 ---
 

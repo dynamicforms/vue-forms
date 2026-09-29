@@ -5,7 +5,6 @@ import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
-import { transaction } from './transaction';
 import { ValidationErrorText, Validators } from './validators';
 import { view } from './view';
 
@@ -215,76 +214,78 @@ describe('Cookbook: fields, sections and lists', () => {
   });
 });
 
-describe('Cookbook: a group as a store', () => {
-  const clubGroup = () => new Group({ slug: new Field({ value: '' }), name: new Field({ value: '' }) });
-  const makeSession = () =>
-    view(
+describe('Cookbook: application state', () => {
+  function createCart() {
+    const cart = view(
       new Group({
-        account: new Group({
-          email: new Field({ value: '' }),
-          full_name: new Field({ value: '' }),
-          is_superuser: new Field({ value: false }),
+        items: new List(
+          new Group({
+            sku: new Field({ value: '' }),
+            name: new Field({ value: '' }),
+            price: new Field({ value: 0 }),
+            quantity: new Field({ value: 1, validators: [new Validators.MinValue(1)] }),
+          }),
+        ),
+        coupon: new Field<string | null>({ value: null }),
+        pickup: new Field({ value: false }),
+        delivery: new Group({
+          street: new Field({ value: '', validators: [new Validators.Required()] }),
+          city: new Field({ value: '', validators: [new Validators.Required()] }),
         }),
-        clubs: new List(clubGroup()),
-        club: clubGroup(),
-        permissions: new Field<string[]>({ value: [] }),
       }),
     );
+    // a cart collected in the shop sends no delivery address, and keeps the one typed in
+    watchEffect(() => {
+      cart.$.fields.delivery.visibility = cart.pickup ? DisplayMode.HIDDEN : DisplayMode.FULL;
+    });
+    return cart;
+  }
 
-  it('reads, derives and applies a session through its view', async () => {
-    const session = makeSession();
-    // a section nobody is logged into, or no club is selected in, is hidden: it reads null
-    session.$fields.account.visibility = DisplayMode.HIDDEN;
-    session.$fields.club.visibility = DisplayMode.HIDDEN;
-
-    const loggedIn = computed(() => session.account != null);
-    const userDisplayName = computed(() => session.account?.full_name || session.account?.email);
-    const hasPermission = (codename: string) =>
-      !!session.account?.is_superuser || !!session.permissions?.includes(codename);
-
-    function apply(state: Record<string, unknown>) {
-      transaction(() => {
-        session.$value = state;
-        (['account', 'club'] as const).forEach((name) => {
-          if (name in state) session.$fields[name].visibility = state[name] ? DisplayMode.FULL : DisplayMode.HIDDEN;
-        });
-      });
-    }
-
-    expect(loggedIn.value).toBe(false);
-    const names: unknown[] = [];
+  it('reads, derives and changes the state through its view', async () => {
+    const cart = createCart();
+    const total = computed(() =>
+      (cart.items ?? []).reduce((sum, item) => sum + (item?.price ?? 0) * (item?.quantity ?? 0), 0),
+    );
+    const coupons: unknown[] = [];
     watch(
-      () => session.account?.email,
-      (email) => names.push(email),
+      () => cart.coupon,
+      (coupon) => coupons.push(coupon),
     );
 
-    apply({
-      account: { email: 'ada@x', full_name: '', is_superuser: false },
-      clubs: [{ slug: 'nk', name: 'NK' }],
-      club: { slug: 'nk', name: 'NK' },
-      permissions: ['read'],
-    });
+    cart.items!.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 2 });
+    cart.items!.push({ sku: 'b-1', name: 'Bowl', price: 20, quantity: 1 });
+    cart.items![0]!.quantity = 3;
+    cart.items!.sort((a, b) => a!.name!.localeCompare(b!.name!));
     await nextTick();
 
-    expect(loggedIn.value).toBe(true);
-    expect(userDisplayName.value).toBe('ada@x');
-    expect(hasPermission('read')).toBe(true);
-    expect(session.club?.slug).toBe('nk');
-    expect(session.$value).toEqual({
-      account: { email: 'ada@x', full_name: '', is_superuser: false },
-      clubs: [{ slug: 'nk', name: 'NK' }],
-      club: { slug: 'nk', name: 'NK' },
-      permissions: ['read'],
-    });
+    expect(total.value).toBe(56);
+    expect(cart.items!.map((item) => item!.sku)).toEqual(['b-1', 'm-1']);
+    expect(coupons).toEqual([]);
 
-    session.permissions = ['read', 'write'];
+    cart.coupon = 'SPRING';
     await nextTick();
-    apply({ account: null, clubs: [], club: null, permissions: [] });
-    await nextTick();
+    expect(coupons).toEqual(['SPRING']);
 
-    expect(loggedIn.value).toBe(false);
-    expect(session.$value).toEqual({ account: null, clubs: [], club: null, permissions: [] });
-    // the e-mail watch ran for the login and for the logout, not for the permissions in between
-    expect(names).toEqual(['ada@x', undefined]);
+    cart.delivery!.street = 'Main 1';
+    cart.pickup = true;
+    await nextTick();
+    expect(cart.delivery).toBeNull();
+    expect(cart.$.value.delivery).toBeNull();
+    // the address still missing a city does not hold the cart back while it is not delivered
+    expect(cart.$.valid).toBe(true);
+
+    cart.pickup = false;
+    await nextTick();
+    expect(cart.delivery?.street).toBe('Main 1');
+    expect(cart.$.valid).toBe(false);
+  });
+
+  it('builds one state per call, so each test and each application starts from its own', () => {
+    const first = createCart();
+    const second = createCart();
+
+    first.items!.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 1 });
+
+    expect(second.items).toEqual([]);
   });
 });

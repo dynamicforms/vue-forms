@@ -335,7 +335,7 @@ as its `value`, so `isEqual(list.items, other.items)` compares row by row withou
 | every member of `Field` and `FieldBase` | [Field](/api/field) |
 | members, serialization, `fields` | [Group](/api/group) |
 | loading, submitting, resetting, optional sections, type-dependent fields | [Cookbook](/guide/cookbook) |
-| a group or a list read as plain data, the way a Pinia store is | [view()](/api/view) |
+| a group or a list read as plain data | [view()](/api/view) |
 | rows, mutations, cost | [List](/api/list) |
 | every event, the action chain, `Action`, conditionals | [Actions](/api/actions) |
 | built-in rules, custom and asynchronous validators | [Validators](/api/validators) |
