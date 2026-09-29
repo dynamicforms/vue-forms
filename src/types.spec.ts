@@ -87,7 +87,7 @@ describe('extended properties', () => {
 
     const group = new Group<{ a: Field<number> }, Presentation>({ a: new Field({ value: 1 }) }, { label: 'Address' });
     expectTypeOf(group.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
-    const list = new List<{ a: Field<number> }, Presentation>(undefined, { label: 'Rows' });
+    const list = new List<Group<{ a: Field<number> }>, Presentation>(undefined, { label: 'Rows' });
     expectTypeOf(list.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
     const action = new Action<ActionValue, Presentation>({ hint: 'saves the form' });
     expectTypeOf(action.extra).toEqualTypeOf<Readonly<Partial<Presentation>>>();
@@ -164,18 +164,33 @@ describe('Group value types', () => {
 
     expectTypeOf(group.value!.addr).toEqualTypeOf<{ city?: string } | null | undefined>();
     expectTypeOf(group.value!.addr!.city).toEqualTypeOf<string | undefined>();
-    expectTypeOf(group.value!.rows).toEqualTypeOf<Record<string, any>[] | null | undefined>();
+    expectTypeOf(group.value!.rows).toEqualTypeOf<({ n?: number } | null)[] | null | undefined>();
     expectTypeOf<IsAny<typeof group.value>>().toEqualTypeOf<false>();
   });
 });
 
 describe('List value types', () => {
-  it('reads back a row array regardless of the item template', () => {
+  it('reads back the value of each row', () => {
     const list = new List(new Group({ n: new Field({ value: 1 }) }));
 
-    expectTypeOf(list.value).toEqualTypeOf<Record<string, any>[] | null>();
+    expectTypeOf(list.value).toEqualTypeOf<({ n?: number } | null)[] | null>();
     expectTypeOf<IsAny<typeof list.value>>().toEqualTypeOf<false>();
     expectTypeOf(list.get(0)).toEqualTypeOf<Group<{ n: Field<number> }> | undefined>();
+  });
+
+  it('types a list of fields by the field it holds', () => {
+    const list = new List(new Field<string>());
+
+    expectTypeOf(list).toEqualTypeOf<List<Field<string>>>();
+    expectTypeOf(list.value).toEqualTypeOf<string[] | null>();
+    expectTypeOf(list.fullValue).toEqualTypeOf<string[]>();
+    expectTypeOf(list.items).toEqualTypeOf<readonly Field<string>[]>();
+    expectTypeOf(new List(new List(new Field<number>())).value).toEqualTypeOf<(number[] | null)[] | null>();
+  });
+
+  it('holds groups where it is declared without an item template', () => {
+    expectTypeOf(new List()).toEqualTypeOf<List<Group>>();
+    expectTypeOf(new List(undefined, { value: [{ a: 1 }] })).toEqualTypeOf<List<Group>>();
   });
 });
 

@@ -604,18 +604,18 @@ describe('List construction parameters', () => {
 
   it('takes its rows from originalValue where the constructor is given no value', () => {
     const list = new List(new Group({ a: new Field({ value: 'template' }) }), {
-      originalValue: [{ a: 1 }, { a: 2 }],
+      originalValue: [{ a: 'one' }, { a: 'two' }],
     });
 
     expect(list.length).toBe(2);
-    expect(list.value).toEqual([{ a: 1 }, { a: 2 }]);
+    expect(list.value).toEqual([{ a: 'one' }, { a: 'two' }]);
     expect(list.isChanged).toBe(false);
   });
 
   it('stays empty where an explicit null stands beside an originalValue', () => {
     const list = new List(new Group({ a: new Field({ value: 'template' }) }), {
       value: null,
-      originalValue: [{ a: 1 }],
+      originalValue: [{ a: 'one' }],
     });
 
     expect(list.value).toBeNull();
@@ -650,7 +650,7 @@ describe('List construction parameters', () => {
   });
 
   /** a list of amounts whose rows all carry a currency: the one a row was given none is filled in */
-  class Amounts extends List<{ amount: Field<number>; currency: Field<string> }> {
+  class Amounts extends List<Group<{ amount: Field<number>; currency: Field<string> }>> {
     protected constructed() {
       this.items.forEach((row) => {
         if (!row.fields.currency.value) row.fields.currency.value = 'EUR';
@@ -1413,7 +1413,7 @@ describe('List.fullValue', () => {
 
 describe('List.bind() and the class it builds', () => {
   it('binds a subclass into its own type', () => {
-    class Rows extends List<{ a: Field<string> }> {}
+    class Rows extends List<Group<{ a: Field<string> }>> {}
     const declaration = new Rows(new Group({ a: new Field({ value: '' }) }));
 
     const bound = declaration.bind([{ a: 'Ada' }]);
@@ -1423,7 +1423,7 @@ describe('List.bind() and the class it builds', () => {
   });
 
   it('refuses to answer with a binding a subclass built from its own template', () => {
-    class Fixed extends List<{ a: Field<string> }> {
+    class Fixed extends List<Group<{ a: Field<string> }>> {
       constructor() {
         super(new Group({ a: new Field({ value: 'declared' }) }));
       }
@@ -1477,5 +1477,117 @@ describe('a rule registered after the rows exist', () => {
 
     expect(list.get(0)!.fields.amount.valid).toBe(true);
     expect(list.get(1)!.fields.amount.valid).toBe(true);
+  });
+});
+
+describe('List of fields', () => {
+  const tags = (value?: string[] | null) =>
+    new List(new Field<string>({ validators: [new Validators.Required()] }), value === undefined ? {} : { value });
+
+  it('holds one field per row and reads back the value of each', () => {
+    const list = tags(['a', 'b']);
+
+    expect(list.value).toEqual(['a', 'b']);
+    expect(list.fullValue).toEqual(['a', 'b']);
+    expect(list.get(0)).toBeInstanceOf(Field);
+    expect(list.get(0)!.parent).toBe(list);
+  });
+
+  it('pushes, inserts and removes rows by their value', () => {
+    const list = tags(['a']);
+
+    list.push('b');
+    list.insert('z', 0);
+    expect(list.value).toEqual(['z', 'a', 'b']);
+    expect(list.remove(1)!.value).toBe('a');
+    expect(list.value).toEqual(['z', 'b']);
+  });
+
+  it('fills a gap left by an insert beyond the end with the item template bound to its own value', () => {
+    const list = tags(['a']);
+
+    list.insert('d', 3);
+    expect(list.value).toEqual(['a', undefined, undefined, 'd']);
+  });
+
+  it('keeps the rows standing at their positions across a whole-list assignment', () => {
+    const list = tags(['a', 'b']);
+    const first = list.get(0);
+
+    list.value = ['x', 'y', 'z'];
+    expect(list.get(0)).toBe(first);
+    expect(list.value).toEqual(['x', 'y', 'z']);
+  });
+
+  it('is valid while every row is', () => {
+    const list = tags(['a', 'b']);
+
+    expect(list.valid).toBe(true);
+    list.get(1)!.value = '';
+    expect(list.valid).toBe(false);
+    list.remove(1);
+    expect(list.valid).toBe(true);
+  });
+
+  it('binds into a list of the same fields', () => {
+    const bound = tags(['a']).bind(['q', 'r']);
+
+    expect(bound.value).toEqual(['q', 'r']);
+    expect(bound.get(0)).toBeInstanceOf(Field);
+  });
+
+  it('serializes as an array of values inside a group, and clears with it', () => {
+    const group = new Group({ tags: tags(), name: new Field({ value: 'n' }) });
+
+    group.value = { tags: ['t1', 't2'] };
+    expect(group.value).toEqual({ tags: ['t1', 't2'], name: 'n' });
+    group.value = null;
+    expect(group.fields.tags.value).toBeNull();
+  });
+
+  it('nests a list of lists', () => {
+    const list = new List(new List(new Field<number>()), { value: [[1, 2], [3]] });
+
+    expect(list.value).toEqual([[1, 2], [3]]);
+    expect(list.get(0)).toBeInstanceOf(List);
+  });
+});
+
+describe('List without an item template', () => {
+  it('builds a field from a value that is neither a plain object nor an array', () => {
+    const list = new List();
+    const when = new Date(0);
+
+    list.push('abc');
+    list.push(42);
+    list.push(null);
+    list.push(when);
+    expect(list.items.every((row) => row instanceof Field)).toBe(true);
+    expect(list.value).toEqual(['abc', 42, null, when]);
+  });
+
+  it('builds a group from a plain object and a list from an array', () => {
+    const list = new List(undefined, { value: [{ a: 1 }, [1, 2]] });
+
+    expect(list.get(0)).toBeInstanceOf(Group);
+    expect(list.get(1)).toBeInstanceOf(List);
+    expect(list.value).toEqual([{ a: 1 }, [1, 2]]);
+  });
+
+  it('pads a gap with empty elements of the kind the inserted item is built into', () => {
+    const values = new List<Field<string>>();
+    values.insert('c', 2);
+    expect(values.items.every((row) => row instanceof Field)).toBe(true);
+    expect(values.value).toEqual([undefined, undefined, 'c']);
+
+    const records = new List();
+    records.insert({ a: 1 }, 1);
+    expect(records.get(0)).toBeInstanceOf(Group);
+    expect(records.get(0)!.value).toBeNull();
+
+    const lists = new List<List<Field<number>>>();
+    lists.insert([1], 1);
+    expect(lists.get(0)).toBeInstanceOf(List);
+    expect(lists.get(0)!.value).toBeNull();
   });
 });

@@ -132,7 +132,7 @@ const bare = new Field<string, Presentation>({ value: 'John' }); // legal: every
 bare.extra.label; // string | undefined
 ```
 
-`Group`, `List` and `Action` take the same argument in the same position: `Group<Fields, X>`, `List<Fields, X>`,
+`Group`, `List` and `Action` take the same argument in the same position: `Group<Fields, X>`, `List<Row, X>`,
 `Action<Value, X>`.
 
 ### `Extras`
@@ -603,8 +603,8 @@ form element": every library signature that takes a field — action executors, 
 `Group`'s `fields` map, `CompareTo`'s `otherField` — is typed `FieldBase`.
 
 `T` is the type of `value`, and each subclass passes its own through: `Field<T>` and `Action<T>` extend
-`FieldBase<T>`, while `Group<T>` extends [`Container<GroupValue<T>>`](/api/container) and `List<T>` extends
-`Container<ListValue>`, and `Container<T>` extends `FieldBase<T>`. `X`
+`FieldBase<T>`, while `Group<T>` extends [`Container<GroupValue<T>>`](/api/container) and `List<R>` extends
+`Container<ListValue<R>>`, and `Container<T>` extends `FieldBase<T>`. `X`
 is the second argument every one of them takes, the [extended properties](#extended-properties) the element
 carries; it defaults to [`Extras`](#extras), which is what makes `FieldBase` on its own the type of any form
 element, and what lets a validator or an action handler read the augmented properties off the element it receives.

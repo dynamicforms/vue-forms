@@ -28,7 +28,7 @@ mechanism applies at every level of a nested form.
   `tx.rollback()` withdraws one without an error
 - **Lists that scale**: a `List` is meant to hold thousands of rows. Writing one field of one row costs that row
   and the depth it sits at, a `push()` costs one row, and reading `value` or `valid` again costs nothing
-- **Declared once, bound per record**: the `Group` handed to `new List(template)` is the declaration every row is
+- **Declared once, bound per record**: the element handed to `new List(template)` is the declaration every row is
   built from. One validator instance and one conditional rule serve every row, and each row answers for itself
 - **Reactive**: every member of a field, group or list is a tracked read — assign a property directly, with no
   `ref` to unwrap and no computed mirror to keep in sync
@@ -420,7 +420,7 @@ const prefs: { darkMode?: boolean; notifications?: boolean } | null | undefined 
 ```
 
 The value shape is derived from the fields map by the exported `FieldsToValues<T>`, with `GroupValue<T>` and
-`GroupValueInput<T>` as the group's read and write types, and `ListValue` for lists. Constructor parameters have
+`GroupValueInput<T>` as the group's read and write types, and `ListValue<R>` for lists. Constructor parameters have
 their own exported type, `IFieldParams<T, X>`, shared by all four element classes:
 
 ```typescript

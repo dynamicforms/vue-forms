@@ -51,7 +51,7 @@ describe('reading and writing extended properties', () => {
 
   it('carries them on a Group, a List and an Action', () => {
     const group = new Group<{ a: Field<number> }, Presentation>({ a: new Field({ value: 1 }) }, { label: 'Address' });
-    const list = new List<{ a: Field<number> }, Presentation>(undefined, { label: 'Rows' });
+    const list = new List<Group<{ a: Field<number> }>, Presentation>(undefined, { label: 'Rows' });
     const action = new Action<{ label?: string; icon?: string }, { hint: string }>({ hint: 'saves the form' });
 
     expect(group.extra.label).toBe('Address');
@@ -97,7 +97,7 @@ describe('binding', () => {
 
   it('carries them through a list binding and onto every row the item template builds', () => {
     const template = new Group({ a: new Field<number, Presentation>({ value: 0, label: 'Amount', hint: 'in euros' }) });
-    const list = new List<{ a: Field<number, Presentation> }, Presentation>(template, {
+    const list = new List<Group<{ a: Field<number, Presentation> }>, Presentation>(template, {
       value: [{ a: 1 }, { a: 2 }],
       label: 'Rows',
     });
@@ -170,7 +170,10 @@ describe('what a parameter object states but does not attach', () => {
       { a: new Field({ value: 1 }) },
       { label: 'Address', validators: [validator] },
     );
-    const list = new List<{ a: Field<number> }, Presentation>(undefined, { label: 'Rows', validators: [validator] });
+    const list = new List<Group<{ a: Field<number> }>, Presentation>(undefined, {
+      label: 'Rows',
+      validators: [validator],
+    });
     const action = new Action<ActionValue, Presentation>({ hint: 'saves the form', validators: [validator] });
 
     expect(Object.keys(group.extra)).toEqual(['label']);

@@ -11,10 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Container`, the abstract base `Group` and `List` extend. It composes `valid`, `busy` and `touched` over the
   children, cascades `validate(true)` to them and takes their change notifications, so the two share one
   implementation of each.
+- A `List` row is any form element. `new List(new Field<string>())` is a list of plain values: every row is a
+  `Field`, `list.value` is a `string[]`, and every row carries the template's validators and actions.
+  `new List(new List(...))` is a list of lists.
+- A list without an item template builds each row from its own item: `new List().push('abc')` holds a `Field`
+  and reads back `['abc']`.
 
 ### Changed
 - **Breaking:** `parent` is typed `Container | undefined` on every element. `Field` and `Action` no longer narrow it
   to `Group | undefined`, so `field.parent?.fields.other` needs `instanceof Group` or a cast first.
+- **Breaking:** `List`'s type argument is the row rather than the row's fields: `List<Group<Fields>>` where it was
+  `List<Fields>`. `ListValue<R>` takes the row the same way, and `list.value` is typed by it rather than as
+  `Record<string, any>[]`.
+- **Breaking:** a list without an item template builds a `Group` from a plain object only. An array becomes a
+  `List`, and any other item — `null` included — a `Field` holding it, where each used to become a `Group`. Padding
+  past the end of such a list follows the inserted item the same way.
 
 ## [1.1.0] - 2026-09-05
 

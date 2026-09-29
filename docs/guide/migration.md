@@ -244,6 +244,53 @@ letting `CompareTo` resolve it — `new Validators.CompareTo('other', …)` — 
 
 A variable typed `Group | List` that `parent` is assigned to takes `Container` instead.
 
+### `List`'s type argument is the row, not the row's fields
+
+A row of a `List` is any form element — a `Group`, a `Field`, another `List` — and the type argument names it.
+Where a list was typed by the fields of its rows, it is now typed by the row:
+
+```typescript
+// before
+class Rows extends List<{ name: Field<string> }> {}
+const list: List<{ name: Field<string> }> = new List(template);
+
+// after
+class Rows extends List<Group<{ name: Field<string> }>> {}
+const list: List<Group<{ name: Field<string> }>> = new List(template);
+```
+
+A list built from a template infers the argument from it and needs no edit. The type checker finds every site that
+names one.
+
+`ListValue` takes the row as well, `ListValue<R> = R['value'][] | null`, and is `ListValue<Group>` where it is
+named alone. `list.value` is typed by the row the list holds rather than as `Record<string, any>[]`, so a value
+that does not match the template's fields is a compile error where it used to pass:
+
+```typescript
+const list = new List(new Group({ n: new Field<number>() }));
+list.value;                 // before: Record<string, any>[] | null
+                            // after:  ({ n?: number } | null)[] | null
+```
+
+### A list without an item template builds a row by the kind of its item
+
+A plain object still becomes a `Group` of fields. Anything else no longer does: an array becomes a `List`, and a
+string, a number, `null` or a `Date` becomes a `Field` holding it. The padding `insert()` puts into a gap past the
+end follows the item being inserted the same way.
+
+```typescript
+const list = new List();
+list.push('abc');
+list.value;    // before: [{ 0: 'a', 1: 'b', 2: 'c' }]
+               // after:  ['abc']
+list.push(null);
+list.get(1);   // before: an empty Group
+               // after:  a Field holding null
+```
+
+Nothing announces it. Search for a list built without a template that is handed `null` for an empty record; hand
+it `{}` instead.
+
 ## Upgrading to v0.17.1 (from v0.17.0)
 
 One break, and nothing announces it: a `catch` branch stops being reached.
