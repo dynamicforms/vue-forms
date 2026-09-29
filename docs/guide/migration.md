@@ -272,6 +272,25 @@ list.value;                 // before: Record<string, any>[] | null
                             // after:  ({ n?: number } | null)[] | null
 ```
 
+### A list without an item template builds a row by the kind of its item
+
+A plain object still becomes a `Group` of fields. Anything else no longer does: an array becomes a `List`, and a
+string, a number, `null` or a `Date` becomes a `Field` holding it. The padding `insert()` puts into a gap past the
+end follows the item being inserted the same way.
+
+```typescript
+const list = new List();
+list.push('abc');
+list.value;    // before: [{ 0: 'a', 1: 'b', 2: 'c' }]
+               // after:  ['abc']
+list.push(null);
+list.get(1);   // before: an empty Group
+               // after:  a Field holding null
+```
+
+Nothing announces it. Search for a list built without a template that is handed `null` for an empty record; hand
+it `{}` instead.
+
 ## Upgrading to v0.17.1 (from v0.17.0)
 
 One break, and nothing announces it: a `catch` branch stops being reached.

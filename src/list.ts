@@ -1,8 +1,9 @@
-import { isEmpty } from 'lodash-es';
+import { isEmpty, isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
 import { type ListSlots, listSlots } from './element-state';
+import { Field } from './field';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { Group } from './group';
@@ -78,11 +79,10 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
   private processSetValueItem(item: any): R {
     let res: R;
-    // an item that is already an element is taken as it is; data is bound to the item template, and a list without
-    // one builds a group from the data
+    // an item that is already an element is taken as it is, and data is bound to the item template
     if (item instanceof FieldBase) res = item as R;
     else if (this._itemTemplate) res = this._itemTemplate.bind(item) as R;
-    else res = Group.createFromFormData(item) as unknown as R;
+    else res = List.elementFor(item) as R;
 
     // an item that already belongs to a container is refused here; one this list released earlier carries no
     // link any more and is taken like any other
@@ -95,11 +95,24 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   /**
-   * Builds the item that fills a gap left by an insert beyond the end of the list: the item template bound to its
-   * own values, or an empty group when the list has no template.
+   * The row a list without an item template builds from `item`: a `Group` of fields from a plain object, a `List`
+   * from an array, and a `Field` holding anything else.
    */
-  private createPaddingItem(): R {
-    return this.processSetValueItem(this._itemTemplate ? this._itemTemplate.bind() : null);
+  private static elementFor(item: unknown): FieldBase {
+    if (isPlainObject(item)) return Group.createFromFormData(item as Record<string, any>);
+    if (Array.isArray(item)) return new List(undefined, { value: item });
+    return new Field({ value: item });
+  }
+
+  /**
+   * Builds the item that fills a gap left by an insert beyond the end of the list: the item template bound to its
+   * own values, or, where the list has no template, an empty element of the kind `item` is built into.
+   */
+  private createPaddingItem(item: unknown): R {
+    if (this._itemTemplate) return this.processSetValueItem(this._itemTemplate.bind());
+    if (item instanceof Group || isPlainObject(item)) return this.processSetValueItem({});
+    if (item instanceof List || Array.isArray(item)) return this.processSetValueItem([]);
+    return this.processSetValueItem(undefined);
   }
 
   /** Records that the set of rows changed, so `items` rebuilds the frozen array it hands out at the next read. */
@@ -321,7 +334,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       position = index < 0 ? Math.max(this.state.rows.length + index, 0) : index;
       while (this.state.rows.length < position) {
         // if the index is too large for current array size, we add as many as necessary
-        const itm = this.createPaddingItem();
+        const itm = this.createPaddingItem(item);
         // push returns the new length, while the event carries the index of the item that was added
         const idx = this.state.rows.push(itm) - 1;
         this.bumpValueVersion();

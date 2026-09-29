@@ -1552,3 +1552,42 @@ describe('List of fields', () => {
     expect(list.get(0)).toBeInstanceOf(List);
   });
 });
+
+describe('List without an item template', () => {
+  it('builds a field from a value that is neither a plain object nor an array', () => {
+    const list = new List();
+    const when = new Date(0);
+
+    list.push('abc');
+    list.push(42);
+    list.push(null);
+    list.push(when);
+    expect(list.items.every((row) => row instanceof Field)).toBe(true);
+    expect(list.value).toEqual(['abc', 42, null, when]);
+  });
+
+  it('builds a group from a plain object and a list from an array', () => {
+    const list = new List(undefined, { value: [{ a: 1 }, [1, 2]] });
+
+    expect(list.get(0)).toBeInstanceOf(Group);
+    expect(list.get(1)).toBeInstanceOf(List);
+    expect(list.value).toEqual([{ a: 1 }, [1, 2]]);
+  });
+
+  it('pads a gap with empty elements of the kind the inserted item is built into', () => {
+    const values = new List<Field<string>>();
+    values.insert('c', 2);
+    expect(values.items.every((row) => row instanceof Field)).toBe(true);
+    expect(values.value).toEqual([undefined, undefined, 'c']);
+
+    const records = new List();
+    records.insert({ a: 1 }, 1);
+    expect(records.get(0)).toBeInstanceOf(Group);
+    expect(records.get(0)!.value).toBeNull();
+
+    const lists = new List<List<Field<number>>>();
+    lists.insert([1], 1);
+    expect(lists.get(0)).toBeInstanceOf(List);
+    expect(lists.get(0)!.value).toBeNull();
+  });
+});

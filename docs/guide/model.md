@@ -132,8 +132,8 @@ row is a binding of it — its members, its validators and its actions included.
 | `remove(index)` / `pop()` | the row itself is released — it loses its `parent`, can be handed to another list, and holds everything it held in the list — and it is what the call answers with |
 | `clear()` | every row is released |
 
-A list without an item template builds each row with `Group.createFromFormData(item)`, so its rows need not carry
-the same members.
+A list without an item template builds each row from its own item — a `Group` from a plain object, a `List` from an
+array, a `Field` from anything else — so its rows need not be of one kind or carry the same members.
 
 Because an assignment reuses row objects, `list.get(0)` survives `list.value = rows` when the new array is the
 same length, and a keyed `v-for` does not remount. A reused row is reset to the state the row built for that

@@ -36,8 +36,16 @@ tags.value; // ['urgent', 'billing', 'refund']
 
 The type argument is the row: `new List(itemTemplate)` infers it from the template, so the two lists above are a
 `List<Group<{ name: Field<string>; score: Field<number> }>>` and a `List<Field<string>>`. A list declared without
-a template is a `List<Group>`, and a list of fields without one is declared with the type argument,
-`new List<Field<string>>()`.
+a template is typed `List<Group>`; name the row where it holds something else:
+
+```typescript
+const names = new List<Field<string>>();
+names.push('Ada');  // a Field row
+names.value;        // ['Ada']
+```
+
+Without a template every row is built from its own item: a plain object becomes a `Group` of fields, an array a
+`List`, and anything else — a string, a number, `null`, a `Date` — a `Field` holding it.
 
 ## `new List(itemTemplate?, params?)`
 
@@ -52,7 +60,7 @@ of that meaning something else.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is a `Group` built from its item by `Group.createFromFormData` |
+| `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
 | `params.value` | `ListValue<R>` (`R['value'][] \| null`) | `null` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
 | `params.originalValue` | `ListValue<R>` | same as `value` (`null` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
 | `params.enabled` | `boolean` | `true` | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is |
@@ -163,8 +171,9 @@ Inserts `item` at `index` and returns the position it ends up at. A negative `in
 stops at the front, exactly the way `Array.prototype.splice` reads it: on a three-item list `-1` inserts before the
 last item and returns `2`, and `-100` inserts at the front and returns `0`. A non-negative `index` is the position
 itself, so the return value is the number you passed. If `index` is beyond the current length, the gap is filled
-with bindings of the item template — these carry the template's own values, not empty ones. (Without an item template
-the padding items are genuinely empty, since they go through `Group.createFromFormData(null)`.)
+with bindings of the item template — these carry the template's own values, not empty ones. Without an item template
+the padding items are empty elements of the kind `item` is built into: empty groups for a plain object, empty lists
+for an array, fields holding `undefined` for anything else.
 
 `ListItemAddedAction` fires once per item that ends up in the list: once for each padding item, each with the index
 that item occupies, and finally for `item` at the position it occupies — the same number `insert()` returns, so a
