@@ -61,7 +61,8 @@ overrides it, and every container holding that element follows.
 
 A hidden or suppressed child keeps what it holds. Setting it back to `FULL` brings its value back into the
 container's, and `bind()` carries it into a binding, so the choice of what to show never destroys what was entered.
-A change of visibility is a change of the container's value and is announced as one.
+A change of `enabled` or `visibility` is a change of the container's value and is announced as one, where it changes
+what the container sends.
 
 ### Where `null` comes from
 

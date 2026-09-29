@@ -276,3 +276,40 @@ describe('One rule for every container', () => {
     expect(list.value).toEqual(['r', 's']);
   });
 });
+
+describe('A change of enabled', () => {
+  it('is announced as a change of the value of the container above', () => {
+    const form = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+    const seen = watchOwn(form, 'value');
+
+    form.fields.b.enabled = false;
+    form.fields.b.enabled = true;
+
+    expect(seen).toEqual([{ a: 1 }, { a: 1, b: 2 }]);
+  });
+
+  it('says nothing where the container sends the same value either way', () => {
+    const sub = new Group({ a: new Field({ value: 1 }) });
+    const form = new Group({ sub, c: new Field({ value: 3 }) });
+    const seen = watchOwn(form, 'value');
+
+    // a disabled container that is not empty is still sent
+    sub.enabled = false;
+    transaction(() => {
+      form.fields.c.enabled = false;
+      form.fields.c.enabled = true;
+    });
+
+    expect(seen).toEqual([]);
+  });
+
+  it('reaches every container above, through a nested one', () => {
+    const inner = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+    const form = new Group({ inner });
+    const seen = watchOwn(form, 'value');
+
+    inner.fields.b.enabled = false;
+
+    expect(seen).toEqual([{ inner: { a: 1 } }]);
+  });
+});

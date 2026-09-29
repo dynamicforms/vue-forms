@@ -35,6 +35,13 @@ export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValue
 /** what Group.value and the Group constructor accept: keys left out are simply not assigned, and null clears */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
 
+/**
+ * The groups whose constructor is still taking and writing their members. A member's record is completed once the
+ * constructor has written the data it was given, so a rule that reads a sibling runs over that data rather than
+ * over the values the members were bound with.
+ */
+const assembling = new WeakSet<object>();
+
 /** the value a group none of whose members serializes reads back; it is frozen like every value a group builds */
 const emptyGroupValue = Object.freeze({});
 
@@ -112,20 +119,25 @@ export class Group<
     // construction is one transaction: the members are taken and written before anything is announced, and a
     // member that refuses to be taken - one another container already holds - leaves behind no half-built group
     transactional(() => {
-      Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
+      assembling.add(this);
+      try {
+        Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
 
-      if (params) {
-        const { value: paramValue, validators, actions, ...otherParams } = params;
-        // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
-        // guards them too
-        this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        this.assignParams(otherParams);
-        // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
-        // an optional property yields an undefined value, and assigning it would push null into every member and
-        // then baseline that emptied state as the original, so the group would report itself unchanged over values
-        // its members never held. An explicit null is a supplied value and does clear the members.
-        if (paramValue !== undefined) this.assignMembers(paramValue as GroupValueInput<T>);
-        else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
+        if (params) {
+          const { value: paramValue, validators, actions, ...otherParams } = params;
+          // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
+          // guards them too
+          this.registerInitialActions([...(validators || []), ...(actions || [])]);
+          this.assignParams(otherParams);
+          // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
+          // an optional property yields an undefined value, and assigning it would push null into every member and
+          // then baseline that emptied state as the original, so the group would report itself unchanged over values
+          // its members never held. An explicit null is a supplied value and does clear the members.
+          if (paramValue !== undefined) this.assignMembers(paramValue as GroupValueInput<T>);
+          else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
+        }
+      } finally {
+        assembling.delete(this);
       }
 
       // the members are in place and hold their values, so this is the record they were promised: a member whose
@@ -195,8 +207,9 @@ export class Group<
       tx.whenRolledBack(() => Group.dropEntry(this._fields, fieldName));
       this.state.fieldNames.push(fieldName);
       // the field now reaches the form this group stands in, so a rule of its own that names a field up there -
-      // one no record below could answer - is run over it here
-      this.completeRecords(field);
+      // one no record below could answer - is run over it here. A group still being constructed completes its
+      // members once it has written the data it was given.
+      if (!assembling.has(this)) this.completeRecords(field);
       this.bumpValueVersion();
       this.notifyValueChanged();
     });
