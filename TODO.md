@@ -23,11 +23,16 @@ Application state is a design goal (`docs/guide/rationale.md`), and eight things
 relies on are not settled. Each needs to be looked at and decided — implemented, left to the application with a
 documented pattern, or declined — not necessarily built:
 
-1. **Scope per application.** Where state lives is the application's choice — a module, `provide()`, a component —
-   and the library ties it to none. Undecided whether it offers a way to bind state to a Vue app, created on first
-   use, for applications that render on the server or run many apps in one process.
+1. **Where state lives.** The library needs no global store object: state lives wherever the application builds it —
+   a module, `provide()`, a component, any other place — and the same data can be held at whichever level suits it.
+   That is a strength to keep, not a gap to close. What is undecided is how the library names those locations where
+   something has to tell them apart: a devtools integration (3) has to show state held in many places, and an
+   application that renders on the server or runs several apps in one process may want state bound to one Vue app,
+   created on first use.
 2. **Server-side rendering hydration.** Nothing carries state serialized on the server into the client.
 3. **Vue devtools.** No inspector of the element tree, no timeline of changes and actions, no editing from devtools.
+   An inspector has to list state that lives in many places, so it is likely where the naming of locations (1) gets
+   decided.
 4. **Hot module replacement.** Replacing a module that builds state builds it again and loses what it held.
 5. **Plugins.** No extension point for cross-cutting behaviour such as persisting state between page loads.
 6. **Derived values and functions next to the state.** They live outside the element, as `computed` and plain
