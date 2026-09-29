@@ -1,5 +1,5 @@
 import { isBoolean, isEmpty, isEqual } from 'lodash-es';
-import { computed, reactive, watch, type ComputedRef } from 'vue';
+import { reactive, watch } from 'vue';
 
 import ActionsMap from './actions/actions-map';
 import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
@@ -7,11 +7,10 @@ import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
+import { type Container } from './container';
 import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
-import { type Group } from './group';
-import { type List } from './list';
 import {
   currentTransaction,
   type Transaction,
@@ -25,16 +24,6 @@ import {
 } from './transaction';
 import { ValidationError } from './validators/validation-error';
 import { Validator } from './validators/validator';
-
-/**
- * The computed behind a container's `valid`, held outside the element it belongs to. A computed refers back to
- * itself through its dependency record, and JSON.stringify and lodash isEqual both walk own enumerable
- * properties, so an element carrying one as a property would be a cycle to either of them.
- */
-const validReads = new WeakMap<object, ComputedRef<boolean>>();
-
-/** The computed behind a container's `busy`, held outside the element for the same reason `validReads` is. */
-const busyReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
  * The bindings made from a declaration, held outside it and weakly: a binding is released with the record it
@@ -310,13 +299,11 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   /**
    * Records that a child started or stopped answering `validating` with true, and carries the transition further
-   * up where it changes this element's own answer.
+   * up where it changes this element's own answer. Only a `Container` has children, and it implements this; it is
+   * declared here because a child tells its container through it.
    */
-  protected childValidatingChanged(started: boolean): void {
-    const wasValidating = this.validating;
-    this.#state.validatingChildren += started ? 1 : -1;
-    if (this.validating !== wasValidating) this.container?.childValidatingChanged(started);
-  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected childValidatingChanged(started: boolean): void {}
 
   /**
    * True while an `Action.execute()` at or below this element has yet to settle. An `Action` answers for its own
@@ -327,26 +314,6 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * idle reads both.
    */
   get busy(): boolean {
-    return false;
-  }
-
-  /**
-   * The composed answer a container gives `busy`, memoised by Vue. An `Action` counts its executions in a counter
-   * of its own, which no container is told about, so the answer is composed over the members instead of tallied;
-   * the computed keeps the walk from repeating while nothing it read has moved, and a member that is itself a
-   * container answers from its own computed.
-   */
-  protected get busyRead(): boolean {
-    let read = busyReads.get(this);
-    if (!read) {
-      read = computed(() => this.composeBusy());
-      busyReads.set(this, read);
-    }
-    return read.value;
-  }
-
-  /** What busyRead computes. A container answers over its members; anything else executes nothing. */
-  protected composeBusy(): boolean {
     return false;
   }
 
@@ -400,17 +367,17 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * so an effect rendering off the link - `v-if="field.parent"` - re-runs when a container takes the element or
    * releases it.
    *
-   * A `List` holds rows and a row is a `Group`, so only a container can be a `List`'s child: `Field` narrows the
-   * type to `Group | undefined`, and the sibling lookup `field.parent?.fields.other` is typed on a field.
+   * The type is `Container`, which names no members: a sibling lookup states which container it expects, either
+   * with `field.parent instanceof Group` or with a cast where the structure guarantees it.
    */
-  get parent(): Group | List | undefined {
-    return this.#state.parent as Group | List | undefined;
+  get parent(): Container | undefined {
+    return this.#state.parent;
   }
 
   /**
-   * The same link at the type the internals reach through. The protected members a container is told things
-   * through - childValidatingChanged, childValidityChanged - are declared here, and a union of two subclasses is
-   * not an instance of this class, which is what a protected access needs.
+   * The same link at the type the internals reach through. The hooks a child tells its container things through -
+   * childValidatingChanged, childValidityChanged - are declared here, and a protected member is reachable only
+   * through the class that declares it; `Container` overrides them, so the link is read as a `FieldBase`.
    */
   private get container(): FieldBase | undefined {
     return this.#state.parent;
@@ -650,7 +617,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (child.parent) throw new TypeError('This element already belongs to a container - pass a bind() of it');
       tx.touch(child);
       child.#state.fieldName = fieldName;
-      child.#state.parent = this;
+      // only a Container calls this, since only a container holds children
+      child.#state.parent = this as unknown as Container;
       this.adoptChild(child);
     });
   }
@@ -726,33 +694,11 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Records a child's new verdict in this element's tally. The child reports it as it settles, and the commit
-   * settles the deepest element first, so the tally a container reads when its own turn comes is finished.
-   * The delta is applied here rather than recomputed by walking the members at commit, which would cost
-   * `O(members)` per container and turn a list fill back into the quadratic walk this tally exists to avoid.
+   * Records a child's new verdict in this element's tally. Only a `Container` has children, and it implements
+   * this; it is declared here for the reason `childValidatingChanged` is.
    */
-  protected childValidityChanged(nowValid: boolean): void {
-    this.#raw.invalidChildren += nowValid ? -1 : 1;
-  }
-
-  /**
-   * The composed verdict a container answers `valid` with, memoised by Vue. The walk over the members is what
-   * makes an error pushed into one of them visible without a validate() call, and the computed keeps that walk
-   * from repeating while nothing it read has moved.
-   */
-  protected get validRead(): boolean {
-    let read = validReads.get(this);
-    if (!read) {
-      read = computed(() => this.composeValid());
-      validReads.set(this, read);
-    }
-    return read.value;
-  }
-
-  /** What validRead computes. A leaf answers over its own errors; a container adds its members. */
-  protected composeValid(): boolean {
-    return this.#state.errors.length === 0;
-  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected childValidityChanged(nowValid: boolean): void {}
 
   // default property handlers
   get visibility(): DisplayMode {

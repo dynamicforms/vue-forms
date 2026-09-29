@@ -219,6 +219,31 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v2.0.0 (from v1.x)
+
+### `parent` is a `Container` on every element
+
+`Group` and `List` extend a common base, [`Container`](/api/container), and every element's `parent` is typed
+`Container | undefined`. `Field` and `Action` no longer narrow it to `Group | undefined`, and the sibling lookup
+written straight through it stops compiling:
+
+```typescript
+// before
+field.parent?.fields.other;
+
+// after: checked
+if (field.parent instanceof Group) field.parent.fields.other;
+
+// after: stated, where the structure guarantees a Group
+(field.parent as Group | undefined)?.fields.other;
+```
+
+The type checker finds every site. A cast checks nothing at runtime, so it belongs where the field is a member of
+a group by construction; `instanceof` is the form for code that can meet either container. Naming the sibling and
+letting `CompareTo` resolve it — `new Validators.CompareTo('other', …)` — needs neither.
+
+A variable typed `Group | List` that `parent` is assigned to takes `Container` instead.
+
 ## Upgrading to v0.17.1 (from v0.17.0)
 
 One break, and nothing announces it: a `catch` branch stops being reached.

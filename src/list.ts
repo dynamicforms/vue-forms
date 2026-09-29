@@ -1,6 +1,7 @@
 import { isEmpty } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
+import { Container } from './container';
 import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
@@ -13,7 +14,7 @@ export type ListValue = Record<string, any>[] | null;
 export class List<
   T extends GenericFieldsInterface = GenericFieldsInterface,
   X extends object = Extras,
-> extends FieldBase<ListValue, X> {
+> extends Container<ListValue, X> {
   get [Symbol.toStringTag](): string {
     return 'List';
   }
@@ -201,18 +202,6 @@ export class List<
     });
   }
 
-  get touched(): boolean {
-    return this.state.rows?.some((item) => item.touched) || false;
-  }
-
-  set touched(touched: boolean) {
-    transactional(() => {
-      this.state.rows?.forEach((item) => {
-        item.touched = touched;
-      });
-    });
-  }
-
   bind(data?: ListValue, overrides?: IBindParams<ListValue, X>): List<T, X> {
     const template = this._itemTemplate?.bind();
     // construction goes through this.constructor so that a subclass binds into its own type
@@ -238,55 +227,12 @@ export class List<
     return res;
   }
 
-  /**
-   * Records that a row changed its value, so that the transaction in progress works out at commit what this
-   * list's own value became and announces it once. The mutation methods call it themselves; you rarely need to.
-   */
-  notifyValueChanged() {
-    this.propagateValueChanged();
-  }
-
-  protected get composesValue(): boolean {
-    return true;
-  }
-
-  /**
-   * A list with nothing listening for its value does not compose one at all, so the copy it holds is from before
-   * the changes nobody received. A registration that adds a listener brings it up to date here, and what the
-   * listener is then told about is the change that follows it.
-   */
-  protected refreshPreviousValue(): void {
-    this.raw.announcedValue = this.value;
-  }
-
-  get valid() {
-    return this.validRead;
-  }
-
-  protected composeValid(): boolean {
-    return this.state.errors.length === 0 && (this.state.rows?.every((item) => item.valid) ?? true);
-  }
-
-  get busy() {
-    return this.busyRead;
-  }
-
-  protected composeBusy(): boolean {
-    return this.state.rows?.some((item) => item.busy) ?? false;
-  }
-
-  validate(revalidate: boolean = false) {
-    transactional(() => {
-      // the items are revalidated first and the list forms its own verdict afterwards, over the finished set: an
-      // item that turns valid while a later one is still to be checked announces nothing until the transaction
-      // closes, so the list never reports a verdict over a half-revalidated set
-      if (revalidate) this.state.rows?.forEach((item) => item.validate(true));
-      super.validate(revalidate);
-    });
-  }
-
   protected get members(): FieldBase[] {
     return this.raw.rows ?? [];
+  }
+
+  protected get children(): readonly FieldBase[] {
+    return this.state.rows ?? [];
   }
 
   /**
