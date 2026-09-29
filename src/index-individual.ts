@@ -13,3 +13,4 @@ export * from './list';
 // the symbols behind the participation protocol stay in the module: what a consumer needs is the entry point
 export { transaction, type TransactionControl } from './transaction';
 export * from './validators';
+export * from './view';

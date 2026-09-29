@@ -82,12 +82,12 @@ gone. `HIDDEN` sends `null` while the child keeps its values, which is what a se
 wants: switching it back on brings back what was entered.
 
 ```typescript
-const club = new Group({ name: new Field({ value: '' }), city: new Field({ value: '' }) });
-const form = new Group({ member: new Field({ value: 'Ada' }), club });
+const billing = new Group({ street: new Field({ value: '' }), city: new Field({ value: '' }) });
+const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
 
-club.visibility = DisplayMode.HIDDEN;   // no club selected
-form.value;                             // { member: 'Ada', club: null }
-club.visibility = DisplayMode.FULL;     // the club's fields hold what they held
+billing.visibility = DisplayMode.HIDDEN;   // billed to the delivery address
+form.value;                                // { customer: 'Ada', billing: null }
+billing.visibility = DisplayMode.FULL;     // the address holds what was typed into it
 ```
 
 Writing a value is not part of these rules: an assignment reaches the element whatever its `enabled` and
@@ -95,7 +95,7 @@ Writing a value is not part of these rules: an assignment reaches the element wh
 form's rules change `enabled` and `visibility` therefore never loses data.
 
 Reading a record back into the form is plain assignment, and it does not touch visibility: `form.value = record`
-writes every member, hidden or disabled ones included, and `{ club: null }` empties the club. Which members are
+writes every member, hidden or disabled ones included, and `{ billing: null }` empties the billing address. Which members are
 shown is decided by the rules of the form — a type field, a toggle — not by the data.
 
 ### Reading the values
@@ -108,8 +108,8 @@ because a hidden one is `null`. Hand it to the server as it is.
 element holds is read off the element itself:
 
 ```typescript
-form.fullValue.club;          // null while the club is hidden
-form.fields.club.fullValue;   // what the club's fields hold, shown or not
+form.fullValue.billing;          // null while the billing address is hidden
+form.fields.billing.fullValue;   // what the address holds, shown or not
 ```
 
 Both carry the possibility in their types — a key of either is `T | null | undefined` — and code that needs a

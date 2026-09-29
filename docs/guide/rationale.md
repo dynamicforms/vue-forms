@@ -15,6 +15,8 @@ section or a list row behaves the same way a single field does — and rendering
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read — assign a property and whatever read it re-renders, with no `ref` to unwrap. A group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
+- **Application state, not only forms**: A form is state that happens to be shown. The same elements hold state no screen shows — a shopping cart, the filters of a list view, the settings of an editor — with everything a form gets: reads tracked per element, changes made in transactions and announced once, validity and validators, rules for what is sent, and actions that react to a change. [`view()`](/api/view) reads such state as plain data, and the cookbook's
+  [Application state](/guide/cookbook#application-state) recipe keeps a shopping cart that way.
 
 ## What this library will not do
 

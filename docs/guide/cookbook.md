@@ -26,7 +26,7 @@ form.rebind(record);
 It writes the record, starts the change history over and re-runs validation, and it takes a key the record leaves
 out from the form's declaration rather than from whatever the form held a moment ago.
 
-Loading does not decide what is shown. `{ club: null }` empties the club's fields and leaves the club shown or hidden
+Loading does not decide what is shown. `{ billing: null }` empties the billing address and leaves it shown or hidden
 as the form's own rule has it; where the form should follow the data, state it in the rule — see
 [An optional section](#an-optional-section).
 
@@ -147,19 +147,20 @@ field that does not apply, use `HIDDEN`: the field is sent as `null`.
 
 ## An optional section
 
-You want a section the user switches on and off — a club that may or may not be selected, an invoice address that
-may be the same as the delivery one — to be sent as `null` while it is off, and to keep what was entered.
+You want a section the user switches on and off — an invoice address that may be the same as the delivery one, a
+company that may or may not be named on the order — to be sent as `null` while it is off, and to keep what was
+entered.
 
 ```typescript
-const club = new Group({ name: new Field({ value: '' }), city: new Field({ value: '' }) });
-const form = new Group({ member: new Field({ value: 'Ada' }), club });
+const billing = new Group({ street: new Field({ value: '' }), city: new Field({ value: '' }) });
+const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
 
-const hasClub = ref(false);
+const separateBilling = ref(false);
 watchEffect(() => {
-  club.visibility = hasClub.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+  billing.visibility = separateBilling.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
 });
 
-form.value;   // { member: 'Ada', club: null } while hasClub is false
+form.value;   // { customer: 'Ada', billing: null } while separateBilling is false
 ```
 
 A hidden section is not counted in the form's validity, so a required field inside it does not block the submit
@@ -167,7 +168,7 @@ while the section is off. Where the section should follow a loaded record, the r
 
 ```typescript
 form.value = record;
-hasClub.value = record.club != null;
+separateBilling.value = record.billing != null;
 ```
 
 ## A field or a section that is shown but not editable
@@ -265,3 +266,53 @@ tags.value;   // ['urgent'], and [] while the list holds no rows
 Every row is a `Field` bound from the template, so every tag carries the `Required` validator, and a row binds to an
 input through `tag.value`. A list of lists is `new List(new List(...))`. The
 [List example](/examples/list) shows both in a running form.
+
+## Application state
+
+You want state that is not a form on screen — a shopping cart, say, with its items, a coupon and a delivery address
+— kept with the same reactivity, transactions and validation a form has. Build it once as a group, and read it
+through [`view()`](/api/view):
+
+```typescript
+import { computed, watchEffect } from 'vue';
+import { DisplayMode, Field, Group, List, Validators, view } from '@dynamicforms/vue-forms';
+
+export function createCart() {
+  const cart = view(new Group({
+    items: new List(new Group({
+      sku: new Field({ value: '' }),
+      name: new Field({ value: '' }),
+      price: new Field({ value: 0 }),
+      quantity: new Field({ value: 1, validators: [new Validators.MinValue(1)] }),
+    })),
+    coupon: new Field<string | null>({ value: null }),
+    pickup: new Field({ value: false }),
+    delivery: new Group({
+      street: new Field({ value: '', validators: [new Validators.Required()] }),
+      city: new Field({ value: '', validators: [new Validators.Required()] }),
+    }),
+  }));
+  // a cart collected in the shop sends no delivery address, and keeps the one typed in
+  watchEffect(() => {
+    cart.$.fields.delivery.visibility = cart.pickup ? DisplayMode.HIDDEN : DisplayMode.FULL;
+  });
+  return cart;
+}
+
+const cart = createCart();
+const total = computed(() =>
+  (cart.items ?? []).reduce((sum, item) => sum + (item?.price ?? 0) * (item?.quantity ?? 0), 0));
+
+cart.items!.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 2 });
+cart.items!.sort((a, b) => a!.name!.localeCompare(b!.name!));
+cart.coupon = 'SPRING';
+```
+
+The list's view is an array whose mutations are the list's own, so a sort moves the rows themselves. Every read is
+tracked on the field it reaches: `watch(() => cart.coupon, …)` runs when the coupon changes and not when a quantity
+does, and `total` follows the prices and quantities. While the cart is collected in the shop, `cart.$.value` sends
+`delivery: null` and the address does not count in `cart.$.valid`; switching back to delivery brings the address
+back as it was typed.
+
+`createCart()` builds a cart wherever it is called, so where the state lives is the caller's choice — a module, a
+`provide()` in the component that owns it, or anywhere else — and a test builds a cart of its own.

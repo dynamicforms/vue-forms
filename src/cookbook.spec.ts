@@ -1,4 +1,4 @@
-import { nextTick, ref, watchEffect } from 'vue';
+import { computed, nextTick, ref, watch, watchEffect } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import DisplayMode from './display-mode';
@@ -6,6 +6,7 @@ import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
 import { ValidationErrorText, Validators } from './validators';
+import { view } from './view';
 
 /**
  * The recipes of docs/guide/cookbook.md, each run as the page writes it.
@@ -36,40 +37,40 @@ describe('Cookbook: what a form sends', () => {
   });
 
   it('sends an optional section as null while it is off, keeps what it holds, and does not count it', async () => {
-    const club = new Group({ name: required(''), city: new Field({ value: '' }) });
-    const form = new Group({ member: new Field({ value: 'Ada' }), club });
-    const hasClub = ref(false);
+    const billing = new Group({ street: required(''), city: new Field({ value: '' }) });
+    const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
+    const separateBilling = ref(false);
     watchEffect(() => {
-      club.visibility = hasClub.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+      billing.visibility = separateBilling.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
     });
 
-    expect(form.value).toEqual({ member: 'Ada', club: null });
+    expect(form.value).toEqual({ customer: 'Ada', billing: null });
     expect(form.valid).toBe(true);
-    expect(form.fullValue.club).toBeNull();
-    club.fields.name.value = 'NK';
-    expect(club.fullValue).toEqual({ name: 'NK', city: '' });
+    expect(form.fullValue.billing).toBeNull();
+    billing.fields.street.value = 'Main 1';
+    expect(billing.fullValue).toEqual({ street: 'Main 1', city: '' });
 
-    hasClub.value = true;
+    separateBilling.value = true;
     await nextTick();
-    expect(form.value).toEqual({ member: 'Ada', club: { name: 'NK', city: '' } });
+    expect(form.value).toEqual({ customer: 'Ada', billing: { street: 'Main 1', city: '' } });
   });
 
   it('loads a record without touching visibility, and follows the data where the rule says so', async () => {
-    const club = new Group({ name: new Field({ value: 'NK' }) });
-    const form = new Group({ member: new Field({ value: '' }), club });
-    const hasClub = ref(true);
+    const billing = new Group({ street: new Field({ value: 'Main 1' }) });
+    const form = new Group({ customer: new Field({ value: '' }), billing });
+    const separateBilling = ref(true);
     watchEffect(() => {
-      club.visibility = hasClub.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+      billing.visibility = separateBilling.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
     });
 
-    const record = { member: 'Grace', club: null };
+    const record = { customer: 'Grace', billing: null };
     form.value = record;
-    expect(club.visibility).toBe(DisplayMode.FULL);
-    expect(form.value).toEqual({ member: 'Grace', club: { name: null } });
+    expect(billing.visibility).toBe(DisplayMode.FULL);
+    expect(form.value).toEqual({ customer: 'Grace', billing: { street: null } });
 
-    hasClub.value = record.club != null;
+    separateBilling.value = record.billing != null;
     await nextTick();
-    expect(form.value).toEqual({ member: 'Grace', club: null });
+    expect(form.value).toEqual({ customer: 'Grace', billing: null });
   });
 
   it('clears a form with rebind(null)', () => {
@@ -210,5 +211,81 @@ describe('Cookbook: fields, sections and lists', () => {
     expect(tags.value).toEqual(['urgent']);
     tags.push('');
     expect(tags.valid).toBe(false);
+  });
+});
+
+describe('Cookbook: application state', () => {
+  function createCart() {
+    const cart = view(
+      new Group({
+        items: new List(
+          new Group({
+            sku: new Field({ value: '' }),
+            name: new Field({ value: '' }),
+            price: new Field({ value: 0 }),
+            quantity: new Field({ value: 1, validators: [new Validators.MinValue(1)] }),
+          }),
+        ),
+        coupon: new Field<string | null>({ value: null }),
+        pickup: new Field({ value: false }),
+        delivery: new Group({
+          street: new Field({ value: '', validators: [new Validators.Required()] }),
+          city: new Field({ value: '', validators: [new Validators.Required()] }),
+        }),
+      }),
+    );
+    // a cart collected in the shop sends no delivery address, and keeps the one typed in
+    watchEffect(() => {
+      cart.$.fields.delivery.visibility = cart.pickup ? DisplayMode.HIDDEN : DisplayMode.FULL;
+    });
+    return cart;
+  }
+
+  it('reads, derives and changes the state through its view', async () => {
+    const cart = createCart();
+    const total = computed(() =>
+      (cart.items ?? []).reduce((sum, item) => sum + (item?.price ?? 0) * (item?.quantity ?? 0), 0),
+    );
+    const coupons: unknown[] = [];
+    watch(
+      () => cart.coupon,
+      (coupon) => coupons.push(coupon),
+    );
+
+    cart.items!.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 2 });
+    cart.items!.push({ sku: 'b-1', name: 'Bowl', price: 20, quantity: 1 });
+    cart.items![0]!.quantity = 3;
+    cart.items!.sort((a, b) => a!.name!.localeCompare(b!.name!));
+    await nextTick();
+
+    expect(total.value).toBe(56);
+    expect(cart.items!.map((item) => item!.sku)).toEqual(['b-1', 'm-1']);
+    expect(coupons).toEqual([]);
+
+    cart.coupon = 'SPRING';
+    await nextTick();
+    expect(coupons).toEqual(['SPRING']);
+
+    cart.delivery!.street = 'Main 1';
+    cart.pickup = true;
+    await nextTick();
+    expect(cart.delivery).toBeNull();
+    expect(cart.$.value.delivery).toBeNull();
+    // the address still missing a city does not hold the cart back while it is not delivered
+    expect(cart.$.valid).toBe(true);
+
+    cart.pickup = false;
+    await nextTick();
+    expect(cart.delivery?.street).toBe('Main 1');
+    expect(cart.$.valid).toBe(false);
+  });
+
+  it('builds one state per call, so each test and each application starts from its own', () => {
+    const first = createCart();
+    const second = createCart();
+
+    first.items!.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 1 });
+
+    expect(second.items).toEqual([]);
   });
 });

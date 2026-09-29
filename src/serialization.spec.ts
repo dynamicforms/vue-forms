@@ -55,16 +55,16 @@ describe('An enabled container serializes', () => {
 
 describe('Visibility in a group', () => {
   it('sends a hidden member as null and keeps what it holds for when it is shown again', () => {
-    const club = new Group({ name: new Field({ value: 'NK' }) });
-    const form = new Group({ club, member: new Field({ value: 'Ada' }) });
+    const billing = new Group({ street: new Field({ value: 'Main 1' }) });
+    const form = new Group({ billing, customer: new Field({ value: 'Ada' }) });
 
-    club.visibility = DisplayMode.HIDDEN;
-    expect(form.value).toEqual({ club: null, member: 'Ada' });
-    expect(form.fullValue).toEqual({ club: null, member: 'Ada' });
-    expect(club.value).toEqual({ name: 'NK' });
+    billing.visibility = DisplayMode.HIDDEN;
+    expect(form.value).toEqual({ billing: null, customer: 'Ada' });
+    expect(form.fullValue).toEqual({ billing: null, customer: 'Ada' });
+    expect(billing.value).toEqual({ street: 'Main 1' });
 
-    club.visibility = DisplayMode.FULL;
-    expect(form.value).toEqual({ club: { name: 'NK' }, member: 'Ada' });
+    billing.visibility = DisplayMode.FULL;
+    expect(form.value).toEqual({ billing: { street: 'Main 1' }, customer: 'Ada' });
   });
 
   it('leaves a suppressed member out of value and fullValue alike', () => {
@@ -311,5 +311,25 @@ describe('A change of enabled', () => {
     inner.fields.b.enabled = false;
 
     expect(seen).toEqual([{ inner: { a: 1 } }]);
+  });
+});
+
+describe('An object a field holds', () => {
+  it('is one value: a write into it announces nothing on the field or above it', () => {
+    const tags = new Field<string[]>({ value: ['a'] });
+    const form = new Group({ tags });
+    const seenField = watchOwn(tags, 'value');
+    const seenForm = watchOwn(form, 'value');
+
+    tags.value.push('b');
+    transaction(() => {
+      tags.value.push('c');
+    });
+
+    expect(seenField).toEqual([]);
+    expect(seenForm).toEqual([]);
+
+    tags.value = [...tags.value, 'd'];
+    expect(seenField).toEqual([['a', 'b', 'c', 'd']]);
   });
 });
