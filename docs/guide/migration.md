@@ -14,7 +14,7 @@ exists.
 
 ## Upgrading to v2.0.0 (from v1.x)
 
-Five of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
+Six of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
 first. [What a container serializes](/api/container#what-a-container-serializes) states the rules they add up to.
 
 ### An enabled container is never `null`
@@ -67,6 +67,20 @@ list.get(1).enabled = false;
 list.value;       // before: ['a', 'b', 'c']   after: ['a', 'c']
 list.fullValue;   // ['a', 'b', 'c'] either way
 ```
+
+### Switching `enabled` announces a change of the containers above
+
+A container whose value changes because a member was enabled or disabled fires `ValueChangedAction`, as it does for
+any other change of its value. Before, the value changed without an announcement.
+
+```typescript
+form.registerAction(new ValueChangedAction(onFormChanged));
+form.fields.notes.enabled = false;   // before: onFormChanged did not run   after: it runs, notes left out
+```
+
+A handler on a container that saves or recomputes on every change now also runs for these switches. A switch that
+does not change what the container sends — a disabled container that still holds something, toggled twice inside
+one transaction — announces nothing.
 
 ### A disabled field takes a write
 

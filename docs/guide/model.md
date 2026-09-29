@@ -179,24 +179,11 @@ its siblings nor its row — so a rule reading a second element reaches nothing 
 
 Reaching nothing is **no verdict**, not a pass. An action that finds nothing says so with
 `field.markRecordIncomplete()` and returns without a verdict. The container that completes the record runs that
-element's eager actions again — the `Group` once it has written its members, the `List` once it has taken the row
-into the form — and a pass that still reaches nothing says so again, so the next container above answers for it.
-`CompareTo` and the conditional actions do this themselves; a hand-written rule that reads a sibling does the same:
-
-```typescript
-new Validators.Validator((newValue, oldValue, field) => {
-  // the callback receives a FieldBase, whose container is typed as either kind, and the members below are a
-  // Group's: a field is never a List's child, so the narrowing holds
-  const row = field.parent as Group | undefined;
-  if (!row) {
-    field.markRecordIncomplete();
-    return null;
-  }
-  return row.fields.quantity.value > 0 && newValue == null
-    ? [new ValidationErrorText('Unit price is required when quantity is above zero')]
-    : null;
-});
-```
+element's eager actions again — the `Group` once it has taken its members and written the data it was given, the
+`List` once it has taken the row into the form — and a pass that still reaches nothing says so again, so the next
+container above answers for it. `CompareTo` and the conditional actions do this themselves; a hand-written rule
+does it as [A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record)
+shows.
 
 ## Transactions: when events fire
 

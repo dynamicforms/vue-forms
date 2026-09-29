@@ -243,11 +243,10 @@ The field's `parent` is typed [`Container`](/api/container#parent), so the check
 reading `fields`. The check also answers whether the row exists yet: a row is built member by member, and a
 member's first run happens before it has a row. Reaching nothing there is no verdict, not a pass —
 [`markRecordIncomplete()`](/api/field#markrecordincomplete-void) says so, and the row runs the validator again once
-it holds its members.
+it holds its members and the data it was built with.
 
 A validator runs when its own field changes, so the second action is what keeps the verdict right when the other
-half of the rule changes — a quantity edited, and equally the quantity a row is built with, which is written after
-the row has taken its members.
+half of the rule changes: a quantity edited after the row exists.
 
 A rule comparing two fields by name needs none of this: [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message)
 resolves the other field in the record it runs in and follows it. The

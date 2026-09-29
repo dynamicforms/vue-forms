@@ -49,7 +49,7 @@ holds.
 A row is built member by member — every member is bound on its own, the bindings are handed to a `Group`, and the
 group is then handed the row's data — so this validator's first run happens while the unit price still has no
 `parent`. Reaching nothing there is *no verdict*, not a pass: `field.markRecordIncomplete()` says so, and the
-container that completes the record runs the validator again over the row it then has. That is why a row created
+container that completes the record runs the validator again once the row holds its members and their data. That is why a row created
 with a quantity above zero and no unit price is invalid from the moment it exists, without anything revalidating
 it by hand.
 

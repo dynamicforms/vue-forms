@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A list without an item template builds each row from its own item: `new List().push('abc')` holds a `Field`
   and reads back `['abc']`.
 
+### Fixed
+- A `Group` completes the records of its members once it has written the data it was built with, so a rule reading
+  a sibling - a validator on a `List` row that reads another field of the row - reaches its verdict over the row's
+  data rather than over the values its members were bound with.
+
 ### Changed
 - **Breaking:** an enabled container is never `null`. A `Group` none of whose members serializes reads `{}` and a
   `List` without rows reads `[]`; `GroupValue<T>` and `ListValue<R>` no longer include `null`.
@@ -29,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `FieldBase.serializesAs(purpose)`, which a subclass of an element may override.
 - **Breaking:** a disabled `Field` or `Action` takes a write to `value`; `enabled` decides serialization and input,
   not whether a write reaches the element. A record assigned to a form reaches every member whatever is enabled.
+- **Breaking:** switching `enabled` announces a `ValueChangedAction` on every container above whose value it
+  changes, the way a change of `visibility` does.
 - **Breaking:** `DisplayMode.INVISIBLE` is removed; `DisplayMode` is `FULL`, `HIDDEN` and `SUPPRESS`.
 - **Breaking:** `parent` is typed `Container | undefined` on every element. `Field` and `Action` no longer narrow it
   to `Group | undefined`, so `field.parent?.fields.other` needs `instanceof Group` or a cast first.

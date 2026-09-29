@@ -785,9 +785,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
       tx.touch(this);
       this.#state.enabled = alteredValue ?? newValue;
-      // a disabled field is left out of the value its group serializes, so the switch changes the value of every
-      // container above it just as a write to the value itself would
-      if (this.#state.enabled !== oldValue) this.bumpValueVersion();
+      // a disabled element is left out of the value its container serializes, so the switch changes the value of
+      // every container above it just as a write to the value itself would, and it is announced the same way: the
+      // commit compares what the container ends up holding, so a switch that changes nothing it sends says nothing
+      if (this.#state.enabled !== oldValue) {
+        this.bumpValueVersion();
+        this.parent?.notifyValueChanged();
+      }
       this.boundActions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
     });
   }

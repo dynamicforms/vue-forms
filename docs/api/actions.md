@@ -787,7 +787,8 @@ An eager action that reads a second element — a validator comparing two fields
 the row — can run before the record it reads exists: a `List` row is built by binding the item template member by
 member, and a member's eager pass runs while the member is still on its own. Where the lookup reaches nothing,
 call `field.markRecordIncomplete()` and reach no verdict. The container that finishes the record runs the pass
-again over the record it then has, and a pass that still reaches nothing says so again, so the container above —
+again over the record it then has — a `Group` once it has written the data it was given — and a pass that still
+reaches nothing says so again, so the container above —
 the `List` taking the row into the form — answers for it in turn. `CompareTo` and the conditional actions do
 exactly this, which is how a row that holds the very values its template holds still carries its own verdict.
 
