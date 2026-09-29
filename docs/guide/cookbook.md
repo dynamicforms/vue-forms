@@ -265,3 +265,62 @@ tags.value;   // ['urgent'], and [] while the list holds no rows
 Every row is a `Field` bound from the template, so every tag carries the `Required` validator, and a row binds to an
 input through `tag.value`. A list of lists is `new List(new List(...))`. The
 [List example](/examples/list) shows both in a running form.
+
+## A group as a store
+
+You want application state — the logged-in user, the clubs they belong to, the selected club — in one reactive
+object, the way a Pinia store holds it. A group is that object, and [`view()`](/api/view) reads it as one:
+
+```typescript
+import { computed } from 'vue';
+import { DisplayMode, Field, Group, List, transaction, view } from '@dynamicforms/vue-forms';
+
+interface Account { email: string; full_name: string; is_superuser: boolean }
+interface Club { slug: string; name: string }
+interface SessionState { account: Account | null; clubs: Club[]; club: Club | null; permissions: string[] }
+
+const clubGroup = () => new Group({ slug: new Field({ value: '' }), name: new Field({ value: '' }) });
+
+export const session = view(new Group({
+  account: new Group({
+    email: new Field({ value: '' }),
+    full_name: new Field({ value: '' }),
+    is_superuser: new Field({ value: false }),
+  }),
+  clubs: new List(clubGroup()),
+  club: clubGroup(),
+  permissions: new Field<string[]>({ value: [] }),
+}));
+
+// a section nobody is logged into, or no club is selected in, is hidden: it reads null
+session.$fields.account.visibility = DisplayMode.HIDDEN;
+session.$fields.club.visibility = DisplayMode.HIDDEN;
+
+export const loggedIn = computed(() => session.account != null);
+export const userDisplayName = computed(() => session.account?.full_name || session.account?.email);
+export const hasPermission = (codename: string) =>
+  !!session.account?.is_superuser || !!session.permissions?.includes(codename);
+
+// takes what the server sent: a section it sends as null is hidden, one it sends is shown
+export function apply(state: Partial<SessionState>) {
+  transaction(() => {
+    session.$value = state;
+    (['account', 'club'] as const).forEach((name) => {
+      if (name in state) session.$fields[name].visibility = state[name] ? DisplayMode.FULL : DisplayMode.HIDDEN;
+    });
+  });
+}
+```
+
+No placeholder values stand for "nobody" or "none": a hidden section reads `null` through the view and is sent as
+`null` in `session.$value`, and its fields are simply written over by the next `apply()`. The transaction makes the
+record and its visibility one change, so nothing reads a session that is half applied.
+
+Every read through the view is tracked on the field it reaches, so `watch(() => session.account?.email, …)` runs when
+the e-mail changes and not when the permissions do. A component binds a field directly, once it knows the section
+is there:
+
+```vue
+<input v-if="session.account" v-model="session.account.full_name" />
+```
+

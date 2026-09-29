@@ -39,6 +39,8 @@ mechanism applies at every level of a nested form.
 - **Conditional logic**: visibility, enablement and values declared as statements over other fields
 - **Extended properties**: a field carries whatever your UI renders it with — a label, a hint, a width — declared
   as a second type argument, checked by the compiler and read through `extra`
+- **Plain-data views**: `view(group)` reads a form as plain properties — `form.address.city`, `v-model="form.name"` —
+  with the element's members under `$`, the way a Pinia store reads
 - **Display modes**: `FULL`, `HIDDEN` and `SUPPRESS` decide whether an element is shown and what it contributes to
   the value its form sends — its own value, `null`, or nothing
 - **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds

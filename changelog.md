@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.0.0] - Unreleased
 
 ### Added
+- `view(element)`: a form element seen as its data. A group's members and a list's rows are plain properties — a
+  field as its value, a container as its view — and every member of the element is there under a `$` prefix. A
+  list's view is an array whose mutations are carried out as the list's own operations. One element has one view.
 - `Container`, the abstract base `Group` and `List` extend. It composes `valid`, `busy` and `touched` over the
   children, cascades `validate(true)` to them and takes their change notifications, so the two share one
   implementation of each.

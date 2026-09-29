@@ -1,11 +1,13 @@
-import { nextTick, ref, watchEffect } from 'vue';
+import { computed, nextTick, ref, watch, watchEffect } from 'vue';
 
 import { ValueChangedAction } from './actions';
 import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
+import { transaction } from './transaction';
 import { ValidationErrorText, Validators } from './validators';
+import { view } from './view';
 
 /**
  * The recipes of docs/guide/cookbook.md, each run as the page writes it.
@@ -210,5 +212,79 @@ describe('Cookbook: fields, sections and lists', () => {
     expect(tags.value).toEqual(['urgent']);
     tags.push('');
     expect(tags.valid).toBe(false);
+  });
+});
+
+describe('Cookbook: a group as a store', () => {
+  const clubGroup = () => new Group({ slug: new Field({ value: '' }), name: new Field({ value: '' }) });
+  const makeSession = () =>
+    view(
+      new Group({
+        account: new Group({
+          email: new Field({ value: '' }),
+          full_name: new Field({ value: '' }),
+          is_superuser: new Field({ value: false }),
+        }),
+        clubs: new List(clubGroup()),
+        club: clubGroup(),
+        permissions: new Field<string[]>({ value: [] }),
+      }),
+    );
+
+  it('reads, derives and applies a session through its view', async () => {
+    const session = makeSession();
+    // a section nobody is logged into, or no club is selected in, is hidden: it reads null
+    session.$fields.account.visibility = DisplayMode.HIDDEN;
+    session.$fields.club.visibility = DisplayMode.HIDDEN;
+
+    const loggedIn = computed(() => session.account != null);
+    const userDisplayName = computed(() => session.account?.full_name || session.account?.email);
+    const hasPermission = (codename: string) =>
+      !!session.account?.is_superuser || !!session.permissions?.includes(codename);
+
+    function apply(state: Record<string, unknown>) {
+      transaction(() => {
+        session.$value = state;
+        (['account', 'club'] as const).forEach((name) => {
+          if (name in state) session.$fields[name].visibility = state[name] ? DisplayMode.FULL : DisplayMode.HIDDEN;
+        });
+      });
+    }
+
+    expect(loggedIn.value).toBe(false);
+    const names: unknown[] = [];
+    watch(
+      () => session.account?.email,
+      (email) => names.push(email),
+    );
+
+    apply({
+      account: { email: 'ada@x', full_name: '', is_superuser: false },
+      clubs: [{ slug: 'nk', name: 'NK' }],
+      club: { slug: 'nk', name: 'NK' },
+      permissions: ['read'],
+    });
+    await nextTick();
+
+    expect(loggedIn.value).toBe(true);
+    expect(userDisplayName.value).toBe('ada@x');
+    expect(hasPermission('read')).toBe(true);
+    expect(session.club?.slug).toBe('nk');
+    expect(session.$value).toEqual({
+      account: { email: 'ada@x', full_name: '', is_superuser: false },
+      clubs: [{ slug: 'nk', name: 'NK' }],
+      club: { slug: 'nk', name: 'NK' },
+      permissions: ['read'],
+    });
+
+    session.permissions = ['read', 'write'];
+    await nextTick();
+    apply({ account: null, clubs: [], club: null, permissions: [] });
+    await nextTick();
+
+    expect(loggedIn.value).toBe(false);
+    expect(session.$value).toEqual({ account: null, clubs: [], club: null, permissions: [] });
+    // the e-mail watch ran for the login and for the logout, not for the permissions in between
+    expect(names).toEqual(['ada@x', undefined]);
   });
 });
