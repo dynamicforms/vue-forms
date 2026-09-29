@@ -42,3 +42,26 @@ documented pattern, or declined — not necessarily built:
    object held by one field is one value, and a write into it goes through no transaction and announces nothing.
 8. **Cost per value.** Every value is an element with its state, its actions and its validity, which costs more
    than a plain reactive value for large, finely divided state.
+
+## Features other state libraries offer
+
+Eight capabilities other state libraries are known for, each a candidate to be looked at and decided. Most read as
+something a plugin could add once there is a plugin system (point 5 above), so that decision comes first and several
+of these may be settled by it: built as plugins, left to the application, or declined.
+
+1. **Undo, redo and a history of changes** (MobX-State-Tree, Redux devtools, Immer patches). A transaction already
+   captures what it changes and can put it back; a history of committed transactions is the natural extension.
+2. **Snapshots and patches as a stream of changes** (MobX-State-Tree `onPatch` / `applyPatch`, Immer patches). Every
+   change as a serializable diff, for autosave, sync across tabs or devices, and collaborative editing.
+3. **Normalized entities and references by id** (Redux Toolkit entity adapter, MobX-State-Tree references, the
+   Apollo cache). One record several places point to, rather than a copy in each list that holds it.
+4. **Server state** (TanStack Query, RTK Query): fetching, caching, invalidation, refetching, and optimistic updates
+   rolled back when the server refuses them — the last maps directly onto transactions.
+5. **State machines and statecharts** (XState). Explicit states and the transitions allowed between them — draft,
+   submitted, confirmed — with a transition refused where it is not allowed. Conditional actions cover part of it.
+6. **A strict mode** (MobX `enforceActions`, Vuex strict mode). A warning or an error for a change made outside the
+   allowed path — here, a write into an object a field holds, which bypasses transactions and announces nothing.
+7. **State derived from a schema** (MobX-State-Tree types, Zod integrations). Groups, fields and validators built from
+   one JSON Schema or Zod schema that also checks the shape.
+8. **Asynchronous derived state with Suspense** (Jotai and Recoil async atoms). A derived value that is a promise, and
+   a component that waits for it.
