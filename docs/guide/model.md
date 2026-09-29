@@ -13,10 +13,10 @@ A form is a tree of **elements**. There are four classes and they share one base
 | `Field<T>` | one value |
 | `Action<T>` | one value of the shape `{ label?, icon? }`, plus `execute()` and `busy` |
 | `Group<T>` | a named map of member elements; its value is an object |
-| `List<T>` | an ordered set of `Group` rows; its value is an array of objects |
+| `List<R>` | an ordered set of rows of type `R` — a `Group`, a `Field`, another `List`; its value is an array of the rows' values |
 
-`Group` and `List` are elements themselves, so a group nests in a group, a list nests in a group, and a group is a
-row of a list. Both extend [`Container`](/api/container), which composes `valid`, `busy` and `touched` over the
+`Group` and `List` are elements themselves, so a group nests in a group, a list nests in a group, and any element
+is a row of a list. Both extend [`Container`](/api/container), which composes `valid`, `busy` and `touched` over the
 children and is the type of every element's `parent`. Everything below applies at every level.
 
 Every element carries the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
@@ -119,7 +119,7 @@ the same reason. What stays per row is the data — the value, the errors the ru
 
 ## How a `List` builds rows
 
-The `Group` handed to `new List(template)` is not a row. It is the declaration every row is built from, and every
+The element handed to `new List(template)` is not a row. It is the declaration every row is built from, and every
 row is a binding of it — its members, its validators and its actions included.
 
 | Operation | What it does with rows |
@@ -127,7 +127,7 @@ row is a binding of it — its members, its validators and its actions included.
 | `new List(tpl, { value: [...] })` | one binding per item, each over that item's data |
 | `push(item)` / `insert(item, index)` | one binding, taken into the list at that position |
 | `insert(item, index)` past the end | bindings of the template, carrying the template's own values, fill the gap |
-| `push(group)` / `insert(group, …)` | an existing `Group` is taken as it stands, not bound |
+| `push(element)` / `insert(element, …)` | an existing element is taken as it stands, not bound |
 | `list.value = rows` | where the list has an item template and the item is plain data, the row already standing at that position is **reused** and reset; otherwise a binding takes its place. Surplus rows are released |
 | `remove(index)` / `pop()` | the row itself is released — it loses its `parent`, can be handed to another list, and holds everything it held in the list — and it is what the call answers with |
 | `clear()` | every row is released |

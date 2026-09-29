@@ -1,7 +1,7 @@
 import type { Container } from './container';
 import DisplayMode from './display-mode';
 import type { FieldBase } from './field-base';
-import type { GenericFieldsInterface, Group } from './group';
+import type { Group } from './group';
 import type { ListValue } from './list';
 import { ValidationError } from './validators/validation-error';
 
@@ -134,20 +134,18 @@ export function groupSlots<T = any>(): GroupSlots<T> {
 }
 
 /** what a List holds beyond the container slots: the rows themselves */
-export interface ListSlots<
-  T extends GenericFieldsInterface = GenericFieldsInterface,
-> extends ContainerSlots<ListValue> {
-  rows: Group<T>[] | null;
+export interface ListSlots<R extends FieldBase = Group> extends ContainerSlots<ListValue<R>> {
+  rows: R[] | null;
   /**
    * Counts the changes to the set of rows. `items` rebuilds the frozen array it hands out when it moves, and
    * only then: a write inside a row changes what the list serializes without changing which rows it holds.
    */
   rowsVersion: number;
   /** the frozen array `items` last handed out, together with the rows version it was built from */
-  cachedItems: readonly Group<T>[] | null;
+  cachedItems: readonly R[] | null;
   cachedItemsVersion: number;
 }
 
-export function listSlots<T extends GenericFieldsInterface = GenericFieldsInterface>(): ListSlots<T> {
-  return { ...containerSlots<ListValue>(), rows: null, rowsVersion: 0, cachedItems: null, cachedItemsVersion: -1 };
+export function listSlots<R extends FieldBase = Group>(): ListSlots<R> {
+  return { ...containerSlots<ListValue<R>>(), rows: null, rowsVersion: 0, cachedItems: null, cachedItemsVersion: -1 };
 }

@@ -1,11 +1,13 @@
 # List
 
-`List<T>` manages a dynamic array of `Group<T>` items. It supports adding, removing, and replacing items while triggering the same action/validation system as `Field` and `Group`.
+`List<R>` manages a dynamic array of rows of type `R`. A row is any form element: a `Group` for a list of records,
+a `Field` for a list of plain values, another `List` for a list of lists. The list supports adding, removing, and
+replacing rows while triggering the same action/validation system as `Field` and `Group`.
 
 ## Creating a list
 
 ```typescript
-import { Field, Group, List } from '@dynamicforms/vue-forms';
+import { Field, Group, List, Validators } from '@dynamicforms/vue-forms';
 
 // Define the item template
 const itemTemplate = new Group({
@@ -23,14 +25,26 @@ const list2 = new List(itemTemplate, {
     { name: 'Bob',   score: 80 },
   ],
 });
+
+// A list of plain values: every row is a Field, and the value is an array of strings
+const tags = new List(new Field<string>({ validators: [new Validators.Required()] }), {
+  value: ['urgent', 'billing'],
+});
+tags.push('refund');
+tags.value; // ['urgent', 'billing', 'refund']
 ```
+
+The type argument is the row: `new List(itemTemplate)` infers it from the template, so the two lists above are a
+`List<Group<{ name: Field<string>; score: Field<number> }>>` and a `List<Field<string>>`. A list declared without
+a template is a `List<Group>`, and a list of fields without one is declared with the type argument,
+`new List<Field<string>>()`.
 
 ## `new List(itemTemplate?, params?)`
 
-`params` is an `IFieldParams<ListValue, X>` — the same parameter type every form element takes, with the list's
+`params` is an `IFieldParams<ListValue<R>, X>` — the same parameter type every form element takes, with the list's
 value shape substituted. A list takes [extended properties](/api/field#extended-properties) like every other
 element: augment [`Extras`](/api/field#extras) once and every list carries them, or declare them as the second
-type argument for one list, `new List<Fields, Presentation>(template, { label: … })`. Either way they read back
+type argument for one list, `new List<Group<Fields>, Presentation>(template, { label: … })`. Either way they read back
 through `list.extra`. Every row the item template builds is a binding of it, so the template's
 members carry theirs into each row. `length` and `items` are members `List` declares itself and are read-only,
 so a parameter of either name throws a `TypeError` the way `valid` and `busy` do — name a presentation property
@@ -38,9 +52,9 @@ of that meaning something else.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `itemTemplate` | `Group<T>` | `undefined` | Template bound to each new item's data. If omitted, `Group.createFromFormData` is used for plain objects. |
-| `params.value` | `ListValue` (`Record<string, any>[] \| null`) | `null` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
-| `params.originalValue` | `ListValue` | same as `value` (`null` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
+| `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is a `Group` built from its item by `Group.createFromFormData` |
+| `params.value` | `ListValue<R>` (`R['value'][] \| null`) | `null` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
+| `params.originalValue` | `ListValue<R>` | same as `value` (`null` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
 | `params.enabled` | `boolean` | `true` | Rendering/serialization hint. Unlike `Field`, a disabled `List` still accepts value assignment and all mutations; `enabled` only causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is |
 | `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Rendering visibility hint |
 | `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
@@ -57,8 +71,8 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `ListValue` | yes | Array of item values — every item is included regardless of its own `enabled` flag; each item's own value follows the `Group` serialization rule. Reads back `null` when the list has no items. Getter and setter share the type, so `list.value = null` — the write `group.value = null` makes into a nested list — type-checks, and it releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows standing: the setter is typed, so that write reaches it from JavaScript or through an `as any` |
-| `originalValue` | `ListValue` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
+| `value` | `ListValue<R>` | yes | Array of row values — every row is included regardless of its own `enabled` flag, and each row contributes what its own `value` reads back: a `Group` row follows the `Group` serialization rule. Reads back `null` when the list has no items. Getter and setter share the type, so `list.value = null` — the write `group.value = null` makes into a nested list — type-checks, and it releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows standing: the setter is typed, so that write reaches it from JavaScript or through an `as any` |
+| `originalValue` | `ListValue<R>` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
 | `valid` | `boolean` | no | `true` when the list itself and all items are valid |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the list itself or in any row. The list keeps a tally of the rows that answer `true`, so the read costs nothing however many rows it holds |
@@ -69,10 +83,10 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 | `visibility` | `DisplayMode` | yes | Rendering visibility hint |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
 | `length` | `number` | no | The number of rows the list holds. Nothing is built to count them |
-| `items` | `readonly Group<T>[]` | no | The rows themselves — see [The rows](#the-rows) |
-| `fullValue` | `FieldsToFullValues<T>[]` | no | Every row, each built from all of its fields. Where `value` states what the list serializes — rows composed of the enabled fields, and `null` where the list is empty — this states what the list holds: the disabled fields are in it too, and an empty list reads back as `[]` |
+| `items` | `readonly R[]` | no | The rows themselves — see [The rows](#the-rows) |
+| `fullValue` | `R['fullValue'][]` | no | The `fullValue` of every row. Where `value` states what the list serializes — `Group` rows composed of their enabled fields, and `null` where the list is empty — this states what the list holds: the disabled fields of a `Group` row are in it too, and an empty list reads back as `[]` |
 
-`ListValue` is exported as `Record<string, any>[] | null`.
+`ListValue` is exported as `ListValue<R extends FieldBase = Group> = R['value'][] | null`.
 
 Every mutation — `push()`, `insert()`, `remove()`, `pop()`, `clear()` and assigning `value` — is tracked by Vue, so
 a `v-for` over `list.items` or `list.value` re-renders on its own without any additional wiring.
@@ -127,19 +141,19 @@ validator that reads `list.value` while the assignment runs never sees a positio
 
 ## Methods
 
-### `get(index): Group<T> | undefined`
+### `get(index): R | undefined`
 
-Returns the `Group` instance at `index`, or `undefined` if out of range.
+Returns the row at `index`, or `undefined` if out of range.
 
 ### `push(item): number`
 
-Appends an item to the end of the list. `item` may be a plain object or an existing `Group`. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
+Appends an item to the end of the list. `item` is either the data a row is built from — bound to the item template, or turned into a `Group` where the list has none — or an existing element, which becomes the row itself. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
 
 ```typescript
 list.push({ name: 'Charlie', score: 70 });
 ```
 
-### `pop(): Group<T> | undefined`
+### `pop(): R | undefined`
 
 Removes the last item and returns it (`undefined` if the list is empty). Triggers `ListItemRemovedAction`.
 
@@ -156,7 +170,7 @@ the padding items are genuinely empty, since they go through `Group.createFromFo
 that item occupies, and finally for `item` at the position it occupies — the same number `insert()` returns, so a
 negative `index` is reported resolved there too.
 
-### `remove(index): Group<T> | undefined`
+### `remove(index): R | undefined`
 
 Removes the item at `index` and returns it — the row instance itself, the one `list.get(index)` answered with
 before the call, and the one `ListItemRemovedAction` is given. Triggers `ListItemRemovedAction`.
@@ -190,10 +204,10 @@ Records that a row changed its value, so that the [transaction](/api/transaction
 what this list's own value became, fires `ValueChangedAction` where it differs from the value last announced, and
 re-forms the verdict. The mutation methods call it themselves; you rarely need to.
 
-### `bind(data?, overrides?): List<T>`
+### `bind(data?, overrides?): List<R>`
 
 Returns a new `List` over `data`, carrying a binding of the item template, the actions and the extended
-properties. `overrides` is an [`IBindParams<ListValue, X>`](/api/field#ibindparams-t-x): `originalValue`,
+properties. `overrides` is an [`IBindParams<ListValue<R>, X>`](/api/field#ibindparams-t-x): `originalValue`,
 `enabled`, `visibility` and the extended properties, which are written over the ones carried from the source.
 Binding an empty list gives an empty list.
 

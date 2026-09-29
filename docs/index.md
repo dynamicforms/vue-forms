@@ -22,7 +22,7 @@ features:
   - title: Lists that scale
     details: A list is meant to hold thousands of rows. What an operation costs depends on what it touches, not on how long the list is
   - title: Declared once, bound per record
-    details: A group is the declaration every row of a list is built from — one validator instance, one conditional rule, and each row answers for itself
+    details: A list's item template is the declaration every row is built from — one validator instance, one conditional rule, and each row answers for itself
   - title: Extended properties
     details: A field carries whatever your UI needs to render it — a label, a hint, a width — declared as a type and checked by the compiler
   - title: Validation that composes
@@ -72,7 +72,7 @@ nothing, because both are cached and the write itself invalidates them. See [Sca
 
 ### One declaration, one rule, every row
 
-The `Group` handed to `new List(template)` is not a row — it is the declaration every row is built from, and a
+The element handed to `new List(template)` is not a row — it is the declaration every row is built from, and a
 row is a binding of it. A validator or a conditional action registered on the template is one instance serving
 every row, and each row answers for itself: two rows disagreeing about a condition show two different verdicts,
 and a `CompareTo` compares that row's own fields. See [The model](/guide/model).

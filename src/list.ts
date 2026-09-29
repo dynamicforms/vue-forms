@@ -5,32 +5,31 @@ import { Container } from './container';
 import { type ListSlots, listSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
-import { FieldsToFullValues, GenericFieldsInterface, Group } from './group';
+import { Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
-/** what List.value reads back: one plain object per item, or null when the list is empty */
-export type ListValue = Record<string, any>[] | null;
+/** what a List of R reads back: the value of each row, or null when the list is empty */
+export type ListValue<R extends FieldBase = Group> = R['value'][] | null;
 
-export class List<
-  T extends GenericFieldsInterface = GenericFieldsInterface,
-  X extends object = Extras,
-> extends Container<ListValue, X> {
+export class List<R extends FieldBase = Group, X extends object = Extras> extends Container<ListValue<R>, X> {
   get [Symbol.toStringTag](): string {
     return 'List';
   }
 
-  protected get state(): ListSlots<T> {
-    return super.state as ListSlots<T>;
+  protected get state(): ListSlots<R> {
+    return super.state as ListSlots<R>;
   }
 
-  protected get raw(): ListSlots<T> {
-    return super.raw as ListSlots<T>;
+  protected get raw(): ListSlots<R> {
+    return super.raw as ListSlots<R>;
   }
 
-  private _itemTemplate?: Group<T>;
+  private _itemTemplate?: R;
 
-  constructor(itemTemplate?: Group<T>, params?: IFieldParams<ListValue, X>) {
-    super(listSlots<T>());
+  constructor(itemTemplate?: undefined, params?: IFieldParams<ListValue<R>, X>);
+  constructor(itemTemplate: R, params?: IFieldParams<ListValue<R>, X>);
+  constructor(itemTemplate?: R, params?: IFieldParams<ListValue<R>, X>) {
+    super(listSlots<R>());
 
     this._itemTemplate = itemTemplate;
 
@@ -73,17 +72,17 @@ export class List<
    * The copy of a built value that serves as a baseline. The value getter hands out one array per version, and a
    * baseline holding that same array would report every value as its own original.
    */
-  private static baseline(value: ListValue): ListValue {
-    return value == null ? value : [...value];
+  private static baseline<V extends any[] | null>(value: V): V {
+    return (value == null ? value : [...value]) as V;
   }
 
-  private processSetValueItem(item: any): Group<T> {
-    let res: Group<T>;
-    // If item is already a Group, use it
-    if (item instanceof Group) res = item;
-    // Otherwise create a Group from item
-    else if (this._itemTemplate) res = this._itemTemplate.bind(item);
-    else res = Group.createFromFormData(item) as Group<T>;
+  private processSetValueItem(item: any): R {
+    let res: R;
+    // an item that is already an element is taken as it is; data is bound to the item template, and a list without
+    // one builds a group from the data
+    if (item instanceof FieldBase) res = item as R;
+    else if (this._itemTemplate) res = this._itemTemplate.bind(item) as R;
+    else res = Group.createFromFormData(item) as unknown as R;
 
     // an item that already belongs to a container is refused here; one this list released earlier carries no
     // link any more and is taken like any other
@@ -99,7 +98,7 @@ export class List<
    * Builds the item that fills a gap left by an insert beyond the end of the list: the item template bound to its
    * own values, or an empty group when the list has no template.
    */
-  private createPaddingItem(): Group<T> {
+  private createPaddingItem(): R {
     return this.processSetValueItem(this._itemTemplate ? this._itemTemplate.bind() : null);
   }
 
@@ -109,13 +108,13 @@ export class List<
   }
 
   /** True where `next` is a different set of rows than `previous`: another count, or another row at a position. */
-  private static rowsDiffer(previous: Group<any>[] | null, next: Group<any>[] | null): boolean {
+  private static rowsDiffer(previous: FieldBase[] | null, next: FieldBase[] | null): boolean {
     const before = previous ?? [];
     const after = next ?? [];
     return before.length !== after.length || before.some((row, index) => row !== after[index]);
   }
 
-  private setValueInternal(newValue: ListValue) {
+  private setValueInternal(newValue: readonly unknown[] | null) {
     // a list holds rows, and nothing but an array states a set of them. The check stands before the transaction
     // opens, so a refused value leaves the rows the list holds exactly as they were.
     if (newValue != null && !Array.isArray(newValue)) {
@@ -135,7 +134,7 @@ export class List<
         const previous = this.state.rows ?? [];
         // the new set is built beside the one in place and installed whole: writing a row runs its validators, and
         // one reading this list in the middle of the walk must not be shown a position that has yet to be filled
-        const rows: Group<T>[] = new Array(newValue.length);
+        const rows: R[] = new Array(newValue.length);
         for (let index = 0; index < newValue.length; index++) {
           const item = newValue[index];
           const row = previous[index];
@@ -144,7 +143,7 @@ export class List<
           // every row from its own data, so two rows need not carry the same members and writing one row's data
           // into another's members would drop whatever they do not have in common. The row is reset rather than
           // assigned, so it ends up as the row built for this position would have been.
-          if (row && this._itemTemplate && !(item instanceof Group)) {
+          if (row && this._itemTemplate && !(item instanceof FieldBase)) {
             this.resetChild(row, this._itemTemplate, item);
             rows[index] = row;
           } else {
@@ -160,7 +159,7 @@ export class List<
     });
   }
 
-  get value(): ListValue {
+  get value(): ListValue<R> {
     // the version is a tracked read and the cache is not, so a reader that is answered from the cache still
     // depends on every write below this list without the walk over its rows being repeated for it
     const version = this.valueVersion;
@@ -170,13 +169,13 @@ export class List<
     // the array outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen, as is every row object in it; a caller writing into either would change what the list reports
     // without any row holding that value
-    const built = isEmpty(value) ? null : (Object.freeze(value) as Record<string, any>[]);
+    const built = isEmpty(value) ? null : (Object.freeze(value) as R['value'][]);
     this.raw.cachedValue = built;
     this.raw.cachedValueVersion = version;
     return built;
   }
 
-  set value(newValue: ListValue) {
+  set value(newValue: ListValue<R>) {
     transactional(() => {
       this.setValueInternal(newValue);
       // an assignment is a statement about the whole list, and it is announced as one without being compared away
@@ -192,7 +191,7 @@ export class List<
     transactional((tx) => {
       tx.touch(this);
       if (this.errors.length) this.errors = [];
-      this.setValueInternal(value === undefined ? (source as List<T>).value : value);
+      this.setValueInternal(value === undefined ? (source as List<R>).value : value);
       const built = this.value;
       // a list brought to the state a fresh one would be in makes no statement of its own: the container that
       // reset it announces the whole of it
@@ -202,17 +201,17 @@ export class List<
     });
   }
 
-  bind(data?: ListValue, overrides?: IBindParams<ListValue, X>): List<T, X> {
-    const template = this._itemTemplate?.bind();
+  bind(data?: ListValue<R>, overrides?: IBindParams<ListValue<R>, X>): List<R, X> {
+    const template = this._itemTemplate?.bind() as R | undefined;
     // construction goes through this.constructor so that a subclass binds into its own type
-    const Ctor = this.constructor as new (itemTemplate?: Group<T>, params?: IFieldParams<ListValue, X>) => List<T, X>;
+    const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValue<R>, X>) => List<R, X>;
     const res = new Ctor(template, {
       // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
       value: [...((data !== undefined ? data : this.value) ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       enabled: overrides?.enabled ?? this.enabled,
       visibility: overrides?.visibility ?? this.visibility,
-    } as IFieldParams<ListValue, X>);
+    } as IFieldParams<ListValue<R>, X>);
     // a subclass whose constructor does not take (itemTemplate, params) never sees either, so it would answer
     // with a list built from its own declaration rather than from this record. That is a difference no reader
     // would find, so it is refused here rather than returned.
@@ -244,7 +243,7 @@ export class List<
    * rows composed of the fields that are enabled, and null where the list is empty - this states what the list
    * holds: the disabled fields are in it too, and an empty list reads back as an empty array rather than as null.
    */
-  get fullValue(): FieldsToFullValues<T>[] {
+  get fullValue(): R['fullValue'][] {
     return (this.state.rows ?? []).map((row) => row.fullValue);
   }
 
@@ -261,7 +260,7 @@ export class List<
    * row changes what the list serializes without changing which rows it holds, and the array a reader took stays
    * the same one across such a write.
    */
-  get items(): readonly Group<T>[] {
+  get items(): readonly R[] {
     // the version is a tracked read and the cache is not, so a reader answered from the cache still re-runs when
     // the set of rows changes
     const version = this.state.rowsVersion;
@@ -272,7 +271,7 @@ export class List<
     return this.raw.cachedItems!;
   }
 
-  get(index: number): Group<T> | undefined {
+  get(index: number): R | undefined {
     return this.state.rows != null ? this.state.rows[index] : undefined;
   }
 
@@ -280,12 +279,12 @@ export class List<
     return this.insert(item, this.state.rows?.length ?? 0) + 1;
   }
 
-  pop(): Group<T> | undefined {
+  pop(): R | undefined {
     return this.remove((this.state.rows?.length ?? 0) - 1);
   }
 
-  remove(index: number): Group<T> | undefined {
-    let removedItem: Group<T> | undefined;
+  remove(index: number): R | undefined {
+    let removedItem: R | undefined;
     transactional((tx) => {
       if (this.state.rows == null || index < 0 || this.state.rows.length <= index) return;
 
