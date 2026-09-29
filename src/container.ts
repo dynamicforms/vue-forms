@@ -1,6 +1,5 @@
 import { computed, type ComputedRef } from 'vue';
 
-import { contributionOf } from './display-mode';
 import { FieldBase } from './field-base';
 import { type Extras } from './field.interface';
 import { transactional } from './transaction';
@@ -100,7 +99,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
         () =>
           this.state.errors.length === 0 &&
           // a hidden or suppressed child is not the container's to answer for
-          this.children.every((child) => child.valid || contributionOf(child.visibility) !== 'value'),
+          this.children.every((child) => child.valid || this.childSerializesAs(child, 'fullValue') !== 'value'),
       );
       validReads.set(this, read);
     }

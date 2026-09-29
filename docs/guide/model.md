@@ -312,8 +312,9 @@ container is the one exception: a `Group` or a `List` that is disabled is still 
 non-empty, and left out where it is empty. `fullValue` is the same object built without the `enabled` rule, and a
 `List`'s `fullValue` is built from each row's `fullValue`, so it carries the disabled fields inside a row as well.
 
-A `List` serializes every row regardless of the row's own `enabled` flag, and each row's object follows the group
-rule. It reads back `[]` while the list is empty. A container is never `null`.
+A `List` serializes its rows by the same rule: a disabled row is left out, a disabled row that is itself a container
+is kept while it is non-empty, and each row's object follows the group rule. It reads back `[]` while the list is
+empty. A container is never `null`.
 
 `visibility` decides the rest, in `value` and `fullValue` alike: a `HIDDEN` member or row is sent as `null`, a
 `SUPPRESS` one is left out, and neither counts in the container's validity. The whole rule, with what to declare for

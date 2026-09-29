@@ -2,7 +2,6 @@ import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
-import { contributionOf } from './display-mode';
 import { type ListSlots, listSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
@@ -191,9 +190,16 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
     const value: unknown[] = [];
     (this.state.rows ?? []).forEach((row) => {
-      // a suppressed row is left out and a hidden one is sent as null, the rule a group applies to its members
-      const contribution = contributionOf(row.visibility);
-      if (contribution !== 'none') value.push(contribution === 'null' ? null : row.value);
+      switch (this.childSerializesAs(row, 'value')) {
+        case 'value':
+          value.push(row.value);
+          break;
+        case 'null':
+          value.push(null);
+          break;
+        case 'omit':
+          break;
+      }
     });
     // the array outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen, as is every row object in it; a caller writing into either would change what the list reports
@@ -265,15 +271,23 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   /**
-   * The full value of every row. Where `value` states what the list serializes - each row as it serializes - this
-   * states what the list holds: a group row carries its disabled fields too. Visibility applies as it does to
+   * The full value of every row. Where `value` states what the list sends, this states what the list holds: a
+   * disabled row is in it, and a group row carries its disabled fields too. Visibility applies as it does to
    * `value`: a suppressed row is left out and a hidden one reads `null`.
    */
   get fullValue(): ListFullValue<R> {
     const value: ListFullValue<R> = [];
     (this.state.rows ?? []).forEach((row) => {
-      const contribution = contributionOf(row.visibility);
-      if (contribution !== 'none') value.push(contribution === 'null' ? null : row.fullValue);
+      switch (this.childSerializesAs(row, 'fullValue')) {
+        case 'value':
+          value.push(row.fullValue);
+          break;
+        case 'null':
+          value.push(null);
+          break;
+        case 'omit':
+          break;
+      }
     });
     return value;
   }

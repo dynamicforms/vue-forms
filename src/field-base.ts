@@ -8,7 +8,7 @@ import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import { type Container } from './container';
-import DisplayMode, { contributionOf } from './display-mode';
+import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
 import {
@@ -719,17 +719,37 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       tx.touch(this);
       const counted = this.countsInContainer;
       this.#state.visibility = DisplayMode.fromAny(alteredValue ?? newValue);
-      if (contributionOf(this.#state.visibility) !== contributionOf(oldValue)) this.contributionChanged(tx, counted);
+      // every mode contributes differently to the container's fullValue, so a change of mode is always one of what
+      // the container holds
+      this.contributionChanged(tx, counted);
       this.boundActions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
     });
   }
 
   /**
-   * Whether the container holding this element counts its verdict: an element that is hidden or suppressed
-   * contributes no value of its own, and its validity is not the container's to answer for.
+   * What this element contributes to its container's `value` or `fullValue`: its own value, `null` in its place, or
+   * nothing. It is the one place the rule is stated - every container composes its values by asking it, and the
+   * container's validity counts the elements whose own value is part of what the container holds.
+   *
+   * A suppressed element is not part of the form. `enabled` decides whether an element is sent, so it applies to
+   * `value` and not to `fullValue`, which states what the form holds; a disabled container is still sent while
+   * what its own children compose is not empty. A hidden element is sent as `null`.
    */
+  protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
+    const visibility = this.visibility;
+    if (visibility === DisplayMode.SUPPRESS) return 'omit';
+    if (purpose === 'value' && !this.enabled && !(this.composesValue && !isEmpty(this.value))) return 'omit';
+    return visibility === DisplayMode.HIDDEN ? 'null' : 'value';
+  }
+
+  /** What `child` contributes to this container, asked the way `childComposesValue` asks what it is. */
+  protected childSerializesAs(child: FieldBase, purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
+    return child.serializesAs(purpose);
+  }
+
+  /** Whether the container holding this element counts its verdict: only an element whose own value it holds. */
   private get countsInContainer(): boolean {
-    return contributionOf(this.#raw.visibility) === 'value';
+    return this.serializesAs('fullValue') === 'value';
   }
 
   /**

@@ -76,14 +76,4 @@ namespace DisplayMode {
 
 Object.freeze(DisplayMode);
 
-/**
- * What an element in `mode` contributes to the container holding it: its own value, `null` in its place, or
- * nothing at all. An element that does not contribute its value does not count towards the container's validity.
- */
-export function contributionOf(mode: DisplayMode): 'value' | 'null' | 'none' {
-  if (mode === DisplayMode.SUPPRESS) return 'none';
-  if (mode === DisplayMode.HIDDEN) return 'null';
-  return 'value';
-}
-
 export default DisplayMode;

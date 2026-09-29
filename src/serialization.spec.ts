@@ -303,3 +303,46 @@ describe('The recipes in the null and empty values guide', () => {
     expect(form.isChanged).toBe(false);
   });
 });
+
+describe('One rule for every container', () => {
+  it('leaves a disabled row out of a list value, and keeps it in fullValue', () => {
+    const list = new List(new Field<string>(), { value: ['a', 'b', 'c'] });
+
+    list.get(1)!.enabled = false;
+
+    expect(list.value).toEqual(['a', 'c']);
+    expect(list.fullValue).toEqual(['a', 'b', 'c']);
+  });
+
+  it('keeps a disabled row that is a container while what it composes is not empty', () => {
+    const list = new List(new Group({ a: new Field({ value: '' }) }), { value: [{ a: 'x' }, { a: 'y' }] });
+    const row = list.get(1)!;
+
+    row.enabled = false;
+    expect(list.value).toEqual([{ a: 'x' }, { a: 'y' }]);
+    row.fields.a.enabled = false;
+    expect(list.value).toEqual([{ a: 'x' }]);
+  });
+
+  it('lets an element state what it contributes, and every container follows', () => {
+    /** a field that is always sent, whatever its visibility */
+    class AlwaysSent<T> extends Field<T> {
+      protected serializesAs(): 'value' | 'null' | 'omit' {
+        return 'value';
+      }
+    }
+    const token = new AlwaysSent<string>({ value: '', validators: [new Validators.Required()] });
+    const form = new Group({ token, name: new Field({ value: 'x' }) });
+    const list = new List(new Field<string>(), { value: ['r'] });
+    list.push(new AlwaysSent<string>({ value: 's' }));
+
+    token.visibility = DisplayMode.SUPPRESS;
+    list.get(1)!.visibility = DisplayMode.HIDDEN;
+
+    expect(form.value).toEqual({ token: '', name: 'x' });
+    expect(form.fullValue).toEqual({ token: '', name: 'x' });
+    // it is counted, since what it contributes is its own value
+    expect(form.valid).toBe(false);
+    expect(list.value).toEqual(['r', 's']);
+  });
+});

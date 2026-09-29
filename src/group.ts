@@ -1,7 +1,6 @@
 import { isEmpty } from 'lodash-es';
 
 import { Container } from './container';
-import { contributionOf } from './display-mode';
 import { type GroupSlots, groupSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
@@ -304,17 +303,16 @@ export class Group<
     // accumulator's prototype; the spread on return hands back an ordinary object
     const val = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
-      // a suppressed member is not part of the form and is left out whatever else holds
-      const contribution = contributionOf(field.visibility);
-      if (contribution === 'none') return;
-      const fieldValue = field.value;
-      // a disabled field does not serialize, and a disabled container is the one exception: a Group or a List
-      // that is disabled is kept while what its own members compose is non-empty, because a member of it that is
-      // enabled holds a value the form still has to carry. Empty, it is left out like any other disabled field.
-      if (!field.enabled && !(this.childComposesValue(field) && !isEmpty(fieldValue))) return;
-      // a hidden member is sent as null: the form states that it holds nothing there, while the member keeps what
-      // it holds for when it is shown again
-      val[name] = contribution === 'null' ? null : fieldValue;
+      switch (this.childSerializesAs(field, 'value')) {
+        case 'value':
+          val[name] = field.value;
+          break;
+        case 'null':
+          val[name] = null;
+          break;
+        case 'omit':
+          break;
+      }
     });
     // the object outlives the read that built it - the next reader is answered with the very same one - so it is
     // frozen: a caller writing into it would change what the group reports without any member holding that value.
@@ -377,11 +375,16 @@ export class Group<
   get fullValue(): FieldsToFullValues<T> {
     const value = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
-      // visibility decides fullValue the way it decides value; enabled does not, since fullValue states what the
-      // form holds rather than what it sends
-      const contribution = contributionOf(field.visibility);
-      if (contribution === 'none') return;
-      value[name] = contribution === 'null' ? null : field.fullValue;
+      switch (this.childSerializesAs(field, 'fullValue')) {
+        case 'value':
+          value[name] = field.fullValue;
+          break;
+        case 'null':
+          value[name] = null;
+          break;
+        case 'omit':
+          break;
+      }
     });
     return { ...value } as FieldsToFullValues<T>;
   }

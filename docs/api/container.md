@@ -54,6 +54,11 @@ member whatever state the rules of the form have left it in.
 | `HIDDEN` | `display: none` | `null` in its place (in `value`, only where it is enabled) | no |
 | `SUPPRESS` | no | nothing: the key, or the row, is left out | no |
 
+The rule is stated once, in `FieldBase.serializesAs(purpose)`, and every container composes `value` and `fullValue`
+— and decides which children count in `valid` — by asking each child. It applies to the members of a `Group` and the
+rows of a `List` alike. The method is protected: a subclass of an element that contributes by a rule of its own
+overrides it, and every container holding that element follows.
+
 A hidden or suppressed child keeps what it holds. Setting it back to `FULL` brings its value back into the
 container's, and `bind()` carries it into a binding, so the choice of what to show never destroys what was entered.
 A change of visibility is a change of the container's value and is announced as one.

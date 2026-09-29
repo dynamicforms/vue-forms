@@ -221,7 +221,7 @@ objects positionally, so `list.get(0)` survives it and a keyed `v-for` stops rem
 
 ## Upgrading to v2.0.0 (from v1.x)
 
-Four of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
+Five of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
 first. [What a container serializes](/api/container#what-a-container-serializes) states the rules they add up to.
 
 ### An enabled container is never `null`
@@ -261,6 +261,18 @@ longer reads through without a check:
 ```typescript
 form.fullValue.address.city;    // before: string    after: a compile error
 form.fullValue.address?.city;   // string | null | undefined
+```
+
+### A disabled row is left out of a list's value
+
+A `List` applies the rule a `Group` applies to its members, so a disabled row is left out of `list.value`; before,
+every row was sent whatever its `enabled`. A disabled row that is itself a container is kept while it is non-empty,
+and `fullValue` carries every row as before.
+
+```typescript
+list.get(1).enabled = false;
+list.value;       // before: ['a', 'b', 'c']   after: ['a', 'c']
+list.fullValue;   // ['a', 'b', 'c'] either way
 ```
 
 ### A disabled field takes a write
