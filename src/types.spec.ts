@@ -3,6 +3,7 @@ import { expectTypeOf } from 'vitest';
 import { Action, type ActionValue } from './action';
 import Operator from './actions/conditional/operator';
 import { Statement } from './actions/conditional/statement';
+import { Container } from './container';
 import DisplayMode from './display-mode';
 import { Field } from './field';
 import { FieldBase } from './field-base';
@@ -179,31 +180,35 @@ describe('List value types', () => {
 });
 
 describe('parent typing', () => {
-  it('is a Group on a field and either container on an element that can be a row', () => {
+  it('is a Container on every element', () => {
     const field = new Field({ value: 1 });
     const group = new Group({ n: field });
     const list = new List(new Group({ n: new Field({ value: 1 }) }));
     const action = new Action();
 
-    // a List holds rows and a row is a Group, so a field's container is a Group wherever there is one
-    expectTypeOf(field.parent).toEqualTypeOf<Group | undefined>();
-    expectTypeOf(action.parent).toEqualTypeOf<Group | undefined>();
-    expectTypeOf(group.parent).toEqualTypeOf<Group | List | undefined>();
-    expectTypeOf(list.parent).toEqualTypeOf<Group | List | undefined>();
-
-    // the sibling lookup, typed on the field it is written against
-    expectTypeOf(field.parent?.fields).toEqualTypeOf<Record<string, FieldBase> | undefined>();
+    expectTypeOf(field.parent).toEqualTypeOf<Container | undefined>();
+    expectTypeOf(action.parent).toEqualTypeOf<Container | undefined>();
+    expectTypeOf(group.parent).toEqualTypeOf<Container | undefined>();
+    expectTypeOf(list.parent).toEqualTypeOf<Container | undefined>();
   });
 
-  it('refuses the sibling lookup on an element whose container may be a List', () => {
-    const row = new Group({ n: new Field({ value: 1 }) });
-    new List(row.bind()).push({ n: 1 });
+  it('refuses the sibling lookup until the container is narrowed to a Group', () => {
+    const field = new Field({ value: 1 });
+    const group = new Group({ n: field, other: new Field({ value: 'x' }) });
+    expect(field.parent).toBe(group);
+    type Form = typeof group;
 
     const rejected = () => [
-      // @ts-expect-error a row's container is the List, which holds no named members
-      row.parent?.fields,
+      // @ts-expect-error a Container names no members
+      field.parent?.fields,
     ];
     expect(rejected).toBeInstanceOf(Function);
+
+    // a cast states what the structure guarantees, and instanceof checks it
+    expectTypeOf((field.parent as Group | undefined)?.fields).toEqualTypeOf<Record<string, FieldBase> | undefined>();
+    expectTypeOf((field.parent as Form).fields.other).toEqualTypeOf<Field<string>>();
+    if (field.parent instanceof Group) expectTypeOf(field.parent).toMatchTypeOf<Group>();
+    expect(field.parent).toBeInstanceOf(Container);
   });
 });
 

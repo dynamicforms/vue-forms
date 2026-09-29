@@ -41,7 +41,7 @@ const lineItem = new Group({
 // happens before the member has a row at all: reaching nothing is no verdict, and markRecordIncomplete() is
 // what asks for the run to be repeated once the row exists.
 lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, oldValue, field) => {
-  const row = field.parent;
+  const row = field.parent as Group | undefined;
   if (!row) {
     field.markRecordIncomplete();
     return null;
@@ -55,7 +55,7 @@ lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, old
 // The rule spans two fields, so a new quantity sends the unit price of the same row through its validators again
 lineItem.fields.quantity.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   const result = supr(field, newValue, oldValue);
-  field.parent?.fields.unitPrice.validate(true);
+  (field.parent as Group | undefined)?.fields.unitPrice.validate(true);
   return result;
 }));
 
@@ -203,7 +203,7 @@ it by hand.
 
 A validator runs when its own field changes, so the unit price rule fires when the unit price is edited. The other
 half of the rule is the quantity, and a change there has to send the unit price through its validators again:
-`field.parent?.fields.unitPrice.validate(true)` does that from a `ValueChangedAction` on the quantity, with the
+`(field.parent as Group | undefined)?.fields.unitPrice.validate(true)` does that from a `ValueChangedAction` on the quantity, with the
 same sibling lookup. `validate(true)` re-runs the field's eager actions, its validators among them;
 `validate()` alone announces the verdict the errors already recorded support.
 

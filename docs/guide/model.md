@@ -16,7 +16,8 @@ A form is a tree of **elements**. There are four classes and they share one base
 | `List<T>` | an ordered set of `Group` rows; its value is an array of objects |
 
 `Group` and `List` are elements themselves, so a group nests in a group, a list nests in a group, and a group is a
-row of a list. Everything below applies at every level.
+row of a list. Both extend [`Container`](/api/container), which composes `valid`, `busy` and `touched` over the
+children and is the type of every element's `parent`. Everything below applies at every level.
 
 Every element carries the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
 `enabled`, `visibility`, `touched`, `validating`, `busy`, `settled()`, `isChanged`, `parent` and `fieldName`. A container adds

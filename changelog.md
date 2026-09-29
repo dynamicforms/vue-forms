@@ -5,6 +5,17 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - Unreleased
+
+### Added
+- `Container`, the abstract base `Group` and `List` extend. It composes `valid`, `busy` and `touched` over the
+  children, cascades `validate(true)` to them and takes their change notifications, so the two share one
+  implementation of each.
+
+### Changed
+- **Breaking:** `parent` is typed `Container | undefined` on every element. `Field` and `Action` no longer narrow it
+  to `Group | undefined`, so `field.parent?.fields.other` needs `instanceof Group` or a cast first.
+
 ## [1.1.0] - 2026-09-05
 
 ### Added

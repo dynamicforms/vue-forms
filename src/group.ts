@@ -1,5 +1,6 @@
 import { isEmpty } from 'lodash-es';
 
+import { Container } from './container';
 import { type GroupSlots, groupSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
@@ -80,7 +81,7 @@ const fieldsAreReadOnly = (track: () => number): ProxyHandler<GenericFieldsInter
 export class Group<
   T extends GenericFieldsInterface = GenericFieldsInterface,
   X extends object = Extras,
-> extends FieldBase<GroupValue<T>, X> {
+> extends Container<GroupValue<T>, X> {
   get [Symbol.toStringTag](): string {
     return 'Group';
   }
@@ -281,6 +282,12 @@ export class Group<
     return this.raw.fieldNames.map((name) => this._fields[name]);
   }
 
+  protected get children(): readonly FieldBase[] {
+    // the names are read through the tracked view, so a member added or removed re-forms what is composed over
+    // them; the members themselves are reached through the map, which is beside the state
+    return this.state.fieldNames.map((name) => this._fields[name]);
+  }
+
   get value(): GroupValue<T> {
     // the version is a tracked read and the cache is not, so a reader that is answered from the cache still
     // depends on every write below this group without the walk being repeated for it
@@ -354,73 +361,12 @@ export class Group<
     });
   }
 
-  get touched(): boolean {
-    return Object.values(this._fields).some((field) => field.touched);
-  }
-
-  set touched(touched: boolean) {
-    transactional(() => {
-      Object.values(this._fields).forEach((field) => {
-        field.touched = touched;
-      });
-    });
-  }
-
   get fullValue(): FieldsToFullValues<T> {
     const value = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
       value[name] = field.fullValue;
     });
     return { ...value } as FieldsToFullValues<T>;
-  }
-
-  /**
-   * Records that a member changed its value, so that the transaction in progress works out at commit what this
-   * group's own value became and announces it once. A mutation method calls it itself; you rarely need to.
-   */
-  notifyValueChanged() {
-    this.propagateValueChanged();
-  }
-
-  protected get composesValue(): boolean {
-    return true;
-  }
-
-  /**
-   * A group with nothing listening for its value does not compose one at all, so the copy it holds is from before
-   * the changes nobody received. A registration that adds a listener brings it up to date here, and what the
-   * listener is then told about is the change that follows it.
-   */
-  protected refreshPreviousValue(): void {
-    this.raw.announcedValue = this.value;
-  }
-
-  get valid() {
-    return this.validRead;
-  }
-
-  protected composeValid(): boolean {
-    // the names are read through the tracked view, so a member added or removed re-forms the verdict; the members
-    // themselves are reached through the map, which is beside the state
-    return this.state.errors.length === 0 && this.state.fieldNames.every((name) => this._fields[name].valid);
-  }
-
-  get busy() {
-    return this.busyRead;
-  }
-
-  protected composeBusy(): boolean {
-    return this.state.fieldNames.some((name) => this._fields[name].busy);
-  }
-
-  validate(revalidate: boolean = false) {
-    transactional(() => {
-      // the members are revalidated first and the group forms its own verdict afterwards, over the finished set:
-      // a member that turns valid while a later one is still to be checked announces nothing until the
-      // transaction closes, so the group never reports a verdict over a half-revalidated set
-      if (revalidate) Object.values(this._fields).forEach((field) => field.validate(true));
-      super.validate(revalidate);
-    });
   }
 
   /**

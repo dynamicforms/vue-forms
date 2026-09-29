@@ -1,3 +1,4 @@
+import type { Container } from './container';
 import DisplayMode from './display-mode';
 import type { FieldBase } from './field-base';
 import type { GenericFieldsInterface, Group } from './group';
@@ -40,7 +41,7 @@ export interface ElementSlots<T = any> {
   /** how many direct children answer `validating` with true; a child that starts or stops running moves it */
   validatingChildren: number;
   /** the container that holds this element, absent while none does; takeChild writes it, releaseChild clears it */
-  parent: FieldBase | undefined;
+  parent: Container | undefined;
   /** the name the containing Group holds this element under; a List row carries none */
   fieldName: string | undefined;
   /** generation of the validators attached to the element; clearValidators() raises it */
