@@ -72,7 +72,8 @@ Hand it to the work the function commissions; a function with nothing to cancel 
 Validators are eager: they run once at field creation, over the value the constructor produced, immediately when
 passed to `registerAction()` on an existing field, on every value change, on `field.validate(true)`, and once more
 where a run reached no verdict because the record it reads was not assembled yet (see
-[Reading a second field](#reading-a-second-field)). A field can therefore be `valid === false` before the user has
+[`markRecordIncomplete()`](/api/field#markrecordincomplete-void), and
+[A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record)). A field can therefore be `valid === false` before the user has
 interacted with it at all — use `touched` to decide when to actually display the errors.
 
 One validator instance validates every field it is registered on, the bindings of that field included, so a validator
@@ -80,33 +81,6 @@ on a `List`'s item template validates every row. What it remembers about a field
 and whatever a subclass adds — is held against that field: `protected bindingState(field)` answers with it, and
 `protected newBindingState()` is what a subclass overrides to widen it, returning `{ ...super.newBindingState(), … }`.
 The exported type of the record `Validator` itself keeps is `ValidatorBindingState`.
-
-### Reading a second field
-
-A rule that reads a second field of the same record — the sibling of a `List` row, the field a `CompareTo`
-compares against — can run before that record exists: a row is built member by member, so a member's first
-validation happens while it holds neither its siblings nor its row. Reaching nothing there is **no verdict**, not a
-pass. Say so with `field.markRecordIncomplete()` and return `null`; the container that completes the record runs
-the validator again over the record it then has, and a run that still reaches nothing says so again, so the
-container above answers for it.
-
-```typescript
-new Validators.Validator((newValue, oldValue, field) => {
-  // the callback receives a FieldBase, whose container is typed as either kind, and the members below are a
-  // Group's: a field is never a List's child, so the narrowing holds
-  const row = field.parent as Group | undefined;
-  if (!row) {
-    field.markRecordIncomplete();
-    return null;
-  }
-  return row.fields.quantity.value > 0 && newValue == null
-    ? [new ValidationErrorText('Unit price is required when quantity is above zero')]
-    : null;
-});
-```
-
-`CompareTo` does this itself, which is why a row that holds the very values its item template holds still carries
-the verdict its own fields support.
 
 ### Asynchronous validation
 

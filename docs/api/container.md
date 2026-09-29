@@ -32,8 +32,8 @@ Every other member — `value`, `fullValue`, `errors`, `enabled`, `bind()`, `reb
 ## What a container serializes
 
 ::: tip
-[Handling null and empty values](/guide/null-and-empty) applies these rules recipe by recipe: what to declare
-for the payload you want.
+The [Cookbook](/guide/cookbook) applies these rules to the cases a form meets: fields that depend on a type, an
+optional section, loading a record, submitting.
 :::
 
 A container has two values. `value` is what the form sends: the payload a save hands to the server. `fullValue`
@@ -89,9 +89,34 @@ form.value;                             // { member: 'Ada', club: null }
 club.visibility = DisplayMode.FULL;     // the club's fields hold what they held
 ```
 
+Writing a value is not part of these rules: an assignment reaches the element whatever its `enabled` and
+`visibility`, and `value` is composed from what the elements hold at the moment it is read. The order in which a
+form's rules change `enabled` and `visibility` therefore never loses data.
+
 Reading a record back into the form is plain assignment, and it does not touch visibility: `form.value = record`
 writes every member, hidden or disabled ones included, and `{ club: null }` empties the club. Which members are
 shown is decided by the rules of the form — a type field, a toggle — not by the data.
+
+### Reading the values
+
+`value` is for sending: every key is optional, because a disabled or suppressed member is left out, and nullable,
+because a hidden one is `null`. Hand it to the server as it is.
+
+`fullValue` is for reading what the form holds, disabled members included. Visibility applies to it as it does to
+`value`, so a view reading it never shows data from a section that is switched off. What a hidden or suppressed
+element holds is read off the element itself:
+
+```typescript
+form.fullValue.club;          // null while the club is hidden
+form.fields.club.fullValue;   // what the club's fields hold, shown or not
+```
+
+Both carry the possibility in their types — a key of either is `T | null | undefined` — and code that needs a
+definite value states which outcome it expects:
+
+```typescript
+const city = form.fullValue.address?.city ?? '';
+```
 
 ### A container that follows its children
 
@@ -130,5 +155,5 @@ if (field.parent instanceof Group) field.parent.fields.other.validate(true);
 ```
 
 A cast checks nothing at runtime: where the parent turns out to be a `List`, `fields` reads `undefined` and the
-lookup after it throws. Naming the sibling and letting [`CompareTo`](/api/validators#compareto) resolve it needs
+lookup after it throws. Naming the sibling and letting [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message) resolve it needs
 neither.

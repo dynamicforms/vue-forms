@@ -52,7 +52,7 @@ const view = computed(() => field.value);
 **`isEqual` over two elements answers `true` for any two of the same class.** An element's state is held in
 private class fields, so `Object.keys`, `Object.getOwnPropertySymbols`, `JSON.stringify` and lodash `isEqual` reach
 none of it. From 0.15.0 the comparison throws rather than answering — see
-[Comparing two elements throws](#comparing-two-elements-throws). Compare what the elements hold:
+[Comparing two elements answers identity](#comparing-two-elements-answers-identity). Compare what the elements hold:
 
 ```typescript
 // before

@@ -318,8 +318,8 @@ empty. A container is never `null`.
 
 `visibility` decides the rest, in `value` and `fullValue` alike: a `HIDDEN` member or row is sent as `null`, a
 `SUPPRESS` one is left out, and neither counts in the container's validity. The whole rule, with what to declare for
-each outcome, is in [What a container serializes](/api/container#what-a-container-serializes). [Handling null and empty values](/guide/null-and-empty)
-applies it recipe by recipe.
+each outcome, is in [What a container serializes](/api/container#what-a-container-serializes). The [Cookbook](/guide/cookbook) applies it
+recipe by recipe.
 
 The composed object is cached behind a version counter that a write raises along its own branch, so a container
 does not walk its members again while nothing below it has moved, and a write of one field costs the depth of the
@@ -328,60 +328,6 @@ nesting rather than the size of the tree.
 `originalValue` is the baseline `isChanged` compares against, and assigning it rebaselines the comparison. On a
 container it is a copy of its own, never the frozen object `value` reads back, so it is writable where the value
 is not.
-
-## Clearing and resetting
-
-No element has a `clear()` method, and the omission is deliberate rather than a gap: a `Group` and a `List` have an
-empty state of their own — assigning `null` writes `null` into every member of a group and releases every row of a
-list — so emptying one is a value like any other. A `Field`'s empty state is not: an empty string, a zero and `false` are three different answers for three
-different `T`s, and nothing about the type tells the library which one you mean, so it does not guess.
-
-[`rebind()`](/api/field#rebind-data-this) covers both cases you actually want:
-
-```typescript
-group.rebind(group.originalValue);   // back to what the group was declared with
-group.rebind(null);                  // empty — every member cleared
-field.rebind(field.originalValue);   // back to what the field was declared with
-field.rebind('');                    // an explicit empty value of the field's own type
-list.rebind(list.originalValue);     // back to the rows the list was declared with
-list.rebind(null);                   // empty — every row released
-```
-
-Each call re-baselines `originalValue`, resets `touched` to `false`, clears the element's own errors and re-runs
-validation over the result — a form reset this way reports exactly what the data it landed on calls for, not
-whatever it reported before. `List.clear()` is narrower: it releases the rows but touches none of that state, so
-`list.rebind(null)` is the one to reach for where a fresh verdict matters.
-
-The record you pass is yours to get right. `rebind()` falls back to the element's `declaration` for a key a `Group`
-record leaves out, so a partial record resets the rest to what the form was declared with rather than to whatever
-it held a moment ago — the same as a fresh `bind()`. The plain value setter has the opposite gap: `group.value =
-{}` writes nothing at all, because it patches by key rather than replacing, and every key the object does not carry
-is left exactly as it was. Reaching for `rebind()` when you mean a full reset avoids both traps.
-
-Emptying a `Group` or a `List` this way pushes `null` into every member underneath it, regardless of what the
-member's own `T` allows — a `Field<string>` inside a cleared group ends up holding `null` at runtime, its type
-still saying `string`. The library does not guard against this: a member's type is that field's own contract, not
-its container's, and a `Field` cannot say what its own empty value is any more than the container above it can. A
-form meant to be cleared this way declares every field it reaches `T | null`; one that must keep a stricter type
-resets field by field with `rebind(field.originalValue)` instead of reaching for `null` at the group.
-
-A field that wants an empty value of its own, without widening `T`, declares one as an
-[extended property](/api/field#extended-properties) instead — nothing the library needs to know about:
-
-```typescript
-interface Emptyable<T> { emptyValue: T }
-
-const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 });
-amount.rebind(amount.extra.emptyValue!);   // 0, with the usual reset
-```
-
-`extra` reads back `Readonly<Partial<X>>`, so `emptyValue` is `number | undefined` to the type checker regardless
-of whether `X` marks it optional — the `!` is asserting what the field's own parameters guarantee, not working
-around a real gap. `extended-properties.spec.ts` exercises exactly this, under "an emptyValue extended property, as
-the recipe in the model guide".
-
-Clearing a whole group this way is a walk your application writes, not something the library imposes as one fixed
-policy: visit `group.fields`, and reach for each member's `extra.emptyValue` where one is declared.
 
 ## Comparing elements
 
@@ -401,7 +347,7 @@ as its `value`, so `isEqual(list.items, other.items)` compares row by row withou
 |---|---|
 | every member of `Field` and `FieldBase` | [Field](/api/field) |
 | members, serialization, `fields` | [Group](/api/group) |
-| what a form sends: `null`, empty containers, hidden and suppressed members | [Handling null and empty values](/guide/null-and-empty) |
+| loading, submitting, resetting, optional sections, type-dependent fields | [Cookbook](/guide/cookbook) |
 | rows, mutations, cost | [List](/api/list) |
 | every event, the action chain, `Action`, conditionals | [Actions](/api/actions) |
 | built-in rules, custom and asynchronous validators | [Validators](/api/validators) |

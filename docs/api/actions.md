@@ -350,7 +350,7 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 | `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
 
 `Action` is a `Field`, so resetting one — rarely needed, since a label and an icon are not normally form data — is
-`action.rebind(action.originalValue)`; see [Clearing and resetting](/guide/model#clearing-and-resetting).
+`action.rebind(action.originalValue)`; see [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form).
 
 #### Handling a failed run
 
@@ -842,7 +842,7 @@ to the validity of its container.
 
 An element that is hidden or suppressed keeps what it holds. [What a container serializes](/api/container#what-a-container-serializes)
 has the whole rule, `enabled` included.
-[Handling null and empty values](/guide/null-and-empty) shows what to declare for the payload you want.
+The [Cookbook](/guide/cookbook) shows what to declare for the payload you want.
 
 ```typescript
 import { DisplayMode } from '@dynamicforms/vue-forms';

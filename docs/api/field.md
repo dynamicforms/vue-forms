@@ -24,8 +24,8 @@ const age  = new Field<number>({ value: 30 });
 |-----------|------|---------|-------------|
 | `params.value` | `T` | `undefined` | Initial value. Leaving it out, or passing `undefined`, falls back to `originalValue`; an explicit `null` is kept as the value |
 | `params.originalValue` | `T` | same as `value` | Baseline for `isChanged`, and the initial value when no `value` is given |
-| `params.enabled` | `boolean` | `true` | Whether the field is sent and accepts input; it takes a write either way. See [Handling null and empty values](/guide/null-and-empty). |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the field is shown, and what it contributes to its container. See [Handling null and empty values](/guide/null-and-empty). |
+| `params.enabled` | `boolean` | `true` | Whether the field is sent and accepts input; it takes a write either way. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the field is shown, and what it contributes to its container. See [What a container serializes](/api/container#what-a-container-serializes). |
 | `params.touched` | `boolean` | `false` | Initial interaction flag |
 | `params.errors` | `ValidationError[]` | `[]` | Initial validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | Validator actions; each runs once over the constructed value |
@@ -217,16 +217,16 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 | `value` | `T` | yes | Current value. A disabled field takes a write like an enabled one, and what a write settles on is [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
-| `enabled` | `boolean` | yes | When `false`, the field is excluded from its container's `value` and a rendering layer does not accept input into it; it still takes a write to `value`, so a record loaded into the form reaches it. Writing what the element already holds is not a change: no `EnabledChangingAction` runs, nothing is enrolled in an open transaction, and no `EnabledChangedAction` fires. See [Handling null and empty values](/guide/null-and-empty). |
+| `enabled` | `boolean` | yes | When `false`, the field is excluded from its container's `value` and a rendering layer does not accept input into it; it still takes a write to `value`, so a record loaded into the form reaches it. Writing what the element already holds is not a change: no `EnabledChangingAction` runs, nothing is enrolled in an open transaction, and no `EnabledChangedAction` fires. See [What a container serializes](/api/container#what-a-container-serializes). |
 | `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Whether the element is shown, and what it contributes to its container: a `HIDDEN` element is sent as `null` and a `SUPPRESS` one is left out, and neither counts in the container's validity — see [What a container serializes](/api/container#what-a-container-serializes). The element keeps what it holds either way. Writing the mode the element already holds is not a change, the same way it is not for `enabled`. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive. See [Handling null and empty values](/guide/null-and-empty). |
+| `visibility` | `DisplayMode` | yes | Whether the element is shown, and what it contributes to its container: a `HIDDEN` element is sent as `null` and a `SUPPRESS` one is left out, and neither counts in the container's validity — see [What a container serializes](/api/container#what-a-container-serializes). The element keeps what it holds either way. Writing the mode the element already holds is not a change, the same way it is not for `enabled`. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive. |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
 | `validationEpoch` | `number` | no | Generation counter of the validators the field reads, raised by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
-| `parent` | `Container \| undefined` | no | Container the element belongs to, installed by that container and taken away again when the container releases the element — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses an element that still carries one, so hand on the released instance or a `bind()` of it. The container is a `Group` or a `List`, and [`Container`](/api/container) names no children, so reaching for `fields` through it is a compile error until it is narrowed: `field.parent instanceof Group` checks it, `(field.parent as Group)?.fields.other` states it, and naming the sibling and letting [`CompareTo`](/api/validators#compareto) resolve it needs neither — see [`parent`](/api/container#parent). The read is tracked, so a template rendering off `field.parent` follows the element from one container to the next |
+| `parent` | `Container \| undefined` | no | Container the element belongs to, installed by that container and taken away again when the container releases the element — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses an element that still carries one, so hand on the released instance or a `bind()` of it. The container is a `Group` or a `List`, and [`Container`](/api/container) names no children, so reaching for `fields` through it is a compile error until it is narrowed: `field.parent instanceof Group` checks it, `(field.parent as Group)?.fields.other` states it, and naming the sibling and letting [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message) resolve it needs neither — see [`parent`](/api/container#parent). The read is tracked, so a template rendering off `field.parent` follows the element from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
 | `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding — transitively, so a binding of a binding answers with the same element. Every row a `List` builds from an item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field`. On a `Group` and a `List` it states what the element holds rather than what it serializes — see [`Group`](/api/group#properties) and [`List`](/api/list#properties) |
@@ -300,27 +300,6 @@ is repainted from that second move, so it ends up showing what the field holds w
 same. `@dynamicforms/vuetify-inputs` does this in
 [`useInputBase()`](https://github.com/dynamicforms/vuetify-inputs/blob/main/src/helpers/input-base.ts), which every
 input in that library binds through.
-
-### Disabling a section
-
-`enabled` on a `Group` or a `List` states that the container is disabled and nothing further: the members keep the
-`enabled` they were given, go on accepting writes, and go on serializing. What a rendering layer binds to draw a
-whole section disabled is `effectiveEnabled`, which is `true` where the element and every container above it are
-enabled:
-
-```vue
-<df-input :disabled="!field.effectiveEnabled" :control="field" />
-```
-
-The read is tracked like every other read through an element, so switching a group re-renders the inputs of every
-member below it without anything walking the tree.
-
-`effectiveEnabled` is the only member with a reading of this kind, and it is not a scheme the others follow.
-`visibility` has none: it decides what an element contributes to its container's value, so folding it down the
-tree would decide serialization rather than report it. `value` has none: a container composes its own from its
-members rather than passing one down. Anything else a rendering layer needs folded down its own tree is what
-`provide` and `inject` are for — a section is a component wrapping its members, and the render tree's context
-belongs to the render tree.
 
 ## Methods
 
@@ -442,13 +421,7 @@ It does not descend into members. A `Group` or a `List` composes `valid` from it
 
 Resolves once nothing at or below the element is running — no asynchronous validation, no `Action.execute()` that
 has yet to settle. It resolves immediately where nothing is running to begin with, so a submit path awaits it
-instead of polling `validating` and `busy`.
-
-```typescript
-await form.settled();
-if (!form.valid) return;
-await form.fields.submit.execute();
-```
+instead of polling `validating` and `busy`. [Submitting](/guide/cookbook#submitting) shows it in a submit handler.
 
 It answers for the moment it resolves and promises nothing about the one after: work started later leaves the
 element running again. A caller that has to act on a settled tree reads what it needs immediately after awaiting.
@@ -530,7 +503,7 @@ row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
 
 There is no `clear()`: an empty `Field` is a value of its own `T`, which the library cannot guess, so
 `rebind(field.originalValue)` and an explicit `rebind('')` (or `rebind(null)` where `T` allows it) are how a field
-resets. See [Clearing and resetting](/guide/model#clearing-and-resetting) for `Group` and `List`, which do have a
+resets. See [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `Group` and `List`, which do have a
 structural "empty".
 
 ## Subclassing

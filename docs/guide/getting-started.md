@@ -190,8 +190,10 @@ until 1.0.
 ## Next Steps
 
 [The model](/guide/model) is the whole library in one page — elements, declarations, transactions, validity, and
-how a `List` builds its rows. After that, the [Examples](/examples/basic-form) section shows the patterns in
-context and the API reference names every member: [Field](/api/field), [Group](/api/group),
+how a `List` builds its rows. The [Cookbook](/guide/cookbook) has short recipes for what a form needs next —
+loading and submitting a record, server errors, optional sections, fields that depend on a type. The
+[Examples](/examples/basic-form) section shows the patterns in running forms and the API reference names every
+member: [Field](/api/field), [Group](/api/group),
 [Validators](/api/validators) and [Configuration](/api/config).
 
 Upgrading an existing project? The [migration guide](/guide/migration) walks the whole journey from 0.6.1 onwards,
