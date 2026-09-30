@@ -149,14 +149,14 @@ const list: List<Group<{ name: Field<string> }>> = new List(template);
 A list built from a template infers the argument from it and needs no edit. The type checker finds every site that
 names one.
 
-`ListValue` takes the row as well, `ListValue<R> = R['value'][] | null`, and is `ListValue<Group>` where it is
+`ListValue` takes the row as well, `ListValue<R> = (R['value'] | null)[]`, and is `ListValue<Group>` where it is
 named alone. `list.value` is typed by the row the list holds rather than as `Record<string, any>[]`, so a value
 that does not match the template's fields is a compile error where it used to pass:
 
 ```typescript
 const list = new List(new Group({ n: new Field<number>() }));
 list.value;                 // before: Record<string, any>[] | null
-                            // after:  ({ n?: number } | null)[] | null
+                            // after:  ({ n?: number | null } | null)[]
 ```
 
 ### A list without an item template builds a row by the kind of its item
