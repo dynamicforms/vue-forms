@@ -363,9 +363,9 @@ field.triggerAction(ExecuteAction, { reason: 'submit' });
 
 `Action` is a `Field` whose value is an `ActionValue` (`{ label?: unknown; icon?: unknown }`) — it represents a button or menu entry that runs an `ExecuteAction` chain.
 
-::: tip Action is the one part of this library that is not UI-agnostic, deliberately
-Everything else here describes data and behaviour and says nothing about rendering. `Action` names a label and an
-icon because it exists as a *concept* — the element a form's submit, cancel and delete hang on — and that minimal
+::: tip Action is not UI-agnostic, deliberately
+The library describes data and behaviour, and the few members that speak about the interface are listed in
+[Rationale](/guide/rationale#what-the-library-carries-for-the-interface). `Action` names a label and an icon because it exists as a *concept* — the element a form's submit, cancel and delete hang on — and that minimal
 pair is what makes the concept legible; without it, `Action` would be indistinguishable from `Field`.
 
 The shape is minimal because **a UI library is expected to extend it**, and both members are typed `unknown` for

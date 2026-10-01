@@ -10,8 +10,9 @@ submit runs.
 
 ## Why `Action` is not UI-agnostic
 
-Everything else in `@dynamicforms/vue-forms` describes data and behaviour and says nothing about rendering.
-`Action` is the deliberate exception: its value is an `ActionValue`, the pair `{ label?, icon? }`.
+`@dynamicforms/vue-forms` describes data and behaviour, and the few members that speak about the interface are
+listed in [Rationale](/guide/rationale#what-the-library-carries-for-the-interface). `Action` is one of them: its value
+is an `ActionValue`, the pair `{ label?, icon? }`.
 
 It exists as a *concept* — the element a form's submit, cancel and delete hang on — and the minimal `{ label, icon }`
 shape is the affordance that makes that concept legible. Without it `Action` would be indistinguishable from

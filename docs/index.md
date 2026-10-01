@@ -17,6 +17,8 @@ hero:
 features:
   - title: UI-agnostic
     details: A logic layer for form state, validation and the behaviour between fields. Any Vue components render it, your own included
+    link: /guide/rationale#what-the-library-carries-for-the-interface
+    linkText: What it carries for the interface
   - title: Transactional
     details: Every mutating operation is atomic — events are announced once over the net change, and a handler that throws leaves the form exactly as it was
   - title: Lists that scale

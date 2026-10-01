@@ -14,7 +14,7 @@ mechanism applies at every level of a nested form.
 
 ### Design Goals
 
-- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own.
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own. The few members that speak about the interface — `visibility`, `enabled`, `touched`, error render content and `Action` — are there because nearly every form needs them; [Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface) lists them with the reason for each.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read, and a group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
@@ -22,7 +22,7 @@ mechanism applies at every level of a nested form.
 ## Features
 
 - **UI-agnostic**: a logic layer for form state, validation and dynamic behaviour. Any Vue components render it,
-  your own included
+  your own included; the few members that speak about the interface are [listed with their reasons](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface)
 - **Transactional**: every mutating operation is atomic — events are announced once, over the net change, and a
   handler that throws leaves the form exactly as it was. `transaction()` makes several writes one operation, and
   `tx.rollback()` withdraws one without an error
@@ -126,8 +126,10 @@ const saveAction = new Action({
 await saveAction.execute({ form: personForm });  // 'saving { form: ... }'; saveAction.busy until it settles
 ```
 
-`Action` is the one deliberate exception to "UI-agnostic": it names a label and an icon because it exists as the
-element a form's submit and cancel hang on, and that minimal pair is what makes the concept legible. The shape is
+`Action` is one of the few members that speak about the interface, listed with their reasons in
+[Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface):
+it names a label and an icon because it exists as the element a form's submit and cancel hang on, and that minimal
+pair is what makes the concept legible. The shape is
 minimal because a UI library is expected to extend it — [`@dynamicforms/vuetify-inputs`](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html)
 widens the value with render options and per-breakpoint variants on top of it.
 

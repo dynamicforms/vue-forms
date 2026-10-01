@@ -21,7 +21,9 @@ once in your app entry point if you use that component:
 import '@dynamicforms/vue-forms/style.css';
 ```
 
-Everything else — `Field`, `Group`, `List`, validators, actions — is UI-agnostic and needs no styles.
+Everything else — `Field`, `Group`, `List`, validators, actions — is UI-agnostic and needs no styles. The few
+members that speak about the interface, such as `visibility` and `enabled`, are listed with the reason for each in
+[What the library carries for the interface](/guide/rationale#what-the-library-carries-for-the-interface).
 
 ## Basic Usage
 
