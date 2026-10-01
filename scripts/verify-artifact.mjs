@@ -20,6 +20,7 @@ const expected = [
   'ConditionalAccessAction',
   'ContributionChangedAction',
   'EnabledChangedAction',
+  'EnabledChangingAction',
   'ExecuteAction',
   'Field',
   'FieldActionBase',

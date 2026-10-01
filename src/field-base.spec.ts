@@ -6,6 +6,7 @@ import {
   AccessChangedAction,
   AccessChangingAction,
   EnabledChangedAction,
+  EnabledChangingAction,
   ExecuteAction,
   VisibilityChangedAction,
   VisibilityChangingAction,
@@ -15,6 +16,7 @@ import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction } from './actions/value-changed-action';
 import { Field } from './field';
 import { FieldBase } from './field-base';
+import { AbortEventHandlingException } from './field.interface';
 import { Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
@@ -690,6 +692,88 @@ describe('writing what an element already holds', () => {
     // the value write is taken back; the visibility write was never a write
     expect(field.value).toBe(1);
     expect(field.visibility).toBe('full');
+  });
+});
+
+describe('EnabledChangingAction', () => {
+  const guarded = (answer: (newValue: boolean, oldValue: boolean) => unknown) => {
+    const seen: [boolean, boolean][] = [];
+    const field = new Field({ value: 1 });
+    field.registerAction(
+      new EnabledChangingAction((f, supr, newValue, oldValue) => {
+        seen.push([newValue, oldValue]);
+        return answer(newValue, oldValue) as boolean;
+      }),
+    );
+    return { field, seen };
+  };
+
+  it('is asked only where a write of access would change enabled', () => {
+    const { field, seen } = guarded(() => null);
+
+    field.access = 'readonly';
+    field.access = 'disabled';
+    field.access = 'editable';
+
+    expect(seen).toEqual([
+      [false, true],
+      [true, false],
+    ]);
+    expect(field.access).toBe('editable');
+  });
+
+  it('refuses the write of access where it answers with the enabled the element has', () => {
+    const { field } = guarded((newValue, oldValue) => oldValue);
+    const announced: unknown[] = [];
+    field.registerAction(new AccessChangedAction((f, supr, newValue) => (announced.push(newValue), supr(f, newValue))));
+
+    field.access = 'disabled';
+
+    expect(field.access).toBe('editable');
+    expect(announced).toEqual([]);
+  });
+
+  it('refuses the write of access where it ends the run', () => {
+    const { field } = guarded(() => {
+      throw new AbortEventHandlingException('stays editable');
+    });
+
+    field.access = 'readonly';
+
+    expect(field.access).toBe('editable');
+  });
+
+  it('is asked over the access AccessChangingAction answered with', () => {
+    const { field, seen } = guarded(() => null);
+    field.registerAction(new AccessChangingAction(() => 'disabled-null'));
+
+    field.access = 'readonly';
+
+    expect(field.access).toBe('disabled-null');
+    expect(seen).toEqual([[false, true]]);
+  });
+
+  it('throws where it answers with something other than a boolean', () => {
+    const { field } = guarded(() => 'no');
+
+    expect(() => {
+      field.access = 'disabled';
+    }).toThrow('is not what an EnabledChangingAction answers with');
+    expect(field.access).toBe('editable');
+  });
+});
+
+describe('AccessChangingAction answering with the access the element holds', () => {
+  it('refuses the write and announces nothing', () => {
+    const field = new Field({ value: 1 });
+    const announced: unknown[] = [];
+    field.registerAction(new AccessChangingAction((f, supr, newValue, oldValue) => oldValue));
+    field.registerAction(new AccessChangedAction((f, supr, newValue) => (announced.push(newValue), supr(f, newValue))));
+
+    field.access = 'disabled';
+
+    expect(field.access).toBe('editable');
+    expect(announced).toEqual([]);
   });
 });
 

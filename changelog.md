@@ -43,9 +43,9 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ### Changed
 - **Breaking:** `enabled` is read from `access` and has no setter: it is `true` where `access` is `'editable'`, and
   `effectiveEnabled` where `effectiveAccess` is. A parameter object or a `bind()` override naming `enabled` throws a
-  `TypeError`. `EnabledChangingAction` is removed, since there is no write of `enabled` to ask; `AccessChangingAction`
-  guards the write of `access`. `EnabledChangedAction` fires where a write of `access` changes `enabled`, right after
-  `AccessChangedAction`. `ConditionalEnabledAction` is replaced by `ConditionalAccessAction`.
+  `TypeError`. `EnabledChangingAction` is asked before, and `EnabledChangedAction` told after, a write of `access`
+  that changes `enabled`; the changing action lets the write through or refuses it, since its answer cannot set
+  `enabled` itself. `ConditionalEnabledAction` is replaced by `ConditionalAccessAction`.
 - **Breaking:** `DisplayMode` is removed. `visibility` is a `Visibility` — `'full'`, `'invisible'`, `'hidden'` or
   `'suppress'` — and is presentation alone: it changes nothing about what an element sends or whether it is
   validated. A visibility that is none of the four, numbers included, throws. `ConditionalVisibilityAction` takes the

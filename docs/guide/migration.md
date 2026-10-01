@@ -156,7 +156,7 @@ it `{}` instead.
 | — | `field.access = 'disabled-null'`: sent as `null`, the element keeps what it holds |
 | `new Field({ enabled: false })` | `new Field({ access: 'disabled' })` |
 | `field.bind(data, { enabled: false })` | `field.bind(data, { access: 'disabled' })` |
-| `EnabledChangingAction` | `AccessChangingAction`, carrying `Access` values |
+| `EnabledChangingAction` | kept: asked before a write of `access` that changes `enabled`, and answering with the old value refuses that write, as answering `true` to a disabling refused it before. A handler that is to pick the access itself is an `AccessChangingAction` |
 | `EnabledChangedAction` | unchanged: it fires where a write of `access` changes `enabled`, after `AccessChangedAction` |
 | `new ConditionalEnabledAction(statement)` | `new ConditionalAccessAction(statement)`, optionally `(statement, whenTrue, whenFalse)` |
 

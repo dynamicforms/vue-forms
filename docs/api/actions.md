@@ -160,7 +160,8 @@ consumer knows by name are where this happens:
 
 An eager action therefore states a refusal through the element's verdict — an error — rather than by throwing.
 
-**In a `*Changing*` handler it refuses the write.** `AccessChangingAction` and `VisibilityChangingAction` are
+**In a `*Changing*` handler it refuses the write.** `AccessChangingAction`, `EnabledChangingAction` and
+`VisibilityChangingAction` are
 asked before the value is written, so ending the run there means the setter writes nothing and announces nothing —
 no `*Changed*` event, no enrolment in an open transaction. Returning the old value refuses the write just as well;
 the exception is the form that also says why, and that stops the handlers registered before it from running. The
@@ -240,7 +241,7 @@ new AccessChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so plainly returning `supr(...)` means "no change to `newValue`". If the resulting value is none of the four accesses, the setter throws `Error("'x' is not an access: …")` and leaves `field.access` as it was.
+If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so plainly returning `supr(...)` means "no change to `newValue`". Returning `oldValue` refuses the write: nothing is written and nothing is announced. If the resulting value is none of the four accesses, the setter throws `Error("'x' is not an access: …")` and leaves `field.access` as it was.
 
 The setter asks it only where the write is a change. Assigning the access the element already holds runs no handler and fires no event, so a handler that answers with a value of its own is never reached by such a write — `field.access = field.access` leaves the element exactly as it stands. The same holds for `VisibilityChangingAction`.
 
@@ -255,12 +256,30 @@ new AccessChangedAction((field, supr, newValue, oldValue) => {
 })
 ```
 
+### `EnabledChangingAction`
+
+Asked **before** a write of `access` that would change `enabled` — a switch into or out of `'editable'` — after
+`AccessChangingAction`, over the access that would be written, with the two booleans. A switch between two accesses
+that are not `'editable'` does not ask it.
+
+`enabled` is read from `access`, so the answer cannot set it; it lets the write of `access` through or refuses it.
+Answering with `newValue`, `null` or `undefined` lets it through. Answering with `oldValue`, or throwing
+`AbortEventHandlingException`, refuses it: `access` keeps what it held and nothing is announced. Any other answer
+throws.
+
+```typescript
+new EnabledChangingAction((field, supr, newValue, oldValue) => {
+  // keep the field editable while it holds an unsaved draft
+  if (!newValue && hasDraft(field)) return oldValue;
+  return supr(field, newValue, oldValue);
+})
+```
+
 ### `EnabledChangedAction`
 
 Fires **after** a write of `access` has changed `enabled` — a switch into or out of `'editable'` — right after
 `AccessChangedAction`, with the two booleans. A switch between two accesses that are not `'editable'` changes what
-the element sends but not `enabled`, and does not fire it. `enabled` has no setter, so there is no
-`EnabledChangingAction`: what guards the write is `AccessChangingAction`.
+the element sends but not `enabled`, and does not fire it.
 
 ```typescript
 new EnabledChangedAction((field, supr, newValue, oldValue) => {

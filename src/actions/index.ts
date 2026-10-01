@@ -4,7 +4,7 @@ export * from './conditional';
 
 export { AccessChangedAction, AccessChangingAction } from './access-actions';
 export { ContributionChangedAction } from './contribution-changed-action';
-export { EnabledChangedAction } from './enabled-actions';
+export { EnabledChangedAction, EnabledChangingAction } from './enabled-actions';
 export { ExecuteAction } from './execute-action';
 export { VisibilityChangedAction, VisibilityChangingAction } from './visibility-actions';
 export { ValidChangedAction } from './valid-changed-action';

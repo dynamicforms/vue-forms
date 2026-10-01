@@ -8,7 +8,7 @@ import {
   ContributionChangedAction,
   ContributionChangedActionClassIdentifier,
 } from './actions/contribution-changed-action';
-import { EnabledChangedAction } from './actions/enabled-actions';
+import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
 import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
@@ -778,9 +778,22 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (alteredValue instanceof AbortEventHandlingException) return;
       const written = alteredValue ?? newValue;
       if (!isAccess(written)) throw new Error(`${describe(written)} is not an access: ${listOf(accessValues)}`);
+      // a handler that answered with the access the element holds refused the write
+      if (written === oldValue) return;
+      const wasEnabled = this.enabled;
+      const willBeEnabled = written === 'editable';
+      if (willBeEnabled !== wasEnabled) {
+        // enabled is read from access, so a handler that answers with the enabled the element has refuses the write
+        // of the access that would have changed it
+        const enabledAnswer = this.boundActions?.trigger(EnabledChangingAction, this, willBeEnabled, wasEnabled);
+        if (enabledAnswer instanceof AbortEventHandlingException) return;
+        if (enabledAnswer != null && typeof enabledAnswer !== 'boolean') {
+          throw new Error(`${describe(enabledAnswer)} is not what an EnabledChangingAction answers with: a boolean`);
+        }
+        if (enabledAnswer === wasEnabled) return;
+      }
       tx.touch(this);
       const oldContribution = this.contribution;
-      const wasEnabled = this.enabled;
       const below = this.effectiveAccessBelow();
       this.#state.access = written;
       this.revalidateWhereChanged(below);
