@@ -31,16 +31,7 @@ that should drive it. None of them renders anything: each states something a ren
 | [`enabled`, `effectiveEnabled`](/api/field#properties) | whether an element accepts input, on its own and with the containers above it | read from [`access`](/api/field#access), which decides what is sent; the input half follows from it the way it does for an HTML `<input readonly>` or `<input disabled>`, so the two cannot disagree |
 | [`touched`](/api/field#properties) | whether the user has interacted with an element | the condition under which a form shows its errors; the library never sets it, the rendering layer does |
 | validation errors as render content | a message as text, markdown or a component | an error is shown to a user, so what it carries is how it is shown; the optional `MessagesWidget` renders it, and nothing else depends on it |
-| [`shownErrors`](/api/field#showing-errors) and an error's `origin` | which errors the user is shown now | the verdict a submit needs and what the user is shown are two questions, and answering the second once, by a rule an application can replace, keeps every rendering layer from answering it differently |
 | [`Action`](/examples/action#why-action-is-not-ui-agnostic) | a label and an icon | the element a form's submit and cancel hang on; the pair is what makes it a concept rather than a `Field`, and a UI library widens it |
-
-The verdict and what is shown are kept apart on purpose. `valid` has to be true or false the moment the form exists,
-because a submit reads it; showing the errors behind it waits for the user, because a form covered in errors before
-anything was typed tells the user nothing they can act on. The library states the verdict and a default for what is
-shown — an error the server returned at once, every other once its element is touched, nothing for an element that
-is not sent — and an application replaces that default with one condition, in its configuration. The condition is
-global rather than attached to each element: an application rarely shows errors differently from one form to the
-next, and a rule that has to be registered on every field is a rule that is missed on one of them.
 
 Everything else a rendering layer needs — a label, a hint, a width, a component to render with — goes in an
 element's [extended properties](/api/field#extended-properties). The library carries them and does not read them,

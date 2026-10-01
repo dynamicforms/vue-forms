@@ -56,9 +56,8 @@ export function isCallableFunction(msg?: RenderContentRef): msg is RenderContent
 /**
  * Where an error comes from. `'validator'` is an error a validator produced, `'server'` one the server returned and
  * `'application'` one the application's own code computed and wrote into `errors`. Any other string is an origin of
- * the application's own, which the configured `shownErrors` condition can treat as it chooses.
+ * the application's own.
  */
-
 export type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
 
 /**
@@ -80,7 +79,8 @@ export class ValidationError {
   /**
    * Where the error comes from: the origin its author stated, and otherwise `'validator'` for an error a validator
    * produced - a validator stamps every error it hands a field - and `'application'` for one written into `errors`
-   * by any other code. It decides when the error is shown by default: see `shownErrors`.
+   * by any other code. It is what a rendering layer reads to decide when to show the error, and what code reads to
+   * withdraw the errors of one origin and leave the rest.
    */
   get origin(): ErrorOrigin {
     if (this.statedOrigin !== undefined) return this.statedOrigin;

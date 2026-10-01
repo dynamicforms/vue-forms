@@ -48,19 +48,6 @@ async function submit() {
 <button :disabled="!form.valid || form.validating || form.busy" @click="submit">Save</button>
 ```
 
-Where the button stays enabled and a submit attempt is what reveals the errors, mark the form touched first: most
-errors appear in [`shownErrors`](/api/field#showing-errors) once their element is touched, and the assignment reaches
-every member.
-
-```typescript
-async function submit() {
-  form.touched = true;
-  await form.settled();
-  if (!form.valid) return;
-  form.rebind(await api.save(form.value));
-}
-```
-
 [`settled()`](/api/field#settled-promise-void) resolves once no validation and no `Action.execute()` is running at
 or below the form. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
 `null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again.
@@ -79,18 +66,17 @@ function showServerErrors(form: Group, errors: Record<string, string>) {
 
 function clearServerErrors(form: Group) {
   Object.values(form.fields).forEach((field) => {
-    field.errors = [];
+    field.errors = field.errors.filter((error) => error.origin !== 'server');
   });
-  form.validate(true);
+  form.validate();
 }
 ```
 
-An error written into `errors` makes the field and the form invalid at once. Its origin, `'server'`, puts it in the
-field's [`shownErrors`](/api/field#showing-errors) at once as well, touched or not: the server answered something the
-user did. It stays: a validator withdraws only the errors it produced itself, so neither a new value nor
-`validate(true)` removes it. Clearing every member's errors
-and revalidating leaves exactly the errors the validators reach. Call `clearServerErrors(form)` before sending
-again. Both take the form as a `Group`, so they serve every form of the application.
+An error written into `errors` makes the field and the form invalid at once, and it stays: a validator withdraws only
+the errors it produced itself, so neither a new value nor `validate(true)` removes it. Its
+[origin](/api/validators#origin), `'server'`, is what lets `clearServerErrors()` withdraw exactly those errors and
+leave the validators' own and any the application wrote. Call `clearServerErrors(form)` before sending again. Both
+take the form as a `Group`, so they serve every form of the application.
 
 ## Warning before leaving a changed form
 

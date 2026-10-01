@@ -23,7 +23,6 @@ child — `group.fields.name`, `list.get(0)` — is each class's own and is desc
 | `valid` | `boolean` | `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries — see [What a container serializes](#what-a-container-serializes). The read is composed over the children and memoised, so an error written into a child without a `validate()` call shows here as well |
 | `busy` | `boolean` | `true` while an `Action.execute()` in any child has yet to settle |
 | `touched` | `boolean`, writable | `true` where any child is touched. Assigning it assigns every child |
-| `shownErrors` | `readonly ValidationError[]` | The container's own errors a rendering layer shows now, by the rule a field follows: shown once any child is touched, or at once where the server returned them — see [Showing errors](/api/field#showing-errors) |
 | `validate(revalidate?)` | `void` | With `revalidate: true`, every child is revalidated first and the container forms its own verdict afterwards, over the finished set, so it announces one net transition of its validity at most |
 | `notifyValueChanged()` | `void` | Records that a child changed what it holds or sends, so that the [transaction](/api/transactions) in progress works out at commit what the container holds and sends and announces each once. The mutation methods call it themselves; you rarely need to |
 

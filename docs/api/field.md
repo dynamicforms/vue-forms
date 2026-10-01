@@ -232,45 +232,12 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
 | `validationEpoch` | `number` | no | Generation counter of the validators the field reads, raised by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to tell whether a result it is about to apply still belongs to the validators the field carries now |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable, and the array handed out is the one the element holds, so pushing into it works. `valid` follows immediately, on this field and on the containers above it; announcing the transition does not — call `validate()` for `ValidChangedAction` to fire. The array is reactive, so an error read back from it is a Vue proxy of the instance that produced it: `field.errors[0] === myError` is `false` for the very error a validator returned. Compare by content, or use `toRaw()` |
-| `shownErrors` | `readonly ValidationError[]` | no | The errors a rendering layer shows now — see [Showing errors](#showing-errors). Bind this, not `errors`, to what the user sees |
-| `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down. It decides when most errors appear in `shownErrors` |
+| `touched` | `boolean` | yes | Interaction flag. Nothing in the library sets it in response to input — your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
 | `parent` | `Container \| undefined` | no | Container the element belongs to, installed by that container and taken away again when the container releases the element — a `List` row dropped by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be handed to another list. A container refuses an element that still carries one, so hand on the released instance or a `bind()` of it. The container is a `Group` or a `List`, and [`Container`](/api/container) names no children, so reaching for `fields` through it is a compile error until it is narrowed: `field.parent instanceof Group` checks it, `(field.parent as Group)?.fields.other` states it, and naming the sibling and letting [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message) resolve it needs neither — see [`parent`](/api/container#parent). The read is tracked, so a template rendering off `field.parent` follows the element from one container to the next |
 | `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
 | `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding — transitively, so a binding of a binding answers with the same element. Every row a `List` builds from an item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. It is what lets an action shared by every row tell one row's field from another's |
 | `fullValue` | `T` | no | Identical to `value` on a plain `Field`. On a `Group` and a `List` it states what the element holds rather than what it serializes — see [`Group`](/api/group#properties) and [`List`](/api/list#properties) |
 | `extra` | `Readonly<Partial<X>>` | no | The [extended properties](#extended-properties) the field carries, `{}` where none were declared. The object is frozen; write through `setExtendedValues()` |
-
-## Showing errors
-
-`errors` and `valid` state the verdict, and a submit needs it at once: a form opened empty is invalid from the first
-render. What the user is shown waits for the user — a form that comes up covered in errors before anything was typed
-tells the user nothing they can act on. `shownErrors` answers that second question once, by one rule, so that no
-rendering layer has to answer it for itself.
-
-An error is shown by default where the element is sent at all — its `effectiveAccess` is not `'disabled'` — and
-
-- its [origin](/api/validators#origin) is `'server'`: the server answered something the user did, so it is shown
-  without marking anything touched; or
-- the element is `touched`. On a container that is as soon as any child is, and assigning `form.touched = true`
-  reaches every member, which is how a submit attempt reveals every error.
-
-An element that is not sent shows nothing, the way its container does not count it.
-
-The rule is a default, and `setConfig({ shownErrors })` replaces it for the whole application with a condition of
-its own. The condition decides when an error is shown: it is asked for each of an element's errors whenever
-`shownErrors` is read, receives the answer the default rule gives, and its answer stands. It is the place to treat
-an origin of the application's own:
-
-```typescript
-setConfig({
-  // errors a sync with another tab reports are shown at once, everything else as the default has it
-  shownErrors: (error, element, shownByDefault) => error.origin === 'sync' || shownByDefault,
-});
-```
-
-The condition runs while `shownErrors` is read, so it is synchronous and changes nothing. The read is tracked — the
-errors, `touched`, the access and whatever the condition reads through an element — so a template rendering
-`shownErrors` follows every one of them. The configuration itself is not tracked: set the condition at startup.
 
 ## Writing the value
 

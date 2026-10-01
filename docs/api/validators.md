@@ -428,9 +428,10 @@ Where the error comes from: `'validator'` for one a validator produced, `'server
 the last constructor argument stands; where none is stated, an error a validator hands the field is `'validator'` and
 any other is `'application'`. Any other string is an origin of the application's own.
 
-The origin decides when an error is shown by default — a `'server'` error at once, every other once its element is
-touched — and the [`shownErrors` condition](/api/config#options) can treat an origin of the application's own as it
-chooses. See [Showing errors](/api/field#showing-errors).
+The library reads the origin for nothing of its own: it is information about the error, the way `code` is. A
+rendering layer reads it to decide when to show an error — one the server returned at once, one a validator produced
+once the user has worked on the field — and code reads it to withdraw the errors of one origin and leave the others,
+as [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned) does.
 
 ```typescript
 field.errors.push(new ValidationErrorText('This name is taken', '', 'name-taken', 'server'));
