@@ -408,19 +408,39 @@ The codes the library states:
 ### `ValidationError`
 
 ```typescript
-new ValidationError(/* optional code */)
+new ValidationError(/* optional code */, /* optional origin */)
 ```
 
-Base class. Its only constructor argument is the [code](#error-codes). It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
+Base class. Its constructor arguments are the [code](#error-codes) and the [origin](#origin). It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
 
 #### `sameAs(other): boolean`
 
-True where `other` is an error of the same class that renders exactly as this one does and reports the same code — the component, its bindings, its body and the classes. A validator asks it when it re-runs: where the message it produces is the one the field already carries, the field keeps the instance it has rather than taking a fresh one, so a verdict that did not move re-renders nothing. Overriding `componentBody` and the rest is therefore enough for a custom error class; override `sameAs` only where two errors that render alike are still meant to count as different.
+True where `other` is an error of the same class that renders exactly as this one does and reports the same code and the same stated origin — the component, its bindings, its body and the classes. A validator asks it when it re-runs: where the message it produces is the one the field already carries, the field keeps the instance it has rather than taking a fresh one, so a verdict that did not move re-renders nothing. Overriding `componentBody` and the rest is therefore enough for a custom error class; override `sameAs` only where two errors that render alike are still meant to count as different.
+
+#### `origin`
+
+```typescript
+type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
+```
+
+Where the error comes from: `'validator'` for one a validator produced, `'server'` for one the server returned, and
+`'application'` for one the application's own code computed and wrote into `errors`. An origin its author states as
+the last constructor argument stands; where none is stated, an error a validator hands the field is `'validator'` and
+any other is `'application'`. Any other string is an origin of the application's own.
+
+The library reads the origin for nothing of its own: it is information about the error, the way `code` is. A
+rendering layer reads it to decide when to show an error — one the server returned at once, one a validator produced
+once the user has worked on the field — and code reads it to withdraw the errors of one origin and leave the others,
+as [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned) does.
+
+```typescript
+field.errors.push(new ValidationErrorText('This name is taken', '', 'name-taken', 'server'));
+```
 
 ### `ValidationErrorText`
 
 ```typescript
-new ValidationErrorText('Something went wrong', /* optional CSS classes */, /* optional code */)
+new ValidationErrorText('Something went wrong', /* optional CSS classes */, /* optional code */, /* optional origin */)
 ```
 
 Renders as plain text. Accessible via `.text` and `.classes`.
@@ -428,7 +448,7 @@ Renders as plain text. Accessible via `.text` and `.classes`.
 ### `ValidationErrorRenderContent`
 
 ```typescript
-new ValidationErrorRenderContent(message, /* optional CSS classes */, /* optional code */)
+new ValidationErrorRenderContent(message, /* optional CSS classes */, /* optional code */, /* optional origin */)
 ```
 
 Accepts a `RenderContentRef`: a `string`, an `MdString` (markdown), a `SimpleComponentDef` object, a `Ref` to any of those, or a function `() => string | MdString | SimpleComponentDef` (useful for reactive or translated messages — the function is evaluated on every render). The same type is used for the `message` parameter of every built-in validator. The consuming UI component reads `componentName`, `componentBindings`, `componentBody` and `extraClasses` to render it.

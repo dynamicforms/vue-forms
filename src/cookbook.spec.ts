@@ -140,29 +140,30 @@ describe('Cookbook: loading, submitting and resetting', () => {
     expect(form.isChanged).toBe(false);
   });
 
-  it("shows errors the server returned until they are cleared, and keeps the validators' own", () => {
+  it("clears the errors the server returned and keeps the validators' and the application's own", () => {
     const form = new Group({ email: new Field({ value: 'a@b.c' }), name: required('') });
     const showServerErrors = (target: Group, errors: Record<string, string>) => {
       Object.entries(errors).forEach(([name, message]) => {
         const field = target.field(name);
-        if (field) field.errors = [...field.errors, new ValidationErrorText(message)];
+        if (field) field.errors = [...field.errors, new ValidationErrorText(message, '', 'server-error', 'server')];
       });
     };
     const clearServerErrors = (target: Group) => {
       Object.values(target.fields).forEach((field) => {
-        field.errors = [];
+        field.errors = field.errors.filter((error) => error.origin !== 'server');
       });
-      target.validate(true);
+      target.validate();
     };
 
-    showServerErrors(form, { email: 'already taken' });
+    showServerErrors(form, { email: 'already taken', name: 'not allowed' });
+    form.fields.email.errors.push(new ValidationErrorText('looks like a typo'));
     expect(form.fields.email.valid).toBe(false);
     form.fields.email.value = 'x@y.z';
     expect(form.fields.email.valid).toBe(false);
 
     clearServerErrors(form);
-    expect(form.fields.email.valid).toBe(true);
-    expect(form.fields.name.errors.length).toBe(1);
+    expect(form.fields.email.errors.map((error) => error.origin)).toEqual(['application']);
+    expect(form.fields.name.errors.map((error) => error.origin)).toEqual(['validator']);
   });
 
   it('reports a changed form exactly while something was edited since the last rebind()', () => {

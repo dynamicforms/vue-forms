@@ -60,22 +60,23 @@ You want a field to show an error the server reported for it, and the error to g
 function showServerErrors(form: Group, errors: Record<string, string>) {
   Object.entries(errors).forEach(([name, message]) => {
     const field = form.field(name);
-    if (field) field.errors = [...field.errors, new ValidationErrorText(message)];
+    if (field) field.errors = [...field.errors, new ValidationErrorText(message, '', 'server-error', 'server')];
   });
 }
 
 function clearServerErrors(form: Group) {
   Object.values(form.fields).forEach((field) => {
-    field.errors = [];
+    field.errors = field.errors.filter((error) => error.origin !== 'server');
   });
-  form.validate(true);
+  form.validate();
 }
 ```
 
 An error written into `errors` makes the field and the form invalid at once, and it stays: a validator withdraws only
-the errors it produced itself, so neither a new value nor `validate(true)` removes it. Clearing every member's errors
-and revalidating leaves exactly the errors the validators reach. Call `clearServerErrors(form)` before sending
-again. Both take the form as a `Group`, so they serve every form of the application.
+the errors it produced itself, so neither a new value nor `validate(true)` removes it. Its
+[origin](/api/validators#origin), `'server'`, is what lets `clearServerErrors()` withdraw exactly those errors and
+leave the validators' own and any the application wrote. Call `clearServerErrors(form)` before sending again. Both
+take the form as a `Group`, so they serve every form of the application.
 
 ## Warning before leaving a changed form
 
