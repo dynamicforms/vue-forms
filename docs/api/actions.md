@@ -255,6 +255,20 @@ new AccessChangedAction((field, supr, newValue, oldValue) => {
 })
 ```
 
+### `EnabledChangedAction`
+
+Fires **after** a write of `access` has changed `enabled` — a switch into or out of `'editable'` — right after
+`AccessChangedAction`, with the two booleans. A switch between two accesses that are not `'editable'` changes what
+the element sends but not `enabled`, and does not fire it. `enabled` has no setter, so there is no
+`EnabledChangingAction`: what guards the write is `AccessChangingAction`.
+
+```typescript
+new EnabledChangedAction((field, supr, newValue, oldValue) => {
+  console.log(newValue ? 'accepts input' : 'accepts no input');
+  return supr(field, newValue, oldValue);
+})
+```
+
 ---
 
 ## Visibility events

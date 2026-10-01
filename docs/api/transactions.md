@@ -43,7 +43,7 @@ coordination.
 | `ValueChangedAction` | at commit, over what the element ends the transaction holding |
 | `ValidChangedAction` | at commit, over the verdict the element ends the transaction with |
 | `ListItemAddedAction` / `ListItemRemovedAction` | at commit, in the order the operations happened |
-| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed` | at the write; a *Changing* action may alter or refuse the value, so it cannot wait |
+| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed`, `EnabledChanged` | at the write; a *Changing* action may alter or refuse the value, so it cannot wait |
 | `ContributionChangedAction` | at commit, after `ValueChangedAction`, over what the element ends the transaction sending |
 
 Validators run during the transaction because the verdict they reach is what the commit announces. The

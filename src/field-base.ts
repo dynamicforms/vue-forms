@@ -8,6 +8,7 @@ import {
   ContributionChangedAction,
   ContributionChangedActionClassIdentifier,
 } from './actions/contribution-changed-action';
+import { EnabledChangedAction } from './actions/enabled-actions';
 import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
@@ -779,6 +780,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (!isAccess(written)) throw new Error(`${describe(written)} is not an access: ${listOf(accessValues)}`);
       tx.touch(this);
       const oldContribution = this.contribution;
+      const wasEnabled = this.enabled;
       const below = this.effectiveAccessBelow();
       this.#state.access = written;
       this.revalidateWhereChanged(below);
@@ -789,6 +791,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // at the commit; what any of them holds did not change
       this.contributionChanged(tx);
       this.boundActions?.trigger(AccessChangedAction, this, written, oldValue);
+      if (this.enabled !== wasEnabled) this.boundActions?.trigger(EnabledChangedAction, this, this.enabled, wasEnabled);
     });
   }
 

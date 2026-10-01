@@ -156,7 +156,8 @@ it `{}` instead.
 | — | `field.access = 'disabled-null'`: sent as `null`, the element keeps what it holds |
 | `new Field({ enabled: false })` | `new Field({ access: 'disabled' })` |
 | `field.bind(data, { enabled: false })` | `field.bind(data, { access: 'disabled' })` |
-| `EnabledChangingAction`, `EnabledChangedAction` | `AccessChangingAction`, `AccessChangedAction`, carrying `Access` values |
+| `EnabledChangingAction` | `AccessChangingAction`, carrying `Access` values |
+| `EnabledChangedAction` | unchanged: it fires where a write of `access` changes `enabled`, after `AccessChangedAction` |
 | `new ConditionalEnabledAction(statement)` | `new ConditionalAccessAction(statement)`, optionally `(statement, whenTrue, whenFalse)` |
 
 Every write to `enabled` and every `enabled` parameter is a compile error. A parameter object that reaches an element

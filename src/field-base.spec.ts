@@ -5,6 +5,7 @@ import { Action } from './action';
 import {
   AccessChangedAction,
   AccessChangingAction,
+  EnabledChangedAction,
   ExecuteAction,
   VisibilityChangedAction,
   VisibilityChangingAction,
@@ -653,7 +654,7 @@ describe('writing what an element already holds', () => {
     expect(seen).toEqual(['changing', 'changed']);
   });
 
-  it('runs nothing for enabled', () => {
+  it('runs nothing for access', () => {
     const seen: string[] = [];
     const field = new Field({ value: 1 });
     field.registerAction(new AccessChangingAction((f, supr, ...params) => (seen.push('changing'), supr(f, ...params))));
@@ -665,7 +666,6 @@ describe('writing what an element already holds', () => {
     field.access = 'disabled';
     expect(seen).toEqual(['changing', 'changed']);
   });
-
   it('leaves a *Changing* handler that would rewrite the value unreached', () => {
     const field = new Field({ value: 1, visibility: 'full' });
     // the handler answers with a mode of its own, and a write of the mode the element already holds never asks it
@@ -690,5 +690,48 @@ describe('writing what an element already holds', () => {
     // the value write is taken back; the visibility write was never a write
     expect(field.value).toBe(1);
     expect(field.visibility).toBe('full');
+  });
+});
+
+describe('EnabledChangedAction', () => {
+  it('fires after AccessChangedAction where a switch of access changes enabled, and only there', () => {
+    const seen: unknown[] = [];
+    const field = new Field({ value: 1 });
+    field.registerAction(
+      new AccessChangedAction((f, supr, newValue, oldValue) => {
+        seen.push(['access', newValue, oldValue]);
+        return supr(f, newValue, oldValue);
+      }),
+    );
+    field.registerAction(
+      new EnabledChangedAction((f, supr, newValue, oldValue) => {
+        seen.push(['enabled', newValue, oldValue]);
+        return supr(f, newValue, oldValue);
+      }),
+    );
+
+    field.access = 'readonly';
+    field.access = 'disabled-null';
+    field.access = 'editable';
+
+    expect(seen).toEqual([
+      ['access', 'readonly', 'editable'],
+      ['enabled', false, true],
+      ['access', 'disabled-null', 'readonly'],
+      ['access', 'editable', 'disabled-null'],
+      ['enabled', true, false],
+    ]);
+  });
+
+  it('fires for an access the parameter object states', () => {
+    const seen: boolean[] = [];
+
+    new Field({
+      value: 1,
+      access: 'disabled',
+      actions: [new EnabledChangedAction((f, supr, newValue) => (seen.push(newValue), supr(f, newValue)))],
+    });
+
+    expect(seen).toEqual([false]);
   });
 });

@@ -549,7 +549,8 @@ Documented in `docs/api/actions.md`, `docs/guide/migration.md` and `changelog.md
 An element's `access` — `'editable'`, `'readonly'`, `'disabled'`, `'disabled-null'` — states whether it accepts input
 and what it contributes to its container's `value`, and with it whether its validators run: they run over what the
 element sends, and not at all where its `effectiveAccess` is `'disabled'`. `enabled` and `effectiveEnabled` are reads
-of it. `visibility` is a `Visibility` string and states how a rendering layer draws the element, nothing else.
+of it, and `EnabledChangedAction` fires where a write of `access` changes `enabled`; `EnabledChangingAction` is gone,
+since nothing writes `enabled`. `visibility` is a `Visibility` string and states how a rendering layer draws the element, nothing else.
 `fullValue` carries every element whatever its access, and a container's `ValueChangedAction` reports it, while
 `ContributionChangedAction` reports what an element sends. 2.0.0 and 2.0.1 were withdrawn from npm and 2.0.2 is the
 first 2.0 release.
