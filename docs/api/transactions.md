@@ -40,10 +40,11 @@ coordination.
 | what | when |
 |---|---|
 | validators | while the transaction is open, at the write that triggers them |
-| `ValueChangedAction` | at commit, over the value the element ends the transaction holding |
+| `ValueChangedAction` | at commit, over what the element ends the transaction holding |
 | `ValidChangedAction` | at commit, over the verdict the element ends the transaction with |
 | `ListItemAddedAction` / `ListItemRemovedAction` | at commit, in the order the operations happened |
-| `VisibilityChanging`/`Changed`, `EnabledChanging`/`Changed` | at the write; a *Changing* action may alter or refuse the value, so it cannot wait |
+| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed` | at the write; a *Changing* action may alter or refuse the value, so it cannot wait |
+| `ContributionChangedAction` | at commit, after `ValueChangedAction`, over what the element ends the transaction sending |
 
 Validators run during the transaction because the verdict they reach is what the commit announces. The
 consequence is that inside a transaction a validator reads the **working** state: a validator on one field that
@@ -73,7 +74,7 @@ transaction(() => {
 ## Rollback
 
 The first time a transaction modifies an element it records the whole of that element's mutable state —
-`value`, `originalValue`, `touched`, `errors`, `enabled`, `visibility`, for a `Group` the names of its members and
+`value`, `originalValue`, `touched`, `errors`, `access`, `visibility`, for a `Group` the names of its members and
 for a `List` its row array. A
 rollback puts all of it back, together with the actions the transaction registered or unregistered — including
 the validators a `clearValidators()` dropped — and **announces nothing**: from an observer's point of view the

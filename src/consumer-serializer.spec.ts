@@ -1,9 +1,10 @@
 import { expectTypeOf } from 'vitest';
 
-import DisplayMode from './display-mode';
+import { isAccess } from './access';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
+import { isVisibility } from './visibility';
 
 /**
  * What a serializer works over: the whole of a form in one read, and a whole record in one write. The elements
@@ -40,8 +41,8 @@ describe('The payload a form reads back', () => {
     const form = orderForm();
     form.value = record;
 
-    form.fields.address.fields.zip.enabled = false;
-    form.fields.lines.get(0)!.fields.qty.enabled = false;
+    form.fields.address.fields.zip.access = 'disabled';
+    form.fields.lines.get(0)!.fields.qty.access = 'disabled';
 
     expect(form.value).toEqual({
       reference: 'ORD-1',
@@ -93,7 +94,7 @@ describe('The payload a form is written from', () => {
   it('writes a disabled member, and leaves it out of the payload', () => {
     const form = orderForm();
     form.value = record;
-    form.fields.address.fields.zip.enabled = false;
+    form.fields.address.fields.zip.access = 'disabled';
 
     form.value = { address: { city: 'Maribor', zip: '2000' } };
 
@@ -115,17 +116,27 @@ describe('The payload a form is written from', () => {
   });
 });
 
-describe('The visibility a payload names', () => {
-  it('resolves to the constant it names, and an unknown one is refused where isDefined judges it', () => {
-    const descriptor = { visibility: 'hidden' };
+describe('The visibility and access a payload names', () => {
+  it('takes the ones it names, and isVisibility and isAccess judge an unknown one before it is written', () => {
+    const descriptor: Record<string, unknown> = { visibility: 'hidden', access: 'readonly' };
 
-    const field = new Field({ value: 'a', visibility: DisplayMode.fromAny(descriptor.visibility) });
+    expect(isVisibility(descriptor.visibility)).toBe(true);
+    expect(isAccess(descriptor.access)).toBe(true);
+    const field = new Field({ value: 'a', ...descriptor });
 
-    expect(field.visibility).toBe(DisplayMode.HIDDEN);
-    expect(() => DisplayMode.fromAny('EXPANDED')).toThrow('is not a DisplayMode constant');
-    // the question that answers rather than raises, which is the one a deserializer asks of a mode it may reject
-    expect(DisplayMode.isDefined('EXPANDED')).toBe(false);
-    expect(DisplayMode.isDefined(descriptor.visibility)).toBe(true);
+    expect(field.visibility).toBe('hidden');
+    expect(field.access).toBe('readonly');
+    // the questions that answer rather than raise, which are the ones a deserializer asks of a value it may reject
+    expect(isVisibility('EXPANDED')).toBe(false);
+    expect(isAccess(false)).toBe(false);
+    expect(() => new Field({ value: 'a', ...({ visibility: 'EXPANDED' } as object) })).toThrow('is not a visibility');
+  });
+
+  it('refuses a payload naming enabled, which is read from access', () => {
+    const descriptor: Record<string, unknown> = { enabled: false };
+
+    expect(() => new Field({ value: 'a', ...descriptor })).toThrow('enabled is read from access');
+    expect(() => new Field({ value: 'a' }).bind('b', descriptor)).toThrow('enabled is read from access');
   });
 });
 
@@ -135,29 +146,24 @@ describe('The visibility a payload names', () => {
  * an expression that in fact type-checks.
  */
 describe('The types a serializer is written against', () => {
-  it('reads a member off value and fullValue as possibly absent or null', () => {
+  it('reads a member off value as possibly absent or null, and off fullValue as it is held', () => {
     const form = orderForm();
     const send = (reference: string) => reference;
 
-    // the form itself is never null: an enabled group serializes, as {} where no member contributes
+    // the form itself is never null: a group that serializes does so as {} where no member contributes
     expectTypeOf(form.value.reference).toEqualTypeOf<string | null | undefined>();
     expectTypeOf(form.value.address).toEqualTypeOf<{ city?: string | null; zip?: string | null } | null | undefined>();
-    expectTypeOf(form.fullValue.reference).toEqualTypeOf<string | null | undefined>();
-    expectTypeOf(form.fullValue.address).toEqualTypeOf<
-      { city?: string | null; zip?: string | null } | null | undefined
-    >();
-    expectTypeOf(form.fullValue.lines).toEqualTypeOf<
-      ({ sku?: string | null; qty?: number | null } | null)[] | null | undefined
-    >();
+    expectTypeOf(form.fullValue.reference).toEqualTypeOf<string>();
+    expectTypeOf(form.fullValue.address).toEqualTypeOf<{ city: string; zip: string }>();
+    expectTypeOf(form.fullValue.lines).toEqualTypeOf<{ sku: string; qty: number }[]>();
 
-    // never evaluated: the assertion is that a serializer handing a member on has to account for a member that is
-    // left out (disabled or suppressed) and for one that is hidden
-    const rejected = () => [
+    // never evaluated: the assertion is that a serializer handing on a member of value has to account for a member
+    // that is left out ('disabled') and for one that is null ('disabled-null'), while fullValue reads through
+    const handed = () => [
       // @ts-expect-error a member may be left out of value or be null there
       send(form.value.reference),
-      // @ts-expect-error visibility applies to fullValue as it does to value
       send(form.fullValue.reference),
     ];
-    expect(rejected).toBeInstanceOf(Function);
+    expect(handed).toBeInstanceOf(Function);
   });
 });

@@ -91,7 +91,10 @@ export class Validator<T = any> extends ValueChangedAction {
       // this run holds the newest number now, so the one it replaces is no longer current and its signal aborts
       superseded?.();
 
-      const errors = validationFn(newValue, oldValue, field, controller.signal) || [];
+      // an element that is sent nowhere is not checked: the run reaches no verdict and withdraws this validator's
+      // errors
+      const errors =
+        field.effectiveAccess === 'disabled' ? [] : validationFn(newValue, oldValue, field, controller.signal) || [];
 
       // the swap of this validator's errors and the verdict that follows from it are one change: a run that
       // settles after the operation that started it opens a transaction of its own here, and one that settles

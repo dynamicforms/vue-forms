@@ -38,7 +38,7 @@
 
           <!-- Additional info field (conditionally visible) -->
           <v-text-field
-            v-if="conditionsForm.fields.additionalInfo.visibility === DisplayMode.FULL"
+            v-if="conditionsForm.fields.additionalInfo.visibility === 'full'"
             v-model="conditionsForm.fields.additionalInfo.value"
             label="Additional Information"
             outlined
@@ -81,9 +81,8 @@ import {
   Statement,
   Operator,
   ConditionalVisibilityAction,
-  ConditionalEnabledAction,
-  ConditionalValueAction,
-  DisplayMode
+  ConditionalAccessAction,
+  ConditionalValueAction
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
 // Create a form group with conditional fields
@@ -95,7 +94,7 @@ const conditionsForm = new Group({
   favoriteColor: new Field({value: ''}),
   detailsToggle: new Field({value: false}),
   additionalInfo: new Field({value: ''}),
-  submitAction: new Field({enabled: false}),
+  submitAction: new Field({ access: 'disabled' }),
 });
 
 
@@ -124,14 +123,14 @@ conditionsForm.fields.additionalInfo.registerAction(
   new ConditionalVisibilityAction(showDetailsStatement)
 );
 
-// 3. Conditional Enabled Action - Enable submit button only when all required fields are filled
+// 3. Conditional Access Action - Enable submit button only when all required fields are filled
 const fieldsFilledStatement = new Statement(
   new Statement(conditionsForm.fields.fruit, Operator.NOT_EQUALS, ''),
   Operator.AND,
   new Statement(conditionsForm.fields.favoriteColor, Operator.NOT_EQUALS, '')
 );
 conditionsForm.fields.submitAction.registerAction(
-  new ConditionalEnabledAction(fieldsFilledStatement)
+  new ConditionalAccessAction(fieldsFilledStatement)
 );
 
 // Function to reset the form

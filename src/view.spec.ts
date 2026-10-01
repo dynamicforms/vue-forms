@@ -2,7 +2,6 @@ import { expectTypeOf } from 'vitest';
 import { nextTick, reactive, watchEffect } from 'vue';
 
 import { ListItemAddedAction, ListItemRemovedAction, ValueChangedAction } from './actions';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -40,7 +39,7 @@ describe('view() of a group', () => {
 
     expect(s.$.valid).toBe(false);
     expect(s.$).toBe(group);
-    s.$.enabled = false;
+    s.$.access = 'disabled';
     expect(group.enabled).toBe(false);
     s.name = 'Ada';
     expect(s.$.value).toEqual({ name: 'Ada' });
@@ -60,19 +59,17 @@ describe('view() of a group', () => {
     expect(view(group).customer).toBe(view(group.fields.customer));
   });
 
-  it('reads a hidden member as null and leaves a suppressed one out, whatever is enabled', () => {
+  it('reads every member as what it holds, whatever its access or visibility', () => {
     const group = order();
     const s = view(group);
 
-    group.fields.customer.visibility = DisplayMode.HIDDEN;
-    expect(s.customer).toBeNull();
-    group.fields.tags.visibility = DisplayMode.SUPPRESS;
-    expect(s.tags).toBeUndefined();
-    expect(Object.keys(s)).toEqual(['customer', 'lines']);
+    group.fields.customer.access = 'disabled';
+    group.fields.tags.access = 'disabled-null';
+    group.fields.lines.visibility = 'suppress';
 
-    group.fields.customer.visibility = DisplayMode.FULL;
-    group.fields.customer.enabled = false;
-    expect(s.customer!.email).toBe('ada@x');
+    expect(s.customer.email).toBe('ada@x');
+    expect(s.tags).toEqual(group.fields.tags.value);
+    expect(Object.keys(s)).toEqual(['customer', 'lines', 'tags']);
   });
 
   it('spreads, lists its keys and stringifies as the data it holds', () => {
@@ -210,18 +207,18 @@ describe('view() of a list', () => {
     }).toThrow(TypeError);
   });
 
-  it('reads group rows as views, a hidden row as null, and leaves a suppressed row out of its indices', () => {
+  it('reads group rows as views, every row whatever its access', () => {
     const list = new List(new Group({ sku: new Field({ value: '' }) }), {
       value: [{ sku: 'a' }, { sku: 'b' }, { sku: 'c' }],
     });
     const t = view(list);
 
-    list.get(0)!.visibility = DisplayMode.HIDDEN;
-    list.get(1)!.visibility = DisplayMode.SUPPRESS;
+    list.get(0)!.access = 'disabled-null';
+    list.get(1)!.access = 'disabled';
 
-    expect(t.length).toBe(2);
-    expect(t[0]).toBeNull();
-    expect(t[1]!.sku).toBe('c');
+    expect(t.length).toBe(3);
+    expect(t[0]!.sku).toBe('a');
+    expect(t[1]!.sku).toBe('b');
     t.push({ sku: 'd' });
     expect(list.value).toEqual([null, { sku: 'c' }, { sku: 'd' }]);
     expect(list.length).toBe(4);
@@ -261,11 +258,9 @@ describe('The types a view carries', () => {
   it('types a field member by its value, a container member by its view, and the element as $', () => {
     const s = view(order());
 
-    expectTypeOf(s.customer).toEqualTypeOf<
-      View<Group<{ id: Field<number>; email: Field<string> }>> | null | undefined
-    >();
-    expectTypeOf(s.customer!.email).toEqualTypeOf<string | null | undefined>();
-    expectTypeOf(s.tags).toEqualTypeOf<string[] | null | undefined>();
+    expectTypeOf(s.customer).toEqualTypeOf<View<Group<{ id: Field<number>; email: Field<string> }>>>();
+    expectTypeOf(s.customer.email).toEqualTypeOf<string>();
+    expectTypeOf(s.tags).toEqualTypeOf<string[]>();
     expectTypeOf(s.$.valid).toEqualTypeOf<boolean>();
     expectTypeOf(s.$).toEqualTypeOf<ReturnType<typeof order>>();
     expectTypeOf(s.lines!.length).toEqualTypeOf<number>();

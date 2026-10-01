@@ -52,7 +52,7 @@
 import { ref } from 'vue';
 import {
   Action,
-  ConditionalEnabledAction,
+  ConditionalAccessAction,
   ExecuteAction,
   Field,
   Group,
@@ -91,7 +91,7 @@ form.registerAction(
 const save = new Action({
   value: { label: 'Submit', icon: 'mdi-content-save' },
   actions: [
-    new ConditionalEnabledAction(new Statement(formValid, Operator.EQUALS, true)),
+    new ConditionalAccessAction(new Statement(formValid, Operator.EQUALS, true)),
     new ExecuteAction(async (field, supr, params) => {
       await new Promise((resolve) => setTimeout(resolve, 1200));
       if (params.email.endsWith('@example.com')) throw new Error('example.com addresses are not accepted');

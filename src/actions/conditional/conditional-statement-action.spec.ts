@@ -1,6 +1,5 @@
 import { vi } from 'vitest';
 
-import DisplayMode from '../../display-mode';
 import { Field } from '../../field';
 import { Group } from '../../group';
 import { List } from '../../list';
@@ -8,7 +7,7 @@ import { List } from '../../list';
 import {
   ConditionalStatementAction,
   ConditionalVisibilityAction,
-  ConditionalEnabledAction,
+  ConditionalAccessAction,
   ConditionalValueAction,
 } from './conditional-statement-action';
 import Operator from './operator';
@@ -93,7 +92,7 @@ describe('ConditionalVisibilityAction', () => {
 
     // Initial visibility should be FULL (since statement is true)
     field.value = 'test';
-    expect(field.visibility).toBe(DisplayMode.FULL);
+    expect(field.visibility).toBe('full');
 
     // Change statement to evaluate to false
     nameField.value = 'Jane';
@@ -102,18 +101,18 @@ describe('ConditionalVisibilityAction', () => {
     field.value = 'another test';
 
     // Visibility should now be SUPPRESS
-    expect(field.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(field.visibility).toBe('suppress');
   });
 });
 
-describe('ConditionalEnabledAction', () => {
+describe('ConditionalAccessAction', () => {
   it('sets field enabled state based on statement result', () => {
     // Setup
     const ageField = new Field({ value: 25 });
     const statement = new Statement(ageField, Operator.GT, 18);
 
     const field = new Field();
-    const action = new ConditionalEnabledAction(statement);
+    const action = new ConditionalAccessAction(statement);
     field.registerAction(action);
 
     // Initial enabled should be true (since statement is true)
@@ -128,6 +127,36 @@ describe('ConditionalEnabledAction', () => {
 
     // Enabled should now be false
     expect(field.enabled).toBe(false);
+    expect(field.access).toBe('disabled');
+  });
+
+  it('writes the accesses it is given for either result', () => {
+    const company = new Field({ value: false });
+    const vatId = new Field({ value: '' });
+    vatId.registerAction(
+      new ConditionalAccessAction(new Statement(company, Operator.EQUALS, true), 'editable', 'disabled-null'),
+    );
+    const form = new Group({ company, vatId });
+
+    expect(vatId.access).toBe('disabled-null');
+    expect(form.value).toEqual({ company: false, vatId: null });
+
+    company.value = true;
+    expect(vatId.access).toBe('editable');
+  });
+});
+
+describe('ConditionalVisibilityAction with the visibilities it is given', () => {
+  it('writes them for either result, and leaves what the element sends alone', () => {
+    const details = new Field({ value: false });
+    const notes = new Field({ value: 'n' });
+    notes.registerAction(
+      new ConditionalVisibilityAction(new Statement(details, Operator.EQUALS, true), 'full', 'hidden'),
+    );
+    const form = new Group({ details, notes });
+
+    expect(notes.visibility).toBe('hidden');
+    expect(form.value).toEqual({ details: false, notes: 'n' });
   });
 });
 
@@ -189,13 +218,13 @@ describe('Conditional actions over the rows of a List', () => {
       ],
     });
 
-    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(list.get(0)!.fields.detail.visibility).toBe('suppress');
+    expect(list.get(1)!.fields.detail.visibility).toBe('suppress');
 
     list.get(0)!.fields.kind.value = 'other';
 
-    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
-    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(list.get(0)!.fields.detail.visibility).toBe('full');
+    expect(list.get(1)!.fields.detail.visibility).toBe('suppress');
   });
 
   it('lets two rows hold opposite results at once', () => {
@@ -206,15 +235,15 @@ describe('Conditional actions over the rows of a List', () => {
       ],
     });
 
-    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
-    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(list.get(0)!.fields.detail.visibility).toBe('full');
+    expect(list.get(1)!.fields.detail.visibility).toBe('suppress');
 
     // the two rows swap: each one answers over its own values, and neither carries the other's result
     list.get(0)!.fields.kind.value = 'standard';
     list.get(1)!.fields.kind.value = 'other';
 
-    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(list.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(list.get(0)!.fields.detail.visibility).toBe('suppress');
+    expect(list.get(1)!.fields.detail.visibility).toBe('full');
   });
 
   it('reaches every row from a field the whole form holds', () => {
@@ -229,12 +258,12 @@ describe('Conditional actions over the rows of a List', () => {
     });
     const lines = form.fields.lines as List;
 
-    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(lines.get(0)!.fields.detail.visibility).toBe('suppress');
 
     form.fields.showDetails.value = true;
 
-    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
-    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(lines.get(0)!.fields.detail.visibility).toBe('full');
+    expect(lines.get(1)!.fields.detail.visibility).toBe('full');
   });
 
   it('drives every row, wherever it was registered', () => {
@@ -253,16 +282,16 @@ describe('Conditional actions over the rows of a List', () => {
         new ConditionalVisibilityAction(new Statement(form.fields.showDetails, Operator.EQUALS, true)),
       );
 
-    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(lines.get(0)!.fields.detail.visibility).toBe('suppress');
+    expect(lines.get(1)!.fields.detail.visibility).toBe('suppress');
 
     form.fields.showDetails.value = true;
-    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
-    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(lines.get(0)!.fields.detail.visibility).toBe('full');
+    expect(lines.get(1)!.fields.detail.visibility).toBe('full');
 
     form.fields.showDetails.value = false;
-    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(lines.get(0)!.fields.detail.visibility).toBe('suppress');
+    expect(lines.get(1)!.fields.detail.visibility).toBe('suppress');
   });
 
   it('evaluates a row added later over the record it joins', () => {
@@ -275,12 +304,12 @@ describe('Conditional actions over the rows of a List', () => {
     const form = new Group({ showDetails, lines });
 
     form.fields.showDetails.value = true;
-    expect(lines.get(0)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(lines.get(0)!.fields.detail.visibility).toBe('full');
 
     // the row holds what the template holds, so no assignment reaches it: the statement is what decides it
     lines.push({ detail: '' });
 
-    expect(lines.get(1)!.fields.detail.visibility).toBe(DisplayMode.FULL);
+    expect(lines.get(1)!.fields.detail.visibility).toBe('full');
   });
 
   it('holds one handler on the field it reads however many rows the list has', () => {
@@ -290,8 +319,8 @@ describe('Conditional actions over the rows of a List', () => {
     // a handler registered per row would nest 5000 calls into the chain the write runs, which overflows the stack
     list.get(4999)!.fields.kind.value = 'other';
 
-    expect(list.get(4999)!.fields.detail.visibility).toBe(DisplayMode.FULL);
-    expect(list.get(0)!.fields.detail.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(list.get(4999)!.fields.detail.visibility).toBe('full');
+    expect(list.get(0)!.fields.detail.visibility).toBe('suppress');
   });
 });
 
@@ -305,7 +334,7 @@ describe('Complex Conditional Actions', () => {
 
       // Fields that will be controlled conditionally
       studentDiscount: new Field({ value: 0 }),
-      submitButton: new Field({ enabled: false }),
+      submitButton: new Field({ access: 'disabled' }),
     });
 
     // Student discount is shown only if age < 30 AND isStudent = true
@@ -320,19 +349,19 @@ describe('Complex Conditional Actions', () => {
 
     // Apply conditional actions
     form.fields.studentDiscount.registerAction(new ConditionalVisibilityAction(showDiscountStatement));
-    form.fields.submitButton.registerAction(new ConditionalEnabledAction(enableSubmitStatement));
+    form.fields.submitButton.registerAction(new ConditionalAccessAction(enableSubmitStatement));
 
     // Trigger initial evaluation
     // form.fields.age.value = 24;
 
     // Initially: age=25, isStudent=false, terms=false
     // So discount should be hidden and submit disabled
-    expect(form.fields.studentDiscount.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(form.fields.studentDiscount.visibility).toBe('suppress');
     expect(form.fields.submitButton.enabled).toBe(false);
 
     // Update to make student discount visible
     form.fields.isStudent.value = true;
-    expect(form.fields.studentDiscount.visibility).toBe(DisplayMode.FULL);
+    expect(form.fields.studentDiscount.visibility).toBe('full');
 
     // Accept terms to enable submit button
     form.fields.acceptTerms.value = true;
@@ -340,6 +369,6 @@ describe('Complex Conditional Actions', () => {
 
     // Change age to hide discount again
     form.fields.age.value = 35;
-    expect(form.fields.studentDiscount.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(form.fields.studentDiscount.visibility).toBe('suppress');
   });
 });

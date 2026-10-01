@@ -1,17 +1,18 @@
 import { nextTick, reactive, watchEffect } from 'vue';
 
+import type { Access } from './access';
 import { Action, ActionValue } from './action';
 import {
-  EnabledChangedAction,
-  EnabledChangingAction,
+  AccessChangedAction,
+  AccessChangingAction,
   ExecuteAction,
   ValueChangedAction,
   VisibilityChangedAction,
   VisibilityChangingAction,
 } from './actions';
-import DisplayMode from './display-mode';
 import { Group } from './group';
 import { Validators } from './validators';
+import type { Visibility } from './visibility';
 
 describe('Action', () => {
   it('correctly manages value, label and icon', () => {
@@ -47,7 +48,7 @@ describe('Action', () => {
   it('takes a write while disabled', () => {
     const action = new Action({
       value: { label: 'Action', icon: 'plus' },
-      enabled: false,
+      access: 'disabled',
     });
 
     action.value = { label: 'New', icon: 'minus' };
@@ -132,7 +133,7 @@ describe('Action', () => {
   });
 
   it('takes a label written on a disabled action', () => {
-    const action = new Action({ value: { label: 'Save' }, enabled: false });
+    const action = new Action({ value: { label: 'Save' }, access: 'disabled' });
 
     action.label = 'Saving';
 
@@ -278,28 +279,28 @@ describe('Action construction', () => {
   });
 
   it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
-    const visibilitySeen: DisplayMode[] = [];
-    const enabledSeen: boolean[] = [];
+    const visibilitySeen: Visibility[] = [];
+    const accessSeen: Access[] = [];
     const action = new Action({
       value: { label: 'Save' },
-      visibility: DisplayMode.HIDDEN,
-      enabled: false,
+      visibility: 'hidden',
+      access: 'disabled',
       actions: [
-        new VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+        new VisibilityChangingAction(() => 'suppress'),
         new VisibilityChangedAction((field, supr, newValue) => {
           visibilitySeen.push(newValue);
         }),
-        new EnabledChangingAction(() => true),
-        new EnabledChangedAction((field, supr, newValue) => {
-          enabledSeen.push(newValue);
+        new AccessChangingAction(() => 'readonly'),
+        new AccessChangedAction((field, supr, newValue) => {
+          accessSeen.push(newValue);
         }),
       ],
     });
 
-    expect(action.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(action.enabled).toBe(true);
-    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
-    expect(enabledSeen).toEqual([true]);
+    expect(action.visibility).toBe('suppress');
+    expect(action.access).toBe('readonly');
+    expect(visibilitySeen).toEqual(['suppress']);
+    expect(accessSeen).toEqual(['readonly']);
     expect(action.label).toBe('Save');
   });
 
@@ -397,7 +398,7 @@ describe('Action construction', () => {
   });
 
   it('completes the value of an action constructed disabled', () => {
-    const action = new RenderedAction({ value: { label: 'Save' }, enabled: false });
+    const action = new RenderedAction({ value: { label: 'Save' }, access: 'disabled' });
 
     expect(action.enabled).toBe(false);
     expect(action.value).toEqual({ label: 'Save', renderAs: 'button' });

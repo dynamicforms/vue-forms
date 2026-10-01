@@ -1,7 +1,7 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "2.0.1",
+  "version": "2.0.2",
   "type": "module",
   "description": "A Vue.js library for form state management with built-in validation, conditional logic, nested structures, and a rich event system. UI-agnostic and TypeScript-first.",
   "author": "Jure Erznožnik",

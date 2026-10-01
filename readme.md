@@ -43,8 +43,9 @@ mechanism applies at every level of a nested form.
   settings — with the reactivity, transactions and validation a form has
 - **Plain-data views**: `view(group)` reads an element as plain properties — `form.address.city`,
   `v-model="form.name"` — with the element itself as `form.$`
-- **Display modes**: `FULL`, `HIDDEN` and `SUPPRESS` decide whether an element is shown and what it contributes to
-  the value its form sends — its own value, `null`, or nothing
+- **Access**: `'editable'`, `'readonly'`, `'disabled'` and `'disabled-null'` decide whether an element accepts input
+  and what it contributes to the value its form sends — its own value, `null`, or nothing — and validation follows
+  what is sent; `visibility` states how it is drawn
 - **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds
 
 ## Installation
@@ -106,9 +107,9 @@ console.log(personForm.value);  // { firstName: 'John', lastName: 'Doe', age: 30
 personForm.fields.firstName.value = 'Jane';
 
 // Disable a field
-personForm.fields.age.enabled = false;
+personForm.fields.age.access = 'disabled';
 
-// Form serializes only enabled fields
+// The form leaves a disabled field out of what it sends
 console.log(personForm.value);  // { firstName: 'Jane', lastName: 'Doe', active: true }
 ```
 
@@ -303,7 +304,7 @@ Create dynamic forms with conditional logic using Statements and Operators:
 ```typescript
 import { 
   Field, Group, Statement, Operator,
-  ConditionalVisibilityAction, ConditionalEnabledAction 
+  ConditionalVisibilityAction, ConditionalAccessAction
 } from '@dynamicforms/vue-forms';
 
 const form = new Group({
@@ -313,20 +314,17 @@ const form = new Group({
   lastName: new Field()
 });
 
-// Show company name field only when isCompany is true
-const showCompanyNameStatement = new Statement(form.fields.isCompany, Operator.EQUALS, true);
-form.fields.companyName.registerAction(
-  new ConditionalVisibilityAction(showCompanyNameStatement)
-);
+// Show and send the company name only when isCompany is true
+const isCompany = new Statement(form.fields.isCompany, Operator.EQUALS, true);
+form.fields.companyName.registerAction(new ConditionalVisibilityAction(isCompany));
+form.fields.companyName.registerAction(new ConditionalAccessAction(isCompany));
 
-// Show personal name fields only when isCompany is false
-const showPersonalFieldsStatement = new Statement(form.fields.isCompany, Operator.EQUALS, false);
-form.fields.firstName.registerAction(
-  new ConditionalVisibilityAction(showPersonalFieldsStatement)
-);
-form.fields.lastName.registerAction(
-  new ConditionalVisibilityAction(showPersonalFieldsStatement)
-);
+// Show and send the personal name fields only when isCompany is false
+const isPerson = new Statement(form.fields.isCompany, Operator.EQUALS, false);
+[form.fields.firstName, form.fields.lastName].forEach((field) => {
+  field.registerAction(new ConditionalVisibilityAction(isPerson));
+  field.registerAction(new ConditionalAccessAction(isPerson));
+});
 ```
 
 ## Advanced Data Structures (Lists)
@@ -414,8 +412,8 @@ const email: string = userForm.fields.email.value;
 const age: number = userForm.fields.age.value;
 const darkMode: boolean = userForm.fields.preferences.fields.darkMode.value;
 
-// The serialized value is typed too, member by member. Every member is optional, because a disabled or
-// suppressed member is left out of the object the group builds, and nullable, because a hidden one is sent as null
+// The serialized value is typed too, member by member. Every member is optional, because a 'disabled' member is
+// left out of the object the group builds, and nullable, because a 'disabled-null' one is sent as null
 const values = userForm.value;
 const emailFromValue: string | null | undefined = values.email;
 const prefs: { darkMode?: boolean | null; notifications?: boolean | null } | null | undefined = values.preferences;
@@ -431,11 +429,11 @@ their own exported type, `IFieldParams<T, X>`, shared by all four element classe
 ```typescript
 import { Field, IFieldParams } from '@dynamicforms/vue-forms';
 
-const defaults: IFieldParams<string> = { value: '', enabled: false };
+const defaults: IFieldParams<string> = { value: '', access: 'readonly' };
 const field = new Field(defaults);
 ```
 
-It admits only the writable members — `value`, `originalValue`, `enabled`, `visibility`, `touched`, `errors`,
+It admits only the writable members — `value`, `originalValue`, `access`, `visibility`, `touched`, `errors`,
 `validators` and `actions`, listed by `IFieldConstructorParams<T>`. Derived members such as `valid` and
 `isChanged` are getters, and passing one is a compile error.
 

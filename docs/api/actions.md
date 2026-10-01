@@ -151,7 +151,8 @@ consumer knows by name are where this happens:
 - the trigger that closes a constructor;
 - binding an element — `bind()`, and every `List` row built from an item template with it;
 - a write to a leaf's `value`, where the validators run — the commonest of them all;
-- a container re-forming its composed value;
+- a switch of access, on the element and on every element below it whose `effectiveAccess` moved;
+- a container re-forming what it sends;
 - `validate(true)`;
 - a container completing a record — a `Group` that has written its members, a `List` that has taken a row.
   `group.addField()` sets it off directly, as does a row taken into a `List`: `list.value = [...]`, an insert, an
@@ -159,7 +160,7 @@ consumer knows by name are where this happens:
 
 An eager action therefore states a refusal through the element's verdict — an error — rather than by throwing.
 
-**In a `*Changing*` handler it refuses the write.** `EnabledChangingAction` and `VisibilityChangingAction` are
+**In a `*Changing*` handler it refuses the write.** `AccessChangingAction` and `VisibilityChangingAction` are
 asked before the value is written, so ending the run there means the setter writes nothing and announces nothing —
 no `*Changed*` event, no enrolment in an open transaction. Returning the old value refuses the write just as well;
 the exception is the form that also says why, and that stops the handlers registered before it from running. The
@@ -168,7 +169,7 @@ promise and is refused by the type each of them requires.
 
 ```typescript
 field.registerAction(new VisibilityChangingAction((f, supr, newValue, oldValue) => {
-  if (newValue === DisplayMode.SUPPRESS) throw new AbortEventHandlingException('this field is never suppressed');
+  if (newValue === 'suppress') throw new AbortEventHandlingException('this field is never suppressed');
   return supr(f, newValue, oldValue);
 }));
 ```
@@ -181,7 +182,7 @@ an ordinary error: a throw out of a handler rolls the whole [transaction](/api/t
 
 ### `ValueChangedAction`
 
-Fires when `field.value` changes (after the new value is set). Also fires on `Group` and `List` when any descendant changes.
+Fires when what the element holds changes: a `Field`'s `value` (after the new value is set), and a `Group`'s or a `List`'s `fullValue` when anything below it changes what it holds. A switch of access changes what is sent rather than what is held, so it fires [`ContributionChangedAction`](#contributionchangedaction) instead.
 
 It fires when the [transaction](/api/transactions) carrying the change commits, over the value the element ends
 that transaction holding: `oldValue` is what the element last announced, so a value that goes `A → B → A` within
@@ -202,35 +203,54 @@ new ValueChangedAction((field, supr, newValue, oldValue) => {
 | `newValue` | `T` | The new value |
 | `oldValue` | `T` | The previous value |
 
-On a `Group` or a `List` the two values are the container's own serialized value after and before the change, so
-the very first change of a member reports the value the container was constructed with as `oldValue`.
+On a `Group` or a `List` the two values are the container's `fullValue` after and before the change, so the very
+first change of a member reports what the container was constructed holding as `oldValue`.
+
+### `ContributionChangedAction`
+
+Fires when what the element sends to its container changes: its `value` where its access sends it, `null` for
+`'disabled-null'`, and `undefined` for `'disabled'`, whose key or row is left out. It answers the question
+`ValueChangedAction` does not: a switch of access changes what is sent without changing what is held, and a write
+into a `'disabled'` field changes what is held without changing what is sent.
+
+```typescript
+form.registerAction(new ContributionChangedAction((field, supr, newValue, oldValue) => {
+  autosave(newValue);   // what the form sends, after the change
+  return supr(field, newValue, oldValue);
+}));
+```
+
+It fires when the [transaction](/api/transactions) carrying the change commits, with the pair (what the element
+sends now, what it sent at the last announcement), so a switch that goes `'editable' → 'disabled' → 'editable'`
+within one transaction announces nothing. On a container it fires where what the container sends moved — a member's
+value, a member's access, or the container's own access.
 
 ---
 
-## Enabled events
+## Access events
 
-### `EnabledChangingAction`
+### `AccessChangingAction`
 
-Fires **before** `field.enabled` changes. The return value becomes the new value of `enabled` — return `true` to prevent disabling, or `false` to prevent enabling.
+Fires **before** `field.access` changes. The return value becomes the access written.
 
 ```typescript
-new EnabledChangingAction((field, supr, newValue, oldValue) => {
-  // return true to prevent disabling, false to prevent enabling
+new AccessChangingAction((field, supr, newValue, oldValue) => {
+  // answer with the access to write instead, or throw AbortEventHandlingException to refuse
   return supr(field, newValue, oldValue);
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so plainly returning `supr(...)` means "no change to `newValue`". If the resulting value is not a boolean, the setter throws `Error('Enabled value must be boolean')`.
+If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so plainly returning `supr(...)` means "no change to `newValue`". If the resulting value is none of the four accesses, the setter throws `Error("'x' is not an access: …")` and leaves `field.access` as it was.
 
-The setter asks it only where the write is a change. Assigning the value the element already holds runs no handler and fires no event, so a handler that answers with a value of its own is never reached by such a write — `field.enabled = field.enabled` leaves the element exactly as it stands. The same holds for `VisibilityChangingAction`.
+The setter asks it only where the write is a change. Assigning the access the element already holds runs no handler and fires no event, so a handler that answers with a value of its own is never reached by such a write — `field.access = field.access` leaves the element exactly as it stands. The same holds for `VisibilityChangingAction`.
 
-### `EnabledChangedAction`
+### `AccessChangedAction`
 
-Fires **after** `field.enabled` has been updated.
+Fires **after** `field.access` has been updated.
 
 ```typescript
-new EnabledChangedAction((field, supr, newValue, oldValue) => {
-  console.log('enabled is now', newValue);
+new AccessChangedAction((field, supr, newValue, oldValue) => {
+  console.log('access is now', newValue);
   return supr(field, newValue, oldValue);
 })
 ```
@@ -249,7 +269,7 @@ new VisibilityChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. A result the setter cannot read as a `DisplayMode` makes it throw `Error('visibility must be a DisplayMode constant')` and leaves `field.visibility` as it was: a number that is none of the constants, and a string that names none of them, are refused alike. A constant's name is accepted, case insensitive — `'hidden'` and `'HIDDEN'` both set `DisplayMode.HIDDEN`.
+If the action returns `null` or `undefined`, `newValue` is used instead. A result that is none of the four [visibilities](/api/field#visibility) makes the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
 
 ### `VisibilityChangedAction`
 
@@ -343,7 +363,7 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 
 | Member | Description |
 |--------|-------------|
-| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `enabled` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value — `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `access` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value — `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
 | `label` | Reads `value.label`, at the type `T` gives that member — `unknown` on an `Action` that states no value type; writing it assigns a new value object carrying the new label |
 | `icon` | Reads `value.icon`, at the type `T` gives that member; writing it assigns a new value object carrying the new icon |
 | `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call, except for `AbortEventHandlingException`, which the promise resolves with — see [Handling a failed run](#handling-a-failed-run) |
@@ -447,7 +467,7 @@ worked through end to end in the [Action example](/examples/action).
 #### Widening the value in a subclass
 
 `Action<T extends ActionValue>` takes a wider value type, so a subclass declares accessors over the members it added
-and keeps everything the base class does — the `ExecuteAction` chain, `busy`, `enabled`, `visibility`, the
+and keeps everything the base class does — the `ExecuteAction` chain, `busy`, `access`, `visibility`, the
 conditional actions, the transaction semantics.
 
 **The type of `label` and of `icon` is stated in the value type, not on the accessors.** `ActionValue` leaves both
@@ -599,8 +619,8 @@ row.fields.detail.registerAction(
 );
 
 const lines = new List(row, { value: [{ kind: 'other' }, { kind: 'standard' }] });
-lines.get(0).fields.detail.visibility; // DisplayMode.FULL
-lines.get(1).fields.detail.visibility; // DisplayMode.SUPPRESS
+lines.get(0).fields.detail.visibility; // 'full'
+lines.get(1).fields.detail.visibility; // 'suppress'
 ```
 
 ### `Statement`
@@ -684,12 +704,13 @@ Enum of supported operators:
 | Membership | `IN`, `NOT_IN` — evaluate `operand2.includes(operand1)` (array or string) and coerce its result to a boolean. `NOT_IN` is the negation of `IN`, so an `operand2` without a callable `includes` gives `IN` `false` and `NOT_IN` `true` |
 | Substring | `INCLUDES`, `NOT_INCLUDES` — `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` and `NOT_INCLUDES` `true` |
 
-Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`. `DisplayMode.fromString` refuses an unrecognised string the same way.
+Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`.
 
-### `ConditionalVisibilityAction(statement)`
+### `ConditionalVisibilityAction(statement, whenTrue?, whenFalse?)`
 
-Sets `field.visibility` to `DisplayMode.FULL` when `statement` is `true`, `DisplayMode.SUPPRESS` when `false`, so a
-field the statement turns off is left out of its container's value until it turns on again.
+Sets `field.visibility` to `whenTrue` (default `'full'`) while `statement` is `true` and to `whenFalse` (default
+`'suppress'`) otherwise. Visibility is presentation alone, so what the field sends is left to its access; a field
+that is to drop out of the payload as well carries a `ConditionalAccessAction` beside it.
 
 ```typescript
 import { ConditionalVisibilityAction, Statement, Operator } from '@dynamicforms/vue-forms';
@@ -699,15 +720,22 @@ targetField.registerAction(new ConditionalVisibilityAction(
 ));
 ```
 
-### `ConditionalEnabledAction(statement)`
+### `ConditionalAccessAction(statement, whenTrue?, whenFalse?)`
 
-Sets `field.enabled` to `true` when `statement` is `true`, `false` otherwise.
+Sets `field.access` to `whenTrue` (default `'editable'`) while `statement` is `true` and to `whenFalse` (default
+`'disabled'`) otherwise.
+
+```typescript
+vatId.registerAction(
+  new ConditionalAccessAction(new Statement(company, Operator.EQUALS, true), 'editable', 'disabled-null'),
+);
+```
 
 ### `ConditionalValueAction(statement, trueValue)`
 
 Sets `field.value = trueValue` when `statement` transitions to `true`. Does nothing on `false`.
 
-The value is set only on the transition from `false`/`undefined` to `true`: if you later change the value manually, the action will not restore it until the statement goes back to `false` and becomes `true` again. On a disabled field (`enabled === false`) setting the value has no effect.
+The value is set only on the transition from `false`/`undefined` to `true`: if you later change the value manually, the action will not restore it until the statement goes back to `false` and becomes `true` again. The field takes the value whatever its access.
 
 ### `ConditionalStatementAction(statement, executorFn)`
 
@@ -759,7 +787,7 @@ Optional overrides:
 
 | Member | Description |
 |--------|-------------|
-| `get eager()` | Return `true` to have the action run over the value the element holds at every point the eager pass reaches it: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` — inside the write, before any `ValueChangedAction` fires — and a container re-forming its composed value, which is what re-runs a group's eager action when a member changes. [The full set is listed with `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: a lazy action standing under the same `classIdentifier` as an eager one is not run by the eager pass |
+| `get eager()` | Return `true` to have the action run over what the element sends — its [`contribution`](/api/field#properties) — at every point the eager pass reaches it: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` that changes what it sends — inside the write, before any `ValueChangedAction` fires — a switch of access, and a container re-forming what it sends, which is what re-runs a group's eager action when a member changes. [The full set is listed with `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: a lazy action standing under the same `classIdentifier` as an eager one is not run by the eager pass |
 | `boundToBinding(binding)` | Called once for every element this action comes to serve: the element it is registered on, and every binding of that element as the binding takes the action on. Use it to record the elements the action answers for |
 | `unregisterFrom(binding)` | Called by `unregisterAction()` and by `clearValidators()`, naming the element the action was dropped from. Override it to release what the action installed for that element — `CompareTo` stops answering for it, and `Validator` withdraws the errors it put there. It runs inside the operation that dropped the registration, so a rollback puts back both the registration and what this took back |
 
@@ -827,52 +855,6 @@ in it that it now serves `owner`. That is what makes an action registered on an 
 A handler reaches the one before it by calling `supr`, so a chain is walked on the call stack and its depth is
 bounded by it: about 1300 handlers under one identifier on one element, after which firing it throws a
 `RangeError`. Registrations spread over several identifiers or several elements do not add up.
-
----
-
-## `DisplayMode`
-
-The value of every element's `visibility`: whether the element is shown, and what it contributes to the value and
-to the validity of its container.
-
-| Constant | Value | Rendered | Contributes to its container |
-|----------|-------|----------|------------------------------|
-| `DisplayMode.FULL` | `10` | normally (default) | its value, counted in validity |
-| `DisplayMode.HIDDEN` | `5` | `display: none` | `null` in its place, not counted in validity |
-| `DisplayMode.SUPPRESS` | `1` | not at all | nothing, not counted in validity |
-
-An element that is hidden or suppressed keeps what it holds. [What a container serializes](/api/container#what-a-container-serializes)
-has the whole rule, `enabled` included.
-The [Cookbook](/guide/cookbook) shows what to declare for the payload you want.
-
-```typescript
-import { DisplayMode } from '@dynamicforms/vue-forms';
-
-field.visibility = DisplayMode.HIDDEN;
-
-DisplayMode.fromString('suppress'); // → DisplayMode.SUPPRESS
-DisplayMode.fromString('nonsense'); // → Error: 'nonsense' is not a DisplayMode constant
-
-DisplayMode.fromAny(5);             // → DisplayMode.HIDDEN
-DisplayMode.fromAny(999);           // → Error: 999 is not a DisplayMode constant
-DisplayMode.fromAny(null);          // → Error: null is not a DisplayMode constant
-
-DisplayMode.isDefined('HIDDEN');    // → true
-DisplayMode.isDefined('HIDEN');     // → false
-DisplayMode.isDefined(999);         // → false
-```
-
-Nothing in `DisplayMode` falls back to `DisplayMode.FULL`. `fromString` resolves a constant's name, case insensitive, and throws for anything else. `fromAny` takes a number or a name and throws for a number that is none of the constants, a string that names none, and input that is neither. Every one of those errors reads `<value> is not a DisplayMode constant`, so a caller recognises one wherever it was raised. `Operator.fromString` refuses an unrecognised string the same way.
-
-`DisplayMode.isDefined` is the way to ask without raising, and the one the `visibility` setter asks: a number is a `DisplayMode` when it is one of the constants, a string when it names one, case insensitive. The setter takes a `DisplayMode`, so a string reaches it from JavaScript, through a cast, or as a `VisibilityChangingAction`'s result — a name is set, a misspelled name throws.
-
-A form element whose parameters name no visibility starts at `DisplayMode.FULL`. That is a starting value, not a fallback for input a parse could not read. The package exports it as `defaultDisplayMode`, so code choosing a mode for itself names the same constant the library starts at:
-
-```typescript
-import { defaultDisplayMode, DisplayMode } from '@dynamicforms/vue-forms';
-
-const mode = DisplayMode.isDefined(fromServer) ? DisplayMode.fromAny(fromServer) : defaultDisplayMode;
-```
 
 ---
 

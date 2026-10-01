@@ -74,8 +74,8 @@ const personForm = new Group({
 </script>
 ```
 
-A disabled field is omitted from `group.value` (use `group.fullValue` if you need every field regardless of
-`enabled`), and it still takes a write to `value`, so loading a record into the form reaches it.
+A field whose `access` is `'disabled'` is omitted from `group.value` (use `group.fullValue` if you need every field
+whatever its access), and it still takes a write to `value`, so loading a record into the form reaches it.
 
 ## Validation
 

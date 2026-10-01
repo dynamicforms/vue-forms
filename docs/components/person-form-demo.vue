@@ -91,7 +91,7 @@ const personForm = new Group({
 const toggleField = (fieldName) => {
   const field = personForm.fields[fieldName];
   if (field) {
-    field.enabled = !field.enabled;
+    field.access = field.enabled ? 'disabled' : 'editable';
   }
 };
 

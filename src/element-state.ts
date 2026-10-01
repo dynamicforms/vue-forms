@@ -1,9 +1,10 @@
+import { type Access, defaultAccess } from './access';
 import type { Container } from './container';
-import DisplayMode from './display-mode';
 import type { FieldBase } from './field-base';
 import type { Group } from './group';
 import type { ListValue } from './list';
 import { ValidationError } from './validators/validation-error';
+import { defaultVisibility, type Visibility } from './visibility';
 
 /**
  * The mutable state of one element, held in an object of its own beside the element rather than in the element's
@@ -29,11 +30,24 @@ import { ValidationError } from './validators/validation-error';
 export interface ElementSlots<T = any> {
   /** the value the element was given at construction; isChanged compares against it */
   originalValue: T;
-  /** the value the last ValueChangedAction reported; the next transaction measures its net change against it */
+  /**
+   * What the last ValueChangedAction reported the element as holding - its value, and a container's fullValue; the
+   * next transaction measures its net change against it
+   */
   announcedValue: T;
+  /**
+   * What the last ContributionChangedAction reported the element as contributing to its container: its value,
+   * `null`, or `undefined` for nothing
+   */
+  announcedContribution: unknown;
+  /**
+   * What a container's own validators last ran over - what it sends; the next transaction runs them where that
+   * moved. A leaf's validators run at the write and the access switch, and leave it untouched.
+   */
+  validatedValue: unknown;
   errors: ValidationError[];
-  visibility: DisplayMode;
-  enabled: boolean;
+  visibility: Visibility;
+  access: Access;
   /** counts the writes that changed the value of the element or of anything below it */
   valueVersion: number;
   /** how many asynchronous validation runs are in flight on this element */
@@ -75,9 +89,11 @@ export function elementSlots<T = any>(): ElementSlots<T> {
   return {
     originalValue: undefined!,
     announcedValue: undefined!,
+    announcedContribution: undefined,
+    validatedValue: undefined,
     errors: [],
-    visibility: DisplayMode.FULL,
-    enabled: true,
+    visibility: defaultVisibility,
+    access: defaultAccess,
     valueVersion: 0,
     validatingCount: 0,
     validatingChildren: 0,

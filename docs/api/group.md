@@ -27,15 +27,15 @@ back through `group.extra`.
 | `fields` | `GenericFieldsInterface` (`Record<string, FieldBase>`) | required | Map of field name → field/group/list instance |
 | `params.value` | `GroupValueInput<T>` (`Partial<FieldsToValues<T>> \| null`) | not assigned | Initial values applied to matching fields; keys left out keep the value their field was created with. Parameters that carry no value assign nothing, and an explicitly `undefined` value counts as carrying none, so every child keeps the value it was created with; an explicit `null` clears all of them |
 | `params.originalValue` | `GroupValueInput<T>` | same as `value` | Baseline for `isChanged`. Passed without a value of its own — an explicitly `undefined` `value` included — it is also applied to the fields as their initial value |
-| `params.enabled` | `boolean` | `true` | Whether the group itself is enabled. Not propagated to child fields, and it does not remove the group from its parent's `value` — a disabled subgroup is still serialized as long as its own value is non-empty. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the group is shown, and what it contributes to its own container. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.access` | [`Access`](/api/field#access) | `'editable'` | What the group sends to its own container, and what applies to its members through `effectiveAccess`. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.visibility` | [`Visibility`](/api/field#visibility) | `'full'` | How a rendering layer shows the group. |
 | `params.touched` | `boolean` | `false` | Initial interaction flag, propagated to every child |
 | `params.errors` | `ValidationError[]` | `[]` | Initial group-level validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | Group-level validators |
 | `params.actions` | `FieldActionBase[]` | `[]` | Group-level actions |
 
 `validators` and `actions` are registered before the remaining parameters are applied, and registration fires
-nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here already guards the `enabled` and
+nothing, so an `AccessChangingAction` or `VisibilityChangingAction` passed here already guards the `access` and
 `visibility` the same object carries, and every eager action among them runs exactly once, over the finished group.
 `Field`, `Action` and `List` do the same — see [Field](/api/field) for the full description.
 
@@ -54,10 +54,10 @@ The same opacity is why a structural comparison of two elements answers identity
 | Type | Definition | Purpose |
 |------|-----------|---------|
 | `GenericFieldsInterface` | `Record<string, FieldBase>` | The constraint on `Group`'s and `List`'s type argument. Extend it to declare a form's shape: `interface UserForm extends GenericFieldsInterface { name: Field<string> }` |
-| `FieldsToValues<T>` | `{ [K in keyof T]: T[K]['value'] \| null }` | Maps a fields interface to the value object it serializes to. A nested `Group` contributes its own value object, a nested `List` its row array; every member may be `null`, because a `HIDDEN` member is sent as `null` |
-| `GroupValue<T>` | `Partial<FieldsToValues<T>>` | What `group.value` reads back. The group itself is never `null`. Every key is optional: a disabled or suppressed member is left out of the object the group builds, so each one reads as possibly `undefined` |
+| `FieldsToValues<T>` | `{ [K in keyof T]: T[K]['value'] \| null }` | Maps a fields interface to the value object it serializes to. A nested `Group` contributes its own value object, a nested `List` its row array; every member may be `null`, because a `'disabled-null'` member is sent as `null` |
+| `GroupValue<T>` | `Partial<FieldsToValues<T>>` | What `group.value` reads back. The group itself is never `null`. Every key is optional: a `'disabled'` member is left out of the object the group builds, so each one reads as possibly `undefined` |
 | `GroupValueInput<T>` | `Partial<FieldsToValues<T>> \| null` | What `group.value` and `params.value` accept; `null` writes `null` into every member |
-| `FieldsToFullValues<T>` | `{ [K in keyof T]?: T[K]['fullValue'] \| null }` | What `group.fullValue` reads back. Disabled members are in it; a `SUPPRESS` member is left out and a `HIDDEN` one is `null`, so every key is optional and nullable |
+| `FieldsToFullValues<T>` | `{ [K in keyof T]: T[K]['fullValue'] }` | What `group.fullValue` reads back: every member's `fullValue`, whatever its access |
 
 ## `Group.createFromFormData(data)`
 
@@ -72,21 +72,23 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
 | `fields` | `T` | no | The typed map of child fields. What it hands out is a guarded view over the map the group holds: reading it reaches the members themselves, and every write to it throws a `TypeError` — `addField()` and `removeField()` change the set. The read is tracked, so a template rendering off it re-renders as members come and go |
-| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of the members' values, by the serialization rule below; `{}` when nothing serializes — a group without fields, or one every member of which the rule leaves out. The group itself is never `null`. Reading it gives each field's own value type, optional and nullable — for `Group<{ age: Field<number> }>`, `group.value.age` is `number \| null \| undefined`, because a disabled or suppressed `age` is left out and a hidden one is `null`. The object is built once per change and handed to every reader until the next one, and it is frozen: writing into it throws in strict mode and is silently dropped outside it. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
+| `value` | reads `GroupValue<T>`, accepts `GroupValueInput<T>` | yes | Serialized object of the members' values, by the serialization rule below; `{}` when nothing serializes — a group without fields, or one every member of which the rule leaves out. The group itself is never `null`. Reading it gives each field's own value type, optional and nullable — for `Group<{ age: Field<number> }>`, `group.value.age` is `number \| null \| undefined`, because a `'disabled'` `age` is left out and a `'disabled-null'` one is `null`. The object is built once per change and handed to every reader until the next one, and it is frozen: writing into it throws in strict mode and is silently dropped outside it. The setter takes a `Partial`: keys you leave out are not touched, and assigning `null` sets every child to `null` |
 | `originalValue` | `GroupValueInput<T>` | yes | Value at creation time, held as a copy of its own rather than as the object `value` reads back, and not frozen. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
-| `valid` | `boolean` | no | `true` when the group itself and every member it counts are valid; a `HIDDEN` or `SUPPRESS` member is not counted |
+| `valid` | `boolean` | no | `true` when the group itself and every member are valid. A member sent nowhere is not validated and so is valid |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the group itself or anywhere below it. The group keeps a tally of the members that answer `true`, so the read costs nothing however many members it holds |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the group has yet to settle. A validation is not an execution and is answered by `validating`, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | Group-level validation errors. Writable, but normally managed by validators |
-| `enabled` | `boolean` | yes | Setting this does **not** cascade to children; use child fields directly. What a rendering layer reads to disable the inputs of a whole section is [`effectiveEnabled`](/api/field#properties) on each member. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Whether the group is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). |
+| `access` | [`Access`](/api/field#access) | yes | What the group sends to its container and whether it is validated — `'disabled'` leaves it out and `'disabled-null'` sends `null` whatever it holds — and, through `effectiveAccess`, what every element inside it sends: below a `'disabled'` or `'disabled-null'` group nothing is sent or validated, and below a `'readonly'` one nothing accepts input. Each member keeps the access it was given. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `effectiveAccess` | [`Access`](/api/field#access) | no | The access that applies once the containers above are taken into account — see [`effectiveAccess`](/api/field#properties) |
+| `enabled` | `boolean` | no | `true` where `access` is `'editable'` |
+| `effectiveEnabled` | `boolean` | no | `true` where `effectiveAccess` is `'editable'`: what a rendering layer reads to draw the inputs of a whole section without input |
+| `visibility` | [`Visibility`](/api/field#visibility) | yes | How a rendering layer shows the group. It changes nothing about what the group sends or whether it is validated |
 | `touched` | `boolean` | yes | `true` when any child field has been touched; setting propagates to all children |
-| `fullValue` | `FieldsToFullValues<T>` | no | What the group holds, where `value` is what it serializes: disabled members are in it too. Visibility applies as it does to `value`: a `HIDDEN` member reads `null` and a `SUPPRESS` one is left out, so every key is optional and nullable. A nested group contributes its own full structure |
+| `fullValue` | `FieldsToFullValues<T>` | no | What the group holds, where `value` is what it sends: every member's `fullValue`, whatever its access. A nested group contributes its own full structure. It is what a binding of the group carries |
 
 ::: tip Serialization rule
-`Group.value` serializes only **enabled** members. A disabled member is completely excluded from the output object. An exception applies to a disabled nested container — a `Group` or a `List` alike: it is still included when its own value is non-empty, that is when at least one field inside it serializes. A disabled container whose value is empty is excluded like any other disabled member. Of the members that serialize, a `HIDDEN` one is sent as `null` and a `SUPPRESS` one is left out. [What a container serializes](/api/container#what-a-container-serializes) has the whole of it.
+`Group.value` carries every member by its access: an `'editable'` or `'readonly'` member with its value, a `'disabled-null'` one as `null`, and a `'disabled'` one not at all. A nested container is a member like any other, so a `'disabled'` one is left out whatever it holds. [What a container serializes](/api/container#what-a-container-serializes) has the whole of it.
 :::
 
 ## Methods
@@ -164,9 +166,9 @@ rarely need to call this directly.
 Returns a new `Group` over `data`: every member is bound in turn, and the actions and extended properties of the
 group and of each member come along. `data` reaches the members exactly as a value passed to the constructor does,
 so a key it leaves out leaves that member with what the declaration gives it. `overrides` is an
-[`IBindParams<GroupValueInput<T>, X>`](/api/field#ibindparams-t-x): `originalValue`, `enabled`, `visibility` and
-the extended properties, which are written over the ones carried from the source. `enabled` and `visibility` apply
-to the group itself and are not propagated to the children.
+[`IBindParams<GroupValueInput<T>, X>`](/api/field#ibindparams-t-x): `originalValue`, `access`, `visibility` and
+the extended properties, which are written over the ones carried from the source. `access` and `visibility` apply
+to the group itself; each member keeps its own.
 
 `originalValue` is read by key presence, and `data` by being anything other than `undefined`: `bind(null)` gives a
 group with every member cleared, while an `undefined` `data` counts as none supplied and the new group carries the

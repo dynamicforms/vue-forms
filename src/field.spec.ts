@@ -1,16 +1,16 @@
 import { vi } from 'vitest';
 
+import type { Access } from './access';
 import type { IFieldConstructorParams } from './field.interface';
 import { ValidationErrorText } from './validators/validation-error';
+import type { Visibility } from './visibility';
 
 import Form from '.';
-
-import DisplayMode from '@/display-mode';
 
 describe('Field', () => {
   it('trigger onValueChanged on value change', () => {
     const onValueChanged = vi.fn();
-    const field = new Form.Field({ enabled: true }).registerAction(new Form.ValueChangedAction(onValueChanged));
+    const field = new Form.Field({ access: 'editable' }).registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
 
@@ -19,7 +19,7 @@ describe('Field', () => {
 
   it('triggers onValueChanged for a write to a disabled field', () => {
     const onValueChanged = vi.fn();
-    const field = new Form.Field({ enabled: false }).registerAction(new Form.ValueChangedAction(onValueChanged));
+    const field = new Form.Field({ access: 'disabled' }).registerAction(new Form.ValueChangedAction(onValueChanged));
 
     field.value = 'test';
 
@@ -51,7 +51,7 @@ describe('Field', () => {
 
   it('triggers validation on value change', () => {
     const onValidChanged = vi.fn();
-    const field = new Form.Field({ enabled: true }).registerAction(new Form.ValidChangedAction(onValidChanged));
+    const field = new Form.Field({ access: 'editable' }).registerAction(new Form.ValidChangedAction(onValidChanged));
 
     field.errors = [new ValidationErrorText('Napaka')];
     field.value = 'test';
@@ -60,40 +60,33 @@ describe('Field', () => {
     expect(onValidChanged).toHaveBeenCalledWith(field, expect.any(Function), false, true);
   });
 
-  it.each([null, DisplayMode.FULL, DisplayMode.HIDDEN])(
+  it.each<Visibility | null>([null, 'full', 'hidden'])(
     'triggers onVisibilityChanging on visibility change',
-    (changingReturnValue: DisplayMode | null) => {
+    (changingReturnValue: Visibility | null) => {
       // why we're doing .each? it's to test that the function for setting visibility value
       //  actually uses the result of the event handler.
       //  when it returns null, expected result is what was requested in the setVisibility call
       const onVisibilityChanging = vi.fn().mockReturnValue(changingReturnValue);
       const field = new Form.Field().registerAction(new Form.VisibilityChangingAction(onVisibilityChanging));
 
-      field.visibility = DisplayMode.HIDDEN;
+      field.visibility = 'hidden';
 
-      expect(onVisibilityChanging).toHaveBeenCalledWith(
-        field,
-        expect.any(Function),
-        DisplayMode.HIDDEN,
-        DisplayMode.FULL,
-      );
-      expect(field.visibility).toBe(changingReturnValue ?? DisplayMode.HIDDEN);
+      expect(onVisibilityChanging).toHaveBeenCalledWith(field, expect.any(Function), 'hidden', 'full');
+      expect(field.visibility).toBe(changingReturnValue ?? 'hidden');
     },
   );
 
-  it.each([null, true, false])(
-    'triggers onEnabledChanging on enabled change',
-    (changingReturnValue: boolean | null) => {
-      // why we're doing .each? it's to test that the function for setting enabled value
-      //  actually uses the result of the event handler.
-      //  when it returns null, expected result is what was requested in the setEnabled call
-      const onEnabledChanging = vi.fn().mockReturnValue(changingReturnValue);
-      const field = new Form.Field().registerAction(new Form.EnabledChangingAction(onEnabledChanging));
+  it.each<Access | null>([null, 'readonly', 'disabled-null'])(
+    'triggers AccessChangingAction on an access change',
+    (changingReturnValue: Access | null) => {
+      // the handler's answer is what is written; null writes what was asked for
+      const onAccessChanging = vi.fn().mockReturnValue(changingReturnValue);
+      const field = new Form.Field().registerAction(new Form.AccessChangingAction(onAccessChanging));
 
-      field.enabled = false;
+      field.access = 'disabled';
 
-      expect(onEnabledChanging).toHaveBeenCalledWith(field, expect.any(Function), false, true);
-      expect(field.enabled).toBe(changingReturnValue ?? false);
+      expect(onAccessChanging).toHaveBeenCalledWith(field, expect.any(Function), 'disabled', 'editable');
+      expect(field.access).toBe(changingReturnValue ?? 'disabled');
     },
   );
 
@@ -260,28 +253,28 @@ describe('Field construction', () => {
   });
 
   it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
-    const visibilitySeen: DisplayMode[] = [];
-    const enabledSeen: boolean[] = [];
+    const visibilitySeen: Visibility[] = [];
+    const accessSeen: Access[] = [];
     const field = new Form.Field({
       value: 1,
-      visibility: DisplayMode.HIDDEN,
-      enabled: false,
+      visibility: 'hidden',
+      access: 'disabled',
       actions: [
-        new Form.VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+        new Form.VisibilityChangingAction(() => 'suppress'),
         new Form.VisibilityChangedAction((f, supr, newValue) => {
           visibilitySeen.push(newValue);
         }),
-        new Form.EnabledChangingAction(() => true),
-        new Form.EnabledChangedAction((f, supr, newValue) => {
-          enabledSeen.push(newValue);
+        new Form.AccessChangingAction(() => 'readonly'),
+        new Form.AccessChangedAction((f, supr, newValue) => {
+          accessSeen.push(newValue);
         }),
       ],
     });
 
-    expect(field.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(field.enabled).toBe(true);
-    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
-    expect(enabledSeen).toEqual([true]);
+    expect(field.visibility).toBe('suppress');
+    expect(field.access).toBe('readonly');
+    expect(visibilitySeen).toEqual(['suppress']);
+    expect(accessSeen).toEqual(['readonly']);
   });
 
   it('falls back to originalValue for an undefined value and keeps an explicit null', () => {
@@ -325,7 +318,7 @@ describe('Field construction', () => {
   });
 
   it('completes the value of a field constructed disabled', () => {
-    const field = new Money({ value: { amount: 12 }, enabled: false });
+    const field = new Money({ value: { amount: 12 }, access: 'disabled' });
 
     expect(field.enabled).toBe(false);
     expect(field.value).toEqual({ amount: 12, currency: 'EUR' });

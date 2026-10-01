@@ -20,7 +20,8 @@ is a row of a list. Both extend [`Container`](/api/container), which composes `v
 children and is the type of every element's `parent`. Everything below applies at every level.
 
 Every element carries the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
-`enabled`, `visibility`, `touched`, `validating`, `busy`, `settled()`, `isChanged`, `parent` and `fieldName`. A container adds
+`access`, `effectiveAccess`, `enabled`, `visibility`, `touched`, `validating`, `busy`, `settled()`, `isChanged`, `parent`
+and `fieldName`. A container adds
 its own — `fields`, `field()`, `addField()` and `removeField()` on a `Group`, `length`, `items`, `get()`,
 `push()`, `insert()`, `remove()` and `clear()` on a `List`. Anything your application needs an element to carry
 beyond those goes in `extra`, the element's
@@ -67,7 +68,7 @@ what something is — its validators, its actions, its defaults. `bind(data)` pu
 produces another element of the same class, holding that data.
 
 What a binding takes on is **data, not behaviour**. It carries the action and validator *instances* the element it
-was bound from holds — the very same objects — and its own `value`, `enabled`, `visibility` and extended
+was bound from holds — the very same objects — and its own `value`, `access`, `visibility` and extended
 properties. It starts detached: no `parent`, no `fieldName`, and `originalValue` baselined to the data it was
 bound to, so `isChanged` is `false`.
 
@@ -206,7 +207,7 @@ transaction(() => {
 | What | When it runs |
 |---|---|
 | validators | while the transaction is open, at the write that triggers them |
-| `VisibilityChanging`/`Changed`, `EnabledChanging`/`Changed` | at the write — a *Changing* action may alter or refuse the value, so it cannot wait |
+| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed` | at the write — a *Changing* action may alter or refuse the value, so it cannot wait |
 | `ValueChangedAction` | at commit, over the value the element ends the transaction holding |
 | `ValidChangedAction` | at commit, after the value announcements, over the verdict the element ends with |
 | `ListItemAddedAction` / `ListItemRemovedAction` | at commit, in the order the operations happened |
@@ -275,9 +276,8 @@ element that is not an action executes nothing and answers false, so `busy` neve
 
 ## Where a value comes from
 
-A `Field` holds its value, and it takes a write whether it is enabled or not: `enabled` decides whether the
-container above serializes the element and whether a rendering layer accepts input into it, never whether a write
-reaches it. Values are compared by identity, so assigning the very object the field already holds announces
+A `Field` holds its value, and it takes a write whatever its access: `access` decides what the container above
+sends for the element and whether a rendering layer accepts input into it, never whether a write reaches it. Values are compared by identity, so assigning the very object the field already holds announces
 nothing, while a new object announces a change even when it is deeply equal to the old one — mutate a copy and
 assign it. An object a field holds is one value to the library: a write into it — `field.value.push(item)` on a
 `Field<string[]>` — goes through no transaction and announces nothing, and neither the field nor a container above
@@ -296,18 +296,15 @@ group.value === group.value;     // true until something below changes
 Object.isFrozen(group.value);    // true — assign a new value instead of writing into it
 ```
 
-A `Group` serializes its **enabled** members only, and reads back `{}` when nothing serializes. A disabled nested
-container is the one exception: a `Group` or a `List` that is disabled is still included while its own value is
-non-empty, and left out where it is empty. `fullValue` is the same object built without the `enabled` rule, and a
-`List`'s `fullValue` is built from each row's `fullValue`, so it carries the disabled fields inside a row as well.
+A `Group` sends each member by its `access`: an `'editable'` or `'readonly'` member with its value, a
+`'disabled-null'` one as `null`, and a `'disabled'` one not at all. It reads back `{}` when nothing is sent. A
+`List` sends its rows by the same rule and reads back `[]` while it sends none. A container is never `null`.
+`fullValue` is what the container holds: every member's own `fullValue`, whatever its access.
 
-A `List` serializes its rows by the same rule: a disabled row is left out, a disabled row that is itself a container
-is kept while it is non-empty, and each row's object follows the group rule. It reads back `[]` while the list is
-empty. A container is never `null`.
-
-`visibility` decides the rest, in `value` and `fullValue` alike: a `HIDDEN` member or row is sent as `null`, a
-`SUPPRESS` one is left out, and neither counts in the container's validity. The whole rule, with what to declare for
-each outcome, is in [What a container serializes](/api/container#what-a-container-serializes). The [Cookbook](/guide/cookbook) applies it
+A container's access applies to everything inside it: nothing below a `'disabled'` or `'disabled-null'` container is
+sent, and so nothing there is validated. An element's validators run over what it sends, and only where it is sent
+at all. `visibility` is presentation alone and decides none of this. The whole rule, with what to declare for each
+outcome, is in [What a container serializes](/api/container#what-a-container-serializes). The [Cookbook](/guide/cookbook) applies it
 recipe by recipe.
 
 The composed object is cached behind a version counter that a write raises along its own branch, so a container

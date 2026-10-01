@@ -126,9 +126,9 @@ console.log(personForm.value);  // { firstName: 'John', lastName: 'Doe', age: 30
 personForm.fields.firstName.value = 'Jane';
 
 // Disable a field
-personForm.fields.age.enabled = false;
+personForm.fields.age.access = 'disabled';
 
-// Form serializes only enabled fields
+// The form leaves a disabled field out of what it sends
 console.log(personForm.value);  // { firstName: 'Jane', lastName: 'Doe', active: true }
 ```
 

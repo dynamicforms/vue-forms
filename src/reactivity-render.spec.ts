@@ -109,7 +109,7 @@ describe('rendering a live form', () => {
     expect(wrapper.find('input').attributes('disabled')).toBeUndefined();
 
     field.value = 'b';
-    field.enabled = false;
+    field.access = 'disabled';
     await nextTick();
 
     expect(wrapper.find('label').text()).toBe('b');

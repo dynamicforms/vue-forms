@@ -75,8 +75,8 @@ export class Action<
       // itself, so the two carry the same members - and that value is what the hook above leaves
       if (this.originalValue === undefined) this.originalValue = this._value;
       // the value a construction ends on is the action's first statement about itself rather than a change of one
-      this.raw.announcedValue = this._value;
-      this.boundActions?.triggerEager(this, this.value, this.originalValue);
+      this.recordAnnounced();
+      this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
       this.validate();
     });
   }
@@ -109,7 +109,7 @@ export class Action<
 
   /**
    * The two setters hand the value setter a new object rather than writing into the one the action holds, so each
-   * is an ordinary value change: the handlers fire, isChanged answers over it, and a disabled action refuses it.
+   * is an ordinary value change: the handlers fire and isChanged answers over it.
    * The new object is built only for a member that differs from the one held - the value setter compares by
    * identity and every copy is a new object, so without the comparison here a write of the value already held
    * would announce a change and invalidate the value cache of every container above.

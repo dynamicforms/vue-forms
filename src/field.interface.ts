@@ -1,7 +1,8 @@
+import type { Access } from './access';
 import type FieldActionBase from './actions/field-action-base';
-import type DisplayMode from './display-mode';
 import type { FieldBase } from './field-base';
 import { type ValidationError } from './validators/validation-error';
+import type { Visibility } from './visibility';
 
 export interface IFieldConstructorActionsList {
   actions?: FieldActionBase[];
@@ -11,15 +12,15 @@ export interface IFieldConstructorActionsList {
 /**
  * Parameters accepted by field constructors and by bind overrides.
  *
- * Only writable members are listed. valid, validating, busy, fullValue and isChanged are getter-only, so assigning
- * them throws a TypeError. So are parent and fieldName: a container writes the slots behind them when it takes
- * an element, and nobody else can, which is why the type rejects them.
+ * Only writable members are listed. valid, validating, busy, fullValue, isChanged, enabled and effectiveEnabled are
+ * getter-only, so assigning them throws a TypeError. So are parent and fieldName: a container writes the slots
+ * behind them when it takes an element, and nobody else can, which is why the type rejects them.
  */
 export type IFieldConstructorParams<T = any> = {
   value: T;
   originalValue: T;
-  enabled: boolean;
-  visibility: DisplayMode;
+  access: Access;
+  visibility: Visibility;
   touched: boolean;
   errors: ValidationError[];
 } & IFieldConstructorActionsList;
@@ -68,7 +69,7 @@ export type IFieldParams<T = any, X extends object = Extras> = Partial<IFieldCon
  * are what the binding establishes for itself as it validates.
  */
 export type IBindParams<T = any, X extends object = Extras> = Partial<
-  Pick<IFieldConstructorParams<T>, 'originalValue' | 'enabled' | 'visibility'>
+  Pick<IFieldConstructorParams<T>, 'originalValue' | 'access' | 'visibility'>
 > &
   Partial<NoInfer<X>>;
 

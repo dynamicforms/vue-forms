@@ -103,7 +103,7 @@ export default class CompareTo<T = any> extends Validator {
             // the fields a declaration stands for are the candidates; the ones that took the validator on are the
             // ones re-validated, so a rule written for one row of a list stays that row's rule
             if (!this.registrations.has(mine)) return;
-            this.execute(mine, () => null, mine.value, this.comparisonState(mine).oldValue);
+            this.execute(mine, () => null, mine.contribution, this.comparisonState(mine).oldValue);
           }),
         );
       }),

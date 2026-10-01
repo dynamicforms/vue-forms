@@ -15,8 +15,8 @@ Here's a simplified version of the demo above:
 ### JavaScript/TypeScript
 
 ```js
-import { Group, Field, Operator, Statement, DisplayMode,
-         ConditionalVisibilityAction, ConditionalEnabledAction, ConditionalValueAction } from '@dynamicforms/vue-forms';
+import { Group, Field, Operator, Statement,
+         ConditionalVisibilityAction, ConditionalAccessAction, ConditionalValueAction } from '@dynamicforms/vue-forms';
 
 // Create a form group with conditional fields
 const conditionsForm = new Group({
@@ -27,7 +27,7 @@ const conditionsForm = new Group({
   favoriteColor: new Field({ value: '' }),
   detailsToggle: new Field({ value: false }),
   additionalInfo: new Field({ value: '' }),
-  submitAction: new Field({ enabled: false }),
+  submitAction: new Field({ access: 'disabled' }),
 });
 
 
@@ -66,19 +66,19 @@ conditionsForm.fields.additionalInfo.registerAction(
   new ConditionalVisibilityAction(showDetailsStatement)
 );
 
-// 3. Conditional Enabled Action - Enable submit button only when all required fields are filled
+// 3. Conditional Access Action - Enable submit button only when all required fields are filled
 const fieldsFilledStatement = new Statement(
   new Statement(conditionsForm.fields.fruit, Operator.NOT_EQUALS, ''),
   Operator.AND,
   new Statement(conditionsForm.fields.favoriteColor, Operator.NOT_EQUALS, '')
 );
 conditionsForm.fields.submitAction.registerAction(
-  new ConditionalEnabledAction(fieldsFilledStatement)
+  new ConditionalAccessAction(fieldsFilledStatement)
 );
 ```
 
 ::: tip
-`visibility` decides serialization as well as rendering: a suppressed field is left out of `group.value`, and a hidden one is sent as `null`. See [What a container serializes](/api/container#what-a-container-serializes).
+`visibility` is presentation alone: a suppressed field is not rendered, and it is still sent. A field that is also to drop out of what the form sends carries a `ConditionalAccessAction` beside it — see [What a container serializes](/api/container#what-a-container-serializes).
 :::
 
 ### Vue Template
@@ -121,7 +121,7 @@ conditionsForm.fields.submitAction.registerAction(
           
           <!-- Additional info field (conditionally visible) -->
           <v-text-field
-            v-if="conditionsForm.fields.additionalInfo.visibility === DisplayMode.FULL"
+            v-if="conditionsForm.fields.additionalInfo.visibility === 'full'"
             v-model="conditionsForm.fields.additionalInfo.value"
             label="Additional Information"
             outlined
@@ -154,14 +154,14 @@ conditionsForm.fields.submitAction.registerAction(
 ## API Reference
 
 - [Actions → Conditional actions](/api/actions#conditional-actions) — `Statement`, `Operator`,
-  `ConditionalVisibilityAction`, `ConditionalEnabledAction`, `ConditionalValueAction`
-- [Actions → DisplayMode](/api/actions#displaymode)
+  `ConditionalVisibilityAction`, `ConditionalAccessAction`, `ConditionalValueAction`
+- [Field → Visibility](/api/field#visibility)
 
 ## Key Features Demonstrated
 
 - **ConditionalValueAction**: Automatically sets a field's value based on another field's value
 - **ConditionalVisibilityAction**: Shows or hides a field based on a condition
-- **ConditionalEnabledAction**: Enables or disables a field based on a condition
+- **ConditionalAccessAction**: Sets a field's access based on a condition — editable while it holds, disabled otherwise
 - **Statement**: Creates logical conditions that can be evaluated
 - **Logical Operators**: Using AND, OR, EQUALS, and other operators to create complex conditions
 

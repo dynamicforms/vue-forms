@@ -1,5 +1,4 @@
 import { Action, type ActionValue } from './action';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -25,7 +24,7 @@ describe('reading and writing extended properties', () => {
   });
 
   it('takes them from the constructor parameters and leaves the declared members to the element', () => {
-    const field = new Field<number, Presentation>({ value: 1, enabled: false, label: 'Name', hint: 'in full' });
+    const field = new Field<number, Presentation>({ value: 1, access: 'disabled', label: 'Name', hint: 'in full' });
 
     expect(field.value).toBe(1);
     expect(field.enabled).toBe(false);
@@ -196,29 +195,29 @@ describe('what a parameter object states but does not attach', () => {
 describe('a parameter object carrying __proto__', () => {
   it('assigns the members it names and keeps the key an extended property', () => {
     const field = new Field<number, Presentation>(
-      JSON.parse('{"__proto__":{"enabled":false},"enabled":false,"hint":"in full"}'),
+      JSON.parse('{"__proto__":{"access":"disabled"},"access":"disabled","hint":"in full"}'),
     );
 
-    expect(field.enabled).toBe(false);
+    expect(field.access).toBe('disabled');
     expect(field.extra.hint).toBe('in full');
     expect(Object.hasOwn(field.extra, '__proto__')).toBe(true);
     expect(Object.getPrototypeOf(field)).toBe(Field.prototype);
-    expect(Object.hasOwn(Object.prototype, 'enabled')).toBe(false);
+    expect(Object.hasOwn(Object.prototype, 'access')).toBe(false);
   });
 
   it('assigns the visibility it names', () => {
-    const field = new Field(JSON.parse('{"__proto__":{"visibility":1},"visibility":1}'));
+    const field = new Field(JSON.parse('{"__proto__":{"visibility":"suppress"},"visibility":"suppress"}'));
 
-    expect(field.visibility).toBe(DisplayMode.SUPPRESS);
+    expect(field.visibility).toBe('suppress');
   });
 
   it('assigns the members it names on a group', () => {
     const group = new Group(
       { a: new Field({ value: 1 }) },
-      JSON.parse('{"__proto__":{"enabled":false},"enabled":false}'),
+      JSON.parse('{"__proto__":{"access":"readonly"},"access":"readonly"}'),
     );
 
-    expect(group.enabled).toBe(false);
+    expect(group.access).toBe('readonly');
   });
 });
 

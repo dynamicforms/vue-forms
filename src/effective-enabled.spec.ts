@@ -19,7 +19,7 @@ describe('effectiveEnabled', () => {
 
     expect(f.fields.section.fields.inner.fields.b.effectiveEnabled).toBe(true);
 
-    f.fields.section.enabled = false;
+    f.fields.section.access = 'disabled';
 
     expect(f.fields.section.effectiveEnabled).toBe(false);
     expect(f.fields.section.fields.a.effectiveEnabled).toBe(false);
@@ -31,7 +31,7 @@ describe('effectiveEnabled', () => {
 
   it("answers for the element's own enabled before it walks anything", () => {
     const f = form();
-    f.fields.name.enabled = false;
+    f.fields.name.access = 'disabled';
 
     expect(f.fields.name.effectiveEnabled).toBe(false);
     expect(f.effectiveEnabled).toBe(true);
@@ -48,7 +48,7 @@ describe('effectiveEnabled', () => {
     const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
     const row = list.get(0)!;
 
-    list.enabled = false;
+    list.access = 'disabled';
     expect(row.fields.a.effectiveEnabled).toBe(false);
 
     const removed = list.remove(0)!;
@@ -57,7 +57,7 @@ describe('effectiveEnabled', () => {
 
   it('leaves enabled, the value and the writes exactly as they were', () => {
     const f = form();
-    f.fields.section.enabled = false;
+    f.fields.section.access = 'readonly';
 
     // the member states its own enabled, unchanged
     expect(f.fields.section.fields.a.enabled).toBe(true);
@@ -75,9 +75,9 @@ describe('effectiveEnabled', () => {
     scope.run(() => {
       const c = computed(() => f.fields.section.fields.inner.fields.b.effectiveEnabled);
       seen.push(c.value);
-      f.fields.section.enabled = false;
+      f.fields.section.access = 'disabled';
       seen.push(c.value);
-      f.fields.section.enabled = true;
+      f.fields.section.access = 'editable';
       seen.push(c.value);
     });
     scope.stop();
@@ -87,5 +87,35 @@ describe('effectiveEnabled', () => {
 
   it('is read-only, so a construction parameter of that name throws', () => {
     expect(() => new Field({ value: 1, effectiveEnabled: true } as any)).toThrow(TypeError);
+  });
+});
+
+describe('effectiveAccess', () => {
+  it("is the element's own access where nothing above narrows it", () => {
+    const f = form();
+    f.fields.section.fields.a.access = 'disabled-null';
+
+    expect(f.fields.section.fields.a.effectiveAccess).toBe('disabled-null');
+    expect(f.fields.name.effectiveAccess).toBe('editable');
+  });
+
+  it('makes an editable element readonly below a readonly container, and leaves a narrower one as it is', () => {
+    const f = form();
+    f.fields.section.access = 'readonly';
+    f.fields.section.fields.a.access = 'disabled';
+
+    expect(f.fields.section.fields.inner.fields.b.effectiveAccess).toBe('readonly');
+    expect(f.fields.section.fields.a.effectiveAccess).toBe('disabled');
+  });
+
+  it('is disabled below a container that sends nothing or null', () => {
+    const f = form();
+
+    f.fields.section.access = 'disabled-null';
+    expect(f.fields.section.effectiveAccess).toBe('disabled-null');
+    expect(f.fields.section.fields.inner.fields.b.effectiveAccess).toBe('disabled');
+
+    f.fields.section.access = 'disabled';
+    expect(f.fields.section.fields.a.effectiveAccess).toBe('disabled');
   });
 });

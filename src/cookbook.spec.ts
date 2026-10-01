@@ -1,7 +1,7 @@
+import { isEmpty } from 'lodash-es';
 import { computed, nextTick, ref, watch, watchEffect } from 'vue';
 
 import { ValueChangedAction } from './actions';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -23,8 +23,10 @@ describe('Cookbook: what a form sends', () => {
     });
     watchEffect(() => {
       const image = form.fields.kind.value === 'image';
-      form.fields.src.visibility = image ? DisplayMode.FULL : DisplayMode.SUPPRESS;
-      form.fields.text.visibility = image ? DisplayMode.SUPPRESS : DisplayMode.FULL;
+      form.fields.src.access = image ? 'editable' : 'disabled';
+      form.fields.text.access = image ? 'disabled' : 'editable';
+      form.fields.src.visibility = image ? 'full' : 'suppress';
+      form.fields.text.visibility = image ? 'suppress' : 'full';
     });
 
     expect(form.value).toEqual({ kind: 'text', text: 'hello' });
@@ -36,36 +38,54 @@ describe('Cookbook: what a form sends', () => {
     expect(form.value).toEqual({ kind: 'text', text: 'hello' });
   });
 
-  it('sends an optional section as null while it is off, keeps what it holds, and does not count it', async () => {
-    const billing = new Group({ street: required(''), city: new Field({ value: '' }) });
+  it('sends an optional section as null while it is off, keeps what it holds, and does not check it', async () => {
+    const billing = new Group({ street: required(''), city: required('') });
     const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
     const separateBilling = ref(false);
     watchEffect(() => {
-      billing.visibility = separateBilling.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+      billing.access = separateBilling.value ? 'editable' : 'disabled-null';
+      billing.visibility = separateBilling.value ? 'full' : 'hidden';
     });
 
     expect(form.value).toEqual({ customer: 'Ada', billing: null });
     expect(form.valid).toBe(true);
-    expect(form.fullValue.billing).toBeNull();
     billing.fields.street.value = 'Main 1';
-    expect(billing.fullValue).toEqual({ street: 'Main 1', city: '' });
+    expect(form.fullValue.billing).toEqual({ street: 'Main 1', city: '' });
 
     separateBilling.value = true;
     await nextTick();
     expect(form.value).toEqual({ customer: 'Ada', billing: { street: 'Main 1', city: '' } });
+    expect(form.valid).toBe(false);
   });
 
-  it('loads a record without touching visibility, and follows the data where the rule says so', async () => {
+  it('sends an optional section as null until the user starts it, and then wants it complete', async () => {
+    const billing = new Group({ street: required(''), city: required('') });
+    const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
+    watchEffect(() => {
+      const started = Object.values(billing.fields).some((field) => !isEmpty(field.value));
+      billing.access = started ? 'editable' : 'disabled-null';
+    });
+
+    expect(form.value).toEqual({ customer: 'Ada', billing: null });
+    expect(form.valid).toBe(true);
+
+    billing.fields.street.value = 'Main 1';
+    await nextTick();
+    expect(form.value).toEqual({ customer: 'Ada', billing: { street: 'Main 1', city: '' } });
+    expect(form.valid).toBe(false);
+  });
+
+  it('loads a record without touching access, and follows the data where the rule says so', async () => {
     const billing = new Group({ street: new Field({ value: 'Main 1' }) });
     const form = new Group({ customer: new Field({ value: '' }), billing });
     const separateBilling = ref(true);
     watchEffect(() => {
-      billing.visibility = separateBilling.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+      billing.access = separateBilling.value ? 'editable' : 'disabled-null';
     });
 
     const record = { customer: 'Grace', billing: null };
     form.value = record;
-    expect(billing.visibility).toBe(DisplayMode.FULL);
+    expect(billing.access).toBe('editable');
     expect(form.value).toEqual({ customer: 'Grace', billing: { street: null } });
 
     separateBilling.value = record.billing != null;
@@ -158,15 +178,18 @@ describe('Cookbook: loading, submitting and resetting', () => {
 });
 
 describe('Cookbook: fields, sections and lists', () => {
-  it('draws a disabled section through effectiveEnabled, and leaves it out only while it is empty', () => {
+  it('draws a section that is not editable through effectiveEnabled, and sends it only where it is readonly', () => {
     const address = new Group({ city: new Field({ value: 'Kranj' }) });
     const form = new Group({ address, name: new Field({ value: 'x' }) });
 
-    address.enabled = false;
-
+    address.access = 'readonly';
+    expect(address.fields.city.effectiveAccess).toBe('readonly');
     expect(address.fields.city.effectiveEnabled).toBe(false);
     expect(address.fields.city.enabled).toBe(true);
     expect(form.value).toEqual({ address: { city: 'Kranj' }, name: 'x' });
+
+    address.access = 'disabled';
+    expect(form.value).toEqual({ name: 'x' });
   });
 
   it('reads another field of the row once the row exists', () => {
@@ -236,7 +259,7 @@ describe('Cookbook: application state', () => {
     );
     // a cart collected in the shop sends no delivery address, and keeps the one typed in
     watchEffect(() => {
-      cart.$.fields.delivery.visibility = cart.pickup ? DisplayMode.HIDDEN : DisplayMode.FULL;
+      cart.$.fields.delivery.access = cart.pickup ? 'disabled-null' : 'editable';
     });
     return cart;
   }
@@ -269,9 +292,10 @@ describe('Cookbook: application state', () => {
     cart.delivery!.street = 'Main 1';
     cart.pickup = true;
     await nextTick();
-    expect(cart.delivery).toBeNull();
+    // the view reads what the cart holds, and the cart sends null in its place
+    expect(cart.delivery.street).toBe('Main 1');
     expect(cart.$.value.delivery).toBeNull();
-    // the address still missing a city does not hold the cart back while it is not delivered
+    // the address still missing a city is not checked while it is not delivered
     expect(cart.$.valid).toBe(true);
 
     cart.pickup = false;
