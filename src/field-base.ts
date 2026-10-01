@@ -19,6 +19,7 @@ import { AbortEventHandlingException, type Extras, IBindParams } from './field.i
 import {
   currentTransaction,
   type Transaction,
+  SentNowhere,
   TxAnnounceValue,
   TxCapture,
   TxRestore,
@@ -645,11 +646,14 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (child.parent) throw new TypeError('This element already belongs to a container - pass a bind() of it');
       tx.touch(child);
       child.#state.fieldName = fieldName;
-      const detached = new Map<FieldBase, Access>([[child, child.effectiveAccess], ...child.effectiveAccessBelow()]);
+      // below an editable container every element keeps the effective access it had on its own, so only a container
+      // that narrows it has anything to check again
+      const narrowing = this.effectiveAccess !== 'editable';
+      const detached = narrowing ? child.effectiveAccessFromHere() : undefined;
       // only a Container calls this, since only a container holds children
       child.#state.parent = this as unknown as Container;
       // the containers above now decide what the child sends, so it is checked again where that moved
-      child.revalidateWhereChanged(detached);
+      if (detached) child.revalidateWhereChanged(detached);
       this.adoptChild(child);
     });
   }
@@ -658,7 +662,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected adoptChild(child: FieldBase): void {
     transactional((tx) => {
       tx.touch(this);
-      if (!child.#raw.valid) this.#raw.invalidChildren++;
+      if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren++;
       // a run in flight below the child now runs below this element too. The validation counters are outside the
       // snapshot, so the transfer hands the rollback an undo of its own, and that undo reads the child at rollback
       // time: a run that starts below the child while the transaction holds it is one this element counts too, and
@@ -681,7 +685,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     transactional((tx) => {
       tx.touch(this);
       tx.touch(child);
-      if (!child.#raw.valid) this.#raw.invalidChildren--;
+      if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren--;
+      // out of a container that narrowed it, the child is on its own again and is checked where that moved
+      const attached = this.effectiveAccess !== 'editable' ? child.effectiveAccessFromHere() : undefined;
       // the undo reads the child at rollback time for the same reason adoptChild's does: what this element carries
       // again is the runs the child has in flight when it comes back, not the ones it had when it left
       if (child.validating) this.childValidatingChanged(false);
@@ -692,6 +698,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // the name goes with the link: it is the name a container held the element under, and the element belongs to
       // none, so it is as detached as one a bind() produced
       child.#state.fieldName = undefined;
+      if (attached) child.revalidateWhereChanged(attached);
       tx.markValidityDirty(this);
     });
   }
@@ -794,6 +801,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       }
       tx.touch(this);
       const oldContribution = this.contribution;
+      const counted = this.countsInContainer;
       const below = this.effectiveAccessBelow();
       this.#state.access = written;
       this.revalidateWhereChanged(below);
@@ -802,7 +810,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (!this.composesValue) this.boundActions?.triggerEager(this, this.contribution, oldContribution);
       // what the element sends changed, so its contribution and that of every container above it is measured again
       // at the commit; what any of them holds did not change
-      this.contributionChanged(tx);
+      this.contributionChanged(tx, counted);
       this.boundActions?.trigger(AccessChangedAction, this, written, oldValue);
       if (this.enabled !== wasEnabled) this.boundActions?.trigger(EnabledChangedAction, this, this.enabled, wasEnabled);
     });
@@ -827,6 +835,18 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
+   * Whether `effectiveAccess` is `'disabled'`, read off the untracked state. A validator asks it on every run, where
+   * nothing renders off the answer and a tracked walk up the containers would cost every write a read per level.
+   */
+  [SentNowhere](): boolean {
+    if (this.#raw.access === 'disabled') return true;
+    for (let above = this.#raw.parent; above; above = above.#raw.parent) {
+      if (above.#raw.access === 'disabled' || above.#raw.access === 'disabled-null') return true;
+    }
+    return false;
+  }
+
+  /**
    * True where `access` is `'editable'`: the element accepts input. It reads `access` and nothing else, and it is a
    * statement about input rather than about data - `'readonly'` is not enabled and still sends its value. What an
    * element sends is read from `access`.
@@ -842,6 +862,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    */
   get effectiveEnabled(): boolean {
     return this.effectiveAccess === 'editable';
+  }
+
+  /** The effective access of this element and of every element below it, read before a change that may move it. */
+  private effectiveAccessFromHere(): Map<FieldBase, Access> {
+    const seen = this.effectiveAccessBelow();
+    seen.set(this, this.effectiveAccess);
+    return seen;
   }
 
   /** The effective access of every element below this one, read before a change that may move it. */
@@ -917,14 +944,33 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Carries a change of what this element sends: the element is enrolled so the commit measures its contribution
-   * and re-forms its verdict, and the container's value is built again.
+   * Whether the container holding this element counts its verdict: every element that sends something, `null`
+   * included. A `'disabled'` element sends nothing, so it is not counted - an error written into it by hand no more
+   * than one from a validator, which does not run there.
    */
-  private contributionChanged(tx: Transaction): void {
+  private get countsInContainer(): boolean {
+    return this.serializesAs('value') !== 'omit';
+  }
+
+  /**
+   * Carries a change of what this element sends: the element is enrolled so the commit measures its contribution
+   * and re-forms its verdict, the container's value is built again, and an element that is invalid enters or leaves
+   * the container's tally as it starts or stops being counted.
+   */
+  private contributionChanged(tx: Transaction, wasCounted: boolean): void {
     tx.markValueChanged(this, false);
     tx.markValidityDirty(this);
     this.bumpValueVersion();
-    this.parent?.notifyValueChanged();
+    const holder = this.container;
+    if (!holder) return;
+    const counted = this.countsInContainer;
+    if (counted !== wasCounted && !this.#raw.valid) {
+      tx.touch(holder);
+      // an invalid element that stops being counted is, to the tally, one that turned valid, and the other way round
+      holder.childValidityChanged(!counted);
+      tx.markValidityDirty(holder);
+    }
+    this.parent!.notifyValueChanged();
   }
 
   /**
@@ -1005,9 +1051,15 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * state a fresh binding would be in.
    */
   protected recordAnnounced(): void {
-    this.#raw.announcedValue = this.holding;
-    this.#raw.announcedContribution = this.contribution;
-    this.#raw.validatedValue = this.contribution;
+    // a baseline is composed only where something receives the announcement it is measured for; a registration
+    // that adds a listener later re-reads it then (refreshPreviousValue), and a leaf's value is read for free
+    const actions = this.boundActions;
+    if (!this.composesValue || actions?.willTrigger(ValueChangedActionClassIdentifier)) {
+      this.#raw.announcedValue = this.holding;
+    }
+    if (actions?.willTrigger(ContributionChangedActionClassIdentifier))
+      this.#raw.announcedContribution = this.contribution;
+    if (this.composesValue && actions?.hasEager) this.#raw.validatedValue = this.contribution;
   }
 
   /**
@@ -1026,7 +1078,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     // the verdict goes to the container that holds this element, and a container that released it holds it no
     // longer: the link is gone with the release, so a dropped row moves no tally
     const holder = this.container;
-    if (holder) {
+    // an element that sends nothing is kept out of its container's tally, so a verdict it reaches moves nothing above
+    if (holder && this.countsInContainer) {
       tx.touch(holder);
       holder.childValidityChanged(newValid);
       tx.markValidityDirty(holder);
@@ -1077,6 +1130,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     if (!actions) return;
     this._actions = actions;
     actions.bindTo(this);
+    // the construction recorded no baseline for a listener it did not have yet
+    this.recordAnnounced();
     actions.triggerEager(this, newValue, oldValue);
   }
 

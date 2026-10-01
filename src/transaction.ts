@@ -32,6 +32,8 @@ export interface TxStructuralEvent {
  * element's own keys sees them either.
  */
 export const TxCapture = Symbol('Transaction.capture');
+/** asked by a validator before it runs: whether the element is sent nowhere, read without tracking */
+export const SentNowhere = Symbol('FieldBase.sentNowhere');
 export const TxRestore = Symbol('Transaction.restore');
 export const TxAnnounceValue = Symbol('Transaction.announceValue');
 export const TxSettleValidity = Symbol('Transaction.settleValidity');

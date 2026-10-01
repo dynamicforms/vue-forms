@@ -39,8 +39,11 @@ form.fields.name.errors;     // before: [Required]                after: []
   element inside a container that is `'disabled'` or `'disabled-null'`: such a container sends none of its members.
   [`effectiveAccess`](/api/field#properties) states this on each element.
 - A `'disabled-null'` element sends `null`, so it is validated over `null`: a `Required` on it refuses it.
+- A container does not count a `'disabled'` child at all, so an error written into one by hand — an error the server
+  returned — stays on the child and no longer holds the form back.
 - A switch of access runs the validators again, on the element and on every element below it whose
-  `effectiveAccess` moved, so an element that is sent again is checked at once.
+  `effectiveAccess` moved, so an element that is sent again is checked at once; so does a member taken into or out
+  of a container.
 
 A submit button bound to `form.valid` therefore no longer waits for fields the form does not send. A rule that
 counted on a disabled required field blocking the submit states the requirement on what is sent instead: keep the

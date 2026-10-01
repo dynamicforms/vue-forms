@@ -4,7 +4,7 @@ import { isRef, unref } from 'vue';
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
-import { currentTransaction, transaction, transactional } from '../transaction';
+import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
 
 import { translatedMessage } from './translations';
 import {
@@ -93,8 +93,7 @@ export class Validator<T = any> extends ValueChangedAction {
 
       // an element that is sent nowhere is not checked: the run reaches no verdict and withdraws this validator's
       // errors
-      const errors =
-        field.effectiveAccess === 'disabled' ? [] : validationFn(newValue, oldValue, field, controller.signal) || [];
+      const errors = field[SentNowhere]() ? [] : validationFn(newValue, oldValue, field, controller.signal) || [];
 
       // the swap of this validator's errors and the verdict that follows from it are one change: a run that
       // settles after the operation that started it opens a transaction of its own here, and one that settles

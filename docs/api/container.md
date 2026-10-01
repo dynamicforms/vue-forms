@@ -20,7 +20,7 @@ child — `group.fields.name`, `list.get(0)` — is each class's own and is desc
 
 | Member | Type | Description |
 |--------|------|-------------|
-| `valid` | `boolean` | `true` where the container's own errors are empty and every child is valid. A child that is sent nowhere is not validated and so is valid — see [What a container serializes](#what-a-container-serializes). The read is composed over the children and memoised, so an error written into a child without a `validate()` call shows here as well |
+| `valid` | `boolean` | `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries — see [What a container serializes](#what-a-container-serializes). The read is composed over the children and memoised, so an error written into a child without a `validate()` call shows here as well |
 | `busy` | `boolean` | `true` while an `Action.execute()` in any child has yet to settle |
 | `touched` | `boolean`, writable | `true` where any child is touched. Assigning it assigns every child |
 | `validate(revalidate?)` | `void` | With `revalidate: true`, every child is revalidated first and the container forms its own verdict afterwards, over the finished set, so it announces one net transition of its validity at most |
@@ -65,7 +65,9 @@ entered. `visibility` plays no part here: it states how a rendering layer draws 
 ### Validation follows what is sent
 
 An element's validators run over what it sends — its value, or `null` for `'disabled-null'` — and only where it is
-sent at all. So a `Required` on a section that is sent as `null` refuses it, while the required fields inside that
+sent at all. A container counts the verdict of every child that sends something, `null` included; a `'disabled'`
+child is not counted, so an error written into it by hand — one the server returned, say — stays on the child and
+holds nothing back. So a `Required` on a section that is sent as `null` refuses it, while the required fields inside that
 section are not checked until the section is sent again; a section switched off leaves no error behind and holds no
 submit button back. A switch of access runs the validators again on the element and on every element below it whose
 `effectiveAccess` moved.

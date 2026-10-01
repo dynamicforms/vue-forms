@@ -6,7 +6,7 @@ import { FieldBase } from './field-base';
 import { Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
-import { Validators } from './validators';
+import { ValidationErrorText, Validators } from './validators';
 
 /** every transition of `element`'s own announcements of one kind, newest last */
 function watchOwn(element: FieldBase, kind: 'value' | 'valid' | 'contribution'): unknown[] {
@@ -164,6 +164,45 @@ describe('Access in a group', () => {
     expect(bound.fields.b.value).toBe(2);
     expect(bound.fields.c.value).toBe(3);
     expect(bound.value).toEqual({ a: 1, b: null });
+  });
+});
+
+describe('A member taken out of a container that narrows its access', () => {
+  it('is checked again once it is on its own', () => {
+    const list = new List(required(''), { access: 'disabled' });
+    list.push('');
+    const row = list.get(0)!;
+    expect(row.valid).toBe(true);
+
+    list.remove(0);
+
+    expect(row.effectiveAccess).toBe('editable');
+    expect(row.valid).toBe(false);
+  });
+
+  it('is checked again once a group lets it go', () => {
+    const group = new Group({ a: required('') }, { access: 'disabled-null' });
+
+    const a = group.removeField('a')!;
+
+    expect(a.valid).toBe(false);
+  });
+});
+
+describe('An error written by hand into a member that sends nothing', () => {
+  it('stays on the member and is not counted by the container', () => {
+    const field = new Field({ value: 'x' });
+    const form = new Group({ field });
+    field.errors.push(new ValidationErrorText('refused by the server'));
+    field.validate();
+    expect(form.valid).toBe(false);
+
+    field.access = 'disabled';
+    expect(field.valid).toBe(false);
+    expect(form.valid).toBe(true);
+
+    field.access = 'disabled-null';
+    expect(form.valid).toBe(false);
   });
 });
 

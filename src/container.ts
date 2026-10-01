@@ -101,7 +101,12 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   private get validRead(): boolean {
     let read = validReads.get(this);
     if (!read) {
-      read = computed(() => this.state.errors.length === 0 && this.children.every((child) => child.valid));
+      read = computed(
+        () =>
+          this.state.errors.length === 0 &&
+          // a child that sends nothing is not the container's to answer for
+          this.children.every((child) => child.valid || this.childSerializesAs(child, 'value') === 'omit'),
+      );
       validReads.set(this, read);
     }
     return read.value;

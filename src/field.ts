@@ -73,14 +73,12 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
     if (oldValue === newValue) return;
     transactional((tx) => {
       tx.touch(this);
-      const oldContribution = this.contribution;
       this._value = newValue;
       this.bumpValueVersion();
       // the validators run here rather than at the announcement, because the verdict they reach is what the
-      // commit announces. They read what the field sends, so a write into a field that sends nothing or null does
-      // not reach them
-      const contribution = this.contribution;
-      if (contribution !== oldContribution) this.boundActions?.triggerEager(this, contribution, oldContribution);
+      // commit announces. They read what the field sends, which a write changes only where the field sends its
+      // value: one that sends nothing or null sends the same after the write
+      if (this.serializesAs('value') === 'value') this.boundActions?.triggerEager(this, newValue, oldValue);
       // the handlers hear about the change once the transaction closes, over the value the field ends up holding
       this.propagateValueChanged();
     });
