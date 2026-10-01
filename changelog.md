@@ -53,8 +53,9 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 - **Breaking:** validators run over what an element sends, and only where it is sent at all. An element whose
   `effectiveAccess` is `'disabled'` is not validated and carries no error from a validator, so a disabled field, or
   any field inside a container that is `'disabled'` or `'disabled-null'`, no longer makes its form invalid; a
-  `'disabled-null'` element is validated over `null`. A switch of access runs the validators again on the element
-  and on every element below it whose `effectiveAccess` moved.
+  `'disabled-null'` element is validated over `null`. A container does not count a `'disabled'` child, so an error
+  written into one by hand holds nothing back either. A switch of access, and a member taken into or out of a
+  container, runs the validators again wherever `effectiveAccess` moved.
 - **Breaking:** a container that is `'disabled'` is left out of its parent's value whatever it holds.
 - **Breaking:** an enabled container is never `null`. A `Group` none of whose members is sent reads `{}` and a
   `List` that sends no row reads `[]`; `GroupValue<T>` and `ListValue<R>` no longer include `null`.

@@ -432,8 +432,7 @@ export class Group<
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<GroupValueInput<T>, X>);
     Group.assertTookFields(res, newFields, this.constructor.name);
-    // the constructor recorded what its validators ran over, and nothing has run since
-    res.boundFrom(this, res.raw.validatedValue, res.originalValue, overrides);
+    res.boundFrom(this, res.contribution, res.originalValue, overrides);
     return res;
   }
 
