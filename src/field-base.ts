@@ -13,6 +13,7 @@ import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
+import { getConfig } from './config';
 import { type Container } from './container';
 import { type ElementSlots } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
@@ -1091,6 +1092,25 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     transactional((tx) => {
       if (revalidate) this.boundActions?.triggerEager(this, this.contribution, this.contribution);
       tx.markValidityDirty(this);
+    });
+  }
+
+  /**
+   * The errors a rendering layer shows now. `errors` and `valid` state the verdict, which a submit needs at once;
+   * this states what the user is shown, which waits for the user. By default an error is shown where the element is
+   * sent at all (`effectiveAccess` is not `'disabled'`) and either its `origin` is `'server'` - the server answered
+   * something the user did - or the element is `touched`, which on a container is once any child is.
+   *
+   * `setConfig({ shownErrors })` states a condition of its own: it is asked for each error with the default answer,
+   * and its answer stands. The read is tracked - the errors, `touched`, the access and whatever the condition reads
+   * through an element - so a template rendering `shownErrors` follows every one of them.
+   */
+  get shownErrors(): readonly ValidationError[] {
+    const sent = this.effectiveAccess !== 'disabled';
+    const condition = getConfig().shownErrors;
+    return this.#state.errors.filter((error) => {
+      const shownByDefault = sent && (error.origin === 'server' || this.touched);
+      return condition ? condition(error, this, shownByDefault) : shownByDefault;
     });
   }
 

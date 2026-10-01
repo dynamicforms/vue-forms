@@ -54,16 +54,38 @@ export function isCallableFunction(msg?: RenderContentRef): msg is RenderContent
 }
 
 /**
+ * Where an error comes from. `'validator'` is an error a validator produced, `'server'` one the server returned and
+ * `'application'` one the application's own code computed and wrote into `errors`. Any other string is an origin of
+ * the application's own, which the configured `shownErrors` condition can treat as it chooses.
+ */
+
+export type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
+
+/**
  * Base validation error class with component rendering capabilities
  */
 
 export class ValidationError {
   /**
-   * Machine-readable identifier of what failed, in kebab-case. Every validator this library ships states one, so
-   * code that reacts to a particular failure does not have to match the message text, which is translated and
-   * configurable. It is optional: an error built by hand carries whatever its author gives it, or nothing.
+   * @param code Machine-readable identifier of what failed, in kebab-case. Every validator this library ships states
+   * one, so code that reacts to a particular failure does not have to match the message text, which is translated
+   * and configurable. It is optional: an error built by hand carries whatever its author gives it, or nothing.
+   * @param statedOrigin Where the error comes from, where its author states it; see `origin`.
    */
-  constructor(public code?: string) {}
+  constructor(
+    public code?: string,
+    private readonly statedOrigin?: ErrorOrigin,
+  ) {}
+
+  /**
+   * Where the error comes from: the origin its author stated, and otherwise `'validator'` for an error a validator
+   * produced - a validator stamps every error it hands a field - and `'application'` for one written into `errors`
+   * by any other code. It decides when the error is shown by default: see `shownErrors`.
+   */
+  get origin(): ErrorOrigin {
+    if (this.statedOrigin !== undefined) return this.statedOrigin;
+    return typeof (this as { source?: unknown }).source === 'symbol' ? 'validator' : 'application';
+  }
 
   /**
    * True where `other` is an error of this class that renders exactly as this one does and reports the same code.
@@ -79,6 +101,7 @@ export class ValidationError {
     return (
       Object.getPrototypeOf(this) === Object.getPrototypeOf(other) &&
       this.code === other.code &&
+      this.statedOrigin === other.statedOrigin &&
       this.componentName === other.componentName &&
       isEqual(this.componentBody, other.componentBody) &&
       isEqual(this.componentBindings, other.componentBindings) &&
@@ -111,8 +134,9 @@ export class ValidationErrorText extends ValidationError {
     public text: string,
     public classes: ClassTypes = '',
     code?: string,
+    origin?: ErrorOrigin,
   ) {
-    super(code);
+    super(code, origin);
   }
 
   get componentName() {
@@ -140,8 +164,9 @@ export class ValidationErrorRenderContent extends ValidationError {
     text: RenderContentRef,
     public classes: ClassTypes = '',
     code?: string,
+    origin?: ErrorOrigin,
   ) {
-    super(code);
+    super(code, origin);
     this.text = text;
     this.textType = computed(() => this.getTextType);
   }

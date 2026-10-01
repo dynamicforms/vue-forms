@@ -33,6 +33,7 @@ const options: Partial<FormsConfig> = { useMarkdownInValidators: false };
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `shownErrors` | `(error, element, shownByDefault) => boolean` | none | The condition that decides, for the whole application, whether an error appears in [`shownErrors`](/api/field#showing-errors). It is asked for each of an element's errors whenever `shownErrors` is read, receives the answer the default rule gives, and its answer stands. It is synchronous and changes nothing, and a change to the configuration is not tracked, so set it at startup |
 | `useMarkdownInValidators` | `boolean` | `true` | When `true`, the library's built-in validator messages are wrapped in `MdString` and rendered through the globally registered `vue-markdown` component. When `false`, markdown syntax is stripped from them and they are emitted as plain strings. Messages you pass to a validator yourself are used verbatim — run them through `buildErrorMessage()` if you want them to honour this setting. |
 
 ### `buildErrorMessage(text)`

@@ -22,6 +22,13 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   `ValueChangedAction` and not it.
 - `AccessChangingAction` and `AccessChangedAction`, asked before and told after `access` is written.
 - `ConditionalAccessAction(statement, whenTrue = 'editable', whenFalse = 'disabled')`.
+- `shownErrors`: the errors a rendering layer shows now. By default an error is shown where its element is sent at
+  all and either it came from the server or the element is touched — on a container, once any child is.
+  `setConfig({ shownErrors })` replaces that with a condition of the application's own, asked for each error with the
+  default answer.
+- An error's `origin`: `'validator'`, `'server'`, `'application'` or a string of the application's own. A validator's
+  errors are `'validator'` and any other error is `'application'` unless its author states an origin, the last
+  constructor argument of every error class.
 - The type `Visibility`, `visibilityValues`, `defaultVisibility` and `isVisibility()`.
 - `view(element)`: a form element seen as its data. A group's members and a list's rows are plain properties — a
   field as its value, a container as its view — and the element itself is `$`. A list's view is an array whose
