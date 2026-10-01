@@ -14,8 +14,11 @@ const m = await import(artifact);
 // the export list, stated here so that dropping one is a failed build rather than a consumer's report
 const expected = [
   'AbortEventHandlingException',
+  'AccessChangedAction',
+  'AccessChangingAction',
   'Action',
-  'DisplayMode',
+  'ConditionalAccessAction',
+  'ContributionChangedAction',
   'EnabledChangedAction',
   'EnabledChangingAction',
   'ExecuteAction',
@@ -27,9 +30,14 @@ const expected = [
   'MessagesWidget',
   'Validators',
   'ValueChangedAction',
-  'defaultDisplayMode',
+  'accessValues',
+  'defaultAccess',
+  'defaultVisibility',
   'forms',
+  'isAccess',
+  'isVisibility',
   'transaction',
+  'visibilityValues',
 ];
 const missing = expected.filter((name) => !(name in m));
 assert.equal(missing.length, 0, `the artifact is missing exports: ${missing.join(', ')}`);
@@ -50,7 +58,7 @@ assert.equal(list.get(1).fields.name.errors[0].code, 'required', 'the error carr
 list.get(1).fields.name.value = 'Grace';
 assert.equal(list.valid, true, 'filling the row settles the list');
 
-list.get(0).fields.note.enabled = false;
+list.get(0).fields.note.access = 'disabled';
 assert.deepEqual(list.value[0], { name: 'Ada' }, 'value leaves a disabled field out');
 assert.deepEqual(list.fullValue[0], { name: 'Ada', note: 'first' }, 'fullValue carries it');
 

@@ -63,15 +63,15 @@ of that meaning something else.
 | `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
 | `params.value` | `ListValueInput<R>` (`ListValue<R> \| null`) | `[]` | Initial array of item values. Left out, it falls back to `originalValue`; an explicit `null` does not and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
 | `params.originalValue` | `ListValueInput<R>` | same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
-| `params.enabled` | `boolean` | `true` | Whether the list is sent. A disabled list still accepts value assignment and all mutations, like every element; `enabled` causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.access` | [`Access`](/api/field#access) | `'editable'` | What the list sends to its own container, and what applies to its rows through `effectiveAccess`. A list takes value assignment and every mutation whatever its access. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.visibility` | [`Visibility`](/api/field#visibility) | `'full'` | How a rendering layer shows the list. |
 | `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
 | `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
 | `params.actions` | `FieldActionBase[]` | `[]` | List-level actions |
 
 `validators` and `actions` are registered before the remaining parameters are applied, and registration fires
-nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here already guards the `enabled` and
+nothing, so an `AccessChangingAction` or `VisibilityChangingAction` passed here already guards the `access` and
 `visibility` the same object carries, and every eager action among them runs exactly once, over the finished list.
 `Field`, `Action` and `Group` do the same — see [Field](/api/field) for the full description.
 
@@ -79,23 +79,25 @@ nothing, so an `EnabledChangingAction` or `VisibilityChangingAction` passed here
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Array of row values, by the rule a `Group` applies to its members: a disabled row is left out (a disabled row that is itself a container is kept while it is non-empty), and each row contributes what its own `value` reads back. A `HIDDEN` row is sent as `null` and a `SUPPRESS` row is left out. Reads back `[]` when the list has no rows; the list itself is never `null`. The setter takes `null` as well — the write `group.value = null` makes into a nested list — and it releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows standing: the setter is typed, so that write reaches it from JavaScript or through an `as any` |
+| `value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row contributes what its own `value` reads back, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads back `[]` when the list has no rows; the list itself is never `null`. The setter takes `null` as well — the write `group.value = null` makes into a nested list — and it releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows standing: the setter is typed, so that write reaches it from JavaScript or through an `as any` |
 | `originalValue` | `ListValue<R>` | yes | Value at creation time. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
-| `valid` | `boolean` | no | `true` when the list itself and every row it counts are valid; a `HIDDEN` or `SUPPRESS` row is not counted |
+| `valid` | `boolean` | no | `true` when the list itself and every row are valid. A row sent nowhere is not validated and so is valid |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on the list itself or in any row. The list keeps a tally of the rows that answer `true`, so the read costs nothing however many rows it holds |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` in a row has yet to settle. A validation running in a row is answered by `validating`, not by this, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
 | `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
-| `enabled` | `boolean` | yes | Whether the list is sent. A disabled list still accepts value assignment and all mutations, like every element; `enabled` causes a parent `Group` to omit the list from its value, and it omits it only where the list is empty — a disabled list that holds rows is serialized, the same way a disabled nested `Group` is. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Whether the list is shown, and what it contributes to its own container — see [What a container serializes](/api/container#what-a-container-serializes). |
+| `access` | [`Access`](/api/field#access) | yes | What the list sends to its container and whether it is validated — `'disabled'` leaves it out and `'disabled-null'` sends `null` whatever it holds — and, through `effectiveAccess`, what every element inside it sends: below a `'disabled'` or `'disabled-null'` list nothing is sent or validated, and below a `'readonly'` one nothing accepts input. Each member keeps the access it was given. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `effectiveAccess` | [`Access`](/api/field#access) | no | The access that applies once the containers above are taken into account — see [`effectiveAccess`](/api/field#properties) |
+| `enabled` | `boolean` | no | `true` where `access` is `'editable'` |
+| `effectiveEnabled` | `boolean` | no | `true` where `effectiveAccess` is `'editable'`: what a rendering layer reads to draw the inputs of a whole section without input |
+| `visibility` | [`Visibility`](/api/field#visibility) | yes | How a rendering layer shows the list. It changes nothing about what the list sends or whether it is validated |
 | `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
 | `length` | `number` | no | The number of rows the list holds. Nothing is built to count them |
 | `items` | `readonly R[]` | no | The rows themselves — see [The rows](#the-rows) |
-| `fullValue` | `ListFullValue<R>` | no | The `fullValue` of every row. Where `value` states what the list serializes — `Group` rows composed of their enabled fields — this states what the list holds: the disabled fields of a `Group` row are in it too. Visibility applies as it does to `value`: a `HIDDEN` row reads `null` and a `SUPPRESS` row is left out |
+| `fullValue` | `ListFullValue<R>` | no | The `fullValue` of every row, whatever its access. Where `value` states what the list sends, this states what it holds, and it is what a binding or a reset carries |
 
 `ListValue<R>` is exported as `(R['value'] | null)[]`, `ListValueInput<R>` as `ListValue<R> | null` and
-`ListFullValue<R>` as `(R['fullValue'] | null)[]`, each with `R` defaulting to `Group`.
+`ListFullValue<R>` as `R['fullValue'][]`, each with `R` defaulting to `Group`.
 
 Every mutation — `push()`, `insert()`, `remove()`, `pop()`, `clear()` and assigning `value` — is tracked by Vue, so
 a `v-for` over `list.items` or `list.value` re-renders on its own without any additional wiring.
@@ -218,9 +220,9 @@ re-forms the verdict. The mutation methods call it themselves; you rarely need t
 
 Returns a new `List` over `data`, carrying a binding of the item template, the actions and the extended
 properties. `overrides` is an [`IBindParams<ListValueInput<R>, X>`](/api/field#ibindparams-t-x): `originalValue`,
-`enabled`, `visibility` and the extended properties, which are written over the ones carried from the source.
-Binding an empty list gives an empty list. Without `data`, the new list carries every row this one holds, a
-`HIDDEN` or `SUPPRESS` row included, rather than what it serializes.
+`access`, `visibility` and the extended properties, which are written over the ones carried from the source.
+Binding an empty list gives an empty list. Without `data`, the new list carries what this one holds — its
+`fullValue`, every row whatever its access — rather than what it sends.
 
 The new list is constructed through `this.constructor`, so a subclass of `List` binds into its own class. A
 subclass whose constructor does not take `(itemTemplate, params)` never sees the template it is handed and would

@@ -12,8 +12,8 @@ You want the form to show a record the server sent.
 form.value = record;
 ```
 
-Every member takes its value, whatever is enabled or shown at that moment — a disabled field takes a write like any
-other, so the order in which the form's own rules enable fields does not matter. A key the record leaves out keeps
+Every member takes its value, whatever its access or visibility at that moment — a disabled field takes a write
+like any other, so the order in which the form's own rules switch fields does not matter. A key the record leaves out keeps
 what the member held; `null` for a container empties it.
 
 Where the record should also become the baseline `isChanged` compares against — the form is freshly loaded, not
@@ -26,7 +26,7 @@ form.rebind(record);
 It writes the record, starts the change history over and re-runs validation, and it takes a key the record leaves
 out from the form's declaration rather than from whatever the form held a moment ago.
 
-Loading does not decide what is shown. `{ billing: null }` empties the billing address and leaves it shown or hidden
+Loading does not decide what is sent or shown. `{ billing: null }` empties the billing address and leaves its access
 as the form's own rule has it; where the form should follow the data, state it in the rule — see
 [An optional section](#an-optional-section).
 
@@ -49,7 +49,7 @@ async function submit() {
 ```
 
 [`settled()`](/api/field#settled-promise-void) resolves once no validation and no `Action.execute()` is running at
-or below the form. `form.value` is the payload: disabled and suppressed members are left out and hidden ones are
+or below the form. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
 `null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again.
 
 ## Showing errors the server returned
@@ -136,14 +136,17 @@ transfer — to show and send only the fields that apply.
 ```typescript
 watchEffect(() => {
   const image = form.fields.kind.value === 'image';
-  form.fields.src.visibility = image ? DisplayMode.FULL : DisplayMode.SUPPRESS;
-  form.fields.text.visibility = image ? DisplayMode.SUPPRESS : DisplayMode.FULL;
+  form.fields.src.access = image ? 'editable' : 'disabled';
+  form.fields.text.access = image ? 'disabled' : 'editable';
+  form.fields.src.visibility = image ? 'full' : 'suppress';
+  form.fields.text.visibility = image ? 'suppress' : 'full';
 });
 ```
 
-A suppressed field is neither shown nor sent, and it is not counted in the form's validity. It keeps what it holds,
+`access` decides what is sent and `visibility` what is drawn, so the rule states both. A `'disabled'` field is not
+sent and its validators do not run, so a required field that does not apply blocks nothing. It keeps what it holds,
 so switching the kind back brings it back as it was. Where the server should instead clear what it holds for a
-field that does not apply, use `HIDDEN`: the field is sent as `null`.
+field that does not apply, use `'disabled-null'`: the field is sent as `null`.
 
 ## An optional section
 
@@ -152,35 +155,51 @@ company that may or may not be named on the order — to be sent as `null` while
 entered.
 
 ```typescript
-const billing = new Group({ street: new Field({ value: '' }), city: new Field({ value: '' }) });
+const billing = new Group({
+  street: new Field({ value: '', validators: [new Validators.Required()] }),
+  city: new Field({ value: '', validators: [new Validators.Required()] }),
+});
 const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
 
 const separateBilling = ref(false);
 watchEffect(() => {
-  billing.visibility = separateBilling.value ? DisplayMode.FULL : DisplayMode.HIDDEN;
+  billing.access = separateBilling.value ? 'editable' : 'disabled-null';
+  billing.visibility = separateBilling.value ? 'full' : 'hidden';
 });
 
 form.value;   // { customer: 'Ada', billing: null } while separateBilling is false
 ```
 
-A hidden section is not counted in the form's validity, so a required field inside it does not block the submit
-while the section is off. Where the section should follow a loaded record, the rule states it:
+A section sent as `null` sends none of its fields, so their validators do not run: the required street does not
+block the submit while the section is off, and it is checked again the moment the section is on. Where the section
+should follow a loaded record, the rule states it:
 
 ```typescript
 form.value = record;
 separateBilling.value = record.billing != null;
 ```
 
+Where there is no switch and the section is optional as a whole — nothing entered sends `null`, but a section the
+user started filling in has to be complete — the rule reads the section itself:
+
+```typescript
+watchEffect(() => {
+  const started = Object.values(billing.fields).some((field) => !isEmpty(field.value));
+  billing.access = started ? 'editable' : 'disabled-null';
+});
+```
+
 ## A field or a section that is shown but not editable
 
-You want something the user sees but cannot change, and that is not sent. Disable it: a rendering layer does not
-accept input into a disabled field, and the field is left out of the payload. It still takes a write from code, so
-loading a record fills it.
+You want something the user sees but cannot change. Two accesses do that, and they differ in what is sent: a
+`'readonly'` field is sent with its value, the way an `<input readonly>` is submitted, and a `'disabled'` one is left
+out, the way an `<input disabled>` is. Both still take a write from code, so loading a record fills them.
 
-`enabled` on a `Group` or a `List` states that the container is disabled and nothing further: the members keep the
-`enabled` they were given and go on accepting writes. A disabled container is left out of the payload only where
-it is empty. What a rendering layer binds to draw every input of a disabled section disabled is `effectiveEnabled`,
-which is `true` where the element and every container above it are enabled:
+A container's access applies to everything inside it. Below a `'readonly'` group an `'editable'` field is
+`'readonly'`, and below a `'disabled'` or `'disabled-null'` one nothing is sent and nothing is validated. The member
+keeps the access it was given; what applies is its `effectiveAccess`, and what a rendering layer binds to draw every
+input of such a section without input is `effectiveEnabled`, which is `true` where `effectiveAccess` is
+`'editable'`:
 
 ```vue
 <df-input :disabled="!field.effectiveEnabled" :control="field" />
@@ -189,29 +208,21 @@ which is `true` where the element and every container above it are enabled:
 The read is tracked like every other read through an element, so switching a group re-renders the inputs of every
 member below it without anything walking the tree.
 
-`effectiveEnabled` is the only member with a reading of this kind, and it is not a scheme the others follow.
-`visibility` has none: it decides what an element contributes to its container's value, so folding it down the
-tree would decide serialization rather than report it. `value` has none: a container composes its own from its
-members rather than passing one down. Anything else a rendering layer needs folded down its own tree is what
-`provide` and `inject` are for — a section is a component wrapping its members, and the render tree's context
-belongs to the render tree.
-
 ## A section that follows its members
 
 You want a section to drop out of the payload, or to be sent as `null`, while none of its fields is enabled. A
-container is not switched off when every child is, so one effect states it — which one depends on what the payload
-should say:
+container is not switched off when every child is, so one effect states it — which access depends on what the
+payload should say:
 
 ```typescript
 // the key is left out while no member is enabled
 watchEffect(() => {
-  address.enabled = Object.values(address.fields).some((field) => field.enabled);
+  address.access = Object.values(address.fields).some((field) => field.enabled) ? 'editable' : 'disabled';
 });
 
 // the key is sent as null while no member is enabled
 watchEffect(() => {
-  const any = Object.values(address.fields).some((field) => field.enabled);
-  address.visibility = any ? DisplayMode.FULL : DisplayMode.HIDDEN;
+  address.access = Object.values(address.fields).some((field) => field.enabled) ? 'editable' : 'disabled-null';
 });
 ```
 
@@ -275,7 +286,7 @@ through [`view()`](/api/view):
 
 ```typescript
 import { computed, watchEffect } from 'vue';
-import { DisplayMode, Field, Group, List, Validators, view } from '@dynamicforms/vue-forms';
+import { Field, Group, List, Validators, view } from '@dynamicforms/vue-forms';
 
 export function createCart() {
   const cart = view(new Group({
@@ -294,7 +305,7 @@ export function createCart() {
   }));
   // a cart collected in the shop sends no delivery address, and keeps the one typed in
   watchEffect(() => {
-    cart.$.fields.delivery.visibility = cart.pickup ? DisplayMode.HIDDEN : DisplayMode.FULL;
+    cart.$.fields.delivery.access = cart.pickup ? 'disabled-null' : 'editable';
   });
   return cart;
 }
@@ -311,8 +322,8 @@ cart.coupon = 'SPRING';
 The list's view is an array whose mutations are the list's own, so a sort moves the rows themselves. Every read is
 tracked on the field it reaches: `watch(() => cart.coupon, …)` runs when the coupon changes and not when a quantity
 does, and `total` follows the prices and quantities. While the cart is collected in the shop, `cart.$.value` sends
-`delivery: null` and the address does not count in `cart.$.valid`; switching back to delivery brings the address
-back as it was typed.
+`delivery: null` and the address is not validated, so it does not hold `cart.$.valid` back; switching back to
+delivery brings the address back as it was typed, and checks it.
 
 `createCart()` builds a cart wherever it is called, so where the state lives is the caller's choice — a module, a
 `provide()` in the component that owns it, or anywhere else — and a test builds a cart of its own.

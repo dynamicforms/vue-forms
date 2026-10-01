@@ -79,12 +79,18 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   }
 
   /**
-   * A container with nothing listening for its value does not compose one at all, so the copy it holds is from
+   * A container with nothing listening for what it holds does not compose it at all, so the copy it keeps is from
    * before the changes nobody received. A registration that adds a listener brings it up to date here, and what
    * the listener is then told about is the change that follows it.
    */
   protected refreshPreviousValue(): void {
-    this.raw.announcedValue = this.value;
+    super.refreshPreviousValue();
+    this.raw.announcedValue = this.holding;
+  }
+
+  /** A container holds every member's value whatever the member sends: its `fullValue`. */
+  protected get holding(): any {
+    return this.fullValue;
   }
 
   /**
@@ -95,12 +101,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   private get validRead(): boolean {
     let read = validReads.get(this);
     if (!read) {
-      read = computed(
-        () =>
-          this.state.errors.length === 0 &&
-          // a hidden or suppressed child is not the container's to answer for
-          this.children.every((child) => child.valid || this.childSerializesAs(child, 'fullValue') !== 'value'),
-      );
+      read = computed(() => this.state.errors.length === 0 && this.children.every((child) => child.valid));
       validReads.set(this, read);
     }
     return read.value;

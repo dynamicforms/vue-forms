@@ -1,4 +1,5 @@
-export { default as DisplayMode, defaultDisplayMode } from './display-mode';
+export { type Access, accessValues, defaultAccess, isAccess } from './access';
+export { type Visibility, visibilityValues, defaultVisibility, isVisibility } from './visibility';
 
 export * from './actions';
 export * from './action';

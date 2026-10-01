@@ -1,9 +1,10 @@
 import { vi } from 'vitest';
 import { nextTick, watchEffect } from 'vue';
 
+import type { Access } from './access';
 import {
-  EnabledChangedAction,
-  EnabledChangingAction,
+  AccessChangedAction,
+  AccessChangingAction,
   ListItemAddedAction,
   ListItemRemovedAction,
   ValidChangedAction,
@@ -11,12 +12,12 @@ import {
   VisibilityChangedAction,
   VisibilityChangingAction,
 } from './actions';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List, type ListValue } from './list';
 import { transaction } from './transaction';
 import { Validators, ValidationErrorText } from './validators';
+import type { Visibility } from './visibility';
 
 describe('List', () => {
   it('correctly initializes with empty array', () => {
@@ -624,28 +625,28 @@ describe('List construction parameters', () => {
   });
 
   it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
-    const visibilitySeen: DisplayMode[] = [];
-    const enabledSeen: boolean[] = [];
+    const visibilitySeen: Visibility[] = [];
+    const accessSeen: Access[] = [];
     const list = new List(undefined, {
       value: [{ a: 1 }],
-      visibility: DisplayMode.HIDDEN,
-      enabled: false,
+      visibility: 'hidden',
+      access: 'disabled',
       actions: [
-        new VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+        new VisibilityChangingAction(() => 'suppress'),
         new VisibilityChangedAction((field, supr, newValue) => {
           visibilitySeen.push(newValue);
         }),
-        new EnabledChangingAction(() => true),
-        new EnabledChangedAction((field, supr, newValue) => {
-          enabledSeen.push(newValue);
+        new AccessChangingAction(() => 'readonly'),
+        new AccessChangedAction((field, supr, newValue) => {
+          accessSeen.push(newValue);
         }),
       ],
     });
 
-    expect(list.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(list.enabled).toBe(true);
-    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
-    expect(enabledSeen).toEqual([true]);
+    expect(list.visibility).toBe('suppress');
+    expect(list.access).toBe('readonly');
+    expect(visibilitySeen).toEqual(['suppress']);
+    expect(accessSeen).toEqual(['readonly']);
     expect(list.value).toEqual([{ a: 1 }]);
   });
 
@@ -667,7 +668,7 @@ describe('List construction parameters', () => {
 
     const list = new Amounts(amountTemplate(), {
       value: [{ amount: 1 }, { amount: 2, currency: 'USD' }],
-      enabled: false,
+      access: 'readonly',
       actions: [
         new ValueChangedAction((field, supr, newValue) => {
           announced.push(newValue);
@@ -1403,7 +1404,7 @@ describe('List.fullValue', () => {
     expect(list.value).toEqual([]);
 
     list.push({ a: 'Ada', b: 'Lovelace' });
-    list.get(0)!.fields.b.enabled = false;
+    list.get(0)!.fields.b.access = 'disabled';
 
     // value serializes, so the disabled field is out of it; fullValue states what the row holds
     expect(list.value).toEqual([{ a: 'Ada' }]);

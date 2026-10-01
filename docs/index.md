@@ -17,6 +17,8 @@ hero:
 features:
   - title: UI-agnostic
     details: A logic layer for form state, validation and the behaviour between fields. Any Vue components render it, your own included
+    link: /guide/rationale#what-the-library-carries-for-the-interface
+    linkText: What it carries for the interface
   - title: Transactional
     details: Every mutating operation is atomic — events are announced once over the net change, and a handler that throws leaves the form exactly as it was
   - title: Lists that scale
@@ -126,9 +128,9 @@ console.log(personForm.value);  // { firstName: 'John', lastName: 'Doe', age: 30
 personForm.fields.firstName.value = 'Jane';
 
 // Disable a field
-personForm.fields.age.enabled = false;
+personForm.fields.age.access = 'disabled';
 
-// Form serializes only enabled fields
+// The form leaves a disabled field out of what it sends
 console.log(personForm.value);  // { firstName: 'Jane', lastName: 'Doe', active: true }
 ```
 

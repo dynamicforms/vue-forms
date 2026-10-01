@@ -10,8 +10,9 @@ submit runs.
 
 ## Why `Action` is not UI-agnostic
 
-Everything else in `@dynamicforms/vue-forms` describes data and behaviour and says nothing about rendering.
-`Action` is the deliberate exception: its value is an `ActionValue`, the pair `{ label?, icon? }`.
+`@dynamicforms/vue-forms` describes data and behaviour, and the few members that speak about the interface are
+listed in [Rationale](/guide/rationale#what-the-library-carries-for-the-interface). `Action` is one of them: its value
+is an `ActionValue`, the pair `{ label?, icon? }`.
 
 It exists as a *concept* — the element a form's submit, cancel and delete hang on — and the minimal `{ label, icon }`
 shape is the affordance that makes that concept legible. Without it `Action` would be indistinguishable from
@@ -19,7 +20,7 @@ shape is the affordance that makes that concept legible. Without it `Action` wou
 
 The shape is deliberately minimal because **a UI library is expected to extend it**. `Action<T extends ActionValue>`
 takes a wider value type, so a subclass adds accessors that read `this.value.X` and keeps everything the base class
-does — the `ExecuteAction` chain, `busy`, `enabled`, `visibility`, the conditional actions, the transaction
+does — the `ExecuteAction` chain, `busy`, `access`, `visibility`, the conditional actions, the transaction
 semantics. `label` and `icon` are members `Action` declares, and both reach its value, so a subclass reading either
 in a shape of its own narrows the getter and declares the setter beside it, delegating to the base — a getter
 declared alone leaves the property without a setter and the documented write throws a `TypeError`. The rules are in
@@ -44,7 +45,7 @@ yours.
 import { ref } from 'vue';
 import {
   Action,
-  ConditionalEnabledAction,
+  ConditionalAccessAction,
   ExecuteAction,
   Field,
   Group,
@@ -83,7 +84,7 @@ form.registerAction(
 const save = new Action({
   value: { label: 'Submit', icon: 'mdi-content-save' },
   actions: [
-    new ConditionalEnabledAction(new Statement(formValid, Operator.EQUALS, true)),
+    new ConditionalAccessAction(new Statement(formValid, Operator.EQUALS, true)),
     new ExecuteAction(async (field, supr, params) => {
       await new Promise((resolve) => setTimeout(resolve, 1200));
       if (params.email.endsWith('@example.com')) throw new Error('example.com addresses are not accepted');
@@ -123,12 +124,12 @@ async function submit() {
 so writing either is an ordinary value change: `ValueChangedAction` fires, `isChanged` answers over it, and a
 disabled action refuses the write. `save.label = 'Saving…'` therefore repaints every template reading it.
 
-The action is a `Field`, so it carries `enabled` and `visibility` like any other element, and a toolbar renders
+The action is a `Field`, so it carries `access` and `visibility` like any other element, and a toolbar renders
 `visibility` and `enabled` without knowing what the action does.
 
 ## Enabling it from the form's validity
 
-`enabled` is driven by a `ConditionalEnabledAction`, which re-evaluates its `Statement` whenever a field the
+`access`, and with it `enabled`, is driven by a `ConditionalAccessAction`, which re-evaluates its `Statement` whenever a field the
 statement reads changes. Validity is a verdict rather than a value, and a statement reads values — so a
 `ValidChangedAction` on the form writes the verdict into a field, and the statement reads that field. The two
 mechanisms compose without either knowing about the other.
@@ -159,7 +160,7 @@ an event handler returns and routes the error to `app.config.errorHandler`.
 
 - [Actions → The `Action` class](/api/actions#the-action-class) — `label`, `icon`, `execute()`, `busy`
 - [Actions → `ExecuteAction`](/api/actions#executeaction) — the chain `execute()` runs
-- [Actions → Conditional actions](/api/actions#conditional-actions) — `Statement`, `Operator`, `ConditionalEnabledAction`
+- [Actions → Conditional actions](/api/actions#conditional-actions) — `Statement`, `Operator`, `ConditionalAccessAction`
 - [Actions → `ValidChangedAction`](/api/actions#validchangedaction) — the verdict the condition is fed from
 
 ## Key Features Demonstrated

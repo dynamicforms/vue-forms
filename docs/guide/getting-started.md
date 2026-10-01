@@ -21,7 +21,9 @@ once in your app entry point if you use that component:
 import '@dynamicforms/vue-forms/style.css';
 ```
 
-Everything else — `Field`, `Group`, `List`, validators, actions — is UI-agnostic and needs no styles.
+Everything else — `Field`, `Group`, `List`, validators, actions — is UI-agnostic and needs no styles. The few
+members that speak about the interface, such as `visibility` and `enabled`, are listed with the reason for each in
+[What the library carries for the interface](/guide/rationale#what-the-library-carries-for-the-interface).
 
 ## Basic Usage
 
@@ -74,8 +76,8 @@ const personForm = new Group({
 </script>
 ```
 
-A disabled field is omitted from `group.value` (use `group.fullValue` if you need every field regardless of
-`enabled`), and it still takes a write to `value`, so loading a record into the form reaches it.
+A field whose `access` is `'disabled'` is omitted from `group.value` (use `group.fullValue` if you need every field
+whatever its access), and it still takes a write to `value`, so loading a record into the form reaches it.
 
 ## Validation
 

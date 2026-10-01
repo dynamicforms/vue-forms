@@ -4,20 +4,8 @@ import { type GenericFieldsInterface, Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
 
-/**
- * What a member contributes to what its container holds, asked the way the containers ask it. The rule is the one
- * `fullValue` follows: a hidden member reads `null`, a suppressed one is left out, and `enabled` does not matter.
- */
-type Contribution = 'value' | 'null' | 'omit';
-const contributionOf = (element: FieldBase): Contribution =>
-  (element as unknown as { serializesAs(purpose: 'fullValue'): Contribution }).serializesAs('fullValue');
-
 /** a member of the form in the shape a view hands it out: the view of a container, the value of anything else */
-type Slot<E> = E extends Container
-  ? View<E> | null | undefined
-  : E extends FieldBase
-    ? E['value'] | null | undefined
-    : never;
+type Slot<E> = E extends Container ? View<E> : E extends FieldBase ? E['value'] : never;
 
 /** the data keys of a group's view */
 type GroupData<F extends GenericFieldsInterface> = {
@@ -65,14 +53,7 @@ function unwrap<T>(item: T): T | FieldBase {
 
 /** a member read through a view: a container as its view, anything else as its value */
 function slotOf(element: FieldBase): unknown {
-  switch (contributionOf(element)) {
-    case 'omit':
-      return undefined;
-    case 'null':
-      return null;
-    default:
-      return element instanceof Container ? view(element) : element.value;
-  }
+  return element instanceof Container ? view(element) : element.value;
 }
 
 /** writes a member through a view: its value, whatever it is */
@@ -94,7 +75,7 @@ function special(key: string | symbol): { answered: boolean; value?: unknown } {
 function groupHandler(group: Group<any, any>): ProxyHandler<object> {
   const memberOf = (key: string | symbol) =>
     typeof key === 'string' && key !== '$' ? (group.field(key) ?? undefined) : undefined;
-  const dataKeys = () => Object.keys(group.fields).filter((key) => contributionOf(group.fields[key]) !== 'omit');
+  const dataKeys = () => Object.keys(group.fields);
   return {
     get(target, key) {
       const answered = special(key);
@@ -131,8 +112,8 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
 }
 
 function listView(list: List<any, any>): unknown[] {
-  // the rows a view shows, in order: a suppressed row is not part of what the list holds, so it has no index
-  const shown = (): FieldBase[] => list.items.filter((row) => contributionOf(row) !== 'omit');
+  // the rows a view shows, in order: every row the list holds, whatever it sends
+  const shown = (): FieldBase[] => [...list.items];
   // the position in the list a view's index stands for; an index past the last shown row appends
   const positionOf = (index: number): number => {
     const rows = shown();
@@ -311,11 +292,11 @@ function refuseReservedNames(group: Group<any, any>): void {
 
 /**
  * The element seen as its data. A group's members and a list's rows are plain properties of the view - a field as
- * its value, a container as its own view - and `$` is the element itself: `view.$.valid`, `view.$.enabled = false`,
- * `view.$.registerAction(...)`.
+ * its value, a container as its own view - and `$` is the element itself: `view.$.valid`,
+ * `view.$.access = 'readonly'`, `view.$.registerAction(...)`.
  *
- * A member reads what the element holds by the rule `fullValue` follows: a hidden member is `null`, a suppressed one
- * is not there, and `enabled` does not matter, so a disabled field reads and writes like any other. Every read goes
+ * A member reads what the element holds, by the rule `fullValue` follows: every member is there whatever its access,
+ * so a disabled field reads and writes like any other. Every read goes
  * through the element's tracked state, so an effect reading `view.address.city` re-runs when that field changes and
  * not when another one does.
  *

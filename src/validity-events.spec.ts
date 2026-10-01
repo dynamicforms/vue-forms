@@ -471,42 +471,6 @@ describe('Validity events across nesting levels', () => {
   });
 });
 
-describe('Validity events that reach a parent whose own value did not change', () => {
-  it('carries a disabled list item change up to the root', () => {
-    const list = new List(new Group({ a: new Field() }), {
-      enabled: false,
-      validators: [new Validator((value: any) => (value.length === 0 ? [new ValidationErrorText('empty')] : null))],
-    });
-    const root = new Group({ list, c: new Field({ value: 'y' }) });
-    const seenList = watch(list);
-    const seenRoot = watch(root);
-
-    // a disabled List is left out of Group.value, so the root's own value is unchanged by this push and its
-    // notifyValueChanged() returns without validating; the verdict reaches it only through the deferred climb
-    list.push({ a: 1 });
-
-    expect(seenList).toEqual([[true, false]]);
-    expect(seenRoot).toEqual([[true, false]]);
-    expect(root.valid).toBe(true);
-  });
-
-  it('carries a disabled list assignment up to the root', () => {
-    const list = new List(new Group({ a: new Field() }), {
-      enabled: false,
-      validators: [new Validator((value: any) => (value.length === 0 ? [new ValidationErrorText('empty')] : null))],
-    });
-    const root = new Group({ list, c: new Field({ value: 'y' }) });
-    const seenList = watch(list);
-    const seenRoot = watch(root);
-
-    list.value = [{ a: 1 }];
-
-    expect(seenList).toEqual([[true, false]]);
-    expect(seenRoot).toEqual([[true, false]]);
-    expect(root.valid).toBe(true);
-  });
-});
-
 /**
  * Every mutating operation is a transaction, and a transaction announces what it did once, at its end. These tests
  * therefore pin the whole ordered log of events an operation produces rather than a count per level: they fail on
@@ -735,7 +699,7 @@ describe('What a transaction that does not commit leaves behind', () => {
       transaction(() => {
         a.value = '';
         b.touched = true;
-        b.enabled = false;
+        b.access = 'disabled';
         throw new Error('handler gave up');
       }),
     ).toThrow('handler gave up');

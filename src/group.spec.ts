@@ -2,28 +2,29 @@ import { isEqual } from 'lodash-es';
 import { vi } from 'vitest';
 import { nextTick, watchEffect } from 'vue';
 
+import type { Access } from './access';
 import { Action } from './action';
 import {
-  EnabledChangedAction,
-  EnabledChangingAction,
+  AccessChangedAction,
+  AccessChangingAction,
   ExecuteAction,
   ValidChangedAction,
   ValueChangedAction,
   VisibilityChangedAction,
   VisibilityChangingAction,
 } from './actions';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { GenericFieldsInterface, Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
 import { Validators, ValidationErrorText } from './validators';
+import type { Visibility } from './visibility';
 
 describe('Group', () => {
   it('correctly serializes values', () => {
     const group = new Group({
       field1: new Field({ value: 'test1' }),
-      field2: new Field({ value: 'test2', enabled: false }),
+      field2: new Field({ value: 'test2', access: 'disabled' }),
       field3: new Field({ value: 'test3' }),
     });
 
@@ -46,8 +47,8 @@ describe('Group', () => {
   it('triggers onValueChanged only once when setting multiple nested values', () => {
     const onValueChanged = vi.fn();
     const group = new Group({
-      field1: new Field({ enabled: true }),
-      field2: new Field({ enabled: true }),
+      field1: new Field({ access: 'editable' }),
+      field2: new Field({ access: 'editable' }),
     }).registerAction(new ValueChangedAction(onValueChanged));
 
     group.value = { field1: 'test1', field2: 'test2' };
@@ -58,12 +59,12 @@ describe('Group', () => {
   it('correctly uses nested groups', () => {
     const subGroup = new Group({
       subField1: new Field({ value: 'sub1' }),
-      subField2: new Field({ value: 'sub2', enabled: false }),
+      subField2: new Field({ value: 'sub2', access: 'disabled' }),
       subField3: new Field({ value: 'sub3' }),
     });
 
     const mainGroup = new Group({
-      field1: new Field({ value: 'main1', enabled: true }),
+      field1: new Field({ value: 'main1', access: 'editable' }),
       group: subGroup,
     });
 
@@ -76,26 +77,26 @@ describe('Group', () => {
     });
   });
 
-  it('keeps a disabled group while its members compose something, and leaves an empty one out', () => {
-    const sub = new Group({ a: new Field({ value: 1 }) }, { enabled: false });
+  it('leaves a disabled group out whatever it holds, and sends a disabled-null one as null', () => {
+    const sub = new Group({ a: new Field({ value: 1 }) }, { access: 'disabled' });
     const group = new Group({ sub });
 
-    expect(group.value).toEqual({ sub: { a: 1 } });
-
-    sub.fields.a.enabled = false;
-
     expect(group.value).toEqual({});
+    expect(group.fullValue).toEqual({ sub: { a: 1 } });
+
+    sub.access = 'disabled-null';
+    expect(group.value).toEqual({ sub: null });
+
+    sub.access = 'readonly';
+    expect(group.value).toEqual({ sub: { a: 1 } });
   });
 
-  it('keeps a disabled list while its rows compose something, and leaves an empty one out', () => {
-    const rows = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }], enabled: false });
+  it('leaves a disabled list out whatever rows it holds', () => {
+    const rows = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }], access: 'disabled' });
     const group = new Group({ name: new Field({ value: 'x' }), rows });
 
-    expect(group.value).toEqual({ name: 'x', rows: [{ a: 1 }] });
-
-    rows.clear();
-
     expect(group.value).toEqual({ name: 'x' });
+    expect(group.fullValue).toEqual({ name: 'x', rows: [{ a: 1 }] });
   });
 
   it('correctly notifies parent of changes', () => {
@@ -223,12 +224,12 @@ describe('Group value initialization', () => {
         name: new Field({ value: 'John' }),
         age: new Field({ value: 30 }),
       },
-      { visibility: DisplayMode.HIDDEN },
+      { visibility: 'hidden' },
     );
 
     expect(group.value).toEqual({ name: 'John', age: 30 });
     expect(group.fields.name.value).toBe('John');
-    expect(group.visibility).toBe(DisplayMode.HIDDEN);
+    expect(group.visibility).toBe('hidden');
     expect(group.originalValue).toEqual({ name: 'John', age: 30 });
     expect(group.isChanged).toBe(false);
   });
@@ -615,30 +616,30 @@ describe('Group validity announcements', () => {
 
 describe('Group construction parameters', () => {
   it('lets a constructor-supplied changing action rewrite the parameters that carry it', () => {
-    const visibilitySeen: DisplayMode[] = [];
-    const enabledSeen: boolean[] = [];
+    const visibilitySeen: Visibility[] = [];
+    const accessSeen: Access[] = [];
     const group = new Group(
       { a: new Field({ value: 1 }) },
       {
-        visibility: DisplayMode.HIDDEN,
-        enabled: false,
+        visibility: 'hidden',
+        access: 'disabled',
         actions: [
-          new VisibilityChangingAction(() => DisplayMode.SUPPRESS),
+          new VisibilityChangingAction(() => 'suppress'),
           new VisibilityChangedAction((field, supr, newValue) => {
             visibilitySeen.push(newValue);
           }),
-          new EnabledChangingAction(() => true),
-          new EnabledChangedAction((field, supr, newValue) => {
-            enabledSeen.push(newValue);
+          new AccessChangingAction(() => 'readonly'),
+          new AccessChangedAction((field, supr, newValue) => {
+            accessSeen.push(newValue);
           }),
         ],
       },
     );
 
-    expect(group.visibility).toBe(DisplayMode.SUPPRESS);
-    expect(group.enabled).toBe(true);
-    expect(visibilitySeen).toEqual([DisplayMode.SUPPRESS]);
-    expect(enabledSeen).toEqual([true]);
+    expect(group.visibility).toBe('suppress');
+    expect(group.access).toBe('readonly');
+    expect(visibilitySeen).toEqual(['suppress']);
+    expect(accessSeen).toEqual(['readonly']);
   });
 
   it('takes the data it binds only from an argument the caller supplied', () => {
@@ -664,7 +665,7 @@ describe('Group construction parameters', () => {
     const group = new PostalAddress(
       { street: new Field<string>({ value: 'Main 1' }), country: new Field<string>() },
       {
-        enabled: false,
+        access: 'readonly',
         actions: [
           new ValueChangedAction((field, supr, newValue) => {
             announced.push(newValue);
@@ -751,7 +752,7 @@ describe('Group value caching', () => {
     const group = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
     const before = group.value;
 
-    group.fields.b.enabled = false;
+    group.fields.b.access = 'disabled';
 
     expect(group.value).not.toBe(before);
     expect(group.value).toEqual({ a: 1 });

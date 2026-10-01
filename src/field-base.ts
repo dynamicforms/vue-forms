@@ -1,14 +1,19 @@
-import { isBoolean, isEmpty, isEqual } from 'lodash-es';
+import { isEmpty, isEqual } from 'lodash-es';
 import { reactive, watch } from 'vue';
 
+import { type Access, accessValues, isAccess } from './access';
+import { AccessChangedAction, AccessChangingAction } from './actions/access-actions';
 import ActionsMap from './actions/actions-map';
+import {
+  ContributionChangedAction,
+  ContributionChangedActionClassIdentifier,
+} from './actions/contribution-changed-action';
 import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
 import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import { type Container } from './container';
-import DisplayMode from './display-mode';
 import { type ElementSlots } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
 import {
@@ -24,6 +29,7 @@ import {
 } from './transaction';
 import { ValidationError } from './validators/validation-error';
 import { Validator } from './validators/validator';
+import { isVisibility, type Visibility, visibilityValues } from './visibility';
 
 /**
  * The bindings made from a declaration, held outside it and weakly: a binding is released with the record it
@@ -38,6 +44,25 @@ const bindingsMade = new WeakMap<object, Set<WeakRef<FieldBase>>>();
  * named here to keep them out of both the element's members and its extended properties.
  */
 const registrationParams: ReadonlySet<string> = new Set(['validators', 'actions']);
+
+/** a value as an error message names it: a string quoted, anything else as it prints */
+const describe = (value: unknown) => (typeof value === 'string' ? `'${value}'` : String(value));
+
+/** the accepted values as an error message lists them */
+const listOf = (values: readonly string[]) => values.map(describe).join(', ');
+
+/**
+ * Refuses a parameter object naming `enabled`. `enabled` is read from `access` and has no setter, and a parameter
+ * object that reaches an element past the type system - parsed from JSON, typed `any` - would otherwise have it
+ * dropped by `bind()` or rejected with a TypeError that does not say what to write instead.
+ */
+function refuseEnabled(params: object): void {
+  if (Object.hasOwn(params, 'enabled')) {
+    throw new TypeError(
+      `enabled is read from access and cannot be assigned; state access instead: ${listOf(accessValues)}`,
+    );
+  }
+}
 
 /**
  * How many elements are waiting for the record they belong to. A container that completes a record asks this
@@ -122,7 +147,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * one answers `declaration` with.
    *
    * `data` of `undefined` is no data supplied and the new element carries what this one holds; an explicit `null`
-   * is data and clears. `overrides` states the rest: `originalValue` is read by key presence, `enabled` and
+   * is data and clears. `overrides` states the rest: `originalValue` is read by key presence, `access` and
    * `visibility` fall back to this element's, and extended properties it names are written over the ones carried
    * over. The new element is detached - no `parent`, no `fieldName` - so it is free to be taken by a container.
    */
@@ -152,11 +177,12 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // report. Both are read before the reset, which enrols the element itself and, on a container, writes the
       // baseline of its own.
       const owed = tx.willAnnounceValue(this);
-      const baseline = this.#raw.announcedValue;
+      const { announcedValue, announcedContribution, validatedValue } = this.#raw;
       this.resetTo(this.declaration, data);
-      // with nothing owed, what the element now holds is recorded as announced, so the commit reports no change
-      // of value for it
-      this.#raw.announcedValue = owed ? baseline : this.value;
+      // with nothing owed, what the element now holds and sends is recorded as announced, so the commit reports no
+      // change of either for it
+      if (owed) Object.assign(this.#raw, { announcedValue, announcedContribution, validatedValue });
+      else this.recordAnnounced();
     });
     return this;
   }
@@ -198,7 +224,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   /**
    * The extended properties a parameter object carries: every key the element does not answer for itself. A key
-   * the element answers for at the time the parameters are applied - `value`, `enabled`, an accessor a subclass
+   * the element answers for at the time the parameters are applied - `value`, `access`, an accessor a subclass
    * adds - is the element's own; a key that only Object.prototype answers for is nobody's declaration and counts
    * as extended, and `validators` and `actions` are neither, since they state what to register on the element.
    *
@@ -225,6 +251,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * naming `valid` or `parent` past the type system gets.
    */
   protected assignParams(params: object): void {
+    refuseEnabled(params);
     const extended = this.extendedOf(params);
     Object.entries(params).forEach(([key, value]) => {
       if (Object.hasOwn(extended, key) || registrationParams.has(key)) return;
@@ -459,7 +486,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   /** Runs this element's eager actions over the value it holds and re-forms the verdict they reach. */
   private rerunEagerActions(): void {
     transactional((tx) => {
-      this.boundActions?.triggerEager(this, this.value, this.value);
+      this.boundActions?.triggerEager(this, this.contribution, this.contribution);
       tx.markValidityDirty(this);
     });
   }
@@ -588,11 +615,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected constructed(params?: object): void {}
 
   /**
-   * Re-reads the value that the next ValueChangedAction will report as the one it replaces. A leaf records what
-   * it announced at every announcement, so its copy is always current and there is nothing to re-read; a
-   * container that skipped composing a value nobody was listening for overrides this.
+   * Re-reads what the next announcements will report as replaced. A contribution is composed only where something
+   * listens for it, so the copy is re-read here; a leaf records what it holds at every announcement, so that copy
+   * is always current, and a container that skipped composing what nobody was listening for re-reads its own too.
    */
-  protected refreshPreviousValue(): void {}
+  protected refreshPreviousValue(): void {
+    this.#raw.announcedContribution = this.contribution;
+  }
 
   /**
    * The verdict validate() records and announces: this element's own errors plus the tally of children that
@@ -616,8 +645,11 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (child.parent) throw new TypeError('This element already belongs to a container - pass a bind() of it');
       tx.touch(child);
       child.#state.fieldName = fieldName;
+      const detached = new Map<FieldBase, Access>([[child, child.effectiveAccess], ...child.effectiveAccessBelow()]);
       // only a Container calls this, since only a container holds children
       child.#state.parent = this as unknown as Container;
+      // the containers above now decide what the child sends, so it is checked again where that moved
+      child.revalidateWhereChanged(detached);
       this.adoptChild(child);
     });
   }
@@ -626,7 +658,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected adoptChild(child: FieldBase): void {
     transactional((tx) => {
       tx.touch(this);
-      if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren++;
+      if (!child.#raw.valid) this.#raw.invalidChildren++;
       // a run in flight below the child now runs below this element too. The validation counters are outside the
       // snapshot, so the transfer hands the rollback an undo of its own, and that undo reads the child at rollback
       // time: a run that starts below the child while the transaction holds it is one this element counts too, and
@@ -649,7 +681,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     transactional((tx) => {
       tx.touch(this);
       tx.touch(child);
-      if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren--;
+      if (!child.#raw.valid) this.#raw.invalidChildren--;
       // the undo reads the child at rollback time for the same reason adoptChild's does: what this element carries
       // again is the runs the child has in flight when it comes back, not the ones it had when it left
       if (child.validating) this.childValidatingChanged(false);
@@ -700,11 +732,15 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected childValidityChanged(nowValid: boolean): void {}
 
   // default property handlers
-  get visibility(): DisplayMode {
+  /**
+   * How a rendering layer shows this element. It is presentation alone: what the element sends and whether it is
+   * validated are its `access`, and no visibility changes either.
+   */
+  get visibility(): Visibility {
     return this.#state.visibility;
   }
 
-  set visibility(newValue: DisplayMode) {
+  set visibility(newValue: Visibility) {
     const oldValue = this.#state.visibility;
     // writing what the element already holds is not a change, so nothing runs for it: no *Changing* handler, no
     // enrolment in the transaction, no *Changed* event. It is the rule the value setter states as well
@@ -713,33 +749,142 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       const alteredValue = this.boundActions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
       // a handler that ended the run refused the write: nothing is written and nothing is announced
       if (alteredValue instanceof AbortEventHandlingException) return;
-      if (!DisplayMode.isDefined(alteredValue ?? newValue)) {
-        throw new Error('visibility must be a DisplayMode constant');
+      const written = alteredValue ?? newValue;
+      if (!isVisibility(written))
+        throw new Error(`${describe(written)} is not a visibility: ${listOf(visibilityValues)}`);
+      tx.touch(this);
+      this.#state.visibility = written;
+      this.boundActions?.trigger(VisibilityChangedAction, this, written, oldValue);
+    });
+  }
+
+  /**
+   * What this element accepts and what it sends: `'editable'` and `'readonly'` send its value, `'disabled'` sends
+   * nothing and `'disabled-null'` sends `null`, and only `'editable'` accepts input. The validators run over what
+   * the element sends and only where it is sent at all, as `effectiveAccess` states, so a switch of access runs
+   * them again here and below.
+   */
+  get access(): Access {
+    return this.#state.access;
+  }
+
+  set access(newValue: Access) {
+    const oldValue = this.#state.access;
+    // as with visibility: what the element already holds is no change, and nothing runs for it
+    if (newValue === oldValue) return;
+    transactional((tx) => {
+      const alteredValue = this.boundActions?.trigger(AccessChangingAction, this, newValue, oldValue);
+      // as with visibility: a handler that ended the run refused the write
+      if (alteredValue instanceof AbortEventHandlingException) return;
+      const written = alteredValue ?? newValue;
+      if (!isAccess(written)) throw new Error(`${describe(written)} is not an access: ${listOf(accessValues)}`);
+      // a handler that answered with the access the element holds refused the write
+      if (written === oldValue) return;
+      const wasEnabled = this.enabled;
+      const willBeEnabled = written === 'editable';
+      if (willBeEnabled !== wasEnabled) {
+        // enabled is read from access, so a handler that answers with the enabled the element has refuses the write
+        // of the access that would have changed it
+        const enabledAnswer = this.boundActions?.trigger(EnabledChangingAction, this, willBeEnabled, wasEnabled);
+        if (enabledAnswer instanceof AbortEventHandlingException) return;
+        if (enabledAnswer != null && typeof enabledAnswer !== 'boolean') {
+          throw new Error(`${describe(enabledAnswer)} is not what an EnabledChangingAction answers with: a boolean`);
+        }
+        if (enabledAnswer === wasEnabled) return;
       }
       tx.touch(this);
-      const counted = this.countsInContainer;
-      this.#state.visibility = DisplayMode.fromAny(alteredValue ?? newValue);
-      // every mode contributes differently to the container's fullValue, so a change of mode is always one of what
-      // the container holds
-      this.contributionChanged(tx, counted);
-      this.boundActions?.trigger(VisibilityChangedAction, this, this.#state.visibility, oldValue);
+      const oldContribution = this.contribution;
+      const below = this.effectiveAccessBelow();
+      this.#state.access = written;
+      this.revalidateWhereChanged(below);
+      // a leaf's validators run at the change, over what it now sends; a container's run at the commit, where what
+      // it sends is composed
+      if (!this.composesValue) this.boundActions?.triggerEager(this, this.contribution, oldContribution);
+      // what the element sends changed, so its contribution and that of every container above it is measured again
+      // at the commit; what any of them holds did not change
+      this.contributionChanged(tx);
+      this.boundActions?.trigger(AccessChangedAction, this, written, oldValue);
+      if (this.enabled !== wasEnabled) this.boundActions?.trigger(EnabledChangedAction, this, this.enabled, wasEnabled);
+    });
+  }
+
+  /**
+   * The access this element has once the containers above it are taken into account. A container that sends nothing
+   * or `null` in place of what it holds sends none of its members, so below a `'disabled'` or `'disabled-null'`
+   * container every element is `'disabled'`; below a `'readonly'` one an `'editable'` element is `'readonly'`.
+   * Anywhere else it is the element's own access.
+   *
+   * It is what decides whether the element's validators run: an element that is `'disabled'` here is sent nowhere,
+   * so its validators reach no verdict and it carries none of their errors. Anywhere else they run over what the
+   * element sends - its value, or `null`.
+   */
+  get effectiveAccess(): Access {
+    const own = this.access;
+    const above = this.parent?.effectiveAccess;
+    if (above === 'disabled' || above === 'disabled-null') return 'disabled';
+    if (above === 'readonly' && own === 'editable') return 'readonly';
+    return own;
+  }
+
+  /**
+   * True where `access` is `'editable'`: the element accepts input. It reads `access` and nothing else, and it is a
+   * statement about input rather than about data - `'readonly'` is not enabled and still sends its value. What an
+   * element sends is read from `access`.
+   */
+  get enabled(): boolean {
+    return this.access === 'editable';
+  }
+
+  /**
+   * True where `effectiveAccess` is `'editable'`: this element and every container above it accept input. A
+   * rendering layer binds one read instead of walking the parent chain: a container that is not editable states
+   * that its section cannot be edited, and the inputs rendered from the members inside it read that here.
+   */
+  get effectiveEnabled(): boolean {
+    return this.effectiveAccess === 'editable';
+  }
+
+  /** The effective access of every element below this one, read before a change that may move it. */
+  private effectiveAccessBelow(): Map<FieldBase, Access> {
+    const seen = new Map<FieldBase, Access>();
+    const visit = (element: FieldBase) => {
+      element.members.forEach((member) => {
+        seen.set(member, member.effectiveAccess);
+        visit(member);
+      });
+    };
+    visit(this);
+    return seen;
+  }
+
+  /**
+   * Runs the validators again on every element whose effective access moved since `before` was read: one that stops
+   * being sent drops their errors, and one that starts being sent is checked over what it now sends.
+   */
+  private revalidateWhereChanged(before: Map<FieldBase, Access>): void {
+    before.forEach((access, element) => {
+      if (element.effectiveAccess !== access) element.rerunEagerActions();
     });
   }
 
   /**
    * What this element contributes to its container's `value` or `fullValue`: its own value, `null` in its place, or
-   * nothing. It is the one place the rule is stated - every container composes its values by asking it, and the
-   * container's validity counts the elements whose own value is part of what the container holds.
+   * nothing. It is the one place the rule is stated - every container composes its values by asking it.
    *
-   * A suppressed element is not part of the form. `enabled` decides whether an element is sent, so it applies to
-   * `value` and not to `fullValue`, which states what the form holds; a disabled container is still sent while
-   * what its own children compose is not empty. A hidden element is sent as `null`.
+   * `fullValue` states everything the form holds, so every element contributes its value there. `value` states
+   * what the form sends, and `access` decides it: `'disabled'` leaves the element out and `'disabled-null'` sends
+   * `null`, whatever a container holds below it.
    */
   protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
-    const visibility = this.visibility;
-    if (visibility === DisplayMode.SUPPRESS) return 'omit';
-    if (purpose === 'value' && !this.enabled && !(this.composesValue && !isEmpty(this.value))) return 'omit';
-    return visibility === DisplayMode.HIDDEN ? 'null' : 'value';
+    if (purpose === 'fullValue') return 'value';
+    switch (this.access) {
+      case 'disabled':
+        return 'omit';
+      case 'disabled-null':
+        return 'null';
+      default:
+        return 'value';
+    }
   }
 
   /** What `child` contributes to this container, asked the way `childComposesValue` asks what it is. */
@@ -747,72 +892,39 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return child.serializesAs(purpose);
   }
 
-  /** Whether the container holding this element counts its verdict: only an element whose own value it holds. */
-  private get countsInContainer(): boolean {
-    return this.serializesAs('fullValue') === 'value';
-  }
-
   /**
-   * Carries a change of what this element contributes to its container: the container's value is built again, and
-   * an element that is invalid enters or leaves the container's tally as it starts or stops being counted.
+   * What this element sends to its container's `value`: its value where its access sends it, `null` for
+   * `'disabled-null'`, and `undefined` for `'disabled'`, whose key or row is left out. It is what the element's
+   * validators run over and what `ContributionChangedAction` reports.
    */
-  private contributionChanged(tx: Transaction, wasCounted: boolean): void {
-    this.bumpValueVersion();
-    const holder = this.container;
-    if (!holder) return;
-    const counted = this.countsInContainer;
-    if (counted !== wasCounted && !this.#raw.valid) {
-      tx.touch(holder);
-      // an invalid element that stops being counted is, to the tally, one that turned valid, and the other way round
-      holder.childValidityChanged(!counted);
-      tx.markValidityDirty(holder);
+  get contribution(): unknown {
+    switch (this.serializesAs('value')) {
+      case 'omit':
+        return undefined;
+      case 'null':
+        return null;
+      default:
+        return this.value;
     }
-    this.parent!.notifyValueChanged();
-  }
-
-  get enabled(): boolean {
-    return this.#state.enabled;
-  }
-
-  set enabled(newValue: boolean) {
-    const oldValue = this.#state.enabled;
-    // as with visibility: what the element already holds is no change, and nothing runs for it
-    if (newValue === oldValue) return;
-    transactional((tx) => {
-      const alteredValue = this.boundActions?.trigger(EnabledChangingAction, this, newValue, oldValue);
-      // as with visibility: a handler that ended the run refused the write
-      if (alteredValue instanceof AbortEventHandlingException) return;
-      if (!isBoolean(alteredValue ?? newValue)) throw new Error('Enabled value must be boolean');
-      tx.touch(this);
-      this.#state.enabled = alteredValue ?? newValue;
-      // a disabled element is left out of the value its container serializes, so the switch changes the value of
-      // every container above it just as a write to the value itself would, and it is announced the same way: the
-      // commit compares what the container ends up holding, so a switch that changes nothing it sends says nothing
-      if (this.#state.enabled !== oldValue) {
-        this.bumpValueVersion();
-        this.parent?.notifyValueChanged();
-      }
-      this.boundActions?.trigger(EnabledChangedAction, this, this.#state.enabled, oldValue);
-    });
   }
 
   /**
-   * Whether this element and every container above it are enabled. A rendering layer binds one read instead of
-   * walking the parent chain: a disabled `Group` states that its section cannot be edited, and the inputs
-   * rendered from the members inside it read that here.
-   *
-   * It is a read and nothing else. `enabled` on each element stays exactly what was written to it, a write to a
-   * member of a disabled container is accepted the way it always was, and what a container serializes is decided
-   * by the members' own `enabled`. Where a whole subtree is to stop serializing, the members are disabled.
-   *
-   * `enabled` is the only member with a reading of this kind, and it is not a scheme the other members follow.
-   * `visibility` has none because `SUPPRESS` states that an element is absent from the value as well, so folding
-   * it down the tree would decide serialization rather than report it; `value` has none because a container
-   * composes its own from its members rather than passing one down. A rendering layer that needs a third thing
-   * folded down the tree has `provide`/`inject`, which is where the render tree's own context belongs.
+   * What `ValueChangedAction` reports this element as holding: its value. A container holds every member's value
+   * whatever the member sends, so it answers with its `fullValue`.
    */
-  get effectiveEnabled(): boolean {
-    return this.enabled && (this.parent?.effectiveEnabled ?? true);
+  protected get holding(): any {
+    return this.value;
+  }
+
+  /**
+   * Carries a change of what this element sends: the element is enrolled so the commit measures its contribution
+   * and re-forms its verdict, and the container's value is built again.
+   */
+  private contributionChanged(tx: Transaction): void {
+    tx.markValueChanged(this, false);
+    tx.markValidityDirty(this);
+    this.bumpValueVersion();
+    this.parent?.notifyValueChanged();
   }
 
   /**
@@ -836,29 +948,66 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Announces what this element's value became over the transaction. The pair carried is (value now, value at the
-   * last announcement), so a value that went A -> B -> A within the transaction says nothing, and the events an
-   * operation states rather than an element's state - an item added, an item removed - are emitted first, in the
-   * order the operations happened.
+   * Announces what this element holds and what it sends, as they became over the transaction. Each pair carried is
+   * (now, at the last announcement), so a value that went A -> B -> A within the transaction says nothing, and the
+   * events an operation states rather than an element's state - an item added, an item removed - are emitted first,
+   * in the order the operations happened.
+   *
+   * A container's validators read what it sends, which is composed here and nowhere else, so they run first, where
+   * that moved; a leaf's have run at the write. `ValueChangedAction` reports what the element holds, and
+   * `ContributionChangedAction` what it sends to its container.
    */
   protected [TxAnnounceValue](tx: Transaction, dirty: boolean, force: boolean, structural?: TxStructuralEvent[]): void {
     structural?.forEach((event) => this.boundActions?.trigger(event.actionClass, this, event.item, event.index));
     if (!dirty) return;
     const actions = this.boundActions;
-    // the pair a container carries is only composed where something receives it: with no ValueChangedAction and
-    // no eager action riding along, walking the members would produce an object nobody reads
-    if (this.composesValue && !(actions?.willTrigger(ValueChangedActionClassIdentifier) || actions?.hasEager)) return;
-    const newValue = this.value;
-    const oldValue = this.#raw.announcedValue;
-    if (!force && (this.composesValue ? isEqual(newValue, oldValue) : newValue === oldValue)) return;
-    tx.touch(this);
-    // the record of what was announced is written before the event: a handler that changes something while it
-    // runs opens a change of its own, and that one is measured against this announcement
-    this.#raw.announcedValue = newValue;
-    // a container's validators read the composed value, which is formed here and nowhere else, so its eager pass
-    // runs with the announcement; a leaf's have run at the write and its announcement carries none
-    if (this.composesValue) actions?.triggerEager(this, newValue, oldValue);
-    actions?.trigger(ValueChangedAction, this, newValue, oldValue);
+    const composes = this.composesValue;
+    const same = (a: unknown, b: unknown) => (composes ? isEqual(a, b) : a === b);
+
+    // a container composes what it sends only where its validators read it
+    if (composes && actions?.hasEager) {
+      const sent = this.contribution;
+      const validated = this.#raw.validatedValue;
+      if (force || !isEqual(sent, validated)) {
+        tx.touch(this);
+        this.#raw.validatedValue = sent;
+        actions.triggerEager(this, sent, validated);
+      }
+    }
+
+    // what a container holds is only composed where something receives it; a leaf's is its value, read for free.
+    // The record of what was announced is written before the event: a handler that changes something while it runs
+    // opens a change of its own, and that one is measured against this announcement
+    if (!composes || actions?.willTrigger(ValueChangedActionClassIdentifier)) {
+      const held = this.holding;
+      const announced = this.#raw.announcedValue;
+      if (force || !same(held, announced)) {
+        tx.touch(this);
+        this.#raw.announcedValue = held;
+        actions?.trigger(ValueChangedAction, this, held, announced);
+      }
+    }
+
+    if (actions?.willTrigger(ContributionChangedActionClassIdentifier)) {
+      const contribution = this.contribution;
+      const announced = this.#raw.announcedContribution;
+      if (!same(contribution, announced)) {
+        tx.touch(this);
+        this.#raw.announcedContribution = contribution;
+        actions.trigger(ContributionChangedAction, this, contribution, announced);
+      }
+    }
+  }
+
+  /**
+   * Records what this element holds and sends as what was last announced, so the commit that follows reports no
+   * change of either. A construction calls it over the state it ends on, and so does an element brought to the
+   * state a fresh binding would be in.
+   */
+  protected recordAnnounced(): void {
+    this.#raw.announcedValue = this.holding;
+    this.#raw.announcedContribution = this.contribution;
+    this.#raw.validatedValue = this.contribution;
   }
 
   /**
@@ -877,9 +1026,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     // the verdict goes to the container that holds this element, and a container that released it holds it no
     // longer: the link is gone with the release, so a dropped row moves no tally
     const holder = this.container;
-    // an element that is hidden or suppressed is kept out of its container's tally, so a verdict it reaches there
-    // moves nothing above it
-    if (holder && this.countsInContainer) {
+    if (holder) {
       tx.touch(holder);
       holder.childValidityChanged(newValid);
       tx.markValidityDirty(holder);
@@ -889,7 +1036,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   validate(revalidate: boolean = false) {
     transactional((tx) => {
-      if (revalidate) this.boundActions?.triggerEager(this, this.value, this.value);
+      if (revalidate) this.boundActions?.triggerEager(this, this.contribution, this.contribution);
       tx.markValidityDirty(this);
     });
   }
@@ -917,6 +1064,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * told about this element as it is taken on, so an action serving several bindings knows all of them.
    */
   protected boundFrom(source: FieldBase<any, X>, newValue: any, oldValue: any, overrides?: object): void {
+    if (overrides) refuseEnabled(overrides);
     this.#raw.declaration = source.declaration;
     const extended: Partial<X> = { ...source.extra, ...(overrides && this.extendedOf(overrides)) };
     if (!isEmpty(extended)) this.setExtendedValues(extended);
@@ -1011,7 +1159,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     elements.forEach((element) => {
       action.boundToBinding(element);
       if (action.eager) {
-        this.actions.triggerEagerFor(action.classIdentifier, element, element.value, element.originalValue);
+        // what the action ran over is what a container's validators were last run over
+        element.#raw.validatedValue = element.contribution;
+        this.actions.triggerEagerFor(action.classIdentifier, element, element.contribution, element.originalValue);
       }
     });
     tx.whenRolledBack(() => {

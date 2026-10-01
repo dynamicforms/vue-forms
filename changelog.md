@@ -5,9 +5,24 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-09-29
+## [2.0.2] - 2026-10-01
+
+The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed relative to 1.1.0 is listed here.
 
 ### Added
+- `access`, what an element accepts and what it sends: `'editable'` and `'readonly'` send its value, `'disabled'`
+  leaves it out and `'disabled-null'` sends `null` in its place; only `'editable'` accepts input. The type `Access`,
+  `accessValues`, `defaultAccess` and `isAccess()` are exported with it.
+- `effectiveAccess`: the access that applies once the containers above are taken into account. Below a `'disabled'`
+  or `'disabled-null'` container every element is `'disabled'`, and below a `'readonly'` one an `'editable'` element
+  is `'readonly'`.
+- `contribution`: what an element sends to its container — its value, `null`, or `undefined` for nothing.
+- `ContributionChangedAction`, told what an element sends to its container once that changed over a transaction.
+  A switch of access fires it and not `ValueChangedAction`; a write into a `'disabled'` field fires
+  `ValueChangedAction` and not it.
+- `AccessChangingAction` and `AccessChangedAction`, asked before and told after `access` is written.
+- `ConditionalAccessAction(statement, whenTrue = 'editable', whenFalse = 'disabled')`.
+- The type `Visibility`, `visibilityValues`, `defaultVisibility` and `isVisibility()`.
 - `view(element)`: a form element seen as its data. A group's members and a list's rows are plain properties — a
   field as its value, a container as its view — and the element itself is `$`. A list's view is an array whose
   mutations are carried out as the list's own operations. One element has one view.
@@ -26,20 +41,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data rather than over the values its members were bound with.
 
 ### Changed
-- **Breaking:** an enabled container is never `null`. A `Group` none of whose members serializes reads `{}` and a
-  `List` without rows reads `[]`; `GroupValue<T>` and `ListValue<R>` no longer include `null`.
-- **Breaking:** `visibility` decides what an element contributes to its container. A `HIDDEN` member or row is sent
-  as `null` and a `SUPPRESS` one is left out, in `value` and `fullValue` alike, and neither counts in the
-  container's validity. The element keeps what it holds, and `bind()` carries it. Every key of `FieldsToValues<T>`
-  and `FieldsToFullValues<T>` is nullable, and every key of `FieldsToFullValues<T>` optional.
-- **Breaking:** a disabled row is left out of a `List`'s `value`, by the rule a `Group` applies to its members; a
-  disabled row that is a container is kept while it is non-empty. The rule for both is stated once, in the protected
-  `FieldBase.serializesAs(purpose)`, which a subclass of an element may override.
-- **Breaking:** a disabled `Field` or `Action` takes a write to `value`; `enabled` decides serialization and input,
-  not whether a write reaches the element. A record assigned to a form reaches every member whatever is enabled.
-- **Breaking:** switching `enabled` announces a `ValueChangedAction` on every container above whose value it
-  changes, the way a change of `visibility` does.
-- **Breaking:** `DisplayMode.INVISIBLE` is removed; `DisplayMode` is `FULL`, `HIDDEN` and `SUPPRESS`.
+- **Breaking:** `enabled` is read from `access` and has no setter: it is `true` where `access` is `'editable'`, and
+  `effectiveEnabled` where `effectiveAccess` is. A parameter object or a `bind()` override naming `enabled` throws a
+  `TypeError`. `EnabledChangingAction` is asked before, and `EnabledChangedAction` told after, a write of `access`
+  that changes `enabled`; the changing action lets the write through or refuses it, since its answer cannot set
+  `enabled` itself. `ConditionalEnabledAction` is replaced by `ConditionalAccessAction`.
+- **Breaking:** `DisplayMode` is removed. `visibility` is a `Visibility` — `'full'`, `'invisible'`, `'hidden'` or
+  `'suppress'` — and is presentation alone: it changes nothing about what an element sends or whether it is
+  validated. A visibility that is none of the four, numbers included, throws. `ConditionalVisibilityAction` takes the
+  visibilities to set as `whenTrue` and `whenFalse`, defaulting to `'full'` and `'suppress'`.
+- **Breaking:** validators run over what an element sends, and only where it is sent at all. An element whose
+  `effectiveAccess` is `'disabled'` is not validated and carries no error from a validator, so a disabled field, or
+  any field inside a container that is `'disabled'` or `'disabled-null'`, no longer makes its form invalid; a
+  `'disabled-null'` element is validated over `null`. A switch of access runs the validators again on the element
+  and on every element below it whose `effectiveAccess` moved.
+- **Breaking:** a container that is `'disabled'` is left out of its parent's value whatever it holds.
+- **Breaking:** an enabled container is never `null`. A `Group` none of whose members is sent reads `{}` and a
+  `List` that sends no row reads `[]`; `GroupValue<T>` and `ListValue<R>` no longer include `null`.
+- **Breaking:** a disabled row is left out of a `List`'s `value`, by the rule a `Group` applies to its members. The
+  rule for both is stated once, in the protected `FieldBase.serializesAs(purpose)`, which a subclass of an element
+  may override.
+- **Breaking:** `ValueChangedAction` on a `Group` or a `List` reports what the container holds — its `fullValue` —
+  rather than what it sends, so a write into a disabled member fires it and a switch of access does not. The
+  container's own validators run over what it sends.
+- **Breaking:** a disabled `Field` or `Action` takes a write to `value`; `access` decides what is sent and whether
+  input is accepted, not whether a write reaches the element. A record assigned to a form reaches every member
+  whatever its access.
 - **Breaking:** `parent` is typed `Container | undefined` on every element. `Field` and `Action` no longer narrow it
   to `Group | undefined`, so `field.parent?.fields.other` needs `instanceof Group` or a cast first.
 - **Breaking:** `List`'s type argument is the row rather than the row's fields: `List<Group<Fields>>` where it was

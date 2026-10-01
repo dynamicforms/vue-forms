@@ -2,7 +2,6 @@ import { vi } from 'vitest';
 import { computed, EffectScope, effectScope, nextTick, watchEffect } from 'vue';
 
 import { ValueChangedAction } from './actions';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { Group } from './group';
@@ -118,7 +117,7 @@ describe('a value bound through a computed', () => {
 
   // A disabled field's setter reaches no slot at all, so neither read has anything to re-run for.
   it('writes through to a disabled field and re-runs both reads', async () => {
-    const field = new Field({ value: 'a', enabled: false });
+    const field = new Field({ value: 'a', access: 'disabled' });
     const bound = bindValue(field);
     const direct = track(() => field.value);
     const runs = track(() => bound.value);
@@ -233,12 +232,12 @@ describe('the element state a binding layer renders', () => {
     const enabled = track(() => boundEnabled.value);
     const visibility = track(() => boundVisibility.value);
 
-    field.enabled = false;
-    field.visibility = DisplayMode.HIDDEN;
+    field.access = 'disabled';
+    field.visibility = 'hidden';
     await nextTick();
 
     expect(enabled).toEqual([true, false]);
-    expect(visibility).toEqual([DisplayMode.FULL, DisplayMode.HIDDEN]);
+    expect(visibility).toEqual(['full', 'hidden']);
   });
 });
 

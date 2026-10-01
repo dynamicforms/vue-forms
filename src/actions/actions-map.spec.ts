@@ -1,17 +1,17 @@
 // form-actions.spec.ts
 import { vi } from 'vitest';
 
-import DisplayMode from '../display-mode';
 import { Field } from '../field';
 import { AbortEventHandlingException } from '../field.interface';
 import { Group } from '../group';
 import { transaction } from '../transaction';
 import { Validators } from '../validators';
+import type { Visibility } from '../visibility';
 
 import FieldActionBase from './field-action-base';
 
 import {
-  EnabledChangingAction,
+  AccessChangingAction,
   ExecuteAction,
   ValueChangedAction,
   VisibilityChangedAction,
@@ -385,7 +385,7 @@ describe('AbortEventHandlingException', () => {
       );
 
     field.value = 'new value';
-    field.visibility = DisplayMode.HIDDEN;
+    field.visibility = 'hidden';
 
     expect(seen).toEqual(['value', 'visibility']);
   });
@@ -406,7 +406,7 @@ describe('AbortEventHandlingException', () => {
 
   it('refuses the write a *Changing* handler ends the run over', () => {
     const seen: string[] = [];
-    const field = new Field({ value: 1, visibility: DisplayMode.FULL });
+    const field = new Field({ value: 1, visibility: 'full' });
     field.registerAction(
       new VisibilityChangedAction((f, supr, ...params) => (seen.push('changed'), supr(f, ...params))),
     );
@@ -416,22 +416,22 @@ describe('AbortEventHandlingException', () => {
       }),
     );
 
-    field.visibility = DisplayMode.HIDDEN;
+    field.visibility = 'hidden';
 
     // nothing is written and nothing is announced: the handler refused the write rather than reshaping it
-    expect(field.visibility).toBe(DisplayMode.FULL);
+    expect(field.visibility).toBe('full');
     expect(seen).toEqual([]);
   });
 
   it('refuses an enabled write the same way', () => {
     const field = new Field({ value: 1 });
     field.registerAction(
-      new EnabledChangingAction(() => {
+      new AccessChangingAction(() => {
         throw new AbortEventHandlingException();
       }),
     );
 
-    field.enabled = false;
+    field.access = 'disabled';
 
     expect(field.enabled).toBe(true);
   });
@@ -548,14 +548,14 @@ describe('AbortEventHandlingException', () => {
   });
 
   it('leaves a *Changing* handler answering with one refused by the type the setter requires', () => {
-    const field = new Field({ value: 1, visibility: DisplayMode.FULL }).registerAction(
+    const field = new Field({ value: 1, visibility: 'full' }).registerAction(
       // the setter's type is what a handler answers with, so the value object reaches it through a cast
-      new VisibilityChangingAction(() => ({ then: () => DisplayMode.HIDDEN }) as unknown as DisplayMode),
+      new VisibilityChangingAction(() => ({ then: () => 'hidden' }) as unknown as Visibility),
     );
 
     expect(() => {
-      field.visibility = DisplayMode.HIDDEN;
-    }).toThrow('visibility must be a DisplayMode constant');
-    expect(field.visibility).toBe(DisplayMode.FULL);
+      field.visibility = 'hidden';
+    }).toThrow('is not a visibility');
+    expect(field.visibility).toBe('full');
   });
 });

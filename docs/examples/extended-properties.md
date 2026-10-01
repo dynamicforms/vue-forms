@@ -102,8 +102,8 @@ form.fields.firstName.extra.label;   // whatever the server said
 A parameter naming a member the class itself declares reaches **that member**, not `extra`:
 
 ```typescript
-new Field<string, Presentation>({ value: 'Ada', label: 'Name', enabled: false });
-// enabled sets enabled; only label lands in extra
+new Field<string, Presentation>({ value: 'Ada', label: 'Name', access: 'readonly' });
+// access sets access; only label lands in extra
 ```
 
 Read-only members refuse the parameter outright, which is what keeps a typo from becoming a silent property:

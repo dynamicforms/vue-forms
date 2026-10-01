@@ -24,19 +24,23 @@ const age  = new Field<number>({ value: 30 });
 |-----------|------|---------|-------------|
 | `params.value` | `T` | `undefined` | Initial value. Leaving it out, or passing `undefined`, falls back to `originalValue`; an explicit `null` is kept as the value |
 | `params.originalValue` | `T` | same as `value` | Baseline for `isChanged`, and the initial value when no `value` is given |
-| `params.enabled` | `boolean` | `true` | Whether the field is sent and accepts input; it takes a write either way. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `params.visibility` | `DisplayMode` | `DisplayMode.FULL` | Whether the field is shown, and what it contributes to its container. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.access` | [`Access`](#access) | `'editable'` | Whether the field accepts input, what it sends to its container, and whether it is validated; it takes a write whatever its access. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `params.visibility` | [`Visibility`](#visibility) | `'full'` | How a rendering layer shows the field. It changes nothing about what the field sends or whether it is validated. |
 | `params.touched` | `boolean` | `false` | Initial interaction flag |
 | `params.errors` | `ValidationError[]` | `[]` | Initial validation errors |
 | `params.validators` | `FieldActionBase[]` | `[]` | Validator actions; each runs once over the constructed value |
 | `params.actions` | `FieldActionBase[]` | `[]` | Additional actions to register |
 
 `validators` and `actions` are registered before the remaining parameters are applied, and registration itself
-fires nothing. An action that guards a property the same parameter object sets — an `EnabledChangingAction` next to
-`enabled`, a `VisibilityChangingAction` next to `visibility` — is therefore in place for that assignment and can
-rewrite or veto it, and the matching `EnabledChangedAction` / `VisibilityChangedAction` is notified of the result.
-The single trigger closing the constructor runs every eager action — validators among them — exactly once, over the
-finished value.
+fires nothing. An action that guards a property the same parameter object sets — an `AccessChangingAction` next to
+`access`, a `VisibilityChangingAction` next to `visibility` — is therefore in place for that assignment and can
+rewrite or veto it, and the matching `AccessChangedAction` / `VisibilityChangedAction` is notified of the result.
+The single trigger closing the constructor runs every eager action — validators among them — exactly once, over
+what the finished field sends.
+
+A parameter object naming `enabled` throws a `TypeError`: `enabled` is read from `access` and cannot be assigned.
+The check is made at runtime as well as by the type, so a parameter object parsed from JSON or typed `any` is
+refused the same way rather than having the key dropped.
 
 Those are the only accepted parameters: they are exactly the writable members of a field. Derived members
 (`valid`, `validating`, `busy`, `fullValue`, `isChanged`) and the container back-references (`parent`, `fieldName`)
@@ -58,8 +62,8 @@ extended properties to:
 type IFieldConstructorParams<T = any> = {
   value: T;
   originalValue: T;
-  enabled: boolean;
-  visibility: DisplayMode;
+  access: Access;
+  visibility: Visibility;
   touched: boolean;
   errors: ValidationError[];
 } & IFieldConstructorActionsList;
@@ -75,7 +79,7 @@ Import it when you build a parameter object separately from the construction sit
 ```typescript
 import { Field, IFieldConstructorParams } from '@dynamicforms/vue-forms';
 
-const defaults: Partial<IFieldConstructorParams<string>> = { value: '', enabled: false };
+const defaults: Partial<IFieldConstructorParams<string>> = { value: '', access: 'readonly' };
 const field = new Field(defaults);
 ```
 
@@ -103,8 +107,8 @@ single field — `new Field<string, Presentation>(…)` — and the parameter ob
 `Presentation` alongside the ones every field takes. Where the second argument is left out, `X` is
 [`Extras`](#extras).
 
-A parameter naming a member the class itself declares is that member and not an extended property. `enabled` sets
-`enabled`, and `valid` still throws a `TypeError`, on a field with extended properties as much as on one without.
+A parameter naming a member the class itself declares is that member and not an extended property. `access` sets
+`access`, and `valid` still throws a `TypeError`, on a field with extended properties as much as on one without.
 `Action` declares `label` and `icon`, so those two reach an action's value; name an action's *other* presentation
 properties something else, and see
 [Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass) where a subclass reads `label` or
@@ -201,7 +205,7 @@ was bound from, plus the extended properties.
 
 ```typescript
 type IBindParams<T = any, X extends object = Extras> = Partial<
-  Pick<IFieldConstructorParams<T>, 'originalValue' | 'enabled' | 'visibility'>
+  Pick<IFieldConstructorParams<T>, 'originalValue' | 'access' | 'visibility'>
 > &
   Partial<NoInfer<X>>;
 ```
@@ -214,12 +218,15 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `T` | yes | Current value. A disabled field takes a write like an enabled one, and what a write settles on is [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
+| `value` | `T` | yes | Current value. A field takes a write whatever its access, and what a write settles on is [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and not at all for the very object the field already holds — mutate a copy and assign it, rather than mutating in place. `isChanged` is separate and uses deep equality. |
 | `originalValue` | `T` | yes | Value as provided at creation. Writable — assigning it rebaselines `isChanged` |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
-| `enabled` | `boolean` | yes | When `false`, the field is excluded from its container's `value` and a rendering layer does not accept input into it; it still takes a write to `value`, so a record loaded into the form reaches it. A switch changes what every container above sends, and each announces it with a `ValueChangedAction` where its value changed. Writing what the element already holds is not a change: no `EnabledChangingAction` runs, nothing is enrolled in an open transaction, and no `EnabledChangedAction` fires. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `effectiveEnabled` | `boolean` | no | `true` where this element and every container above it are enabled. A rendering layer binds this instead of walking the parent chain. It is a read: `enabled` on each element stays what was written to it, a write to a member of a disabled container is accepted as always, and what a container serializes is decided by the members' own `enabled` |
-| `visibility` | `DisplayMode` | yes | Whether the element is shown, and what it contributes to its container: a `HIDDEN` element is sent as `null` and a `SUPPRESS` one is left out, and neither counts in the container's validity — see [What a container serializes](/api/container#what-a-container-serializes). The element keeps what it holds either way. Writing the mode the element already holds is not a change, the same way it is not for `enabled`. A write that is no [`DisplayMode`](/api/actions#displaymode) — a number that is none of the constants, or a string that names none — throws `Error('visibility must be a DisplayMode constant')`; a constant's name is accepted, case insensitive. |
+| `access` | [`Access`](#access) | yes | Whether the element accepts input, what it sends to its container, and whether its validators run: `'editable'` and `'readonly'` send its value, `'disabled'` sends nothing and `'disabled-null'` sends `null`. The element takes a write to `value` whatever its access, so a record loaded into the form reaches it. A switch changes what every container above sends, which each announces with a [`ContributionChangedAction`](/api/actions#contributionchangedaction), and runs the validators again on the element and below it. Writing what the element already holds is not a change: no `AccessChangingAction` runs, nothing is enrolled in an open transaction, and no `AccessChangedAction` fires. A write that is none of the four throws `Error("'x' is not an access: …")`. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `effectiveAccess` | [`Access`](#access) | no | The access that applies once the containers above are taken into account: `'disabled'` below a container that is `'disabled'` or `'disabled-null'`, `'readonly'` for an `'editable'` element below a `'readonly'` one, and the element's own access anywhere else. An element whose `effectiveAccess` is `'disabled'` is sent nowhere, so its validators reach no verdict and it carries none of their errors |
+| `contribution` | `unknown` | no | What the element sends to its container's `value`: its value, `null` for `'disabled-null'`, `undefined` for `'disabled'`. It is what the element's validators run over |
+| `enabled` | `boolean` | no | `true` where `access` is `'editable'`: the element accepts input. It is a statement about input, not about data — a `'readonly'` element is not enabled and still sends its value |
+| `effectiveEnabled` | `boolean` | no | `true` where `effectiveAccess` is `'editable'`: this element and every container above it accept input. A rendering layer binds this instead of walking the parent chain |
+| `visibility` | [`Visibility`](#visibility) | yes | How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or `'suppress'`. It is presentation alone and changes nothing about what the element sends or whether it is validated. Writing what the element already holds is not a change, the same way it is not for `access`. A write that is none of the four throws `Error("'x' is not a visibility: …")`. |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is read over the live array, so it follows an error pushed in by hand without any call — what waits for `validate()` is the `ValidChangedAction` announcing the transition |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on anything below it**, so a form answers for the whole tree it holds. An element counts its own runs — the library maintains that count through `beginValidating()` / `endValidating()`, which validators call around a returned promise — and a container keeps a tally of how many of its children answer `true` beside it, so the read costs nothing whatever the tree holds and a run that starts or settles costs the nesting depth |
 | `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` answers for its own runs, a `Group` or `List` for the actions below it, and anything else answers `false` — an element that is not an action has nothing to execute. It states an execution and `validating` states a validation, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
@@ -237,7 +244,7 @@ honour it: `validators` and `actions` are carried from the declaration rather th
 A write to `value` states what the caller wants the field to hold; what the field ends up holding is settled by
 what is registered on it. A `ValueChangedAction` may write another value back — a rule that trims, rounds or caps —
 and a handler that throws unwinds the whole write and rethrows, leaving the field holding what it held before. The write is observed rather than gated: there
-is no `ValueChangingAction`, so nothing stands between a value and the slot the way an `EnabledChangingAction` or a
+is no `ValueChangingAction`, so nothing stands between a value and the slot the way an `AccessChangingAction` or a
 `VisibilityChangingAction` stands in front of those two members. Inside an open `transaction()` the handlers run at
 the commit, so what the field settles on is settled once the outermost `transaction()` call returns.
 
@@ -457,7 +464,7 @@ how a declared field is put to work over a record, and the field it is called on
 
 `data` of `undefined` is no data supplied and the new field carries the current value; an explicit `null` is data
 and clears, so `bind(null)` gives a field holding `null`. `overrides` is an [`IBindParams<T, X>`](#ibindparams-t-x):
-`originalValue`, `enabled`, `visibility` and the extended properties, and nothing else — anything a binding could
+`originalValue`, `access`, `visibility` and the extended properties, and nothing else — anything a binding could
 not honour is refused by the type rather than accepted and dropped. Extended properties it names are written over
 the ones carried over from the field bound, and they are in place before the new field's eager actions run.
 `originalValue` is read by key presence.
@@ -525,9 +532,7 @@ change of it:
 - no `ValueChangedAction` fires for the element;
 - `isChanged` starts `false`, because a construction the parameters gave no `originalValue` is baselined on the
   value the hook leaves;
-- a write to `_value` reaches the value slot of an element built `enabled: false`, which the `value` setter
-  refuses;
-- the eager actions and the validators run once, over the completed value.
+- the eager actions and the validators run once, over what the completed element sends.
 
 ```typescript
 class Money extends Field<{ amount: number; currency?: string }> {
@@ -537,7 +542,7 @@ class Money extends Field<{ amount: number; currency?: string }> {
   }
 }
 
-const price = new Money({ value: { amount: 12 }, enabled: false });
+const price = new Money({ value: { amount: 12 }, access: 'readonly' });
 price.value;      // { amount: 12, currency: 'EUR' }
 price.isChanged;  // false
 ```
@@ -564,6 +569,46 @@ address.isChanged;                // false
 address.fields.country.isChanged; // false
 ```
 
+## `Access`
+
+```typescript
+type Access = 'editable' | 'readonly' | 'disabled' | 'disabled-null';
+```
+
+What an element accepts and what it sends. The four values follow HTML — an `<input readonly>` is submitted with
+its value and an `<input disabled>` is left out:
+
+| `access` | Accepts input | Contributes to its container's `value` | Validated |
+|---|---|---|---|
+| `'editable'` | yes | its value | over its value |
+| `'readonly'` | no | its value | over its value |
+| `'disabled'` | no | nothing: the key, or the row, is left out | no |
+| `'disabled-null'` | no | `null` | over `null` |
+
+`accessValues` lists the four, `defaultAccess` is `'editable'`, and `isAccess(value)` answers whether a value is
+one of them — the question a deserializer asks of an access it may reject, without the throw the setter raises. See
+[What a container serializes](/api/container#what-a-container-serializes) for how a container's access applies to
+the elements inside it.
+
+## `Visibility`
+
+```typescript
+type Visibility = 'full' | 'invisible' | 'hidden' | 'suppress';
+```
+
+How a rendering layer shows an element. It is presentation alone: what the element sends and whether it is
+validated are its `access`.
+
+| `visibility` | Rendered |
+|---|---|
+| `'full'` | shown |
+| `'invisible'` | rendered and keeps its space, but is not painted (`visibility: hidden`) |
+| `'hidden'` | rendered but not displayed, taking no space (`display: none`) |
+| `'suppress'` | not rendered at all |
+
+`visibilityValues` lists the four, `defaultVisibility` is `'full'`, and `isVisibility(value)` answers whether a value
+is one of them.
+
 ## `NullableField<T>`
 
 Type alias for `Field<T> | null`.
@@ -581,7 +626,8 @@ is the second argument every one of them takes, the [extended properties](#exten
 carries; it defaults to [`Extras`](#extras), which is what makes `FieldBase` on its own the type of any form
 element, and what lets a validator or an action handler read the augmented properties off the element it receives.
 
-It provides `originalValue`, `enabled`, `effectiveEnabled`, `visibility`, `valid`, `errors`, `validating`, `busy`,
+It provides `originalValue`, `access`, `effectiveAccess`, `contribution`, `enabled`, `effectiveEnabled`, `visibility`,
+`valid`, `errors`, `validating`, `busy`,
 `validationEpoch`, `isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()`, `validate()`, `clearValidators()`, `setExtendedValues()`, `rebind()`,
 `beginValidating()` and `endValidating()` — which is why those work the same way on every form

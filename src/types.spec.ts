@@ -4,7 +4,6 @@ import { Action, type ActionValue } from './action';
 import Operator from './actions/conditional/operator';
 import { Statement } from './actions/conditional/statement';
 import { Container } from './container';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { Group } from './group';
@@ -24,7 +23,7 @@ describe('constructor inference', () => {
     expectTypeOf(str.value).toEqualTypeOf<string>();
     expectTypeOf<IsAny<typeof str.value>>().toEqualTypeOf<false>();
 
-    const num = new Field({ value: 1, enabled: false, validators: [] });
+    const num = new Field({ value: 1, access: 'disabled', validators: [] });
     expectTypeOf(num).toEqualTypeOf<Field<number>>();
     expectTypeOf(num.value).toEqualTypeOf<number>();
 
@@ -36,8 +35,8 @@ describe('constructor inference', () => {
     const field = new Field({
       value: 1,
       originalValue: 0,
-      enabled: false,
-      visibility: DisplayMode.SUPPRESS,
+      access: 'disabled',
+      visibility: 'suppress',
       touched: true,
       errors: [],
     });
@@ -183,7 +182,7 @@ describe('List value types', () => {
 
     expectTypeOf(list).toEqualTypeOf<List<Field<string>>>();
     expectTypeOf(list.value).toEqualTypeOf<(string | null)[]>();
-    expectTypeOf(list.fullValue).toEqualTypeOf<(string | null)[]>();
+    expectTypeOf(list.fullValue).toEqualTypeOf<string[]>();
     expectTypeOf(list.items).toEqualTypeOf<readonly Field<string>[]>();
     expectTypeOf(new List(new List(new Field<number>())).value).toEqualTypeOf<((number | null)[] | null)[]>();
   });

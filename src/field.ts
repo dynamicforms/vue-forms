@@ -56,8 +56,8 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
       if (this.originalValue === undefined) this.originalValue = this._value;
       // the value a construction ends on is the field's first statement about itself rather than a change of one,
       // so it is recorded as announced and the commit that follows says nothing about it
-      this.raw.announcedValue = this._value;
-      this.boundActions?.triggerEager(this, this.value, this.originalValue);
+      this.recordAnnounced();
+      this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
       this.validate();
     });
   }
@@ -68,16 +68,19 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
 
   set value(newValue: T) {
     const oldValue = this._value;
-    // a disabled field takes the write like any other: enabled decides what the field serializes and whether an
-    // input accepts typing, and a record loaded into the form reaches every member whatever its state
+    // a field takes the write whatever its access: access decides what the field sends and whether an input
+    // accepts typing, and a record loaded into the form reaches every member
     if (oldValue === newValue) return;
     transactional((tx) => {
       tx.touch(this);
+      const oldContribution = this.contribution;
       this._value = newValue;
       this.bumpValueVersion();
       // the validators run here rather than at the announcement, because the verdict they reach is what the
-      // commit announces, and because they read the value that is being written and the one it replaces
-      this.boundActions?.triggerEager(this, newValue, oldValue);
+      // commit announces. They read what the field sends, so a write into a field that sends nothing or null does
+      // not reach them
+      const contribution = this.contribution;
+      if (contribution !== oldContribution) this.boundActions?.triggerEager(this, contribution, oldContribution);
       // the handlers hear about the change once the transaction closes, over the value the field ends up holding
       this.propagateValueChanged();
     });
@@ -99,10 +102,10 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
       // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
       value: data !== undefined ? data : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-      enabled: overrides?.enabled ?? this.enabled,
+      access: overrides?.access ?? this.access,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<T, X>);
-    res.boundFrom(this, res.value, res.originalValue, overrides);
+    res.boundFrom(this, res.contribution, res.originalValue, overrides);
     return res;
   }
 }

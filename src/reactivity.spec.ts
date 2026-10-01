@@ -2,7 +2,6 @@ import { isEqual } from 'lodash-es';
 import { EffectScope, effectScope, isReactive, isReadonly, nextTick, readonly, toRaw, watchEffect } from 'vue';
 
 import { Action } from './action';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -131,12 +130,12 @@ describe('Field reactivity', () => {
     const enabled = track(() => field.enabled);
 
     field.touched = true;
-    field.visibility = DisplayMode.SUPPRESS;
-    field.enabled = false;
+    field.visibility = 'suppress';
+    field.access = 'disabled';
     await nextTick();
 
     expect(touched).toEqual([false, true]);
-    expect(visibility).toEqual([DisplayMode.FULL, DisplayMode.SUPPRESS]);
+    expect(visibility).toEqual(['full', 'suppress']);
     expect(enabled).toEqual([true, false]);
   });
 
@@ -286,11 +285,11 @@ describe('Group reactivity', () => {
     const visibility = track(() => group.visibility);
     const enabled = track(() => group.enabled);
 
-    group.visibility = DisplayMode.HIDDEN;
-    group.enabled = false;
+    group.visibility = 'hidden';
+    group.access = 'disabled';
     await nextTick();
 
-    expect(visibility).toEqual([DisplayMode.FULL, DisplayMode.HIDDEN]);
+    expect(visibility).toEqual(['full', 'hidden']);
     expect(enabled).toEqual([true, false]);
   });
 
@@ -468,7 +467,7 @@ describe('Action reactivity', () => {
     const action = new Action({ value: { label: 'Save' } });
     const runs = track(() => action.enabled);
 
-    action.enabled = false;
+    action.access = 'disabled';
     await nextTick();
 
     expect(runs).toEqual([true, false]);

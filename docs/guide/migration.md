@@ -12,14 +12,57 @@ exists.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
-## Upgrading to v2.0.0 (from v1.x)
+## Upgrading to v2.0.2 (from v1.x)
 
-Six of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
+2.0.2 is the first 2.0 release; 2.0.0 and 2.0.1 were withdrawn. A project on either of them follows this section as
+well, from v1.x.
+
+Seven of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
 first. [What a container serializes](/api/container#what-a-container-serializes) states the rules they add up to.
+There is a [checklist](#checklist-for-2-0-2) at the end of this section.
+
+### Validation follows what is sent
+
+An element's validators run over what it sends, and only where it is sent at all. Before, every element was
+validated over its value and counted in its container's validity whatever its `enabled`.
+
+```typescript
+const form = new Group({
+  name: new Field({ value: '', validators: [new Validators.Required()] }),
+});
+form.fields.name.access = 'disabled';
+form.valid;                  // before (enabled = false): false   after: true
+form.fields.name.errors;     // before: [Required]                after: []
+```
+
+- A `'disabled'` element sends nothing, so it is not validated and carries no error from a validator. Nor is any
+  element inside a container that is `'disabled'` or `'disabled-null'`: such a container sends none of its members.
+  [`effectiveAccess`](/api/field#properties) states this on each element.
+- A `'disabled-null'` element sends `null`, so it is validated over `null`: a `Required` on it refuses it.
+- A switch of access runs the validators again, on the element and on every element below it whose
+  `effectiveAccess` moved, so an element that is sent again is checked at once.
+
+A submit button bound to `form.valid` therefore no longer waits for fields the form does not send. A rule that
+counted on a disabled required field blocking the submit states the requirement on what is sent instead: keep the
+field `'editable'` or `'readonly'`, or put the validator on the container that sends it.
+
+### A disabled container is left out whatever it holds
+
+A `Group` or a `List` whose `access` is `'disabled'` is left out of its parent's value. Before, a disabled container
+was kept while what its members composed was not empty.
+
+```typescript
+const address = new Group({ city: new Field({ value: 'Kranj' }) }, { access: 'disabled' });
+const form = new Group({ address });
+form.value;   // before (enabled: false): { address: { city: 'Kranj' } }   after: {}
+```
+
+A container disabled to draw its section without input, while its data still goes to the server, is `'readonly'`
+now: `'readonly'` sends the value and accepts no input, and the members below it read `effectiveEnabled` as `false`.
 
 ### An enabled container is never `null`
 
-A `Group` none of whose members serializes reads `{}`, and a `List` without rows reads `[]`, where both read `null`
+A `Group` none of whose members is sent reads `{}`, and a `List` that sends no row reads `[]`, where both read `null`
 before. `GroupValue<T>` and `ListValue<R>` no longer include `null`.
 
 ```typescript
@@ -32,66 +75,27 @@ Search for `=== null`, `== null` and `?? ` over a container's `value`: a check f
 `length === 0` or `isEmpty(...)`. Assigning `null` still empties a container — every member of a group is set to
 `null`, every row of a list is released — and the container then reads `{ a: null, … }` or `[]`.
 
-### `visibility` decides what an element contributes to its container
-
-`HIDDEN` sends an element as `null` and `SUPPRESS` leaves it out, in the container's `value` and `fullValue` alike,
-and neither counts in the container's validity. Before, `visibility` affected rendering only.
-
-```typescript
-form.fields.notes.visibility = DisplayMode.HIDDEN;
-form.value;      // before: { …, notes: 'draft' }   after: { …, notes: null }
-form.valid;      // an invalid hidden field no longer makes the form invalid
-```
-
-A form that hid a field and disabled it to keep it out of the payload can drop the `enabled` write: `SUPPRESS`
-leaves it out on its own, and `HIDDEN` sends `null`. The element keeps what it holds, so showing it again brings its
-value back, and `bind()` carries it.
-
-Every key of `FieldsToValues<T>` and `FieldsToFullValues<T>` is `| null`, because any member may be hidden, and
-every key of `FieldsToFullValues<T>` is optional, because any member may be suppressed. `fullValue` therefore no
-longer reads through without a check:
-
-```typescript
-form.fullValue.address.city;    // before: string    after: a compile error
-form.fullValue.address?.city;   // string | null | undefined
-```
-
 ### A disabled row is left out of a list's value
 
-A `List` applies the rule a `Group` applies to its members, so a disabled row is left out of `list.value`; before,
-every row was sent whatever its `enabled`. A disabled row that is itself a container is kept while it is non-empty,
-and `fullValue` carries every row as before.
+A `List` applies the rule a `Group` applies to its members, so a `'disabled'` row is left out of `list.value`; before,
+every row was sent whatever its `enabled`. `fullValue` carries every row as before.
 
 ```typescript
-list.get(1).enabled = false;
-list.value;       // before: ['a', 'b', 'c']   after: ['a', 'c']
+list.get(1).access = 'disabled';
+list.value;       // before (enabled = false): ['a', 'b', 'c']   after: ['a', 'c']
 list.fullValue;   // ['a', 'b', 'c'] either way
 ```
-
-### Switching `enabled` announces a change of the containers above
-
-A container whose value changes because a member was enabled or disabled fires `ValueChangedAction`, as it does for
-any other change of its value. Before, the value changed without an announcement.
-
-```typescript
-form.registerAction(new ValueChangedAction(onFormChanged));
-form.fields.notes.enabled = false;   // before: onFormChanged did not run   after: it runs, notes left out
-```
-
-A handler on a container that saves or recomputes on every change now also runs for these switches. A switch that
-does not change what the container sends — a disabled container that still holds something, toggled twice inside
-one transaction — announces nothing.
 
 ### A disabled field takes a write
 
 `field.value = x` on a disabled `Field` or `Action` writes `x`, where it was silently dropped before; `rebind()`
-writes it as well. `enabled` decides what a field serializes and whether a rendering layer accepts input into it,
-not whether a write reaches it. A record assigned to a form therefore reaches every member whatever the form's rules
-have left enabled:
+writes it as well. `access` decides what a field sends and whether a rendering layer accepts input into it, not
+whether a write reaches it. A record assigned to a form therefore reaches every member whatever the form's rules
+have left it at:
 
 ```typescript
-// before: the visibility of the new record's type had to be applied first, or its fields dropped their values
-applyVisibility(record.type);
+// before: the access of the new record's type had to be applied first, or its fields dropped their values
+applyAccess(record.type);
 form.value = record;
 
 // after: the order no longer matters
@@ -101,12 +105,91 @@ form.value = record;
 Search for code that relied on a disabled field refusing a write — a guard that disabled a field to protect it from
 an assignment now needs the assignment itself to be conditional.
 
-### `DisplayMode.INVISIBLE` is gone
+### A container's `ValueChangedAction` reports what it holds
 
-`DisplayMode` has three members: `FULL`, `HIDDEN` and `SUPPRESS`. `DisplayMode.INVISIBLE` is a compile error, and
-`DisplayMode.fromAny(8)` and `fromString('invisible')` throw. A rendering layer that kept an element's box with
-`visibility: hidden` for `INVISIBLE` states that through an [extended property](/api/field#extended-properties) of its
-own; for the form's data it was the same as `FULL`.
+`ValueChangedAction` on a `Group` or a `List` carries the container's `fullValue`, before and after, where it carried
+its `value`. It fires when anything the container holds changes, a write into a disabled member included, and not
+for a switch of access, which changes what is sent and nothing that is held.
+
+```typescript
+form.registerAction(new ValueChangedAction((f, supr, newValue) => save(newValue)));
+// before: newValue was what the form sends     after: it is what the form holds
+```
+
+A handler that hands the new value to the server moves to
+[`ContributionChangedAction`](/api/actions#contributionchangedaction), which reports what the element sends — on a
+container, its `value` — and fires for a switch of access as well:
+
+```typescript
+form.registerAction(new ContributionChangedAction((f, supr, newValue) => save(newValue)));
+```
+
+### A list without an item template builds a row by the kind of its item
+
+A plain object still becomes a `Group` of fields. Anything else no longer does: an array becomes a `List`, and a
+string, a number, `null` or a `Date` becomes a `Field` holding it. The padding `insert()` puts into a gap past the
+end follows the item being inserted the same way.
+
+```typescript
+const list = new List();
+list.push('abc');
+list.value;    // before: [{ 0: 'a', 1: 'b', 2: 'c' }]
+               // after:  ['abc']
+list.push(null);
+list.get(1);   // before: an empty Group
+               // after:  a Field holding null
+```
+
+Nothing announces it. Search for a list built without a template that is handed `null` for an empty record; hand
+it `{}` instead.
+
+### `enabled` is read from `access`
+
+`access` replaces `enabled` as what an element accepts and sends. `enabled` stays, as a read: it is `true` where
+`access` is `'editable'`, and `effectiveEnabled` where `effectiveAccess` is.
+
+| before | after |
+|---|---|
+| `field.enabled = true` | `field.access = 'editable'` |
+| `field.enabled = false` | `field.access = 'disabled'` |
+| a disabled section whose data is still sent | `section.access = 'readonly'` |
+| — | `field.access = 'disabled-null'`: sent as `null`, the element keeps what it holds |
+| `new Field({ enabled: false })` | `new Field({ access: 'disabled' })` |
+| `field.bind(data, { enabled: false })` | `field.bind(data, { access: 'disabled' })` |
+| `EnabledChangingAction` | kept: asked before a write of `access` that changes `enabled`, and answering with the old value refuses that write, as answering `true` to a disabling refused it before. A handler that is to pick the access itself is an `AccessChangingAction` |
+| `EnabledChangedAction` | unchanged: it fires where a write of `access` changes `enabled`, after `AccessChangedAction` |
+| `new ConditionalEnabledAction(statement)` | `new ConditionalAccessAction(statement)`, optionally `(statement, whenTrue, whenFalse)` |
+
+Every write to `enabled` and every `enabled` parameter is a compile error. A parameter object that reaches an element
+past the type system — parsed from JSON, typed `any` — and names `enabled` throws a `TypeError` naming `access`,
+from the constructor and from `bind()` alike. Reads of `enabled` and `effectiveEnabled` keep compiling and mean what
+they meant: the element accepts input.
+
+### `DisplayMode` is gone; `visibility` is presentation
+
+`visibility` is a `Visibility` string and states how a rendering layer draws an element, nothing else. It no longer
+decides what an element sends or whether it is validated.
+
+| before | after |
+|---|---|
+| `DisplayMode.FULL` | `'full'` |
+| `DisplayMode.INVISIBLE` | `'invisible'` |
+| `DisplayMode.HIDDEN` | `'hidden'` |
+| `DisplayMode.SUPPRESS` | `'suppress'` |
+| `DisplayMode.fromAny(x)`, `DisplayMode.isDefined(x)` | `isVisibility(x)`, then the value itself |
+| `defaultDisplayMode` | `defaultVisibility` |
+
+Every use of `DisplayMode` is a compile error. A visibility that is none of the four strings throws, numbers
+included, so a payload carrying the numeric constants is translated before it reaches an element.
+`ConditionalVisibilityAction` sets `'full'` and `'suppress'`, and takes the two visibilities to set as
+`whenTrue` and `whenFalse`.
+
+A form that showed and hid a field to keep it out of the payload states both now, because the two are separate:
+
+```typescript
+form.fields.notes.registerAction(new ConditionalVisibilityAction(statement));
+form.fields.notes.registerAction(new ConditionalAccessAction(statement));
+```
 
 ### `parent` is a `Container` on every element
 
@@ -159,24 +242,21 @@ list.value;                 // before: Record<string, any>[] | null
                             // after:  ({ n?: number | null } | null)[]
 ```
 
-### A list without an item template builds a row by the kind of its item
+### Checklist for 2.0.2
 
-A plain object still becomes a `Group` of fields. Anything else no longer does: an array becomes a `List`, and a
-string, a number, `null` or a `Date` becomes a `Field` holding it. The padding `insert()` puts into a gap past the
-end follows the item being inserted the same way.
-
-```typescript
-const list = new List();
-list.push('abc');
-list.value;    // before: [{ 0: 'a', 1: 'b', 2: 'c' }]
-               // after:  ['abc']
-list.push(null);
-list.get(1);   // before: an empty Group
-               // after:  a Field holding null
-```
-
-Nothing announces it. Search for a list built without a template that is handed `null` for an empty record; hand
-it `{}` instead.
+1. Replace every write and parameter of `enabled` with `access`, following the table above; a section disabled only
+   to block input while its data is still sent becomes `'readonly'`.
+2. Replace `DisplayMode` with the visibility strings. Where showing and hiding was meant to keep a field out of the
+   payload, state the access as well.
+3. Review rules that relied on a disabled field being validated: it is not any more, and neither is anything inside a
+   container that is `'disabled'` or `'disabled-null'`.
+4. Review disabled containers that were sent because they held something: they are left out now; make them
+   `'readonly'` where their data has to be sent.
+5. Move `ValueChangedAction` handlers on containers that hand the value to a server to `ContributionChangedAction`.
+6. Search for `=== null`, `== null` and `?? ` over a container's `value`, and for lists built without a template that
+   are handed `null` for an empty record.
+7. Remove guards that disabled a field to protect it from an assignment, and narrow `parent` where a sibling is
+   reached through it.
 
 ## Upgrading to v0.17.1 (from v0.17.0)
 

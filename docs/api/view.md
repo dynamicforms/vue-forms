@@ -27,8 +27,8 @@ cart.$.value;                                    // what the group sends
 | `$` | the element itself |
 
 A member is read by the rule `fullValue` follows ([What a container serializes](/api/container#what-a-container-serializes)):
-a `HIDDEN` member reads `null`, a `SUPPRESS` member is not there, and `enabled` does not matter, so a disabled field
-reads and writes like any other. `Object.keys()`, spreading and `JSON.stringify()` see the same keys.
+every member is there with what it holds, whatever its access or visibility, so a disabled field reads and writes
+like any other. `Object.keys()`, spreading and `JSON.stringify()` see the same keys.
 
 Writing a member's key writes the field's value. A container is replaced through its element —
 `cart.$.fields.delivery.value = { … }`, or `cart.delivery!.$.value = { … }` — which takes what the container's setter
@@ -51,8 +51,8 @@ report each row:
 | writing an index | the row's value |
 
 `fill()` and `copyWithin()` throw, and so does setting `length` higher: there is no row to move. An item may be the
-data a row is built from, an element, or the view of one. A suppressed row has no index in the view, the way it has
-no place in `fullValue`; the list's own `items` still holds it.
+data a row is built from, an element, or the view of one. Every row the list holds has its index in the view,
+whatever its access.
 
 ## One view per element
 
@@ -67,8 +67,7 @@ nothing else: `watch(() => cart.coupon, …)` runs when the coupon changes, not 
 
 ## Types
 
-`View<E>` types a field member by its value and a container member by its view, each as `| null | undefined`,
-because any member may be hidden or suppressed; read through with `?.` or state what the form guarantees with `!`.
+`View<E>` types a field member by its value and a container member by its view, since every member is there.
 A container's key is read-only. A list's view has the array's reading members and the three mutations that take
 items, typed to take row data, an element or a view. `$` is typed as the element.
 

@@ -12,7 +12,8 @@ export type GenericFieldsInterface = Record<string, FieldBase>;
  * Converts a field structure into the matching value structure. The indexed access reads each field's value
  * getter, so a nested Group contributes its own value structure and a List contributes its row array; inferring
  * from FieldBase<infer U> instead would pick up the value setter, which is deliberately wider than the getter on
- * Group. Every member may be `null`, because a member that is hidden contributes `null` in place of its value.
+ * Group. Every member may be `null`, because a member whose access is `'disabled-null'` contributes `null` in place
+ * of its value.
  */
 export type FieldsToValues<T extends GenericFieldsInterface> = {
   [K in keyof T]: T[K]['value'] | null;
@@ -20,16 +21,16 @@ export type FieldsToValues<T extends GenericFieldsInterface> = {
 
 /**
  * What Group.fullValue reads back. The indexed access reads each field's fullValue getter, so a nested group
- * contributes its own full structure rather than the partial one its `value` builds. A member that is suppressed
- * is left out and one that is hidden reads `null`, so every key is optional and may be `null`.
+ * contributes its own full structure rather than the partial one its `value` builds. Every member is present
+ * whatever its access.
  */
 export type FieldsToFullValues<T extends GenericFieldsInterface> = {
-  [K in keyof T]?: T[K]['fullValue'] | null;
+  [K in keyof T]: T[K]['fullValue'];
 };
 
 /**
  * What Group.value reads back: the values of the members that serialize, and `{}` where none does. Every key is
- * optional, because a member that is disabled or suppressed is left out of the object the group builds.
+ * optional, because a member whose access is `'disabled'` is left out of the object the group builds.
  */
 export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>>;
 /** what Group.value and the Group constructor accept: keys left out are simply not assigned, and null clears */
@@ -151,12 +152,12 @@ export class Group<
       const constructedValue = this.value;
       if (this.originalValue === undefined) this.originalValue = Group.baseline(constructedValue);
 
-      // the value a construction ends on is the group's first statement about itself rather than a change of one:
+      // the state a construction ends on is the group's first statement about itself rather than a change of one:
       // recording it as announced is what keeps the commit from reporting the members' assignment as a change of
       // the group, and it is what the first later change of a member is reported against
-      this.raw.announcedValue = constructedValue;
+      this.recordAnnounced();
 
-      this.boundActions?.triggerEager(this, constructedValue, this.originalValue);
+      this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
       this.validate();
     });
   }
@@ -376,39 +377,24 @@ export class Group<
         else if (value !== undefined && Object.hasOwn(value, name)) memberValue = value[name];
         this.resetChild(field, template.field(name) ?? field, memberValue);
       });
-      const built = this.value;
       // a group brought to the state a fresh one would be in makes no statement of its own about the change: the
       // container that reset it announces the whole of it
-      this.raw.announcedValue = built;
-      this.originalValue = Group.baseline(built);
+      this.recordAnnounced();
+      this.originalValue = Group.baseline(this.value);
       super.validate(true);
     });
   }
 
+  /**
+   * Everything the group holds: every member's `fullValue`, whatever the member's access. Where `value` states what
+   * the group sends, this states what it holds, and it is what a binding of the group carries.
+   */
   get fullValue(): FieldsToFullValues<T> {
     const value = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
-      switch (this.childSerializesAs(field, 'fullValue')) {
-        case 'value':
-          value[name] = field.fullValue;
-          break;
-        case 'null':
-          value[name] = null;
-          break;
-        case 'omit':
-          break;
-      }
+      value[name] = field.fullValue;
     });
     return { ...value } as FieldsToFullValues<T>;
-  }
-
-  /** The value of every member, whatever its visibility or enabled state: what a binding carries. */
-  private get heldValue(): Partial<FieldsToValues<T>> {
-    const value = Object.create(null) as Record<string, any>;
-    Object.entries(this._fields).forEach(([name, field]) => {
-      value[name] = field.value;
-    });
-    return { ...value } as Partial<FieldsToValues<T>>;
   }
 
   /**
@@ -439,15 +425,15 @@ export class Group<
     const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
     const res = new Ctor(newFields, {
       // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears. What the
-      // group holds is carried rather than what it serializes, so a hidden or suppressed member keeps its data
-      value: data !== undefined ? data : this.heldValue,
+      // group holds is carried rather than what it sends, so a member that sends nothing keeps its data
+      value: data !== undefined ? data : (this.fullValue as GroupValueInput<T>),
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-      enabled: overrides?.enabled ?? this.enabled,
+      access: overrides?.access ?? this.access,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<GroupValueInput<T>, X>);
     Group.assertTookFields(res, newFields, this.constructor.name);
-    // the constructor primed announcedValue with the value the members ended up holding, and nothing has run since
-    res.boundFrom(this, res.raw.announcedValue, res.originalValue, overrides);
+    // the constructor recorded what its validators ran over, and nothing has run since
+    res.boundFrom(this, res.raw.validatedValue, res.originalValue, overrides);
     return res;
   }
 

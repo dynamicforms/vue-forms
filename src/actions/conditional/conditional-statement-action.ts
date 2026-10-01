@@ -1,7 +1,8 @@
+import type { Access } from '../../access';
 import { bindingsIn, scopeOf } from '../../binding/resolve';
-import DisplayMode from '../../display-mode';
 import { type FieldBase } from '../../field-base';
 import { FieldActionExecute } from '../../field.interface';
+import type { Visibility } from '../../visibility';
 import { ValueChangedAction } from '../value-changed-action';
 
 import { Statement } from './statement';
@@ -118,20 +119,29 @@ export class ConditionalStatementAction extends ValueChangedAction {
   }
 }
 
-// Derived classes for visibility, enabled, and value changes
+// Derived classes for visibility, access, and value changes
 
+/**
+ * Sets the visibility of the elements it is registered on from the statement's result: `whenTrue` while the
+ * statement holds, `whenFalse` otherwise. Visibility is presentation alone, so what the elements send is left to
+ * their access.
+ */
 export class ConditionalVisibilityAction extends ConditionalStatementAction {
-  constructor(statement: Statement) {
+  constructor(statement: Statement, whenTrue: Visibility = 'full', whenFalse: Visibility = 'suppress') {
     super(statement, (field: FieldBase, currentResult) => {
-      field.visibility = currentResult ? DisplayMode.FULL : DisplayMode.SUPPRESS;
+      field.visibility = currentResult ? whenTrue : whenFalse;
     });
   }
 }
 
-export class ConditionalEnabledAction extends ConditionalStatementAction {
-  constructor(statement: Statement) {
+/**
+ * Sets the access of the elements it is registered on from the statement's result: `whenTrue` while the statement
+ * holds, `whenFalse` otherwise.
+ */
+export class ConditionalAccessAction extends ConditionalStatementAction {
+  constructor(statement: Statement, whenTrue: Access = 'editable', whenFalse: Access = 'disabled') {
     super(statement, (field, currentResult) => {
-      field.enabled = currentResult;
+      field.access = currentResult ? whenTrue : whenFalse;
     });
   }
 }

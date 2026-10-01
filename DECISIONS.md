@@ -541,3 +541,48 @@ chain reached. A handler that means to observe one catches it, which is what the
 any exception.
 
 Documented in `docs/api/actions.md`, `docs/guide/migration.md` and `changelog.md`.
+
+## D-034 — `access` decides what is sent and validated, and `visibility` is presentation alone
+
+**Version:** 2.0.2
+
+An element's `access` — `'editable'`, `'readonly'`, `'disabled'`, `'disabled-null'` — states whether it accepts input
+and what it contributes to its container's `value`, and with it whether its validators run: they run over what the
+element sends, and not at all where its `effectiveAccess` is `'disabled'`. `enabled` and `effectiveEnabled` are reads
+of it. `EnabledChangingAction` and `EnabledChangedAction` are asked and told about a write of `access` that changes
+`enabled`; since the answer cannot set a derived value, the changing action lets that write through or refuses it. `visibility` is a `Visibility` string and states how a rendering layer draws the element, nothing else.
+`fullValue` carries every element whatever its access, and a container's `ValueChangedAction` reports it, while
+`ContributionChangedAction` reports what an element sends. 2.0.0 and 2.0.1 were withdrawn from npm and 2.0.2 is the
+first 2.0 release.
+
+**What forced it.** 2.0.0 made `visibility` decide serialization and validity: `HIDDEN` sent `null`, `SUPPRESS` left
+the element out. A rendering layer reads the same member as presentation and acts on it as presentation — an input
+drawn `HIDDEN` stays mounted and may write a default into a field that sends `null` — so the two readings of one
+member contradicted each other in the libraries built on it. What an element sends belongs on a member named for
+that, and the member that already said something about it was `enabled`.
+
+**The values follow HTML.** `<input readonly>` is submitted with its value and `<input disabled>` is left out, so
+`'readonly'` and `'disabled'` mean what a developer already expects them to mean; `'disabled-null'` is the one value
+HTML has no counterpart for. Four values carry two things — input and contribution — but only four combinations
+exist, since an element that accepts input sends its value.
+
+**Validation follows what is sent.** A required section that is sent as `null` is refused, and the fields inside a
+section that is switched off are not checked, so an optional section with required fields needs no conditional
+validators: the rule that switches the section switches its validation with it.
+
+**Rejected: `contribution` as the member's name.** It names half of what the values decide — input is the other
+half — and repeats the mismatch that forced this decision.
+
+**Rejected: `enabled` taking the four values as strings.** Every `if (field.enabled)` in consuming code would go on
+compiling and read `'disabled'` as enabled, since a non-empty string is truthy. A new member with `enabled` as its
+read makes every write a compile error and leaves every read meaning what it meant.
+
+**Rejected: validating an element that sends nothing over `undefined`.** It keeps the rule uniform, but a `Required`
+inside an optional section would block the form while the section is off, and every such field would need a
+validator conditional on the section.
+
+**Rejected: a container's `ValueChangedAction` carrying its `value`.** A switch of a member's access would then be a
+change of value, which is the reading of `enabled` 2.0.0 had and the one this decision separates out.
+
+Documented in `docs/api/container.md`, `docs/api/field.md`, `docs/api/actions.md`, `docs/guide/cookbook.md`,
+`docs/guide/migration.md` and `changelog.md`.

@@ -1,7 +1,6 @@
 import { vi } from 'vitest';
 
 import { ValidChangedAction, ValueChangedAction } from './actions';
-import DisplayMode from './display-mode';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -15,7 +14,7 @@ interface Presentation {
 
 describe('bind()', () => {
   it('reads originalValue by key presence and everything else by fallback', () => {
-    const field = new Field({ value: 'a', originalValue: 'declared', enabled: false, visibility: DisplayMode.HIDDEN });
+    const field = new Field({ value: 'a', originalValue: 'declared', access: 'disabled', visibility: 'hidden' });
 
     // no key, so the new element baselines the data it was bound to and starts out unchanged
     expect(field.bind('b').originalValue).toBe('b');
@@ -25,9 +24,9 @@ describe('bind()', () => {
     expect(field.bind('b', { originalValue: 'declared' }).isChanged).toBe(true);
 
     expect(field.bind('b').enabled).toBe(false);
-    expect(field.bind('b').visibility).toBe(DisplayMode.HIDDEN);
-    expect(field.bind('b', { enabled: true, visibility: DisplayMode.FULL }).enabled).toBe(true);
-    expect(field.bind('b', { enabled: true, visibility: DisplayMode.FULL }).visibility).toBe(DisplayMode.FULL);
+    expect(field.bind('b').visibility).toBe('hidden');
+    expect(field.bind('b', { access: 'editable', visibility: 'full' }).enabled).toBe(true);
+    expect(field.bind('b', { access: 'editable', visibility: 'full' }).visibility).toBe('full');
   });
 
   it('names the element it was called on as the declaration of what it produces', () => {
@@ -94,7 +93,7 @@ describe('rebind()', () => {
   it('rebinds a disabled element like any other', () => {
     const field = new Field({ value: 'a' });
     field.value = 'b';
-    field.enabled = false;
+    field.access = 'disabled';
 
     field.rebind('c');
 
@@ -104,8 +103,11 @@ describe('rebind()', () => {
   });
 
   it('writes through a disabled container to its members', () => {
-    const group = new Group({ name: new Field({ value: 'a' }) }, { enabled: false });
-    const list = new List(new Group({ name: new Field({ value: '' }) }), { value: [{ name: 'a' }], enabled: false });
+    const group = new Group({ name: new Field({ value: 'a' }) }, { access: 'disabled' });
+    const list = new List(new Group({ name: new Field({ value: '' }) }), {
+      value: [{ name: 'a' }],
+      access: 'disabled',
+    });
 
     group.rebind({ name: 'b' });
     list.rebind([{ name: 'b' }]);

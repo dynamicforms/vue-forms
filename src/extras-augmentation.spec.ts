@@ -59,7 +59,7 @@ describe('an augmented Extras', () => {
   });
 
   it('leaves a member the class declares to the member', () => {
-    const field = new Field({ value: 'a', enabled: false, hint: 'in full' });
+    const field = new Field({ value: 'a', access: 'disabled', hint: 'in full' });
 
     expect(field.enabled).toBe(false);
     expect(field.extra).toEqual({ hint: 'in full' });

@@ -10,14 +10,14 @@ import { Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 /**
- * What a List of R reads back: the value of each row, `null` for a row that is hidden, and `[]` while the list holds
- * none
+ * What a List of R reads back: the value of each row it sends, `null` for a row whose access is `'disabled-null'`,
+ * and `[]` while it sends none
  */
 export type ListValue<R extends FieldBase = Group> = (R['value'] | null)[];
 /** what List.value and the List constructor accept: an array of rows, or null, which empties the list */
 export type ListValueInput<R extends FieldBase = Group> = ListValue<R> | null;
-/** what List.fullValue reads back: the full value of each row, `null` for a row that is hidden */
-export type ListFullValue<R extends FieldBase = Group> = (R['fullValue'] | null)[];
+/** what List.fullValue reads back: the full value of every row, whatever its access */
+export type ListFullValue<R extends FieldBase = Group> = R['fullValue'][];
 
 /** the value a list without rows reads back; it is frozen like every value a list builds */
 const emptyListValue: readonly any[] = Object.freeze([]);
@@ -66,8 +66,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
       // the set a construction ends on is the list's first statement about itself rather than a change of one, so
       // the commit that closes the construction says nothing about it
-      this.raw.announcedValue = this.value;
-      this.boundActions?.triggerEager(this, this.value, this.originalValue);
+      this.recordAnnounced();
+      this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
       this.validate();
     });
   }
@@ -226,12 +226,11 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     transactional((tx) => {
       tx.touch(this);
       if (this.errors.length) this.errors = [];
-      this.setValueInternal(value === undefined ? (source as List<R>).heldRows : value);
-      const built = this.value;
+      this.setValueInternal(value === undefined ? (source as List<R>).fullValue : value);
       // a list brought to the state a fresh one would be in makes no statement of its own: the container that
       // reset it announces the whole of it
-      this.raw.announcedValue = built;
-      this.originalValue = List.baseline(built);
+      this.recordAnnounced();
+      this.originalValue = List.baseline(this.value);
       super.validate(true);
     });
   }
@@ -241,11 +240,11 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValueInput<R>, X>) => List<R, X>;
     const res = new Ctor(template, {
-      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
-      // what the list holds is carried rather than what it serializes, so a hidden or suppressed row keeps its data
-      value: [...((data !== undefined ? data : this.heldRows) ?? [])],
+      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears. What the
+      // list holds is carried rather than what it sends, so a row that sends nothing keeps its data
+      value: [...((data !== undefined ? data : this.fullValue) ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-      enabled: overrides?.enabled ?? this.enabled,
+      access: overrides?.access ?? this.access,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<ListValueInput<R>, X>);
     // a subclass whose constructor does not take (itemTemplate, params) never sees either, so it would answer
@@ -258,7 +257,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
           '(itemTemplate, params) has to override bind() and construct itself.',
       );
     }
-    res.boundFrom(this, res.value, res.originalValue, overrides);
+    res.boundFrom(this, res.contribution, res.originalValue, overrides);
     return res;
   }
 
@@ -271,30 +270,12 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   /**
-   * The full value of every row. Where `value` states what the list sends, this states what the list holds: a
-   * disabled row is in it, and a group row carries its disabled fields too. Visibility applies as it does to
-   * `value`: a suppressed row is left out and a hidden one reads `null`.
+   * The full value of every row. Where `value` states what the list sends, this states what the list holds: every
+   * row whatever its access, and a group row carrying every field of its own. It is what a binding or a reset
+   * carries.
    */
   get fullValue(): ListFullValue<R> {
-    const value: ListFullValue<R> = [];
-    (this.state.rows ?? []).forEach((row) => {
-      switch (this.childSerializesAs(row, 'fullValue')) {
-        case 'value':
-          value.push(row.fullValue);
-          break;
-        case 'null':
-          value.push(null);
-          break;
-        case 'omit':
-          break;
-      }
-    });
-    return value;
-  }
-
-  /** The value of every row the list holds, whatever the row's visibility: what a binding or a reset carries. */
-  private get heldRows(): R['value'][] {
-    return (this.raw.rows ?? []).map((row) => row.value);
+    return (this.state.rows ?? []).map((row) => row.fullValue);
   }
 
   /**
