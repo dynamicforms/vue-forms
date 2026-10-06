@@ -5,6 +5,12 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-10-06
+
+### Changed
+- `@dynamicforms/translatable` is a peer dependency instead of a dependency, as it is in every other
+  `@dynamicforms` library, so an application resolves one copy of it for all of them.
+
 ## [2.0.2] - 2026-10-01
 
 The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed relative to 1.1.0 is listed here.

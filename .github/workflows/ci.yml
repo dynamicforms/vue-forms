@@ -100,7 +100,7 @@ jobs:
         id: floor
         run: |
           vueFloor=$(node -p "require('./package.json').peerDependencies.vue.replace(/^[^0-9]*/, '')")
-          translatableFloor=$(node -p "require('./package.json').dependencies['@dynamicforms/translatable'].replace(/^[^0-9]*/, '')")
+          translatableFloor=$(node -p "require('./package.json').peerDependencies['@dynamicforms/translatable'].replace(/^[^0-9]*/, '')")
           echo "vue=$vueFloor" >> "$GITHUB_OUTPUT"
           echo "translatable=$translatableFloor" >> "$GITHUB_OUTPUT"
           echo "Declared floors: vue $vueFloor, @dynamicforms/translatable $translatableFloor"
