@@ -8,10 +8,8 @@ See [Rationale](/guide/rationale) for what the library is trying to do and why i
 npm install @dynamicforms/vue-forms
 ```
 
-The package is ESM-only: it ships one build, which imports `lodash-es`, its only runtime dependency. Node 22 or
-newer is required. `vue` (^3.5.2) and `@dynamicforms/translatable` (^0.1.0) are peer dependencies, which npm
-installs along with the package. A CommonJS consumer reaches it through `require()` of an ES module, which Node
-supports.
+The package is ESM-only and requires Node 22 or newer. A CommonJS consumer reaches it through `require()` of an
+ES module, which Node supports.
 
 ### Stylesheet
 
