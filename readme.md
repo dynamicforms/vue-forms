@@ -54,9 +54,8 @@ mechanism applies at every level of a nested form.
 npm install @dynamicforms/vue-forms
 ```
 
-The package is ESM-only: it ships one build, which imports `lodash-es`, its only runtime dependency. Node 22 or newer
-is required, and `vue` (^3.5.2) is the only peer dependency. A CommonJS consumer reaches it through `require()` of an
-ES module, which Node supports. Type definitions ship with the build; the stylesheet is
+The package is ESM-only and requires Node 22 or newer. A CommonJS consumer reaches it through `require()` of an ES
+module, which Node supports. Type definitions ship with the build; the stylesheet is
 `@dynamicforms/vue-forms/style.css`.
 
 ## Setup
