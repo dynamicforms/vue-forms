@@ -63,8 +63,9 @@ getConfig().useMarkdownInValidators;             // false
 
 `app.use(forms, options)` does exactly what `setConfig(options)` does. Reach for these where there is no app to
 install a plugin on — a test, a script, a library of your own building messages — or to change the setting after
-startup. The reads are not tracked: a validator built before the change keeps the message it was built with, and
-`buildErrorMessage()` reads the setting at the moment it is called.
+startup. The configuration is reactive: a built-in validator's message already on screen follows a change of
+`useMarkdownInValidators`. `buildErrorMessage()` given a plain string reads the setting at the moment it is called;
+given a `Ref`, it reads it on every read of the message.
 
 
 ---

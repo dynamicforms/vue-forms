@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   default. An error on screen follows a locale switch without another `translateStrings` call.
 - A value substituted into a built-in message is part of its markdown: with `useMarkdownInValidators` off, it is
   stripped along with the rest of the message.
+- The configuration is reactive: a built-in validator's message on screen follows a later change of
+  `useMarkdownInValidators`.
 
 ### Removed
 - The `strings` dictionary and `translatedMessage`. `translateStrings` is the only export for translation; an

@@ -3,6 +3,12 @@
     <v-card class="mb-4">
       <v-card-title>Validators Demo</v-card-title>
       <v-card-text>
+        <v-btn-toggle v-model="locale" mandatory density="compact" color="primary" class="mb-4">
+          <v-btn value="en" size="small">English</v-btn>
+          <v-btn value="sl" size="small">Slovenščina</v-btn>
+          <v-btn value="de" size="small">Deutsch</v-btn>
+        </v-btn-toggle>
+        <v-switch v-model="useMarkdown" label="Markdown in messages" color="primary" density="compact" />
         <v-form @submit.prevent>
           <!-- Username field (Required) -->
           <v-text-field
@@ -11,7 +17,9 @@
             :error-messages="getErrorMessages(validatedForm.fields.username)"
             outlined
             class="mb-2"
-          ></v-text-field>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-text-field>
 
           <!-- Email field (Pattern) -->
           <v-text-field
@@ -23,7 +31,9 @@
             class="mb-2"
             hint="Try entering something@taken.com to see async validation"
             persistent-hint
-          ></v-text-field>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-text-field>
 
           <!-- Age field (ValueInRange) -->
           <v-text-field
@@ -33,7 +43,9 @@
             :error-messages="getErrorMessages(validatedForm.fields.age)"
             outlined
             class="mb-2"
-          ></v-text-field>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-text-field>
 
           <!-- Role field (InAllowedValues) -->
           <v-select
@@ -43,7 +55,9 @@
             :error-messages="getErrorMessages(validatedForm.fields.role)"
             outlined
             class="mb-2"
-          ></v-select>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-select>
 
           <!-- Bio field (LengthInRange) -->
           <v-textarea
@@ -53,7 +67,9 @@
             outlined
             counter="200"
             class="mb-2"
-          ></v-textarea>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-textarea>
         </v-form>
       </v-card-text>
 
@@ -91,8 +107,52 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { Group, Field, ValueChangedAction, Validators, ValidationErrorRenderContent } from '../../src'; // from '@dynamicforms/vue-forms'
+import { interpolate } from '@dynamicforms/translatable';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import {
+  Group,
+  Field,
+  ValueChangedAction,
+  Validators,
+  ValidationErrorRenderContent,
+  getConfig,
+  setConfig,
+  translateStrings,
+} from '../../src'; // from '@dynamicforms/vue-forms'
+
+// Translations of the built-in messages. English is the library's default, so it needs no entry; a key a locale
+// does not translate keeps its English default too.
+const messages = {
+  sl: {
+    Required: 'Prosimo, vnesite vrednost',
+    ValueInRange: 'Vrednost mora biti med **{minValue}** in **{maxValue}**',
+    InAllowedValues: 'Mora biti ena od [**{allowedAsText}**]',
+    LengthInRange: 'Dolžina mora biti med **{minLength}** in **{maxLength}**',
+  },
+  de: {
+    Required: 'Bitte geben Sie einen Wert ein',
+    ValueInRange: 'Der Wert muss zwischen **{minValue}** und **{maxValue}** liegen',
+    InAllowedValues: 'Muss einer von [**{allowedAsText}**] sein',
+    LengthInRange: 'Die Länge muss zwischen **{minLength}** und **{maxLength}** liegen',
+  },
+};
+const locale = ref('en');
+
+// A translation function shaped like vue-i18n's t: the translation of key with the placeholders substituted, or key
+// unchanged where there is none. It reads locale, so every error on screen follows a switch without revalidating.
+translateStrings((key, named) => interpolate(messages[locale.value]?.[key] ?? key, named));
+
+// The configuration is reactive, so the errors on screen follow the switch. Each field's message slot renders its
+// errors through the globally registered vue-markdown component, so a markdown message shows its emphasis.
+const useMarkdown = ref(getConfig().useMarkdownInValidators);
+const markdownInitially = useMarkdown.value;
+watch(useMarkdown, (value) => setConfig({ useMarkdownInValidators: value }));
+
+// translateStrings and the configuration are global; leave the rest of the documentation as it was
+onUnmounted(() => {
+  translateStrings((key) => key);
+  setConfig({ useMarkdownInValidators: markdownInitially });
+});
 
 // Create a form group with validated fields
 const validatedForm = new Group({
@@ -186,6 +246,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 <style scoped>
 .validators-form-demo {
   margin: 2rem 0;
+}
+.demo-message :deep(p) {
+  margin: 0;
 }
 .output {
   background-color: #f5f5f5;

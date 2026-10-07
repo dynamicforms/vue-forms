@@ -55,6 +55,13 @@ A value substituted into a built-in message is markdown along with the rest of i
 `useMarkdownInValidators` on, and stripped with the rest of the markup with it off. Before, with the setting off,
 only the template was stripped and the value was inserted as it stands. The change is silent.
 
+### A built-in message follows `useMarkdownInValidators`
+
+The configuration is reactive. A built-in validator's message already on screen switches between markdown and plain
+text when `useMarkdownInValidators` changes; before, it kept the form it had when it was built. The change is
+silent. A message passed through `buildErrorMessage()` as a plain string still reads the setting once, when it is
+built.
+
 ### Checklist for 3.0.0
 
 1. Upgrade `@dynamicforms/translatable` to 0.2.

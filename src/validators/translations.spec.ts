@@ -1,9 +1,10 @@
 import { createI18n } from 'vue-i18n';
 
+import { getConfig, setConfig } from '../config';
 import { Field } from '../field';
 
 import { translate, translateStrings } from './translations';
-import { ValidationErrorRenderContent } from './validation-error';
+import { MdString, ValidationErrorRenderContent } from './validation-error';
 import { MinValue } from './validator-min-max-range';
 import Required from './validator-required';
 
@@ -25,8 +26,11 @@ function i18nWith(locale: string) {
 }
 
 describe('translations', () => {
+  const markdown = getConfig().useMarkdownInValidators;
+
   afterEach(() => {
     translateStrings((key) => key);
+    setConfig({ useMarkdownInValidators: markdown });
   });
 
   it('should show the English default before translateStrings is called', () => {
@@ -68,5 +72,16 @@ describe('translations', () => {
     translateStrings(i18nWith('sl').global.t, 'forms');
 
     expect(translate('MaxValue')).toBe('Value must be less than or equal to **{maxValue}**');
+  });
+
+  it('should follow a change of useMarkdownInValidators in an error already on screen', () => {
+    setConfig({ useMarkdownInValidators: true });
+    const field = new Field({ value: 1, validators: [new MinValue(5)] });
+    const error = field.errors[0] as ValidationErrorRenderContent;
+    expect(error.resolvedText).toBeInstanceOf(MdString);
+
+    setConfig({ useMarkdownInValidators: false });
+
+    expect(error.resolvedText).toBe('Value must be larger or equal to 5');
   });
 });

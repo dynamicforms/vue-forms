@@ -15,20 +15,64 @@ Here's the source code for the demo above:
 ### JavaScript/TypeScript
 
 ```js
-import { computed } from 'vue';
-import { Group, Field, ValueChangedAction, Validators, ValidationErrorRenderContent } from '@dynamicforms/vue-forms';
+import { interpolate } from '@dynamicforms/translatable';
+import { computed, onUnmounted, ref, watch } from 'vue';
+import {
+  Group,
+  Field,
+  ValueChangedAction,
+  Validators,
+  ValidationErrorRenderContent,
+  getConfig,
+  setConfig,
+  translateStrings,
+} from '@dynamicforms/vue-forms';
+
+// Translations of the built-in messages. English is the library's default, so it needs no entry; a key a locale
+// does not translate keeps its English default too.
+const messages = {
+  sl: {
+    Required: 'Prosimo, vnesite vrednost',
+    ValueInRange: 'Vrednost mora biti med **{minValue}** in **{maxValue}**',
+    InAllowedValues: 'Mora biti ena od [**{allowedAsText}**]',
+    LengthInRange: 'Dolžina mora biti med **{minLength}** in **{maxLength}**',
+  },
+  de: {
+    Required: 'Bitte geben Sie einen Wert ein',
+    ValueInRange: 'Der Wert muss zwischen **{minValue}** und **{maxValue}** liegen',
+    InAllowedValues: 'Muss einer von [**{allowedAsText}**] sein',
+    LengthInRange: 'Die Länge muss zwischen **{minLength}** und **{maxLength}** liegen',
+  },
+};
+const locale = ref('en');
+
+// A translation function shaped like vue-i18n's t: the translation of key with the placeholders substituted, or key
+// unchanged where there is none. It reads locale, so every error on screen follows a switch without revalidating.
+translateStrings((key, named) => interpolate(messages[locale.value]?.[key] ?? key, named));
+
+// The configuration is reactive, so the errors on screen follow the switch. Each field's message slot renders its
+// errors through the globally registered vue-markdown component, so a markdown message shows its emphasis.
+const useMarkdown = ref(getConfig().useMarkdownInValidators);
+const markdownInitially = useMarkdown.value;
+watch(useMarkdown, (value) => setConfig({ useMarkdownInValidators: value }));
+
+// translateStrings and the configuration are global; leave the rest of the documentation as it was
+onUnmounted(() => {
+  translateStrings((key) => key);
+  setConfig({ useMarkdownInValidators: markdownInitially });
+});
 
 // Create a form group with validated fields
 const validatedForm = new Group({
   // Required field - cannot be empty
-  username: new Field({ 
-    value: '', 
+  username: new Field({
+    value: '',
     validators: [new Validators.Required()]
   }),
-  
+
   // Email field with pattern validation
-  email: new Field({ 
-    value: '', 
+  email: new Field({
+    value: '',
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
@@ -53,23 +97,23 @@ const validatedForm = new Group({
       })
     ]
   }),
-  
+
   // Number field with range validation
-  age: new Field({ 
-    value: null, 
+  age: new Field({
+    value: null,
     validators: [
       new Validators.ValueInRange(18, 100)
     ]
   }),
-  
+
   // Field with allowed values validation
-  role: new Field({ 
-    value: '', 
+  role: new Field({
+    value: '',
     validators: [
       new Validators.InAllowedValues(['admin', 'user', 'guest'])
     ]
   }),
-  
+
   // Text field with length validation
   bio: new Field({
     value: '',
@@ -115,6 +159,12 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
     <v-card class="mb-4">
       <v-card-title>Validators Demo</v-card-title>
       <v-card-text>
+        <v-btn-toggle v-model="locale" mandatory density="compact" color="primary" class="mb-4">
+          <v-btn value="en" size="small">English</v-btn>
+          <v-btn value="sl" size="small">Slovenščina</v-btn>
+          <v-btn value="de" size="small">Deutsch</v-btn>
+        </v-btn-toggle>
+        <v-switch v-model="useMarkdown" label="Markdown in messages" color="primary" density="compact" />
         <v-form @submit.prevent>
           <!-- Username field (Required) -->
           <v-text-field
@@ -123,7 +173,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
             :error-messages="getErrorMessages(validatedForm.fields.username)"
             outlined
             hide-details="auto"
-          ></v-text-field>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-text-field>
           
           <!-- Email field (Pattern) -->
           <v-text-field
@@ -135,7 +187,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
             hide-details="auto"
             hint="Try entering something@taken.com to see async validation"
             persistent-hint
-          ></v-text-field>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-text-field>
           
           <!-- Age field (ValueInRange) -->
           <v-text-field
@@ -145,7 +199,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
             :error-messages="getErrorMessages(validatedForm.fields.age)"
             outlined
             hide-details="auto"
-          ></v-text-field>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-text-field>
           
           <!-- Role field (InAllowedValues) -->
           <v-select
@@ -155,7 +211,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
             :error-messages="getErrorMessages(validatedForm.fields.role)"
             outlined
             hide-details="auto"
-          ></v-select>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-select>
           
           <!-- Bio field (LengthInRange) -->
           <v-textarea
@@ -165,7 +223,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
             outlined
             counter="200"
             hide-details="auto"
-          ></v-textarea>
+          >
+            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+          </v-textarea>
         </v-form>
       </v-card-text>
       
@@ -221,6 +281,21 @@ rejected run puts a single `Validation could not be completed` error on the fiel
 submit button disabled, and the reason is logged with `console.error('Validation failed', reason)`. Catch the network
 error inside the validation function only when the user should read something more specific than that message.
 
+## Translated Messages in This Demo
+
+The language buttons switch the built-in messages between English, Slovenian and German. The demo hands
+`translateStrings` a translation function over its own small dictionary, written with `interpolate` from
+`@dynamicforms/translatable`; with vue-i18n, `translateStrings(i18n.global.t, 'forms')` takes its place. The
+function reads `locale`, so the errors already on the fields change language without the fields revalidating. A key
+a locale does not translate keeps its English default, and the email field's message, given to its validator
+directly, is not translated at all. See [Translation](/guide/getting-started#translation).
+
+The switch sets [`useMarkdownInValidators`](/api/config). The configuration is reactive, so the errors on screen
+follow it too: on, the placeholder values are bold; off, the markup is stripped. Each field renders its messages
+through the `vue-markdown` component in Vuetify's `message` slot, since the `error-messages` prop shows plain text.
+
+Both settings are global, so the demo restores them when it is unmounted.
+
 ## API Reference
 
 - [Validators](/api/validators) — all built-in validators with signatures and placeholder list
@@ -236,6 +311,8 @@ error inside the validation function only when the user should read something mo
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
   run deciding the verdict, and `form.busy` disabling submit while the tree is still deciding
+- **Translated Messages**: The built-in messages in three languages, following a locale switch on screen
+- **Markdown Setting**: `useMarkdownInValidators` switched at run time
 - **Form-level Validation**: Tracking overall form validity based on individual field states
 - **Error Display**: Showing validation errors to the user
 
@@ -247,6 +324,7 @@ Experiment with the validators by:
 3. Setting age outside the valid range
 4. Selecting different role values
 5. Entering text that's too short or too long in the bio field
+6. Switching the language or the markdown setting while errors are showing
 
 <script setup>
 import ValidatorsFormDemo from '../components/validators-demo.vue';
