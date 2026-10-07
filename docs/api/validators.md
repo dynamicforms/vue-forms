@@ -17,7 +17,7 @@ The error classes and `MdString` are what a field hands back rather than what va
 from the package root:
 
 ```typescript
-import { ValidationErrorText, ValidationErrorRenderContent, MdString, buildErrorMessage } from '@dynamicforms/vue-forms';
+import { ValidationErrorText, ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
 import { Validators } from '@dynamicforms/vue-forms';
 
 class Even extends Validators.Validator<number> { /* … */ }
@@ -101,9 +101,9 @@ A rejected promise reaches no verdict, and no verdict does not count as a pass:
 
 - if the rejected run is still the current one, this validator's errors on the field are replaced by a single error
   reading `Validation could not be completed`, so the field is invalid while its value is unchecked and a form
-  cannot be submitted over it. The message is built with `buildErrorMessage()` at the moment of the rejection, so
-  it reads [`useMarkdownInValidators`](/api/config) as it stands then, where a built-in validator captures that
-  setting when it is constructed. The error belongs to this validator like any other it contributes: the next
+  cannot be submitted over it. The error is a [`ValidationErrorDescription`](#validationerrordescription) with the
+  code `validation_failed`, so the application's [`errorText`](/api/config) renders it like the errors of the
+  built-in validators. The error belongs to this validator like any other it contributes: the next
   successful run of the same validator withdraws it. The rejection reason never reaches the user; it is reported
   once as `console.error('Validation failed', reason)`;
 - a rejection from a superseded run is discarded silently — no error is placed and nothing is logged.
@@ -153,24 +153,14 @@ A cancelled run reaches no verdict at all: neither errors it returns nor a rejec
 ignores the signal runs to the end and its result is discarded when it arrives. Either way the run ends its own
 bookkeeping, so `validating` returns to `false` once its promise settles.
 
-### `buildErrorMessage(markdown)`
-
-```typescript
-import { buildErrorMessage, ValidationErrorRenderContent, Validators } from '@dynamicforms/vue-forms';
-
-const myValidator = new Validators.Validator((newValue) => {
-  if (newValue === 'forbidden') {
-    return [new ValidationErrorRenderContent(buildErrorMessage('This value is **not allowed**'))];
-  }
-  return null;
-});
-```
-
-Returns an `MdString` when [`useMarkdownInValidators`](/api/config) is enabled (the default), otherwise the same string with the markdown markup stripped. Use it in your own validators so their messages honour the global setting the same way the built-in ones do.
-
 ## Built-in validators
 
-All default messages below are the literal strings passed to `buildErrorMessage()`, so with the default configuration they end up as `MdString` and are rendered as markdown — see [`useMarkdownInValidators`](/api/config).
+A built-in validator given no `message` reports a [`ValidationErrorDescription`](#validationerrordescription): its
+[code](#error-codes), its params and an English detail, the default shown for each validator below with the params
+substituted. The application renders it in its own language through [`errorText`](/api/config); see
+[Error messages and translation](/guide/getting-started#error-messages-and-translation). A validator given a `message`
+reports that message instead, with its [placeholders](#message-placeholders) substituted, and still states the code
+and the params.
 
 `InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` take a type argument, which types a
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
@@ -222,7 +212,7 @@ new Validators.Pattern(/^\d{4}$/, 'Must be a 4-digit number')
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `pattern` | `RegExp` | required |
-| `message` | `RenderContentRef` | `'Value must match pattern "**{pattern}**"'` |
+| `message` | `RenderContentRef` | `'Value must match pattern "{pattern}"'` |
 
 ---
 
@@ -233,7 +223,7 @@ Fails when `value < minValue`, and also when the value is `undefined` (the check
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minValue` | `T` | required |
-| `message` | `RenderContentRef` | `'Value must be larger or equal to **{minValue}**'` |
+| `message` | `RenderContentRef` | `'Value must be larger or equal to {minValue}'` |
 
 ---
 
@@ -244,7 +234,7 @@ Fails when `value > maxValue`, and also when the value is `undefined` (the check
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `maxValue` | `T` | required |
-| `message` | `RenderContentRef` | `'Value must be less than or equal to **{maxValue}**'` |
+| `message` | `RenderContentRef` | `'Value must be less than or equal to {maxValue}'` |
 
 ---
 
@@ -260,7 +250,7 @@ new Validators.ValueInRange(0, 100, 'Must be between 0 and 100')
 |-----------|------|---------|
 | `minValue` | `T` | required |
 | `maxValue` | `T` | required |
-| `message` | `RenderContentRef` | `'Value must be between **{minValue}** and **{maxValue}**'` |
+| `message` | `RenderContentRef` | `'Value must be between {minValue} and {maxValue}'` |
 
 ---
 
@@ -271,7 +261,7 @@ Fails when the length of the value is less than `minLength`. Supports strings, a
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minLength` | `number` | required |
-| `message` | `RenderContentRef` | `'Length must be larger or equal to **{minLength}**'` |
+| `message` | `RenderContentRef` | `'Length must be larger or equal to {minLength}'` |
 
 ---
 
@@ -282,7 +272,7 @@ Fails when the length of the value exceeds `maxLength`.
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `maxLength` | `number` | required |
-| `message` | `RenderContentRef` | `'Length must be less than or equal to **{maxLength}**'` |
+| `message` | `RenderContentRef` | `'Length must be less than or equal to {maxLength}'` |
 
 ---
 
@@ -298,7 +288,7 @@ new Validators.LengthInRange(10, 200, 'Must be between 10 and 200 characters')
 |-----------|------|---------|
 | `minLength` | `number` | required |
 | `maxLength` | `number` | required |
-| `message` | `RenderContentRef` | `'Length must be between **{minLength}** and **{maxLength}**'` |
+| `message` | `RenderContentRef` | `'Length must be between {minLength} and {maxLength}'` |
 
 ---
 
@@ -320,15 +310,16 @@ new Validators.InAllowedValues(() => rolesFor(department.value))
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `allowedValues` | `AllowedValues<T>` (`T[] \| Ref<T[]> \| (() => T[])`) | required |
-| `message` | `RenderContentRef` | `'Must be one of [**{allowedAsText}**]'` |
+| `message` | `RenderContentRef` | `'Must be one of [{allowedAsText}]'` |
 
 `AllowedValues<T>` is exported. The list is read at each validation rather than at construction, so a reference or
 a callback answers with the list in force then, and that list is both the one the value is measured against and
-the one the message names. The read happens inside the validation run, which is no reactive effect, so a
+the one the error names. The read happens inside the validation run, which is no reactive effect, so a
 list that changes does not revalidate the fields on its own — call `field.validate(true)` where they are to be
 measured against the new list at once.
 
-`{allowedAsText}` is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is available through `{allowedValues}`.
+The params carry the list as `allowedValues`, so an application names the values in its own language. `allowedAsText`
+is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is in `allowedValues`.
 
 ---
 
@@ -384,34 +375,40 @@ verdict from this validator at all.
 
 ### Error codes
 
-Every error class takes a `code`: a kebab-case identifier of what failed, reachable as `error.code` and typed
+Every error class takes a `code`: a snake_case identifier of what failed, reachable as `error.code` and typed
 `string | undefined`. It is what a program matches on when it reacts to one particular failure, so that it does not
-have to match the message text, which is translated and configurable. An error built by hand carries whatever its
-author gives it, or nothing.
+have to match the message text, and what an application's [`errorText`](/api/config) looks its translation up by. An
+error built by hand carries whatever its author gives it, or nothing.
 
 ```typescript
 const missing = field.errors.filter((error) => error.code === 'required');
 ```
 
-The codes the library states:
+Beside the code, an error carries `params`: the values the failure is stated with, an empty object where it states
+none. The codes the library states, with their params and the English detail a built-in validator given no
+`message` reports:
 
-| Code | Raised by |
-|------|-----------|
-| `required` | `Required` |
-| `pattern` | `Pattern` |
-| `min` / `max` / `range` | `MinValue` / `MaxValue` / `ValueInRange` |
-| `min-length` / `max-length` / `range-length` | `MinLength` / `MaxLength` / `LengthInRange` |
-| `in-allowed-values` | `InAllowedValues` |
-| `compare-to` | `CompareTo` |
-| `validation-failed` | the `Validation could not be completed` error a rejected validation promise leaves |
+| Code | Raised by | Params | English detail |
+|------|-----------|--------|----------------|
+| `required` | `Required` | `newValue`, `oldValue` | `Please enter a value` |
+| `pattern` | `Pattern` | `newValue`, `oldValue`, `pattern` | `Value must match pattern "{pattern}"` |
+| `min_value` | `MinValue` | `newValue`, `oldValue`, `minValue` | `Value must be larger or equal to {minValue}` |
+| `max_value` | `MaxValue` | `newValue`, `oldValue`, `maxValue` | `Value must be less than or equal to {maxValue}` |
+| `value_in_range` | `ValueInRange` | `newValue`, `oldValue`, `minValue`, `maxValue` | `Value must be between {minValue} and {maxValue}` |
+| `min_length` | `MinLength` | `newValue`, `oldValue`, `minLength` | `Length must be larger or equal to {minLength}` |
+| `max_length` | `MaxLength` | `newValue`, `oldValue`, `maxLength` | `Length must be less than or equal to {maxLength}` |
+| `length_in_range` | `LengthInRange` | `newValue`, `oldValue`, `minLength`, `maxLength` | `Length must be between {minLength} and {maxLength}` |
+| `in_allowed_values` | `InAllowedValues` | `newValue`, `oldValue`, `allowedValues`, `allowedAsText` | `Must be one of [{allowedAsText}]` |
+| `compare_to` | `CompareTo` | `newValue`, `oldValue`, `otherValue` | none: the validator always takes a `message` |
+| `validation_failed` | a rejected validation promise | none | `Validation could not be completed` |
 
 ### `ValidationError`
 
 ```typescript
-new ValidationError(/* optional code */, /* optional origin */)
+new ValidationError(/* optional code */, /* optional origin */, /* optional params */)
 ```
 
-Base class. Its constructor arguments are the [code](#error-codes) and the [origin](#origin). It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
+Base class. Its constructor arguments are the [code](#error-codes), the [origin](#origin) and the params. It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
 
 #### `sameAs(other): boolean`
 
@@ -440,7 +437,7 @@ field.errors.push(new ValidationErrorText('This name is taken', '', 'name-taken'
 ### `ValidationErrorText`
 
 ```typescript
-new ValidationErrorText('Something went wrong', /* optional CSS classes */, /* optional code */, /* optional origin */)
+new ValidationErrorText('Something went wrong', /* optional CSS classes */, /* optional code */, /* optional origin */, /* optional params */)
 ```
 
 Renders as plain text. Accessible via `.text` and `.classes`.
@@ -448,7 +445,7 @@ Renders as plain text. Accessible via `.text` and `.classes`.
 ### `ValidationErrorRenderContent`
 
 ```typescript
-new ValidationErrorRenderContent(message, /* optional CSS classes */, /* optional code */, /* optional origin */)
+new ValidationErrorRenderContent(message, /* optional CSS classes */, /* optional code */, /* optional origin */, /* optional params */)
 ```
 
 Accepts a `RenderContentRef`: a `string`, an `MdString` (markdown), a `SimpleComponentDef` object, a `Ref` to any of those, or a function `() => string | MdString | SimpleComponentDef` (useful for reactive or translated messages — the function is evaluated on every render). The same type is used for the `message` parameter of every built-in validator. The consuming UI component reads `componentName`, `componentBindings`, `componentBody` and `extraClasses` to render it.
@@ -468,6 +465,39 @@ its `options` and `plugins` preserved.
 | `componentProps` | `Record<any, any>` | Optional props/bindings passed to the component |
 | `componentVHtml` | `string` | Optional body rendered inside the component |
 
+### `ValidationErrorDescription`
+
+```typescript
+new ValidationErrorDescription(code, params, detail, /* optional CSS classes */, /* optional origin */)
+```
+
+An error stated by what failed rather than by its text, the way every built-in validator reports a failure and a
+`@dynamicforms/fastapi-viewsets` server returns one (`detail_code`, `detail_params`, `detail`). It implements
+`ErrorDescription`:
+
+```typescript
+interface ErrorDescription {
+  readonly code: string;
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly detail: string;
+  readonly origin: ErrorOrigin;
+}
+```
+
+`detail` is the failure in English with the params substituted. The error reads as what the configuration's
+[`errorText`](/api/config) answers for it — a string, an `MdString` or a `SimpleComponentDef` — and as `detail` where
+`errorText` is not set or answers `undefined`. `errorText` is called on every read, so an error on screen follows the
+locale it reads without the field revalidating. An error the server returned goes through the same function:
+
+```typescript
+const body = await response.json(); // { detail, detail_code?, detail_params? }
+field.errors.push(
+  body.detail_code
+    ? new ValidationErrorDescription(body.detail_code, body.detail_params ?? {}, body.detail, '', 'server')
+    : new ValidationErrorText(body.detail, '', undefined, 'server'),
+);
+```
+
 ### `MdString`
 
 ```typescript
@@ -479,7 +509,8 @@ Wraps a string to signal that it should be rendered as markdown. Rendering markd
 
 ## Message placeholders
 
-All built-in error messages support `{placeholder}` substitution. The available placeholders depend on the validator:
+A `message` given to a built-in validator supports `{placeholder}` substitution: the validator's [params](#error-codes)
+and the element itself.
 
 | Placeholder | Available in |
 |-------------|-------------|
@@ -493,6 +524,7 @@ All built-in error messages support `{placeholder}` substitution. The available 
 | `{maxLength}` | `MaxLength`, `LengthInRange` |
 | `{allowedValues}` | `InAllowedValues` |
 | `{allowedAsText}` | `InAllowedValues` |
+| `{otherValue}` | `CompareTo` |
 | `{otherField}` | `CompareTo` |
 
 Substitution is purely textual (`String.replaceAll`). `{newValue}`/`{oldValue}` on a group, a list or an object-valued field render as `[object Object]`, and `{field}`/`{otherField}` name an element, which renders as `[object Field]` — its class rather than what it holds. Use a function message (`() => ...`) to read what you need off the element instead. Note also that `{allowedValues}` produces `admin,user` while `{allowedAsText}` produces `admin, user` (truncated when longer than 60 characters).

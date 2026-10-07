@@ -96,14 +96,12 @@ jobs:
       - name: Build library
         run: npm run build
 
-      - name: Read the declared Vue and translatable floors
+      - name: Read the declared Vue floor
         id: floor
         run: |
           vueFloor=$(node -p "require('./package.json').peerDependencies.vue.replace(/^[^0-9]*/, '')")
-          translatableFloor=$(node -p "require('./package.json').peerDependencies['@dynamicforms/translatable'].replace(/^[^0-9]*/, '')")
           echo "vue=$vueFloor" >> "$GITHUB_OUTPUT"
-          echo "translatable=$translatableFloor" >> "$GITHUB_OUTPUT"
-          echo "Declared floors: vue $vueFloor, @dynamicforms/translatable $translatableFloor"
+          echo "Declared floor: vue $vueFloor"
 
       - name: Type-check the emitted declarations against that Vue
         run: |
@@ -134,6 +132,5 @@ jobs:
           export const group = new Group({ field });
           export const list = new List(group);
           TS
-          npm install --no-audit --no-fund typescript@5 vue@${{ steps.floor.outputs.vue }} \
-            @dynamicforms/translatable@${{ steps.floor.outputs.translatable }}
+          npm install --no-audit --no-fund typescript@5 vue@${{ steps.floor.outputs.vue }}
           ./node_modules/.bin/tsc -p tsconfig.json

@@ -12,6 +12,71 @@ exists.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v3.0.0 (from v2.0.x)
+
+3.0.0 takes translation and markdown out of the library: a built-in validator states what failed, and the
+application decides how that reads. One change is silent and comes first: the renamed error codes. There is a
+[checklist](#checklist-for-3-0-0) at the end of this section.
+
+### Error codes are renamed
+
+Every code is snake_case and names what failed. Code comparing `error.code` with an old code keeps compiling and
+stops matching.
+
+| 2.0 | 3.0 |
+|-----|-----|
+| `min` / `max` / `range` | `min_value` / `max_value` / `value_in_range` |
+| `min-length` / `max-length` / `range-length` | `min_length` / `max_length` / `length_in_range` |
+| `in-allowed-values` | `in_allowed_values` |
+| `compare-to` | `compare_to` |
+| `validation-failed` | `validation_failed` |
+
+`required` and `pattern` stay.
+
+### Translations go through `errorText`
+
+`translateStrings` and `strings` are gone, and the library no longer depends on `@dynamicforms/translatable`. A
+built-in validator given no `message` reports a `ValidationErrorDescription` — `code`, `params` and an English
+`detail` — and the application renders it through `errorText` in the configuration, called on every read of the
+error:
+
+```typescript
+// before
+translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
+
+// after
+setConfig({
+  errorText: (error) => (te(`forms.${error.code}`) ? t(`forms.${error.code}`, error.params) : undefined),
+});
+```
+
+The translations move from the message keys to the codes: `MinValue` to `min_value`, `Required` to `required` — the
+[Error codes](/api/validators#error-codes) table lists every code with its params. `undefined` leaves the English
+detail. An error on screen follows a locale switch, because `errorText` is read when the error is rendered.
+
+### Built-in messages are plain text
+
+The English details carry no markdown, and `useMarkdownInValidators` and `buildErrorMessage` are gone; using either
+is a compile error. Where an application wants markdown, `errorText` answers an `MdString`, and a message of its own
+is an `MdString` from the start:
+
+```typescript
+// before
+new Validators.Required(buildErrorMessage('**Required**'));
+
+// after
+new Validators.Required(new MdString('**Required**'));
+```
+
+### Checklist for 3.0.0
+
+1. Replace every comparison with an old error code by the new one.
+2. Replace `translateStrings` with `errorText`, and move the translations to the error codes.
+3. Remove `useMarkdownInValidators` from the plugin options and `setConfig` calls; answer an `MdString` from
+   `errorText` where markdown is wanted.
+4. Replace `buildErrorMessage(text)` with the text, or with `new MdString(text)` for markdown.
+5. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
+
 ## Upgrading to v2.0.2 (from v1.x)
 
 2.0.2 is the first 2.0 release; 2.0.0 and 2.0.1 were withdrawn. A project on either of them follows this section as

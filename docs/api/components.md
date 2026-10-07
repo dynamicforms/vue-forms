@@ -115,8 +115,8 @@ import VueMarkdown from 'vue-markdown-render';
 app.component('VueMarkdown', VueMarkdown);
 ```
 
-Whether the library's built-in validator messages take this path at all depends on `useMarkdownInValidators`
-(see [Configuration](/api/config)); an `MdString` you build yourself always takes it.
+The library's built-in validator messages are plain text; one takes this path where the application's
+[`errorText`](/api/config) answers an `MdString` for it. An `MdString` you build yourself always takes it.
 
 ---
 

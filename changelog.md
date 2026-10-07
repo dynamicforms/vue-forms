@@ -5,6 +5,32 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-10-07
+
+### Changed
+- A built-in validator given no `message` reports a `ValidationErrorDescription`: a `code`, the `params` it failed
+  with and an English `detail`. The application renders it through `errorText` in the configuration; without
+  `errorText` it reads as the detail.
+- Error codes are snake_case and name what failed: `min` is `min_value`, `max` is `max_value`, `range` is
+  `value_in_range`, `min-length` is `min_length`, `max-length` is `max_length`, `range-length` is
+  `length_in_range`, `in-allowed-values` is `in_allowed_values`, `compare-to` is `compare_to` and
+  `validation-failed` is `validation_failed`. `required` and `pattern` stay.
+- The English details of the built-in validators are plain text, without markdown.
+- The configuration is reactive: an error on screen follows a later write of `errorText`.
+
+### Added
+- `errorText` in the configuration: `(error: ErrorDescription) => string | MdString | SimpleComponentDef | undefined`,
+  called on every read of an error stated by code, so an error on screen follows the locale it reads.
+- `ErrorDescription`, the interface of an error stated by `code`, `params`, `detail` and `origin`, and
+  `ValidationErrorDescription`, the error class that implements it. An error a `@dynamicforms/fastapi-viewsets`
+  server returns has the same shape.
+- `params` on every error, the values the failure is stated with, taken as the last constructor argument.
+- `{otherValue}` in a `CompareTo` message.
+
+### Removed
+- The dependency on `@dynamicforms/translatable`, together with `translateStrings` and the `strings` dictionary.
+- `useMarkdownInValidators` and `buildErrorMessage`.
+
 ## [2.0.3] - 2026-10-06
 
 ### Changed

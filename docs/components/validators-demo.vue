@@ -1,98 +1,187 @@
 <template>
   <div class="validators-form-demo">
-    <v-card class="mb-4">
-      <v-card-title>Validators Demo</v-card-title>
-      <v-card-text>
-        <v-form @submit.prevent>
-          <!-- Username field (Required) -->
-          <v-text-field
-            v-model="validatedForm.fields.username.value"
-            label="Username"
-            :error-messages="getErrorMessages(validatedForm.fields.username)"
-            outlined
-            class="mb-2"
-          ></v-text-field>
+    <v-locale-provider :rtl="text.rtl ?? false">
+      <v-card class="mb-4">
+        <v-card-title>{{ text.title }}</v-card-title>
+        <v-card-subtitle class="intro">{{ text.intro }}</v-card-subtitle>
+        <v-card-text>
+          <div class="settings mb-2">
+            <v-select
+              v-model="locale"
+              :items="locales"
+              density="compact"
+              hide-details
+              class="locale"
+            ></v-select>
+            <v-checkbox v-model="useMarkdown" :label="text.markdown" color="primary" density="compact" hide-details />
+          </div>
+          <v-form @submit.prevent>
+            <!-- Username field (Required) -->
+            <v-text-field
+              v-model="validatedForm.fields.username.value"
+              :label="text.username"
+              :error-messages="getErrorMessages(validatedForm.fields.username)"
+              outlined
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-text-field>
 
-          <!-- Email field (Pattern) -->
-          <v-text-field
-            v-model="validatedForm.fields.email.value"
-            label="Email"
-            :error-messages="getErrorMessages(validatedForm.fields.email)"
-            :loading="validatedForm.fields.email.validating"
-            outlined
-            class="mb-2"
-            hint="Try entering something@taken.com to see async validation"
-            persistent-hint
-          ></v-text-field>
+            <!-- Email field (Pattern) -->
+            <v-text-field
+              v-model="validatedForm.fields.email.value"
+              :label="text.email"
+              :error-messages="getErrorMessages(validatedForm.fields.email)"
+              :loading="validatedForm.fields.email.validating"
+              outlined
+              class="mb-2"
+              :hint="text.emailHint"
+              persistent-hint
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-text-field>
 
-          <!-- Age field (ValueInRange) -->
-          <v-text-field
-            v-model.number="validatedForm.fields.age.value"
-            type="number"
-            label="Age"
-            :error-messages="getErrorMessages(validatedForm.fields.age)"
-            outlined
-            class="mb-2"
-          ></v-text-field>
+            <!-- Age field (ValueInRange) -->
+            <v-text-field
+              v-model.number="validatedForm.fields.age.value"
+              type="number"
+              :label="text.age"
+              :error-messages="getErrorMessages(validatedForm.fields.age)"
+              outlined
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-text-field>
 
-          <!-- Role field (InAllowedValues) -->
-          <v-select
-            v-model="validatedForm.fields.role.value"
-            :items="['admin', 'user', 'guest']"
-            label="Role"
-            :error-messages="getErrorMessages(validatedForm.fields.role)"
-            outlined
-            class="mb-2"
-          ></v-select>
+            <!-- Role field (InAllowedValues) -->
+            <v-select
+              v-model="validatedForm.fields.role.value"
+              :items="roleItems"
+              :label="text.role"
+              :error-messages="getErrorMessages(validatedForm.fields.role)"
+              outlined
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-select>
 
-          <!-- Bio field (LengthInRange) -->
-          <v-textarea
-            v-model="validatedForm.fields.bio.value"
-            label="Bio"
-            :error-messages="getErrorMessages(validatedForm.fields.bio)"
-            outlined
-            counter="200"
-            class="mb-2"
-          ></v-textarea>
-        </v-form>
-      </v-card-text>
+            <!-- Bio field (LengthInRange) -->
+            <v-textarea
+              v-model="validatedForm.fields.bio.value"
+              :label="text.bio"
+              :error-messages="getErrorMessages(validatedForm.fields.bio)"
+              outlined
+              counter="200"
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-textarea>
+          </v-form>
+        </v-card-text>
 
-      <v-card-actions>
-        <v-btn
-          color="primary"
-          :disabled="!formValid || formBusy"
-          :loading="formBusy"
-        >
-          Submit
-        </v-btn>
-        <v-btn
-          color="secondary"
-          @click="resetForm"
-          class="ml-2"
-        >
-          Reset
-        </v-btn>
-      </v-card-actions>
-    </v-card>
+        <v-card-actions>
+          <v-btn
+            color="primary"
+            :disabled="!formValid || formBusy"
+            :loading="formBusy"
+          >
+            {{ text.submit }}
+          </v-btn>
+          <v-btn
+            color="secondary"
+            @click="resetForm"
+            class="ml-2"
+          >
+            {{ text.reset }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
 
-    <v-card>
-      <v-card-title>Form Validation Status</v-card-title>
-      <v-card-text>
-        <v-alert
-          :type="formValid ? 'success' : 'error'"
-          class="mb-3"
-        >
-          Form is {{ formValid ? 'valid' : 'invalid' }}
-        </v-alert>
-        <pre class="output">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
-      </v-card-text>
-    </v-card>
+      <v-card>
+        <v-card-title>{{ text.status }}</v-card-title>
+        <v-card-text>
+          <v-alert
+            :type="formValid ? 'success' : 'error'"
+            class="mb-3"
+          >
+            {{ formValid ? text.valid : text.invalid }}
+          </v-alert>
+          <pre class="output" dir="ltr">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
+        </v-card-text>
+      </v-card>
+    </v-locale-provider>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue';
-import { Group, Field, ValueChangedAction, Validators, ValidationErrorRenderContent } from '../../src'; // from '@dynamicforms/vue-forms'
+import { formatParams, interpolate } from '@dynamicforms/translatable';
+import { computed, onUnmounted, ref } from 'vue';
+import {
+  Group,
+  Field,
+  MdString,
+  ValueChangedAction,
+  Validators,
+  ValidationErrorRenderContent,
+  getConfig,
+  setConfig,
+} from '../../src'; // from '@dynamicforms/vue-forms'
+
+import messages from './validators-demo.messages.json';
+
+const locales = [
+  { value: 'en', title: '🇬🇧 English' },
+  { value: 'sl', title: '🇸🇮 Slovenščina' },
+  { value: 'de', title: '🇩🇪 Deutsch' },
+  { value: 'es', title: '🇪🇸 Español' },
+  { value: 'ja', title: '🇯🇵 日本語' },
+  { value: 'zh', title: '🇨🇳 中文' },
+  { value: 'fa', title: '🇮🇷 فارسی' },
+  { value: 'bn', title: '🇧🇩 বাংলা' },
+];
+const locale = ref('en');
+const useMarkdown = ref(false);
+
+// The demo's own text: labels, hints and the messages it gives its own validators
+const text = computed(() => messages[locale.value].ui);
+
+// A role is stored as its code and shown by its name in the current language
+const roles = ['admin', 'user', 'guest'];
+const roleName = (role) => messages[locale.value].roles[role];
+const roleItems = computed(() => roles.map((value) => ({ value, title: roleName(value) })));
+
+// The demo's translation function: the message for an error code with the params substituted, or the code
+// unchanged where the current language has none
+const t = (code, params) => {
+  const template = messages[locale.value].errors[code];
+  return template ? interpolate(template, params) : code;
+};
+
+// formatParams formats every param before t substitutes it: numbers in the language's digits, and in bold where the
+// demo shows markdown
+const translate = formatParams(t, (value) => {
+  const shown = typeof value === 'number' ? new Intl.NumberFormat(locale.value).format(value) : String(value);
+  return useMarkdown.value ? `**${shown}**` : shown;
+});
+
+// errorText renders every error a built-in validator states by code: the demo's own message for it, as markdown where
+// the checkbox says so. The only list of allowed values in the demo is the roles, named here by the demo rather than by
+// their codes. A code the demo has no message for keeps the library's English detail. errorText is read on every
+// render of an error, so the errors already on the fields follow the language and the checkbox without revalidating.
+const previousErrorText = getConfig().errorText;
+setConfig({
+  errorText: (error) => {
+    const params =
+      error.code === 'in_allowed_values'
+        ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
+        : error.params;
+    const message = translate(error.code, params);
+    if (message === error.code) return undefined;
+    return useMarkdown.value ? new MdString(message) : message;
+  },
+});
+// the configuration is global; leave the rest of the documentation as it was
+onUnmounted(() => setConfig({ errorText: previousErrorText }));
 
 // Create a form group with validated fields
 const validatedForm = new Group({
@@ -108,7 +197,7 @@ const validatedForm = new Group({
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        'Please enter a valid email address'
+        computed(() => text.value.invalidEmail),
       ),
       // Async validator to simulate email availability check
       new Validators.Validator(async (newValue) => {
@@ -122,7 +211,7 @@ const validatedForm = new Group({
 
         // Check if email is "taken"
         if (newValue.endsWith('@taken.com')) {
-          return [new ValidationErrorRenderContent('This email address is already taken')];
+          return [new ValidationErrorRenderContent(computed(() => text.value.emailTaken))];
         }
 
         return null; // Email is available
@@ -142,7 +231,7 @@ const validatedForm = new Group({
   role: new Field({
     value: '',
     validators: [
-      new Validators.InAllowedValues(['admin', 'user', 'guest'])
+      new Validators.InAllowedValues(roles)
     ]
   }),
 
@@ -186,6 +275,21 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 <style scoped>
 .validators-form-demo {
   margin: 2rem 0;
+}
+.intro {
+  white-space: normal;
+}
+.settings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 1rem;
+}
+.locale {
+  flex: 0 1 14rem;
+}
+.demo-message :deep(p) {
+  margin: 0;
 }
 .output {
   background-color: #f5f5f5;

@@ -47,4 +47,4 @@ The built site will be in the `docs/.vitepress/dist` directory.
    navigation
 
 Demo components can use Vuetify and the globally registered `VueMarkdown` component — both are installed in
-`.vitepress/theme/index.ts`, which also configures the `forms` plugin with `useMarkdownInValidators: false`.
+`.vitepress/theme/index.ts`, which also installs the `forms` plugin.

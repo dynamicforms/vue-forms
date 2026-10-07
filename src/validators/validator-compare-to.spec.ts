@@ -358,11 +358,11 @@ describe('CompareTo unregistration', () => {
 });
 
 describe('CompareTo Validator error code', () => {
-  it('states the compare-to code on the error it produces', () => {
+  it('states the compare_to code on the error it produces', () => {
     const other = new Field({ value: 'xyz' });
     const field = new Field({ value: 'abc' });
     field.registerAction(new CompareTo(other, (mine, theirs) => mine === theirs, 'Fields must match'));
 
-    expect(field.errors[0].code).toBe('compare-to');
+    expect(field.errors[0].code).toBe('compare_to');
   });
 });

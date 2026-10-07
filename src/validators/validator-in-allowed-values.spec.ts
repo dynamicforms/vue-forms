@@ -84,11 +84,11 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(1);
 
     // Check that the error message contains truncated text
-    const errorContentText = (unref(field.errors[0]) as ValidationErrorRenderContent).componentBindings.source;
+    const errorContentText = (unref(field.errors[0]) as ValidationErrorRenderContent).componentBody;
     expect(errorContentText).toContain('...');
     expect(errorContentText).toContain('30 items total');
     // the 40 character budget covers the suffix too, so only the first two values survive
-    expect(errorContentText).toBe('Must be one of [**item-0, item-1... (30 items total)**]');
+    expect(errorContentText).toBe('Must be one of [item-0, item-1... (30 items total)]');
   });
 
   it('uses custom error message', () => {
@@ -139,19 +139,30 @@ describe('InAllowedValues Validator with a list that arrives later', () => {
     const allowedValues = ref(['red']);
     const field = new Field({ value: 'blue', validators: [new InAllowedValues(allowedValues)] });
 
-    expect((field.errors[0] as ValidationErrorRenderContent).componentBindings.source).toBe('Must be one of [**red**]');
+    expect((field.errors[0] as ValidationErrorRenderContent).componentBody).toBe('Must be one of [red]');
 
     allowedValues.value = ['red', 'green'];
     field.value = 'yellow';
 
-    expect((field.errors[0] as ValidationErrorRenderContent).componentBindings.source).toBe(
-      'Must be one of [**red, green**]',
-    );
+    expect((field.errors[0] as ValidationErrorRenderContent).componentBody).toBe('Must be one of [red, green]');
   });
 
-  it('states the in-allowed-values code on the error it produces', () => {
+  it('states the in_allowed_values code on the error it produces', () => {
     const field = new Field({ value: 'blue', validators: [new InAllowedValues(['red'])] });
 
-    expect(field.errors[0].code).toBe('in-allowed-values');
+    expect(field.errors[0].code).toBe('in_allowed_values');
+  });
+});
+
+describe('InAllowedValues Validator stating its failure', () => {
+  it('states the values in its params, for the application to name', () => {
+    const field = new Field({ value: 'guest', validators: [new InAllowedValues(['admin', 'user'])] });
+
+    expect(field.errors[0].params).toEqual({
+      newValue: 'guest',
+      oldValue: 'guest',
+      allowedValues: ['admin', 'user'],
+      allowedAsText: 'admin, user',
+    });
   });
 });

@@ -3,8 +3,7 @@ import { type Ref, unref } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
-import { translatedMessage } from './translations';
-import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
+import { RenderContentRef } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 /**
@@ -15,9 +14,8 @@ export type AllowedValues<T> = T[] | Ref<T[]> | (() => T[]);
 
 export default class InAllowedValues<T = any> extends Validator {
   constructor(allowedValues: AllowedValues<T>, message?: RenderContentRef) {
-    const msg = message || translatedMessage('InAllowedValues');
     // the list is read at each validation rather than at construction, so a list that arrives later is the one the
-    // value is measured against and the one the message names
+    // value is measured against and the one the error names
     const resolve = (): T[] => {
       const values = unref(allowedValues);
       return typeof values === 'function' ? values() : values;
@@ -32,17 +30,12 @@ export default class InAllowedValues<T = any> extends Validator {
       const values = resolve();
       if (!values.includes(unref(newValue))) {
         return [
-          new ValidationErrorRenderContent(
-            this.replacePlaceholders(msg, {
-              newValue,
-              oldValue,
-              field,
-              allowedValues: values,
-              allowedAsText: asText(values),
-            }),
-            '',
-            'in-allowed-values',
-          ),
+          this.errorFor(field, message, 'in_allowed_values', 'Must be one of [{allowedAsText}]', {
+            newValue,
+            oldValue,
+            allowedValues: values,
+            allowedAsText: asText(values),
+          }),
         ];
       }
       return null;

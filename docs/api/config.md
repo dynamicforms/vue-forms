@@ -15,7 +15,7 @@ import { createApp } from 'vue';
 import { forms } from '@dynamicforms/vue-forms';
 
 const app = createApp(App);
-app.use(forms, { useMarkdownInValidators: false });
+app.use(forms, { errorText: (error) => myErrorText(error) });
 ```
 
 `forms` is a named export; the package's default export is the `Form` namespace of classes, not the plugin.
@@ -28,22 +28,36 @@ The second argument is optional — omitting it leaves all options at their defa
 can be typed:
 
 ```typescript
-const options: Partial<FormsConfig> = { useMarkdownInValidators: false };
+const options: Partial<FormsConfig> = { errorText: (error) => myErrorText(error) };
 ```
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `useMarkdownInValidators` | `boolean` | `true` | When `true`, the library's built-in validator messages are wrapped in `MdString` and rendered through the globally registered `vue-markdown` component. When `false`, markdown syntax is stripped from them and they are emitted as plain strings. Messages you pass to a validator yourself are used verbatim — run them through `buildErrorMessage()` if you want them to honour this setting. |
+| `errorText` | `(error: ErrorDescription) => RenderContentNonCallable \| undefined` | none | What an error stated by code, params and English detail reads as. Every built-in validator given no `message` reports such an error, a [`ValidationErrorDescription`](/api/validators#validationerrordescription), and so can an error the server returned. The function answers the application's text for it — a string, an `MdString` for markdown or a `SimpleComponentDef` — or `undefined` to leave the English detail. |
 
-### `buildErrorMessage(text)`
-
-Returns an `MdString` when `useMarkdownInValidators` is `true`, otherwise the same text with markdown syntax
-stripped. Use it for your own validator messages so they follow the global setting:
+The argument is the `ValidationErrorDescription` being rendered, typed by the interface it implements, so the
+function reads only what an error states and can be called with any object of that shape:
 
 ```typescript
-import { buildErrorMessage, Validators } from '@dynamicforms/vue-forms';
+interface ErrorDescription {
+  readonly code: string;                               // what failed, in snake_case
+  readonly params: Readonly<Record<string, unknown>>;  // the values it failed with
+  readonly detail: string;                             // the failure in English, params substituted
+  readonly origin: ErrorOrigin;                        // 'validator', 'server', 'application' or the application's own
+}
+```
 
-new Validators.Required(buildErrorMessage('**Required**'));
+`ErrorDescription` is exported. The codes and their params are listed under
+[Error codes](/api/validators#error-codes).
+
+`errorText` is called on every read of an error, so an error on screen follows the reactive state the function
+reads, such as the locale, without the field revalidating. [Error messages and
+translation](/guide/getting-started#error-messages-and-translation) shows it with vue-i18n.
+
+```typescript
+setConfig({
+  errorText: (error) => (error.code === 'min_value' ? `At least ${error.params.minValue}` : undefined),
+});
 ```
 
 ## `getConfig()` and `setConfig()`
@@ -51,21 +65,19 @@ new Validators.Required(buildErrorMessage('**Required**'));
 ```typescript
 import { getConfig, setConfig, type FormsConfig } from '@dynamicforms/vue-forms';
 
-setConfig({ useMarkdownInValidators: false });   // writes the options it names, leaves the rest as they stand
-getConfig().useMarkdownInValidators;             // false
+setConfig({ errorText });   // writes the options it names, leaves the rest as they stand
+getConfig().errorText;      // errorText
 ```
 
 | Symbol | Signature | Description |
 |--------|-----------|-------------|
 | `getConfig` | `(): FormsConfig` | The current configuration. The object is the module's own record, so reading a member off it again reports a later write |
 | `setConfig` | `(newConfig: Partial<FormsConfig>): void` | Writes the members `newConfig` names and leaves the rest as they stand |
-| `FormsConfig` | `{ useMarkdownInValidators: boolean }` | The exported type of the record. Every member is required in it; `setConfig` takes a `Partial` of it |
+| `FormsConfig` | `{ errorText?: (error: ErrorDescription) => RenderContentNonCallable \| undefined }` | The exported type of the record |
 
 `app.use(forms, options)` does exactly what `setConfig(options)` does. Reach for these where there is no app to
-install a plugin on — a test, a script, a library of your own building messages — or to change the setting after
-startup. The reads are not tracked: a validator built before the change keeps the message it was built with, and
-`buildErrorMessage()` reads the setting at the moment it is called.
-
+install a plugin on — a test, a script — or to change the configuration after startup. The configuration is
+reactive: an error already on screen follows a later write of `errorText`.
 
 ---
 

@@ -3,8 +3,7 @@ import { isRef, unref } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
-import { translatedMessage } from './translations';
-import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
+import { RenderContentRef } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 function toLength(a: any): number {
@@ -40,17 +39,10 @@ export default class Required extends Validator {
   constructor(messageOrOptions?: RenderContentRef | RequiredOptions, options?: RequiredOptions) {
     const message = isOptions(messageOrOptions) ? undefined : messageOrOptions;
     const trim = (isOptions(messageOrOptions) ? messageOrOptions : options)?.trim ?? true;
-    const msg = message || translatedMessage('Required');
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       const value = unref(newValue);
       if (toLength(trim && isString(value) ? value.trim() : value) === 0) {
-        return [
-          new ValidationErrorRenderContent(
-            this.replacePlaceholders(msg, { newValue, oldValue, field }),
-            '',
-            'required',
-          ),
-        ];
+        return [this.errorFor(field, message, 'required', 'Please enter a value', { newValue, oldValue })];
       }
       return null;
     };
