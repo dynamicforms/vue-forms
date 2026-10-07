@@ -43,6 +43,24 @@ const messages = {
     InAllowedValues: 'Muss einer von [**{allowedAsText}**] sein',
     LengthInRange: 'Die Länge muss zwischen **{minLength}** und **{maxLength}** liegen',
   },
+  es: {
+    Required: 'Introduzca un valor',
+    ValueInRange: 'El valor debe estar entre **{minValue}** y **{maxValue}**',
+    InAllowedValues: 'Debe ser uno de [**{allowedAsText}**]',
+    LengthInRange: 'La longitud debe estar entre **{minLength}** y **{maxLength}**',
+  },
+  ja: {
+    Required: '値を入力してください',
+    ValueInRange: '値は **{minValue}** から **{maxValue}** の間でなければなりません',
+    InAllowedValues: '[**{allowedAsText}**] のいずれかでなければなりません',
+    LengthInRange: '長さは **{minLength}** から **{maxLength}** の間でなければなりません',
+  },
+  zh: {
+    Required: '请输入一个值',
+    ValueInRange: '值必须介于 **{minValue}** 和 **{maxValue}** 之间',
+    InAllowedValues: '必须是 [**{allowedAsText}**] 之一',
+    LengthInRange: '长度必须介于 **{minLength}** 和 **{maxLength}** 之间',
+  },
 };
 const locale = ref('en');
 
@@ -159,11 +177,16 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
     <v-card class="mb-4">
       <v-card-title>Validators Demo</v-card-title>
       <v-card-text>
-        <v-btn-toggle v-model="locale" mandatory density="compact" color="primary" class="mb-4">
-          <v-btn value="en" size="small">English</v-btn>
-          <v-btn value="sl" size="small">Slovenščina</v-btn>
-          <v-btn value="de" size="small">Deutsch</v-btn>
-        </v-btn-toggle>
+        <div class="locales mb-4">
+          <v-btn-toggle v-model="locale" mandatory variant="outlined" divided color="primary">
+            <v-btn value="en" size="small">🇺🇸 English</v-btn>
+            <v-btn value="sl" size="small">🇸🇮 Slovenščina</v-btn>
+            <v-btn value="de" size="small">🇩🇪 Deutsch</v-btn>
+            <v-btn value="es" size="small">🇪🇸 Español</v-btn>
+            <v-btn value="ja" size="small">🇯🇵 日本語</v-btn>
+            <v-btn value="zh" size="small">🇨🇳 中文</v-btn>
+          </v-btn-toggle>
+        </div>
         <v-switch v-model="useMarkdown" label="Markdown in messages" color="primary" density="compact" />
         <v-form @submit.prevent>
           <!-- Username field (Required) -->
@@ -283,7 +306,8 @@ error inside the validation function only when the user should read something mo
 
 ## Translated Messages in This Demo
 
-The language buttons switch the built-in messages between English, Slovenian and German. The demo hands
+The language buttons switch the built-in messages between English, Slovenian, German, Spanish, Japanese and
+Chinese. The demo hands
 `translateStrings` a translation function over its own small dictionary, written with `interpolate` from
 `@dynamicforms/translatable`; with vue-i18n, `translateStrings(i18n.global.t, 'forms')` takes its place. The
 function reads `locale`, so the errors already on the fields change language without the fields revalidating. A key
@@ -311,7 +335,7 @@ Both settings are global, so the demo restores them when it is unmounted.
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
   run deciding the verdict, and `form.busy` disabling submit while the tree is still deciding
-- **Translated Messages**: The built-in messages in three languages, following a locale switch on screen
+- **Translated Messages**: The built-in messages in six languages, following a locale switch on screen
 - **Markdown Setting**: `useMarkdownInValidators` switched at run time
 - **Form-level Validation**: Tracking overall form validity based on individual field states
 - **Error Display**: Showing validation errors to the user
