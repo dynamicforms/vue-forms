@@ -586,3 +586,37 @@ change of value, which is the reading of `enabled` 2.0.0 had and the one this de
 
 Documented in `docs/api/container.md`, `docs/api/field.md`, `docs/api/actions.md`, `docs/guide/cookbook.md`,
 `docs/guide/migration.md` and `changelog.md`.
+
+## D-035 — A built-in validator states a failure as data, and the application renders it
+
+**Version:** 3.0.0
+
+A built-in validator given no `message` reports a `ValidationErrorDescription`: a snake_case `code`, the `params` it
+failed with and an English `detail`. It reads as what `errorText` in the configuration answers for it, and as the
+detail where there is no answer. The library ships no translations, depends on no translation package and renders
+no markdown of its own.
+
+**What forced it.** A message the library translates has to be phrased by the library: in which language, with
+which markup, with the values formatted how. Each of those questions came back as one more mechanism in the library
+— a translation dictionary, a markdown and a plain variant of every message, a hook naming the allowed values — and
+each mechanism answered for one case. The application already owns the locale, the number and date formats, the
+names of its own codes and whether it renders markdown, so the error carries what failed and the application says
+it.
+
+**One path for every error.** The shape is the one a `@dynamicforms/fastapi-viewsets` server answers with —
+`detail_code`, `detail_params`, `detail` — so a validator's error and a server's error reach the same `errorText`.
+
+**Codes are snake_case.** A code is the key an application looks its translation up by, and snake_case is the one
+form that is a plain identifier in JavaScript and in Python alike, so a dictionary of translations needs no quoted
+keys on either side.
+
+**`MdString` stays.** It is a general rendering primitive that `@dynamicforms/vuetify-inputs` and
+`@dynamicforms/vue-grid` render labels and cells with; only the markdown the validators produced on their own is
+gone. An application that wants markdown answers an `MdString` from `errorText`.
+
+**Rejected: translating inside the library through `@dynamicforms/translatable`.** It needs a markdown and a plain
+variant of every message, or stripping markdown from text whose values may carry markdown characters, and a way to
+name each validator's values; all of it is the application's knowledge.
+
+**Rejected: a `text` option on `InAllowedValues`.** It names the values for the one validator that lists them, and
+leaves the rest of the message's phrasing in the library.

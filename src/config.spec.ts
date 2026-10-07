@@ -1,41 +1,29 @@
 import configPlugin, { getConfig, setConfig } from './config';
 
 describe('config', () => {
+  afterEach(() => {
+    setConfig({ errorText: undefined });
+  });
+
   it('should update config using setConfig', () => {
-    // Get initial config
-    const initialConfig = getConfig();
-    const initialValue = initialConfig.useMarkdownInValidators;
+    const errorText = () => 'text';
 
-    // Update config
-    setConfig({ useMarkdownInValidators: false });
+    setConfig({ errorText });
 
-    // Verify config was updated
-    expect(getConfig().useMarkdownInValidators).toBe(false);
-
-    // Restore original value
-    setConfig({ useMarkdownInValidators: initialValue });
+    expect(getConfig().errorText).toBe(errorText);
   });
 
   it('should install Vue plugin without options', () => {
     const mockApp = {};
 
-    // Should not throw
     expect(() => configPlugin.install(mockApp)).not.toThrow();
   });
 
   it('should install Vue plugin with options', () => {
-    const mockApp = {};
+    const errorText = () => 'text';
 
-    // Get initial value
-    const initialValue = getConfig().useMarkdownInValidators;
+    configPlugin.install({}, { errorText });
 
-    // Install with options
-    configPlugin.install(mockApp, { useMarkdownInValidators: true });
-
-    // Verify config was set
-    expect(getConfig().useMarkdownInValidators).toBe(true);
-
-    // Restore original value
-    setConfig({ useMarkdownInValidators: initialValue });
+    expect(getConfig().errorText).toBe(errorText);
   });
 });

@@ -11,15 +11,14 @@ describe('package entry point', () => {
   });
 
   it('reads and writes the configuration the library itself reads', () => {
-    const initial = getModuleConfig().useMarkdownInValidators;
     try {
-      const options: Partial<FormsConfig> = { useMarkdownInValidators: !initial };
+      const options: Partial<FormsConfig> = { errorText: () => 'text' };
       setConfig(options);
 
       expect(getConfig()).toBe(getModuleConfig());
-      expect(getModuleConfig().useMarkdownInValidators).toBe(!initial);
+      expect(getModuleConfig().errorText).toBe(options.errorText);
     } finally {
-      setModuleConfig({ useMarkdownInValidators: initial });
+      setModuleConfig({ errorText: undefined });
     }
   });
 });

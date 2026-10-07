@@ -1,6 +1,6 @@
 import type { FieldBase } from '../field-base';
 
-import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
+import { RenderContentRef } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 export class MinValue<T = any> extends Validator {
@@ -8,11 +8,11 @@ export class MinValue<T = any> extends Validator {
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue < minValue || newValue === undefined) {
         return [
-          new ValidationErrorRenderContent(
-            this.messageFor(message, 'MinValue', { newValue, oldValue, field, minValue }),
-            '',
-            'min',
-          ),
+          this.errorFor(field, message, 'min_value', 'Value must be larger or equal to {minValue}', {
+            newValue,
+            oldValue,
+            minValue,
+          }),
         ];
       }
       return null;
@@ -27,11 +27,11 @@ export class MaxValue<T = any> extends Validator {
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue > maxValue || newValue === undefined) {
         return [
-          new ValidationErrorRenderContent(
-            this.messageFor(message, 'MaxValue', { newValue, oldValue, field, maxValue }),
-            '',
-            'max',
-          ),
+          this.errorFor(field, message, 'max_value', 'Value must be less than or equal to {maxValue}', {
+            newValue,
+            oldValue,
+            maxValue,
+          }),
         ];
       }
       return null;
@@ -46,11 +46,12 @@ export class ValueInRange<T = any> extends Validator {
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       if (newValue < minValue || newValue > maxValue || newValue === undefined) {
         return [
-          new ValidationErrorRenderContent(
-            this.messageFor(message, 'ValueInRange', { newValue, oldValue, field, minValue, maxValue }),
-            '',
-            'range',
-          ),
+          this.errorFor(field, message, 'value_in_range', 'Value must be between {minValue} and {maxValue}', {
+            newValue,
+            oldValue,
+            minValue,
+            maxValue,
+          }),
         ];
       }
       return null;

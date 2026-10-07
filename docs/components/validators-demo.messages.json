@@ -1,0 +1,251 @@
+{
+  "en": {
+    "errors": {
+      "required": "Please enter a value",
+      "value_in_range": "Value must be between {minValue} and {maxValue}",
+      "in_allowed_values": "Must be one of [{allowedAsText}]",
+      "length_in_range": "Length must be between {minLength} and {maxLength}"
+    },
+    "roles": {
+      "admin": "Administrator",
+      "user": "User",
+      "guest": "Guest"
+    },
+    "ui": {
+      "title": "Validators Demo",
+      "intro": "Switch the language or the markdown setting: the errors already on the fields follow without revalidating.",
+      "markdown": "Markdown in messages",
+      "username": "Username",
+      "email": "Email",
+      "emailHint": "Try entering something@taken.com to see async validation",
+      "invalidEmail": "Please enter a valid email address",
+      "emailTaken": "This email address is already taken",
+      "age": "Age",
+      "role": "Role",
+      "bio": "Bio",
+      "submit": "Submit",
+      "reset": "Reset",
+      "status": "Form Validation Status",
+      "valid": "Form is valid",
+      "invalid": "Form is invalid"
+    }
+  },
+  "sl": {
+    "errors": {
+      "required": "Prosimo, vnesite vrednost",
+      "value_in_range": "Vrednost mora biti med {minValue} in {maxValue}",
+      "in_allowed_values": "Mora biti ena od [{allowedAsText}]",
+      "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}"
+    },
+    "roles": {
+      "admin": "Skrbnik",
+      "user": "Uporabnik",
+      "guest": "Gost"
+    },
+    "ui": {
+      "title": "Demo validatorjev",
+      "intro": "Preklopite jezik ali markdown: napake, ki so že na poljih, sledijo brez ponovne validacije.",
+      "markdown": "Markdown v sporočilih",
+      "username": "Uporabniško ime",
+      "email": "E-pošta",
+      "emailHint": "Vnesite something@taken.com za prikaz asinhrone validacije",
+      "invalidEmail": "Vnesite veljaven e-poštni naslov",
+      "emailTaken": "Ta e-poštni naslov je že zaseden",
+      "age": "Starost",
+      "role": "Vloga",
+      "bio": "Opis",
+      "submit": "Pošlji",
+      "reset": "Ponastavi",
+      "status": "Stanje validacije obrazca",
+      "valid": "Obrazec je veljaven",
+      "invalid": "Obrazec ni veljaven"
+    }
+  },
+  "de": {
+    "errors": {
+      "required": "Bitte geben Sie einen Wert ein",
+      "value_in_range": "Der Wert muss zwischen {minValue} und {maxValue} liegen",
+      "in_allowed_values": "Muss einer von [{allowedAsText}] sein",
+      "length_in_range": "Die Länge muss zwischen {minLength} und {maxLength} liegen"
+    },
+    "roles": {
+      "admin": "Administrator",
+      "user": "Benutzer",
+      "guest": "Gast"
+    },
+    "ui": {
+      "title": "Validatoren-Demo",
+      "intro": "Wechseln Sie die Sprache oder Markdown: Die Fehler an den Feldern folgen ohne erneute Validierung.",
+      "markdown": "Markdown in Meldungen",
+      "username": "Benutzername",
+      "email": "E-Mail",
+      "emailHint": "Geben Sie something@taken.com ein, um die asynchrone Validierung zu sehen",
+      "invalidEmail": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
+      "emailTaken": "Diese E-Mail-Adresse ist bereits vergeben",
+      "age": "Alter",
+      "role": "Rolle",
+      "bio": "Biografie",
+      "submit": "Absenden",
+      "reset": "Zurücksetzen",
+      "status": "Validierungsstatus des Formulars",
+      "valid": "Das Formular ist gültig",
+      "invalid": "Das Formular ist ungültig"
+    }
+  },
+  "es": {
+    "errors": {
+      "required": "Introduzca un valor",
+      "value_in_range": "El valor debe estar entre {minValue} y {maxValue}",
+      "in_allowed_values": "Debe ser uno de [{allowedAsText}]",
+      "length_in_range": "La longitud debe estar entre {minLength} y {maxLength}"
+    },
+    "roles": {
+      "admin": "Administrador",
+      "user": "Usuario",
+      "guest": "Invitado"
+    },
+    "ui": {
+      "title": "Demostración de validadores",
+      "intro": "Cambie el idioma o el markdown: los errores ya mostrados en los campos cambian sin volver a validar.",
+      "markdown": "Markdown en los mensajes",
+      "username": "Nombre de usuario",
+      "email": "Correo electrónico",
+      "emailHint": "Introduzca something@taken.com para ver la validación asíncrona",
+      "invalidEmail": "Introduzca una dirección de correo válida",
+      "emailTaken": "Esta dirección de correo ya está en uso",
+      "age": "Edad",
+      "role": "Rol",
+      "bio": "Biografía",
+      "submit": "Enviar",
+      "reset": "Restablecer",
+      "status": "Estado de validación del formulario",
+      "valid": "El formulario es válido",
+      "invalid": "El formulario no es válido"
+    }
+  },
+  "ja": {
+    "errors": {
+      "required": "値を入力してください",
+      "value_in_range": "値は {minValue} から {maxValue} の間でなければなりません",
+      "in_allowed_values": "[{allowedAsText}] のいずれかでなければなりません",
+      "length_in_range": "長さは {minLength} から {maxLength} の間でなければなりません"
+    },
+    "roles": {
+      "admin": "管理者",
+      "user": "ユーザー",
+      "guest": "ゲスト"
+    },
+    "ui": {
+      "title": "バリデーターのデモ",
+      "intro": "言語や Markdown を切り替えると、表示中のエラーも再検証なしで切り替わります。",
+      "markdown": "メッセージ内の Markdown",
+      "username": "ユーザー名",
+      "email": "メールアドレス",
+      "emailHint": "非同期検証を見るには something@taken.com を入力してください",
+      "invalidEmail": "有効なメールアドレスを入力してください",
+      "emailTaken": "このメールアドレスは既に使用されています",
+      "age": "年齢",
+      "role": "役割",
+      "bio": "自己紹介",
+      "submit": "送信",
+      "reset": "リセット",
+      "status": "フォームの検証状態",
+      "valid": "フォームは有効です",
+      "invalid": "フォームは無効です"
+    }
+  },
+  "zh": {
+    "errors": {
+      "required": "请输入一个值",
+      "value_in_range": "值必须介于 {minValue} 和 {maxValue} 之间",
+      "in_allowed_values": "必须是 [{allowedAsText}] 之一",
+      "length_in_range": "长度必须介于 {minLength} 和 {maxLength} 之间"
+    },
+    "roles": {
+      "admin": "管理员",
+      "user": "用户",
+      "guest": "访客"
+    },
+    "ui": {
+      "title": "验证器演示",
+      "intro": "切换语言或 Markdown：字段上已显示的错误无需重新验证即可随之更新。",
+      "markdown": "消息中的 Markdown",
+      "username": "用户名",
+      "email": "电子邮件",
+      "emailHint": "输入 something@taken.com 查看异步验证",
+      "invalidEmail": "请输入有效的电子邮件地址",
+      "emailTaken": "该电子邮件地址已被占用",
+      "age": "年龄",
+      "role": "角色",
+      "bio": "简介",
+      "submit": "提交",
+      "reset": "重置",
+      "status": "表单验证状态",
+      "valid": "表单有效",
+      "invalid": "表单无效"
+    }
+  },
+  "fa": {
+    "errors": {
+      "required": "لطفاً یک مقدار وارد کنید",
+      "value_in_range": "مقدار باید بین {minValue} و {maxValue} باشد",
+      "in_allowed_values": "باید یکی از ⁨[{allowedAsText}]⁩ باشد",
+      "length_in_range": "طول باید بین {minLength} و {maxLength} باشد"
+    },
+    "roles": {
+      "admin": "مدیر",
+      "user": "کاربر",
+      "guest": "مهمان"
+    },
+    "ui": {
+      "rtl": true,
+      "title": "نمایش اعتبارسنج‌ها",
+      "intro": "زبان یا مارک‌داون را تغییر دهید: خطاهای نمایش‌داده‌شده بدون اعتبارسنجی دوباره به‌روز می‌شوند.",
+      "markdown": "مارک‌داون در پیام‌ها",
+      "username": "نام کاربری",
+      "email": "ایمیل",
+      "emailHint": "برای دیدن اعتبارسنجی ناهمگام something@taken.com را وارد کنید",
+      "invalidEmail": "لطفاً یک نشانی ایمیل معتبر وارد کنید",
+      "emailTaken": "این نشانی ایمیل قبلاً استفاده شده است",
+      "age": "سن",
+      "role": "نقش",
+      "bio": "درباره من",
+      "submit": "ارسال",
+      "reset": "بازنشانی",
+      "status": "وضعیت اعتبارسنجی فرم",
+      "valid": "فرم معتبر است",
+      "invalid": "فرم نامعتبر است"
+    }
+  },
+  "bn": {
+    "errors": {
+      "required": "একটি মান লিখুন",
+      "value_in_range": "মান {minValue} থেকে {maxValue} এর মধ্যে হতে হবে",
+      "in_allowed_values": "[{allowedAsText}] এর মধ্যে একটি হতে হবে",
+      "length_in_range": "দৈর্ঘ্য {minLength} থেকে {maxLength} এর মধ্যে হতে হবে"
+    },
+    "roles": {
+      "admin": "প্রশাসক",
+      "user": "ব্যবহারকারী",
+      "guest": "অতিথি"
+    },
+    "ui": {
+      "title": "ভ্যালিডেটর ডেমো",
+      "intro": "ভাষা বা মার্কডাউন পরিবর্তন করুন: ফিল্ডে দেখানো ত্রুটিগুলি পুনরায় যাচাই ছাড়াই বদলে যায়।",
+      "markdown": "বার্তায় মার্কডাউন",
+      "username": "ব্যবহারকারীর নাম",
+      "email": "ইমেল",
+      "emailHint": "অ্যাসিঙ্ক্রোনাস যাচাই দেখতে something@taken.com লিখুন",
+      "invalidEmail": "একটি বৈধ ইমেল ঠিকানা লিখুন",
+      "emailTaken": "এই ইমেল ঠিকানাটি ইতিমধ্যে ব্যবহৃত হয়েছে",
+      "age": "বয়স",
+      "role": "ভূমিকা",
+      "bio": "পরিচিতি",
+      "submit": "জমা দিন",
+      "reset": "রিসেট",
+      "status": "ফর্ম যাচাইয়ের অবস্থা",
+      "valid": "ফর্মটি বৈধ",
+      "invalid": "ফর্মটি অবৈধ"
+    }
+  }
+}

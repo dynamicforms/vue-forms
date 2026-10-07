@@ -65,14 +65,15 @@ The library ships a Vue plugin for its global options:
 ```typescript
 import { forms } from '@dynamicforms/vue-forms';
 
-app.use(forms, { useMarkdownInValidators: false });
+app.use(forms, { errorText: (error) => myErrorText(error) });
 ```
 
 The import must be a named one — the default export is a namespace of the library members, not the plugin.
 
-`useMarkdownInValidators` defaults to `true`, which means the default messages of the built-in validators are markdown
-(`MdString`). Rendering those requires a globally registered `vue-markdown` component; set the option to `false` if you
-want plain text instead.
+`errorText` is how an application renders the errors of the built-in validators: each states a `code`, `params` and
+an English `detail`, and the function answers the application's text for it — in its own language, as a string,
+an `MdString` or a component — or `undefined` to leave the English detail. It is read on every render, so an error
+on screen follows a locale switch.
 
 The configuration is module-global rather than per app, and `getConfig()`, `setConfig()` and the `FormsConfig` type
 are exported beside the plugin, so the options can be read and written where there is no app to install a plugin
@@ -232,8 +233,9 @@ invalid immediately. Use `field.touched` to decide when to show the errors in th
 before it measures it, so a value of spaces alone is no value; `new Validators.Required({ trim: false })` keeps the
 spaces where they are part of what the field holds.
 
-Every error a built-in validator produces carries a `code` — `required`, `pattern`, `min-length`, … — so a program
-reacting to one particular failure need not match message text that is translated and configurable.
+Every error a built-in validator produces carries a `code` — `required`, `pattern`, `min_length`, … — and the
+`params` it failed with, so a program reacting to one particular failure need not match message text, and an
+application translates the error from its code.
 
 A validation function may return a `Promise`. `field.validating` is `true` while such a run is pending — on the
 field and on every container above it, so a form answers for the whole tree — and the verdict applied to the field

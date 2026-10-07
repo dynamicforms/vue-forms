@@ -22,7 +22,7 @@ export default {
     });
 
     app.use(vuetify);
-    app.use(forms, { useMarkdownInValidators: false });
+    app.use(forms);
     app.component('VueMarkdown', VueMarkdown);
   },
   Layout: () => {

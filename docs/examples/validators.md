@@ -4,9 +4,9 @@ This example demonstrates how to use validators with form fields in `@dynamicfor
 
 ## Demo
 
-Here's a live demo of form validation using various validators. It also shows the built-in messages
-[translated](#translated-messages-in-this-demo) into eight languages and the markdown setting switched at run time: the
-errors already on the fields follow either change without revalidating.
+Here's a live demo of form validation using various validators. It also shows the application rendering the
+validators' errors itself: [translated](#translated-messages-in-this-demo) into eight languages and with or without
+markdown. The errors already on the fields follow either choice without revalidating.
 
 <ValidatorsFormDemo />
 
@@ -18,65 +18,20 @@ Here's the source code for the demo above:
 
 ```js
 import { formatParams, interpolate } from '@dynamicforms/translatable';
-import { computed, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import {
   Group,
   Field,
+  MdString,
   ValueChangedAction,
   Validators,
   ValidationErrorRenderContent,
   getConfig,
   setConfig,
-  translateStrings,
 } from '@dynamicforms/vue-forms';
 
-// Translations of the built-in messages. English is the library's default, so it needs no entry; a key a locale
-// does not translate keeps its English default too.
-const messages = {
-  sl: {
-    Required: 'Prosimo, vnesite vrednost',
-    ValueInRange: 'Vrednost mora biti med **{minValue}** in **{maxValue}**',
-    InAllowedValues: 'Mora biti ena od [**{allowedAsText}**]',
-    LengthInRange: 'Dolžina mora biti med **{minLength}** in **{maxLength}**',
-  },
-  de: {
-    Required: 'Bitte geben Sie einen Wert ein',
-    ValueInRange: 'Der Wert muss zwischen **{minValue}** und **{maxValue}** liegen',
-    InAllowedValues: 'Muss einer von [**{allowedAsText}**] sein',
-    LengthInRange: 'Die Länge muss zwischen **{minLength}** und **{maxLength}** liegen',
-  },
-  es: {
-    Required: 'Introduzca un valor',
-    ValueInRange: 'El valor debe estar entre **{minValue}** y **{maxValue}**',
-    InAllowedValues: 'Debe ser uno de [**{allowedAsText}**]',
-    LengthInRange: 'La longitud debe estar entre **{minLength}** y **{maxLength}**',
-  },
-  ja: {
-    Required: '値を入力してください',
-    ValueInRange: '値は **{minValue}** から **{maxValue}** の間でなければなりません',
-    InAllowedValues: '[**{allowedAsText}**] のいずれかでなければなりません',
-    LengthInRange: '長さは **{minLength}** から **{maxLength}** の間でなければなりません',
-  },
-  zh: {
-    Required: '请输入一个值',
-    ValueInRange: '值必须介于 **{minValue}** 和 **{maxValue}** 之间',
-    InAllowedValues: '必须是 [**{allowedAsText}**] 之一',
-    LengthInRange: '长度必须介于 **{minLength}** 和 **{maxLength}** 之间',
-  },
-  fa: {
-    Required: 'لطفاً یک مقدار وارد کنید',
-    ValueInRange: 'مقدار باید بین **{minValue}** و **{maxValue}** باشد',
-    // U+2068 and U+2069 isolate the Latin list, so its brackets stay in place inside the right-to-left sentence
-    InAllowedValues: 'باید یکی از \u2068[**{allowedAsText}**]\u2069 باشد',
-    LengthInRange: 'طول باید بین **{minLength}** و **{maxLength}** باشد',
-  },
-  bn: {
-    Required: 'একটি মান লিখুন',
-    ValueInRange: 'মান **{minValue}** থেকে **{maxValue}** এর মধ্যে হতে হবে',
-    InAllowedValues: '[**{allowedAsText}**] এর মধ্যে একটি হতে হবে',
-    LengthInRange: 'দৈর্ঘ্য **{minLength}** থেকে **{maxLength}** এর মধ্যে হতে হবে',
-  },
-};
+import messages from './validators-demo.messages.json';
+
 const locales = [
   { value: 'en', title: '🇬🇧 English' },
   { value: 'sl', title: '🇸🇮 Slovenščina' },
@@ -88,195 +43,48 @@ const locales = [
   { value: 'bn', title: '🇧🇩 বাংলা' },
 ];
 const locale = ref('en');
+const useMarkdown = ref(false);
 
-// The demo's own text: labels, hints and the messages it gives its validators. They belong to the application and
-// come from its own translations, not from translateStrings.
-const ui = {
-  en: {
-    title: 'Validators Demo',
-    intro: 'Switch the language or the markdown setting: the errors already on the fields follow without revalidating.',
-    markdown: 'Markdown in messages',
-    username: 'Username',
-    email: 'Email',
-    emailHint: 'Try entering something@taken.com to see async validation',
-    invalidEmail: 'Please enter a valid email address',
-    emailTaken: 'This email address is already taken',
-    age: 'Age',
-    role: 'Role',
-    roles: { admin: 'Administrator', user: 'User', guest: 'Guest' },
-    bio: 'Bio',
-    submit: 'Submit',
-    reset: 'Reset',
-    status: 'Form Validation Status',
-    valid: 'Form is valid',
-    invalid: 'Form is invalid',
-  },
-  sl: {
-    title: 'Demo validatorjev',
-    intro: 'Preklopite jezik ali markdown: napake, ki so že na poljih, sledijo brez ponovne validacije.',
-    markdown: 'Markdown v sporočilih',
-    username: 'Uporabniško ime',
-    email: 'E-pošta',
-    emailHint: 'Vnesite something@taken.com za prikaz asinhrone validacije',
-    invalidEmail: 'Vnesite veljaven e-poštni naslov',
-    emailTaken: 'Ta e-poštni naslov je že zaseden',
-    age: 'Starost',
-    role: 'Vloga',
-    roles: { admin: 'Skrbnik', user: 'Uporabnik', guest: 'Gost' },
-    bio: 'Opis',
-    submit: 'Pošlji',
-    reset: 'Ponastavi',
-    status: 'Stanje validacije obrazca',
-    valid: 'Obrazec je veljaven',
-    invalid: 'Obrazec ni veljaven',
-  },
-  de: {
-    title: 'Validatoren-Demo',
-    intro: 'Wechseln Sie die Sprache oder Markdown: Die Fehler an den Feldern folgen ohne erneute Validierung.',
-    markdown: 'Markdown in Meldungen',
-    username: 'Benutzername',
-    email: 'E-Mail',
-    emailHint: 'Geben Sie something@taken.com ein, um die asynchrone Validierung zu sehen',
-    invalidEmail: 'Bitte geben Sie eine gültige E-Mail-Adresse ein',
-    emailTaken: 'Diese E-Mail-Adresse ist bereits vergeben',
-    age: 'Alter',
-    role: 'Rolle',
-    roles: { admin: 'Administrator', user: 'Benutzer', guest: 'Gast' },
-    bio: 'Biografie',
-    submit: 'Absenden',
-    reset: 'Zurücksetzen',
-    status: 'Validierungsstatus des Formulars',
-    valid: 'Das Formular ist gültig',
-    invalid: 'Das Formular ist ungültig',
-  },
-  es: {
-    title: 'Demostración de validadores',
-    intro: 'Cambie el idioma o el markdown: los errores ya mostrados en los campos cambian sin volver a validar.',
-    markdown: 'Markdown en los mensajes',
-    username: 'Nombre de usuario',
-    email: 'Correo electrónico',
-    emailHint: 'Introduzca something@taken.com para ver la validación asíncrona',
-    invalidEmail: 'Introduzca una dirección de correo válida',
-    emailTaken: 'Esta dirección de correo ya está en uso',
-    age: 'Edad',
-    role: 'Rol',
-    roles: { admin: 'Administrador', user: 'Usuario', guest: 'Invitado' },
-    bio: 'Biografía',
-    submit: 'Enviar',
-    reset: 'Restablecer',
-    status: 'Estado de validación del formulario',
-    valid: 'El formulario es válido',
-    invalid: 'El formulario no es válido',
-  },
-  ja: {
-    title: 'バリデーターのデモ',
-    intro: '言語や Markdown を切り替えると、表示中のエラーも再検証なしで切り替わります。',
-    markdown: 'メッセージ内の Markdown',
-    username: 'ユーザー名',
-    email: 'メールアドレス',
-    emailHint: '非同期検証を見るには something@taken.com を入力してください',
-    invalidEmail: '有効なメールアドレスを入力してください',
-    emailTaken: 'このメールアドレスは既に使用されています',
-    age: '年齢',
-    role: '役割',
-    roles: { admin: '管理者', user: 'ユーザー', guest: 'ゲスト' },
-    bio: '自己紹介',
-    submit: '送信',
-    reset: 'リセット',
-    status: 'フォームの検証状態',
-    valid: 'フォームは有効です',
-    invalid: 'フォームは無効です',
-  },
-  zh: {
-    title: '验证器演示',
-    intro: '切换语言或 Markdown：字段上已显示的错误无需重新验证即可随之更新。',
-    markdown: '消息中的 Markdown',
-    username: '用户名',
-    email: '电子邮件',
-    emailHint: '输入 something@taken.com 查看异步验证',
-    invalidEmail: '请输入有效的电子邮件地址',
-    emailTaken: '该电子邮件地址已被占用',
-    age: '年龄',
-    role: '角色',
-    roles: { admin: '管理员', user: '用户', guest: '访客' },
-    bio: '简介',
-    submit: '提交',
-    reset: '重置',
-    status: '表单验证状态',
-    valid: '表单有效',
-    invalid: '表单无效',
-  },
-  fa: {
-    rtl: true,
-    title: 'نمایش اعتبارسنج‌ها',
-    intro: 'زبان یا مارک‌داون را تغییر دهید: خطاهای نمایش‌داده‌شده بدون اعتبارسنجی دوباره به‌روز می‌شوند.',
-    markdown: 'مارک‌داون در پیام‌ها',
-    username: 'نام کاربری',
-    email: 'ایمیل',
-    emailHint: 'برای دیدن اعتبارسنجی ناهمگام something@taken.com را وارد کنید',
-    invalidEmail: 'لطفاً یک نشانی ایمیل معتبر وارد کنید',
-    emailTaken: 'این نشانی ایمیل قبلاً استفاده شده است',
-    age: 'سن',
-    role: 'نقش',
-    roles: { admin: 'مدیر', user: 'کاربر', guest: 'مهمان' },
-    bio: 'درباره من',
-    submit: 'ارسال',
-    reset: 'بازنشانی',
-    status: 'وضعیت اعتبارسنجی فرم',
-    valid: 'فرم معتبر است',
-    invalid: 'فرم نامعتبر است',
-  },
-  bn: {
-    title: 'ভ্যালিডেটর ডেমো',
-    intro: 'ভাষা বা মার্কডাউন পরিবর্তন করুন: ফিল্ডে দেখানো ত্রুটিগুলি পুনরায় যাচাই ছাড়াই বদলে যায়।',
-    markdown: 'বার্তায় মার্কডাউন',
-    username: 'ব্যবহারকারীর নাম',
-    email: 'ইমেল',
-    emailHint: 'অ্যাসিঙ্ক্রোনাস যাচাই দেখতে something@taken.com লিখুন',
-    invalidEmail: 'একটি বৈধ ইমেল ঠিকানা লিখুন',
-    emailTaken: 'এই ইমেল ঠিকানাটি ইতিমধ্যে ব্যবহৃত হয়েছে',
-    age: 'বয়স',
-    role: 'ভূমিকা',
-    roles: { admin: 'প্রশাসক', user: 'ব্যবহারকারী', guest: 'অতিথি' },
-    bio: 'পরিচিতি',
-    submit: 'জমা দিন',
-    reset: 'রিসেট',
-    status: 'ফর্ম যাচাইয়ের অবস্থা',
-    valid: 'ফর্মটি বৈধ',
-    invalid: 'ফর্মটি অবৈধ',
-  },
-};
-const text = computed(() => ui[locale.value]);
+// The demo's own text: labels, hints and the messages it gives its own validators
+const text = computed(() => messages[locale.value].ui);
 
-// A role is stored as its code and shown by its name in the current language, in the select and in the message
-// InAllowedValues gives
+// A role is stored as its code and shown by its name in the current language
 const roles = ['admin', 'user', 'guest'];
-const roleText = (role) => text.value.roles[role];
-const roleItems = computed(() => roles.map((value) => ({ value, title: roleText(value) })));
+const roleName = (role) => messages[locale.value].roles[role];
+const roleItems = computed(() => roles.map((value) => ({ value, title: roleName(value) })));
 
-// A translation function shaped like vue-i18n's t: the translation of key with the placeholders substituted, or key
-// unchanged where there is none. It reads locale, so every error on screen follows a switch without revalidating.
-const t = (key, named) => {
-  const template = messages[locale.value]?.[key];
-  return template ? interpolate(template, named) : key;
+// The demo's translation function: the message for an error code with the params substituted, or the code
+// unchanged where the current language has none
+const t = (code, params) => {
+  const template = messages[locale.value].errors[code];
+  return template ? interpolate(template, params) : code;
 };
 
-// formatParams formats the placeholder values before t substitutes them: Persian and Bengali write their own digits
-translateStrings(
-  formatParams(t, (value) => (typeof value === 'number' ? new Intl.NumberFormat(locale.value).format(value) : value)),
-);
-
-// The configuration is reactive, so the errors on screen follow the switch. Each field's message slot renders its
-// errors through the globally registered vue-markdown component, so a markdown message shows its emphasis.
-const useMarkdown = ref(getConfig().useMarkdownInValidators);
-const markdownInitially = useMarkdown.value;
-watch(useMarkdown, (value) => setConfig({ useMarkdownInValidators: value }));
-
-// translateStrings and the configuration are global; leave the rest of the documentation as it was
-onUnmounted(() => {
-  translateStrings((key) => key);
-  setConfig({ useMarkdownInValidators: markdownInitially });
+// formatParams formats every param before t substitutes it: numbers in the language's digits, and in bold where the
+// demo shows markdown
+const translate = formatParams(t, (value) => {
+  const shown = typeof value === 'number' ? new Intl.NumberFormat(locale.value).format(value) : String(value);
+  return useMarkdown.value ? `**${shown}**` : shown;
 });
+
+// errorText renders every error a built-in validator states by code: the demo's own message for it, as markdown where
+// the checkbox says so. The only list of allowed values in the demo is the roles, named here by the demo rather than by
+// their codes. A code the demo has no message for keeps the library's English detail. errorText is read on every
+// render of an error, so the errors already on the fields follow the language and the checkbox without revalidating.
+const previousErrorText = getConfig().errorText;
+setConfig({
+  errorText: (error) => {
+    const params =
+      error.code === 'in_allowed_values'
+        ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
+        : error.params;
+    const message = translate(error.code, params);
+    if (message === error.code) return undefined;
+    return useMarkdown.value ? new MdString(message) : message;
+  },
+});
+// the configuration is global; leave the rest of the documentation as it was
+onUnmounted(() => setConfig({ errorText: previousErrorText }));
 
 // Create a form group with validated fields
 const validatedForm = new Group({
@@ -326,7 +134,7 @@ const validatedForm = new Group({
   role: new Field({
     value: '',
     validators: [
-      new Validators.InAllowedValues(roles, { text: roleText })
+      new Validators.InAllowedValues(roles)
     ]
   }),
 
@@ -365,6 +173,37 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
   console.log('Form value has changed');
   return supr(field, newValue, oldValue);
 }));
+```
+
+### Translations
+
+The demo's text lives in `validators-demo.messages.json`, one block per language: `errors` keyed by the code a
+built-in validator states, `roles` keyed by the stored role, and `ui` for the demo's own labels. An excerpt:
+
+```json
+{
+  "sl": {
+    "errors": {
+      "required": "Prosimo, vnesite vrednost",
+      "value_in_range": "Vrednost mora biti med {minValue} in {maxValue}",
+      "in_allowed_values": "Mora biti ena od [{allowedAsText}]",
+      "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}"
+    },
+    "roles": {
+      "admin": "Skrbnik",
+      "user": "Uporabnik",
+      "guest": "Gost"
+    },
+    "ui": {
+      "title": "Demo validatorjev",
+      "username": "Uporabniško ime",
+      "age": "Starost",
+      "role": "Vloga",
+      …
+    }
+  },
+  "de": { … }
+}
 ```
 
 ### Vue Template
@@ -512,34 +351,29 @@ error inside the validation function only when the user should read something mo
 ## Translated Messages in This Demo
 
 The language selector switches the demo between English, Slovenian, German, Spanish, Japanese, Chinese, Persian and
-Bengali.
+Bengali. The library takes no part in it: every built-in validator reports its failure as a `code`, `params` and an
+English `detail`, and the demo renders the error itself through [`errorText`](/api/config).
 
-The built-in messages come through `translateStrings`. The demo hands it a translation function over a small
-dictionary, written with `interpolate` from `@dynamicforms/translatable`; with vue-i18n,
-`translateStrings(i18n.global.t, 'forms')` takes its place. The function reads `locale`, so the errors already on the
-fields change language without the fields revalidating. A key a locale does not translate keeps its English default.
-The demo wraps it with `formatParams` from `@dynamicforms/translatable`, which formats the placeholder values before
-they are substituted: numbers go through `Intl.NumberFormat` for the locale, so Persian and Bengali show the age range
-in their own digits.
-See [Translation](/guide/getting-started#translation).
+- **Messages.** `errorText` looks the error's code up under `errors` in the current language and substitutes the
+  params with `interpolate` from `@dynamicforms/translatable`. A code the language has no message for keeps the
+  library's English detail.
+- **Numbers.** `formatParams`, from the same package, formats the params before they are substituted: numbers go
+  through `Intl.NumberFormat` for the language, so Persian and Bengali show the age range in their own digits.
+- **Role names.** A role is stored as its code, `guest`, and the error's params carry the codes in `allowedValues`.
+  The demo names them from `roles`, for the message and for the select's items alike.
+- **Markdown.** With the checkbox on, the formatting wraps each value in `**` and `errorText` answers an `MdString`,
+  which each field renders through the `vue-markdown` component in Vuetify's `message` slot, since the
+  `error-messages` prop shows plain text. With it off, the message is plain text, values as they are.
 
-The labels, the hint and the messages the demo gives its own validators belong to the application, so they come
-from the demo's own dictionary rather than from `translateStrings`. A message given to a validator as a `computed`
-follows the locale the same way.
-
-A role is stored as its code, `guest`, and shown by its name in the current language. The same `roleText` names the
-select's items and, through the `text` option of `InAllowedValues`, the values its message lists, so the message on
-screen reads `Must be one of [Administrator, User, Guest]` in English and follows a language switch like the rest.
-
-The switch sets [`useMarkdownInValidators`](/api/config). The configuration is reactive, so the errors on screen
-follow it too: on, the placeholder values are bold; off, the markup is stripped. Each field renders its messages
-through the `vue-markdown` component in Vuetify's `message` slot, since the `error-messages` prop shows plain text.
+`errorText` reads the language and the checkbox on every render of an error, so the errors already on the fields
+change without the fields revalidating. The labels, the hint and the messages the demo gives its own email
+validators come from `ui`; a message given to a validator as a `computed` follows the language the same way.
 
 Persian is written right to left: the demo wraps itself in Vuetify's `v-locale-provider` with `rtl` set for it, and
-the Persian message for `InAllowedValues` isolates the Latin list with U+2068 and U+2069, so its brackets stay in
-place.
+the Persian message for `in_allowed_values` isolates the list with U+2068 and U+2069, so its brackets stay in place.
 
-Both settings are global, so the demo restores them when it is unmounted.
+`errorText` is global, so the demo restores the previous one when it is unmounted. See
+[Error messages and translation](/guide/getting-started#error-messages-and-translation).
 
 ## API Reference
 
@@ -556,8 +390,9 @@ Both settings are global, so the demo restores them when it is unmounted.
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
   run deciding the verdict, and `form.busy` disabling submit while the tree is still deciding
-- **Translated Messages**: The built-in messages in eight languages, numbers in the locale's digits, following a locale switch on screen
-- **Markdown Setting**: `useMarkdownInValidators` switched at run time
+- **Translated Messages**: The validators' errors rendered by the application through `errorText`, in eight
+  languages, numbers in the language's digits, following a language switch on screen
+- **Markdown**: The application answering an `MdString` where it wants markdown
 - **Form-level Validation**: Tracking overall form validity based on individual field states
 - **Error Display**: Showing validation errors to the user
 

@@ -14,61 +14,68 @@ exists.
 
 ## Upgrading to v3.0.0 (from v2.0.x)
 
-3.0.0 requires `@dynamicforms/translatable` 0.3. Upgrade both together.
+3.0.0 takes translation and markdown out of the library: a built-in validator states what failed, and the
+application decides how that reads. One change is silent and comes first: the renamed error codes. There is a
+[checklist](#checklist-for-3-0-0) at the end of this section.
 
-### `translateStrings` takes a translation function
+### Error codes are renamed
 
-`translateStrings` takes a function shaped like vue-i18n's `t` — `(key, named) => string`, returning the key
-unchanged when there is no translation — and an optional namespace prefixed to every key. The function substitutes
-the placeholders itself. A callback returning a template for a key, or `null`/`undefined` for none, is a compile
-error.
+Every code is snake_case and names what failed. Code comparing `error.code` with an old code keeps compiling and
+stops matching.
+
+| 2.0 | 3.0 |
+|-----|-----|
+| `min` / `max` / `range` | `min_value` / `max_value` / `value_in_range` |
+| `min-length` / `max-length` / `range-length` | `min_length` / `max_length` / `length_in_range` |
+| `in-allowed-values` | `in_allowed_values` |
+| `compare-to` | `compare_to` |
+| `validation-failed` | `validation_failed` |
+
+`required` and `pattern` stay.
+
+### Translations go through `errorText`
+
+`translateStrings` and `strings` are gone, and the library no longer depends on `@dynamicforms/translatable`. A
+built-in validator given no `message` reports a `ValidationErrorDescription` — `code`, `params` and an English
+`detail` — and the application renders it through `errorText` in the configuration, called on every read of the
+error:
 
 ```typescript
 // before
 translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
 
 // after
-translateStrings(i18n.global.t, 'forms');
+setConfig({
+  errorText: (error) => (te(`forms.${error.code}`) ? t(`forms.${error.code}`, error.params) : undefined),
+});
 ```
 
-Translations keep their keys, placeholders and markdown. A plain dictionary becomes a function with
-`interpolate` from `@dynamicforms/translatable`:
+The translations move from the message keys to the codes: `MinValue` to `min_value`, `Required` to `required` — the
+[Error codes](/api/validators#error-codes) table lists every code with its params. `undefined` leaves the English
+detail. An error on screen follows a locale switch, because `errorText` is read when the error is rendered.
+
+### Built-in messages are plain text
+
+The English details carry no markdown, and `useMarkdownInValidators` and `buildErrorMessage` are gone; using either
+is a compile error. Where an application wants markdown, `errorText` answers an `MdString`, and a message of its own
+is an `MdString` from the start:
 
 ```typescript
-import { interpolate } from '@dynamicforms/translatable';
+// before
+new Validators.Required(buildErrorMessage('**Required**'));
 
-translateStrings((key, named) => interpolate(dictionary[key] ?? key, named));
+// after
+new Validators.Required(new MdString('**Required**'));
 ```
-
-A locale switch updates the messages on screen wherever `t` reads the locale reactively, as vue-i18n's does;
-calling `translateStrings` again on every switch is no longer needed.
-
-### `strings` and `translatedMessage` are gone
-
-Read a built-in message's translation through the application's own translation function, e.g.
-`t('forms.MinValue', { minValue: 5 })`. A validator of your own builds its message with
-`buildErrorMessage(computed(() => t('forms.Required')))`.
-
-### A substituted value is part of the message's markdown
-
-A value substituted into a built-in message is markdown along with the rest of it: rendered as markdown with
-`useMarkdownInValidators` on, and stripped with the rest of the markup with it off. Before, with the setting off,
-only the template was stripped and the value was inserted as it stands. The change is silent. Where values must
-keep characters such as `*` or `_`, see [values that contain markdown characters](/api/config#values-that-contain-markdown-characters).
-
-### A built-in message follows `useMarkdownInValidators`
-
-The configuration is reactive. A built-in validator's message already on screen switches between markdown and plain
-text when `useMarkdownInValidators` changes; before, it kept the form it had when it was built. The change is
-silent. A message passed through `buildErrorMessage()` as a plain string still reads the setting once, when it is
-built.
 
 ### Checklist for 3.0.0
 
-1. Upgrade `@dynamicforms/translatable` to 0.3.
-2. Pass `translateStrings` a translation function and a namespace in place of the callback.
-3. Replace every read of `strings` and every call of `translatedMessage` with the application's translation
-   function.
+1. Replace every comparison with an old error code by the new one.
+2. Replace `translateStrings` with `errorText`, and move the translations to the error codes.
+3. Remove `useMarkdownInValidators` from the plugin options and `setConfig` calls; answer an `MdString` from
+   `errorText` where markdown is wanted.
+4. Replace `buildErrorMessage(text)` with the text, or with `new MdString(text)` for markdown.
+5. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

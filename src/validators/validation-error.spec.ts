@@ -237,11 +237,11 @@ describe('sameAs', () => {
 
   it('separates errors that differ only in their code or class', () => {
     const plain = new ValidationErrorText('too short');
-    const coded = new ValidationErrorText('too short', '', 'min-length');
+    const coded = new ValidationErrorText('too short', '', 'min_length');
 
     expect(plain.sameAs(coded)).toBe(false);
-    expect(coded.sameAs(new ValidationErrorText('too short', '', 'min-length'))).toBe(true);
-    expect(coded.sameAs(new ValidationErrorText('too short', 'highlighted', 'min-length'))).toBe(false);
+    expect(coded.sameAs(new ValidationErrorText('too short', '', 'min_length'))).toBe(true);
+    expect(coded.sameAs(new ValidationErrorText('too short', 'highlighted', 'min_length'))).toBe(false);
   });
 
   it('separates two classes that render the same body', () => {

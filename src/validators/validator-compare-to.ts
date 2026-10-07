@@ -62,12 +62,16 @@ export default class CompareTo<T = any> extends Validator {
       }
       this.listenOn(other);
 
-      if (!this.isValidComparison(unref(newValue), unref(other.value))) {
+      const otherValue = unref(other.value);
+      if (!this.isValidComparison(unref(newValue), otherValue)) {
+        const params = { newValue, oldValue, otherValue };
         return [
           new ValidationErrorRenderContent(
-            this.replacePlaceholders(message, { newValue, oldValue, field, otherField: other }),
+            this.replacePlaceholders(message, { ...params, field, otherField: other }),
             '',
-            'compare-to',
+            'compare_to',
+            undefined,
+            params,
           ),
         ];
       }

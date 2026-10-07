@@ -2,7 +2,7 @@ import { unref } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
-import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
+import { RenderContentRef } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 export default class Pattern extends Validator {
@@ -10,11 +10,11 @@ export default class Pattern extends Validator {
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       if (!pattern.test(String(unref(newValue)))) {
         return [
-          new ValidationErrorRenderContent(
-            this.messageFor(message, 'Pattern', { newValue, oldValue, field, pattern }),
-            '',
-            'pattern',
-          ),
+          this.errorFor(field, message, 'pattern', 'Value must match pattern "{pattern}"', {
+            newValue,
+            oldValue,
+            pattern,
+          }),
         ];
       }
       return null;

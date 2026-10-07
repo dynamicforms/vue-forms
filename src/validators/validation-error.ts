@@ -1,6 +1,8 @@
 import { isEqual } from 'lodash-es';
 import { computed, ComputedRef, Ref, unref } from 'vue';
 
+import { getConfig } from '../config';
+
 /**
  * Marks content for markdown rendering
  */
@@ -61,19 +63,38 @@ export function isCallableFunction(msg?: RenderContentRef): msg is RenderContent
 export type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
 
 /**
+ * What an error states apart from how it reads: what failed, the values it failed with, and an English sentence
+ * saying so. It has the shape of an error a `@dynamicforms/fastapi-viewsets` server returns - `detail_code`,
+ * `detail_params` and `detail` - so an application renders the errors of its validators and of its server through
+ * one function, `errorText` in the configuration.
+ */
+export interface ErrorDescription {
+  /** Machine-readable identifier of what failed, in snake_case. */
+  readonly code: string;
+  /** The values the failure is stated with, such as `minValue` for `min_value`. */
+  readonly params: Readonly<Record<string, unknown>>;
+  /** The failure in English, with `params` substituted. */
+  readonly detail: string;
+  /** Where the error comes from; see `ValidationError.origin`. */
+  readonly origin: ErrorOrigin;
+}
+
+/**
  * Base validation error class with component rendering capabilities
  */
 
 export class ValidationError {
   /**
-   * @param code Machine-readable identifier of what failed, in kebab-case. Every validator this library ships states
-   * one, so code that reacts to a particular failure does not have to match the message text, which is translated
-   * and configurable. It is optional: an error built by hand carries whatever its author gives it, or nothing.
+   * @param code Machine-readable identifier of what failed, in snake_case. Every validator this library ships states
+   * one, so code that reacts to a particular failure does not have to match the message text. It is optional: an
+   * error built by hand carries whatever its author gives it, or nothing.
    * @param statedOrigin Where the error comes from, where its author states it; see `origin`.
+   * @param params The values the failure is stated with, such as `minValue` for `min_value`.
    */
   constructor(
     public code?: string,
     private readonly statedOrigin?: ErrorOrigin,
+    public readonly params: Readonly<Record<string, unknown>> = {},
   ) {}
 
   /**
@@ -135,8 +156,9 @@ export class ValidationErrorText extends ValidationError {
     public classes: ClassTypes = '',
     code?: string,
     origin?: ErrorOrigin,
+    params?: Readonly<Record<string, unknown>>,
   ) {
-    super(code, origin);
+    super(code, origin, params);
   }
 
   get componentName() {
@@ -165,8 +187,9 @@ export class ValidationErrorRenderContent extends ValidationError {
     public classes: ClassTypes = '',
     code?: string,
     origin?: ErrorOrigin,
+    params?: Readonly<Record<string, unknown>>,
   ) {
-    super(code, origin);
+    super(code, origin, params);
     this.text = text;
     this.textType = computed(() => this.getTextType);
   }
@@ -226,6 +249,29 @@ export class ValidationErrorRenderContent extends ValidationError {
 
   get extraClasses() {
     return this.classes;
+  }
+}
+
+/**
+ * An error stated as an `ErrorDescription`. It reads as what `errorText` in the configuration answers for it, and as
+ * its English `detail` where `errorText` is not set or answers `undefined`. Every built-in validator reports its
+ * failures this way, unless it is given a message of its own.
+ */
+export class ValidationErrorDescription extends ValidationErrorRenderContent implements ErrorDescription {
+  declare code: string;
+
+  constructor(
+    code: string,
+    params: Readonly<Record<string, unknown>>,
+    public readonly detail: string,
+    classes: ClassTypes = '',
+    origin?: ErrorOrigin,
+  ) {
+    super(detail, classes, code, origin, params);
+  }
+
+  get resolvedText() {
+    return getConfig().errorText?.(this) ?? this.detail;
   }
 }
 
