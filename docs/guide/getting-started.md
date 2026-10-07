@@ -144,6 +144,17 @@ With namespace `forms`, key `MinValue` is looked up as `forms.MinValue`. The val
 `t` has no translation for — it returns the key unchanged — keeps its English default, so a locale can be adopted
 before every message is translated.
 
+`t` substitutes a placeholder value as it prints. To show numbers and dates in the locale's digits, separators and
+date format, wrap it with `formatParams` from `@dynamicforms/translatable` — with vue-i18n, its `n` and `d`:
+
+```typescript
+import { formatParams } from '@dynamicforms/translatable';
+
+const { t, n, d } = i18n.global;
+translateStrings(formatParams(t, (value) =>
+  typeof value === 'number' ? n(value) : value instanceof Date ? d(value) : value), 'forms');
+```
+
 Each read of a message calls `t`, so an error already on screen follows a locale switch, and a later
 `translateStrings` call, without the field revalidating. The [validators demo](/examples/validators) switches its messages
 between eight languages this way.

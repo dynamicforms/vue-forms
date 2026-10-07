@@ -114,7 +114,7 @@
 </template>
 
 <script setup>
-import { interpolate } from '@dynamicforms/translatable';
+import { formatParams, interpolate } from '@dynamicforms/translatable';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   Group,
@@ -351,21 +351,17 @@ const roles = ['admin', 'user', 'guest'];
 const roleText = (role) => text.value.roles[role];
 const roleItems = computed(() => roles.map((value) => ({ value, title: roleText(value) })));
 
-// The translation function receives the placeholder values as they are, so it formats the numbers among them for the
-// locale: Persian and Bengali write their own digits.
-const formatNumbers = (named) => {
-  const format = new Intl.NumberFormat(locale.value);
-  return Object.fromEntries(
-    Object.entries(named).map(([name, value]) => [name, typeof value === 'number' ? format.format(value) : value]),
-  );
-};
-
 // A translation function shaped like vue-i18n's t: the translation of key with the placeholders substituted, or key
 // unchanged where there is none. It reads locale, so every error on screen follows a switch without revalidating.
-translateStrings((key, named) => {
+const t = (key, named) => {
   const template = messages[locale.value]?.[key];
-  return template ? interpolate(template, formatNumbers(named)) : key;
-});
+  return template ? interpolate(template, named) : key;
+};
+
+// formatParams formats the placeholder values before t substitutes them: Persian and Bengali write their own digits
+translateStrings(
+  formatParams(t, (value) => (typeof value === 'number' ? new Intl.NumberFormat(locale.value).format(value) : value)),
+);
 
 // The configuration is reactive, so the errors on screen follow the switch. Each field's message slot renders its
 // errors through the globally registered vue-markdown component, so a markdown message shows its emphasis.

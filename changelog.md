@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2026-10-07
 
 ### Changed
-- Requires `@dynamicforms/translatable` 0.2. `translateStrings(t, namespace?)` takes the application's translation
+- Requires `@dynamicforms/translatable` 0.3. `translateStrings(t, namespace?)` takes the application's translation
   function, shaped like vue-i18n's `t`, in place of a callback returning raw templates. Each key is looked up as
   `${namespace}.${key}`, and `t` substitutes the placeholders; a key `t` has no translation for keeps its English
   default. An error on screen follows a locale switch without another `translateStrings` call.

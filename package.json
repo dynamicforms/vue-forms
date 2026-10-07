@@ -58,7 +58,7 @@
     "lodash-es": "^4.17.21"
   },
   "peerDependencies": {
-    "@dynamicforms/translatable": "^0.2.0",
+    "@dynamicforms/translatable": "^0.3.0",
     "vue": "^3.5.2"
   },
   "devDependencies": {

@@ -17,7 +17,7 @@ Here's the source code for the demo above:
 ### JavaScript/TypeScript
 
 ```js
-import { interpolate } from '@dynamicforms/translatable';
+import { formatParams, interpolate } from '@dynamicforms/translatable';
 import { computed, onUnmounted, ref, watch } from 'vue';
 import {
   Group,
@@ -254,21 +254,17 @@ const roles = ['admin', 'user', 'guest'];
 const roleText = (role) => text.value.roles[role];
 const roleItems = computed(() => roles.map((value) => ({ value, title: roleText(value) })));
 
-// The translation function receives the placeholder values as they are, so it formats the numbers among them for the
-// locale: Persian and Bengali write their own digits.
-const formatNumbers = (named) => {
-  const format = new Intl.NumberFormat(locale.value);
-  return Object.fromEntries(
-    Object.entries(named).map(([name, value]) => [name, typeof value === 'number' ? format.format(value) : value]),
-  );
-};
-
 // A translation function shaped like vue-i18n's t: the translation of key with the placeholders substituted, or key
 // unchanged where there is none. It reads locale, so every error on screen follows a switch without revalidating.
-translateStrings((key, named) => {
+const t = (key, named) => {
   const template = messages[locale.value]?.[key];
-  return template ? interpolate(template, formatNumbers(named)) : key;
-});
+  return template ? interpolate(template, named) : key;
+};
+
+// formatParams formats the placeholder values before t substitutes them: Persian and Bengali write their own digits
+translateStrings(
+  formatParams(t, (value) => (typeof value === 'number' ? new Intl.NumberFormat(locale.value).format(value) : value)),
+);
 
 // The configuration is reactive, so the errors on screen follow the switch. Each field's message slot renders its
 // errors through the globally registered vue-markdown component, so a markdown message shows its emphasis.
@@ -522,8 +518,9 @@ The built-in messages come through `translateStrings`. The demo hands it a trans
 dictionary, written with `interpolate` from `@dynamicforms/translatable`; with vue-i18n,
 `translateStrings(i18n.global.t, 'forms')` takes its place. The function reads `locale`, so the errors already on the
 fields change language without the fields revalidating. A key a locale does not translate keeps its English default.
-The function receives the placeholder values as they are, so it also formats the numbers among them with
-`Intl.NumberFormat` for the locale: Persian and Bengali show the age range in their own digits.
+The demo wraps it with `formatParams` from `@dynamicforms/translatable`, which formats the placeholder values before
+they are substituted: numbers go through `Intl.NumberFormat` for the locale, so Persian and Bengali show the age range
+in their own digits.
 See [Translation](/guide/getting-started#translation).
 
 The labels, the hint and the messages the demo gives its own validators belong to the application, so they come

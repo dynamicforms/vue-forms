@@ -14,7 +14,7 @@ exists.
 
 ## Upgrading to v3.0.0 (from v2.0.x)
 
-3.0.0 requires `@dynamicforms/translatable` 0.2. Upgrade both together.
+3.0.0 requires `@dynamicforms/translatable` 0.3. Upgrade both together.
 
 ### `translateStrings` takes a translation function
 
@@ -64,7 +64,7 @@ built.
 
 ### Checklist for 3.0.0
 
-1. Upgrade `@dynamicforms/translatable` to 0.2.
+1. Upgrade `@dynamicforms/translatable` to 0.3.
 2. Pass `translateStrings` a translation function and a namespace in place of the callback.
 3. Replace every read of `strings` and every call of `translatedMessage` with the application's translation
    function.
