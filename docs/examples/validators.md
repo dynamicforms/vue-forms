@@ -103,6 +103,7 @@ const ui = {
     emailTaken: 'This email address is already taken',
     age: 'Age',
     role: 'Role',
+    roles: { admin: 'Administrator', user: 'User', guest: 'Guest' },
     bio: 'Bio',
     submit: 'Submit',
     reset: 'Reset',
@@ -121,6 +122,7 @@ const ui = {
     emailTaken: 'Ta e-poštni naslov je že zaseden',
     age: 'Starost',
     role: 'Vloga',
+    roles: { admin: 'Skrbnik', user: 'Uporabnik', guest: 'Gost' },
     bio: 'Opis',
     submit: 'Pošlji',
     reset: 'Ponastavi',
@@ -139,6 +141,7 @@ const ui = {
     emailTaken: 'Diese E-Mail-Adresse ist bereits vergeben',
     age: 'Alter',
     role: 'Rolle',
+    roles: { admin: 'Administrator', user: 'Benutzer', guest: 'Gast' },
     bio: 'Biografie',
     submit: 'Absenden',
     reset: 'Zurücksetzen',
@@ -157,6 +160,7 @@ const ui = {
     emailTaken: 'Esta dirección de correo ya está en uso',
     age: 'Edad',
     role: 'Rol',
+    roles: { admin: 'Administrador', user: 'Usuario', guest: 'Invitado' },
     bio: 'Biografía',
     submit: 'Enviar',
     reset: 'Restablecer',
@@ -175,6 +179,7 @@ const ui = {
     emailTaken: 'このメールアドレスは既に使用されています',
     age: '年齢',
     role: '役割',
+    roles: { admin: '管理者', user: 'ユーザー', guest: 'ゲスト' },
     bio: '自己紹介',
     submit: '送信',
     reset: 'リセット',
@@ -193,6 +198,7 @@ const ui = {
     emailTaken: '该电子邮件地址已被占用',
     age: '年龄',
     role: '角色',
+    roles: { admin: '管理员', user: '用户', guest: '访客' },
     bio: '简介',
     submit: '提交',
     reset: '重置',
@@ -212,6 +218,7 @@ const ui = {
     emailTaken: 'این نشانی ایمیل قبلاً استفاده شده است',
     age: 'سن',
     role: 'نقش',
+    roles: { admin: 'مدیر', user: 'کاربر', guest: 'مهمان' },
     bio: 'درباره من',
     submit: 'ارسال',
     reset: 'بازنشانی',
@@ -230,6 +237,7 @@ const ui = {
     emailTaken: 'এই ইমেল ঠিকানাটি ইতিমধ্যে ব্যবহৃত হয়েছে',
     age: 'বয়স',
     role: 'ভূমিকা',
+    roles: { admin: 'প্রশাসক', user: 'ব্যবহারকারী', guest: 'অতিথি' },
     bio: 'পরিচিতি',
     submit: 'জমা দিন',
     reset: 'রিসেট',
@@ -239,6 +247,12 @@ const ui = {
   },
 };
 const text = computed(() => ui[locale.value]);
+
+// A role is stored as its code and shown by its name in the current language, in the select and in the message
+// InAllowedValues gives
+const roles = ['admin', 'user', 'guest'];
+const roleText = (role) => text.value.roles[role];
+const roleItems = computed(() => roles.map((value) => ({ value, title: roleText(value) })));
 
 // The translation function receives the placeholder values as they are, so it formats the numbers among them for the
 // locale: Persian and Bengali write their own digits.
@@ -316,7 +330,7 @@ const validatedForm = new Group({
   role: new Field({
     value: '',
     validators: [
-      new Validators.InAllowedValues(['admin', 'user', 'guest'])
+      new Validators.InAllowedValues(roles, { text: roleText })
     ]
   }),
 
@@ -418,7 +432,7 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
             <!-- Role field (InAllowedValues) -->
             <v-select
               v-model="validatedForm.fields.role.value"
-              :items="['admin', 'user', 'guest']"
+              :items="roleItems"
               :label="text.role"
               :error-messages="getErrorMessages(validatedForm.fields.role)"
               outlined
@@ -515,6 +529,10 @@ See [Translation](/guide/getting-started#translation).
 The labels, the hint and the messages the demo gives its own validators belong to the application, so they come
 from the demo's own dictionary rather than from `translateStrings`. A message given to a validator as a `computed`
 follows the locale the same way.
+
+A role is stored as its code, `guest`, and shown by its name in the current language. The same `roleText` names the
+select's items and, through the `text` option of `InAllowedValues`, the values its message lists, so the message on
+screen reads `Must be one of [Administrator, User, Guest]` in English and follows a language switch like the rest.
 
 The switch sets [`useMarkdownInValidators`](/api/config). The configuration is reactive, so the errors on screen
 follow it too: on, the placeholder values are bold; off, the markup is stripped. Each field renders its messages

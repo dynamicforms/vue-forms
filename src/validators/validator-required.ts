@@ -1,8 +1,9 @@
 import { isArray, isObject, isString } from 'lodash-es';
-import { isRef, unref } from 'vue';
+import { unref } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
+import { isOptions } from './message-or-options';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
@@ -23,22 +24,12 @@ export interface RequiredOptions {
   trim?: boolean;
 }
 
-/**
- * Tells the two first arguments apart. Every form a message takes is a string, a String subclass, a function, a
- * reference or an object naming a component; an object that is none of those is the options.
- */
-function isOptions(arg?: RenderContentRef | RequiredOptions): arg is RequiredOptions {
-  return (
-    typeof arg === 'object' && arg !== null && !isRef(arg) && !(arg instanceof String) && !('componentName' in arg)
-  );
-}
-
 export default class Required extends Validator {
   constructor(options?: RequiredOptions);
   constructor(message?: RenderContentRef, options?: RequiredOptions);
   constructor(messageOrOptions?: RenderContentRef | RequiredOptions, options?: RequiredOptions) {
-    const message = isOptions(messageOrOptions) ? undefined : messageOrOptions;
-    const trim = (isOptions(messageOrOptions) ? messageOrOptions : options)?.trim ?? true;
+    const message = isOptions<RequiredOptions>(messageOrOptions) ? undefined : messageOrOptions;
+    const trim = (isOptions<RequiredOptions>(messageOrOptions) ? messageOrOptions : options)?.trim ?? true;
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       const value = unref(newValue);
       if (toLength(trim && isString(value) ? value.trim() : value) === 0) {

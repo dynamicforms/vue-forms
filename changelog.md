@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The configuration is reactive: a built-in validator's message on screen follows a later change of
   `useMarkdownInValidators`.
 
+### Added
+- `InAllowedValues` takes options, `{ text }`: the text a value is named by in `{allowedValues}` and
+  `{allowedAsText}`, such as its translation, read whenever the message is. The type `InAllowedValuesOptions` is
+  exported.
+
 ### Removed
 - The `strings` dictionary and `translatedMessage`. `translateStrings` is the only export for translation; an
   application reads a translated message through its own translation function.

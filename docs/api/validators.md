@@ -302,7 +302,7 @@ new Validators.LengthInRange(10, 200, 'Must be between 10 and 200 characters')
 
 ---
 
-### `new Validators.InAllowedValues(allowedValues, message?)`
+### `new Validators.InAllowedValues(allowedValues, message?, options?)`
 
 Fails when the value is not in `allowedValues`.
 
@@ -321,14 +321,35 @@ new Validators.InAllowedValues(() => rolesFor(department.value))
 |-----------|------|---------|
 | `allowedValues` | `AllowedValues<T>` (`T[] \| Ref<T[]> \| (() => T[])`) | required |
 | `message` | `RenderContentRef` | `'Must be one of [**{allowedAsText}**]'` |
+| `options` | `InAllowedValuesOptions<T>` | — |
 
-`AllowedValues<T>` is exported. The list is read at each validation rather than at construction, so a reference or
+The options may stand in the second position on their own; the second argument is told apart by shape, as with
+[`Required`](#new-validators-required-message-options).
+
+```typescript
+constructor(allowedValues: AllowedValues<T>, options?: InAllowedValuesOptions<T>);
+constructor(allowedValues: AllowedValues<T>, message?: RenderContentRef, options?: InAllowedValuesOptions<T>);
+
+interface InAllowedValuesOptions<T> {
+  text?: (value: T) => string;
+}
+```
+
+`text` gives the text a value is named by in `{allowedValues}` and `{allowedAsText}`, such as its translation; the
+value itself is what the field holds and what is measured. It is called whenever the message is read, so a message
+on screen follows the locale `text` reads. Without it a value is named as it prints.
+
+```typescript
+new Validators.InAllowedValues(['admin', 'user', 'guest'], { text: (role) => t(`roles.${role}`) })
+```
+
+`AllowedValues<T>` and `InAllowedValuesOptions<T>` are exported. The list is read at each validation rather than at construction, so a reference or
 a callback answers with the list in force then, and that list is both the one the value is measured against and
 the one the message names. The read happens inside the validation run, which is no reactive effect, so a
 list that changes does not revalidate the fields on its own — call `field.validate(true)` where they are to be
 measured against the new list at once.
 
-`{allowedAsText}` is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is available through `{allowedValues}`.
+`{allowedAsText}` is `join(', ')` over the list the run read, each value by its `text` where one is given; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is available through `{allowedValues}`.
 
 ---
 

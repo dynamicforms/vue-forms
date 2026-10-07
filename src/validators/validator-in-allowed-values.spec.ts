@@ -155,3 +155,44 @@ describe('InAllowedValues Validator with a list that arrives later', () => {
     expect(field.errors[0].code).toBe('in-allowed-values');
   });
 });
+
+describe('InAllowedValues Validator naming the values through text', () => {
+  const roleNames = { sl: { admin: 'skrbnik', user: 'uporabnik' }, en: { admin: 'administrator', user: 'user' } };
+  const textOf = (error: unknown) => String((error as ValidationErrorRenderContent).resolvedText).replaceAll('**', '');
+
+  it('names each allowed value by its text in {allowedAsText} and {allowedValues}', () => {
+    const text = (value: 'admin' | 'user') => roleNames.sl[value];
+    const asText = new Field({ value: 'guest', validators: [new InAllowedValues(['admin', 'user'], { text })] });
+    const asList = new Field({
+      value: 'guest',
+      validators: [new InAllowedValues(['admin', 'user'], '{allowedValues}', { text })],
+    });
+
+    expect(textOf(asText.errors[0])).toBe('Must be one of [skrbnik, uporabnik]');
+    expect(textOf(asList.errors[0])).toBe('skrbnik,uporabnik');
+  });
+
+  it('follows what text reads in a message already on screen', () => {
+    const locale = ref<'sl' | 'en'>('sl');
+    const field = new Field({
+      value: 'guest',
+      validators: [
+        new InAllowedValues(['admin', 'user'], { text: (value: 'admin' | 'user') => roleNames[locale.value][value] }),
+      ],
+    });
+    expect(textOf(field.errors[0])).toBe('Must be one of [skrbnik, uporabnik]');
+
+    locale.value = 'en';
+
+    expect(textOf(field.errors[0])).toBe('Must be one of [administrator, user]');
+  });
+
+  it('keeps the message it is given beside the options', () => {
+    const field = new Field({
+      value: 'guest',
+      validators: [new InAllowedValues(['admin'], 'Pick one of {allowedAsText}', { text: () => 'skrbnik' })],
+    });
+
+    expect(textOf(field.errors[0])).toBe('Pick one of skrbnik');
+  });
+});
