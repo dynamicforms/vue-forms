@@ -21,7 +21,7 @@ import { Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
 import { Validators } from './validators';
-import { ValidationErrorText } from './validators/validation-error';
+import { ValidationError } from './validators/validation-error';
 
 it('triggers action with custom parameters', () => {
   // Create a field with a custom action
@@ -220,7 +220,7 @@ it('propagates a validity change to the enclosing groups', () => {
   expect(outer.valid).toBe(true);
 
   // an error pushed from the outside changes validity without any value change
-  child.errors.push(new ValidationErrorText('pushed from outside'));
+  child.errors.push(new ValidationError('pushed from outside'));
   child.validate();
 
   expect(inner.valid).toBe(false);
@@ -247,11 +247,11 @@ it('stops propagating validity upwards where the ancestor validity is unchanged'
     }),
   );
 
-  childA.errors.push(new ValidationErrorText('a is bad'));
+  childA.errors.push(new ValidationError('a is bad'));
   childA.validate();
   expect(fires).toEqual([false]);
 
-  childB.errors.push(new ValidationErrorText('b is bad too'));
+  childB.errors.push(new ValidationError('b is bad too'));
   childB.validate();
   expect(fires).toEqual([false]);
 });

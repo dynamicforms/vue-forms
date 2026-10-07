@@ -3,8 +3,9 @@ import { unref } from 'vue';
 import { ValueChangedAction } from '../actions';
 import { bindingsIn, resolveByName, resolveInScope, scopeOf } from '../binding/resolve';
 import type { FieldBase } from '../field-base';
+import { RenderContentRef } from '../render-content';
 
-import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
+import { ValidationError } from './validation-error';
 import { ValidationFunction, Validator, ValidatorBindingState } from './validator';
 
 /**
@@ -66,7 +67,7 @@ export default class CompareTo<T = any> extends Validator {
       if (!this.isValidComparison(unref(newValue), otherValue)) {
         const params = { newValue, oldValue, otherValue };
         return [
-          new ValidationErrorRenderContent(
+          new ValidationError(
             this.replacePlaceholders(message, { ...params, field, otherField: other }),
             '',
             'compare_to',

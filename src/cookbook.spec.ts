@@ -5,7 +5,7 @@ import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
-import { ValidationErrorText, Validators } from './validators';
+import { ValidationError, Validators } from './validators';
 import { view } from './view';
 
 /**
@@ -145,7 +145,7 @@ describe('Cookbook: loading, submitting and resetting', () => {
     const showServerErrors = (target: Group, errors: Record<string, string>) => {
       Object.entries(errors).forEach(([name, message]) => {
         const field = target.field(name);
-        if (field) field.errors = [...field.errors, new ValidationErrorText(message, '', 'server-error', 'server')];
+        if (field) field.errors = [...field.errors, new ValidationError(message, '', 'server-error', 'server')];
       });
     };
     const clearServerErrors = (target: Group) => {
@@ -156,7 +156,7 @@ describe('Cookbook: loading, submitting and resetting', () => {
     };
 
     showServerErrors(form, { email: 'already taken', name: 'not allowed' });
-    form.fields.email.errors.push(new ValidationErrorText('looks like a typo'));
+    form.fields.email.errors.push(new ValidationError('looks like a typo'));
     expect(form.fields.email.valid).toBe(false);
     form.fields.email.value = 'x@y.z';
     expect(form.fields.email.valid).toBe(false);
@@ -206,7 +206,7 @@ describe('Cookbook: fields, sections and lists', () => {
           return null;
         }
         return row.fields.quantity.value > 0 && newValue == null
-          ? [new ValidationErrorText('Unit price is required when quantity is above zero')]
+          ? [new ValidationError('Unit price is required when quantity is above zero')]
           : null;
       }),
     );

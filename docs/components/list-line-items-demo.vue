@@ -83,8 +83,8 @@ import {
   ListItemAddedAction,
   ListItemRemovedAction,
   ValueChangedAction,
-  ValidationErrorText,
-  Validators
+  ValidationError,
+  Validators,
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
 // The item template: a declaration of what a single row is, bound to the data of every row the list holds.
@@ -106,7 +106,7 @@ lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, old
     return null;
   }
   if (row.fields.quantity.value > 0 && (newValue === null || newValue === '')) {
-    return [new ValidationErrorText('Unit price is required when quantity is above zero')];
+    return [new ValidationError('Unit price is required when quantity is above zero')];
   }
   return null;
 }));

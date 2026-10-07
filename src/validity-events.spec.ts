@@ -6,7 +6,7 @@ import { FieldBase } from './field-base';
 import { GenericFieldsInterface, Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
-import { ValidationErrorText } from './validators/validation-error';
+import { ValidationError } from './validators/validation-error';
 import { ValidationFunctionResult, Validator } from './validators/validator';
 
 /**
@@ -35,18 +35,18 @@ function watch(field: FieldBase<any>): Transition[] {
 
 /** rejects an empty string, a null and an undefined */
 const notEmpty = () =>
-  new Validator((value: any) => (value === '' || value == null ? [new ValidationErrorText('empty')] : null));
+  new Validator((value: any) => (value === '' || value == null ? [new ValidationError('empty')] : null));
 
 /** a container-level validator: rejects two members that hold the same value */
 const membersMustDiffer = (first: string, second: string) =>
   new Validator((newValue: any, oldValue: any, field: FieldBase<any>) => {
     const fields = (field as Group).fields;
-    return fields[first].value === fields[second].value ? [new ValidationErrorText('members are equal')] : null;
+    return fields[first].value === fields[second].value ? [new ValidationError('members are equal')] : null;
   });
 
 /** a validator whose verdict is decided by the test rather than by the value */
 const switchable = (state: { ok: boolean }) =>
-  new Validator(() => (state.ok ? null : [new ValidationErrorText('rejected')]));
+  new Validator(() => (state.ok ? null : [new ValidationError('rejected')]));
 
 function crossValidatedGroup() {
   const a = new Field({ value: '', validators: [notEmpty()] });
@@ -264,7 +264,7 @@ describe('Validity events without a value change', () => {
     const seenA = watch(a);
     const seenGroup = watch(group);
 
-    a.errors.push(new ValidationErrorText('pushed in'));
+    a.errors.push(new ValidationError('pushed in'));
     a.validate();
 
     expect(seenA).toEqual([[false, true]]);
@@ -284,7 +284,7 @@ describe('Validity events without a value change', () => {
     const seenA = watch(a);
     const seenGroup = watch(group);
 
-    resolveFn([new ValidationErrorText('rejected by the service')]);
+    resolveFn([new ValidationError('rejected by the service')]);
     await vi.waitFor(() => {
       expect(a.validating).toBe(false);
     });
@@ -321,7 +321,7 @@ describe('Validity events across nesting levels', () => {
   it('stops at the level whose verdict the leaf assignment does not change', () => {
     const { a, inner, root } = nestedGroups();
     // the root is invalid on its own account as well, so clearing the leaf leaves it invalid
-    root.errors.push(new ValidationErrorText('root level'));
+    root.errors.push(new ValidationError('root level'));
     root.validate();
     const seenA = watch(a);
     const seenInner = watch(inner);
@@ -362,7 +362,7 @@ describe('Validity events across nesting levels', () => {
           new Validator((newValue: any, oldValue: any, field: FieldBase<any>) => {
             const fields = (field as Group).fields;
             const innerValue = fields.inner.value as Record<string, any>;
-            return innerValue?.a === fields.c.value ? [new ValidationErrorText('inner.a equals c')] : null;
+            return innerValue?.a === fields.c.value ? [new ValidationError('inner.a equals c')] : null;
           }),
         ],
       },
@@ -381,16 +381,14 @@ describe('Validity events across nesting levels', () => {
 
   it('says nothing on the root whose own validator takes over the invalidity a list assignment sheds', () => {
     const list = new List(new Group({ a: new Field() }), {
-      validators: [
-        new Validator((value: any) => (value.length === 0 ? [new ValidationErrorText('list is empty')] : null)),
-      ],
+      validators: [new Validator((value: any) => (value.length === 0 ? [new ValidationError('list is empty')] : null))],
     });
     const root = new Group(
       { list },
       {
         validators: [
           new Validator((value: any) =>
-            (value?.list?.length ?? 0) > 1 ? [new ValidationErrorText('more than one item')] : null,
+            (value?.list?.length ?? 0) > 1 ? [new ValidationError('more than one item')] : null,
           ),
         ],
       },
@@ -411,7 +409,7 @@ describe('Validity events across nesting levels', () => {
       value: [{ a: '' }],
       validators: [
         new Validator((value: any) =>
-          value?.some((item: Record<string, any>) => item.a === '') ? [new ValidationErrorText('empty item')] : null,
+          value?.some((item: Record<string, any>) => item.a === '') ? [new ValidationError('empty item')] : null,
         ),
       ],
     });
@@ -420,7 +418,7 @@ describe('Validity events across nesting levels', () => {
       {
         validators: [
           new Validator((value: any) =>
-            value?.list?.[0]?.a === 'x' ? [new ValidationErrorText('first item is x')] : null,
+            value?.list?.[0]?.a === 'x' ? [new ValidationError('first item is x')] : null,
           ),
         ],
       },
@@ -679,7 +677,7 @@ describe('What one transaction announces', () => {
     a.value = 'b';
     expect(seen).toEqual(['a.value', 'group.value']);
 
-    resolveFn([new ValidationErrorText('rejected by the service')]);
+    resolveFn([new ValidationError('rejected by the service')]);
     await vi.waitFor(() => {
       expect(a.validating).toBe(false);
     });

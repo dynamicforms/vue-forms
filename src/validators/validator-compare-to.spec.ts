@@ -6,7 +6,7 @@ import type { FieldBase } from '../field-base';
 import { Group } from '../group';
 import { List } from '../list';
 
-import { ValidationErrorRenderContent } from './validation-error';
+import { ValidationError } from './validation-error';
 import CompareTo from './validator-compare-to';
 
 describe('CompareTo Validator', () => {
@@ -20,7 +20,7 @@ describe('CompareTo Validator', () => {
 
     // Verify that validator correctly detects mismatch
     expect(field1.errors.length).toBe(1);
-    expect(field1.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field1.errors[0]).toBeInstanceOf(ValidationError);
 
     // When values are equal, there should be no error
     field1.value = 'xyz';
@@ -332,7 +332,7 @@ describe('CompareTo Validator', () => {
     expect(form.fields.displayName.errors.length).toBe(1);
 
     // Check error message content
-    const errorContent = unref(form.fields.displayName.errors[0]) as ValidationErrorRenderContent;
+    const errorContent = unref(form.fields.displayName.errors[0]) as ValidationError;
     expect(errorContent.componentBody).toBe(errorMessage);
   });
 });

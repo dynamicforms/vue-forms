@@ -2,7 +2,8 @@
 
 ## `MessagesWidget`
 
-Renders a `string` or an array of `ValidationError` objects. Commonly used to display field validation errors.
+Renders a `string` or an array of [`RenderableValue`](#renderablevalue) objects — a `ValidationError` is one.
+Commonly used to display field validation errors.
 
 ```vue
 <template>
@@ -24,12 +25,12 @@ const field = new Field({ value: '', validators: [new Validators.Required()] });
 
 | Prop | Type | Required | Description |
 |------|------|----------|-------------|
-| `message` | `string \| ValidationError[]` | yes | Message(s) to display |
+| `message` | `string \| RenderableValue[]` | yes | Message(s) to display |
 | `classes` | `ClassTypes` | no | CSS classes applied to each rendered message |
 
 `classes` is applied to every rendered message together with the error's own classes (`extraClasses`); markdown
-messages also receive `df-messages-widget-markdown`. A `string` message renders a single `<span>`; a
-`ValidationError[]` renders one node per error (multiple root nodes).
+messages also receive `df-messages-widget-markdown`. A `string` message renders a single `<span>`; an array renders
+one node per value (multiple root nodes).
 
 `code` is not rendered. It is the machine-readable name of what failed, which the built-in validators state and a
 program matches on instead of the message text — see [error codes](/api/validators#error-codes).
@@ -37,20 +38,30 @@ program matches on instead of the message text — see [error codes](/api/valida
 `ClassType` is `string | string[] | Record<string, boolean>`, and `ClassTypes` is `ClassType | ClassType[]` —
 nested arrays are allowed, and the widget builds one internally.
 
-### `ValidationError` types
+### `RenderableValue`
 
-| Class | Description |
-|-------|-------------|
-| `ValidationError` | `new ValidationError(code?)` — base class: override `componentName`, `componentBindings`, `componentBody` and `extraClasses` to define your own error rendering |
-| `ValidationErrorText` | `new ValidationErrorText(text, classes?, code?)` — plain text rendered as a `<div>` carrying the widget `classes` plus the instance `classes`. Override the getters in a subclass to render something else |
-| `ValidationErrorRenderContent` | `new ValidationErrorRenderContent(content, classes?, code?)` — content may be a `string` (plain), an `MdString` (markdown), a `SimpleComponentDef` (`{ componentName, componentProps?, componentVHtml? }`), a `Ref` of any of these, or a function returning one |
-| `RenderableValue` | Same as `ValidationErrorRenderContent`, named for content that is not an error (help, hints) |
+```typescript
+new RenderableValue(content?, /* optional CSS classes */)
+```
 
-The content given to `ValidationErrorRenderContent` may be a `Ref`, a `computed` or a function returning the value;
-it is resolved on every read, so it stays reactive: changing what the reference holds changes the rendered message
-on the spot, without revalidating the field that carries the error. A validator message built as
-`computed(() => t('validation.required'))` therefore follows a locale switch. The widget's `message` prop itself
-must be a `string` or a `ValidationError[]`.
+Content to render — a `string` (plain text), an `MdString` (markdown), a `SimpleComponentDef`
+(`{ componentName, componentProps?, componentVHtml? }`), a `Ref` of any of these, or a function returning one —
+with the CSS classes it is rendered with. It describes itself as what renders it, which is all `MessagesWidget` and
+any other renderer reads:
+
+| Member | Description |
+|--------|-------------|
+| `componentName` | `'template'` for plain text, `'vue-markdown'` for markdown, the component's name for a `SimpleComponentDef` |
+| `componentBindings` | The markdown's `source`, `options` and `plugins`, or the component's props |
+| `componentBody` | The plain text, or the component's `componentVHtml` |
+| `extraClasses` | The classes given to the constructor |
+| `resolvedText` | The content as it reads now: a reference unwrapped and a function called |
+| `kind` | `'string'`, `'md'` or `'component'`: which form the content takes now |
+
+The content may be a `Ref`, a `computed` or a function returning the value; it is resolved on every read, so it
+stays reactive: changing what the reference holds changes the rendered value on the spot. A cell, a header or a
+title is a `RenderableValue`; an error is a [`ValidationError`](/api/validators#validationerror), which extends it
+with a code, params and an origin.
 
 ### Content types
 
@@ -59,7 +70,7 @@ must be a `string` or a `ValidationError[]`.
 | `RenderContentNonCallable` | `string \| MdString \| SimpleComponentDef` |
 | `RenderContentCallable` | `() => RenderContentNonCallable` |
 | `RenderContent` | `RenderContentNonCallable \| RenderContentCallable` |
-| `RenderContentRef` | `RenderContent \| Ref<RenderContent>` — the type accepted by `ValidationErrorRenderContent` and by every built-in validator's `message` parameter |
+| `RenderContentRef` | `RenderContent \| Ref<RenderContent>` — the type accepted by `RenderableValue`, `ValidationError` and every built-in validator's `message` parameter |
 
 A `componentName` that is one of the common HTML tag names — the block, text, list, table and form elements — is
 rendered as that element directly. Every other name, an uncommon HTML tag included, is resolved as a globally
@@ -87,7 +98,7 @@ else renderText(String(resolved));
 
 ### `MdString`
 
-Wraps a markdown string for `ValidationErrorRenderContent`. Accepts optional `markdown-it` options and plugins.
+Wraps a markdown string for a `RenderableValue` or a `ValidationError`. Accepts optional `markdown-it` options and plugins.
 
 ```typescript
 import { MdString } from '@dynamicforms/vue-forms';

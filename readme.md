@@ -138,13 +138,13 @@ widens the value with render options and per-breakpoint variants on top of it.
 The library provides a powerful event system for field changes and other actions:
 
 ```typescript
-import { Field, Group, ValueChangedAction, ValidationErrorText } from '@dynamicforms/vue-forms';
+import { Field, Group, ValueChangedAction, ValidationError } from '@dynamicforms/vue-forms';
 
 const emailField = new Field({ value: '' })
   .registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
     // Custom validation on value change
     if (!newValue.includes('@')) {
-      field.errors = [new ValidationErrorText('Invalid email format')];
+      field.errors = [new ValidationError('Invalid email format')];
     } else {
       field.errors = [];
     }
@@ -271,7 +271,7 @@ The library includes a `messages-widget` Vue component for displaying validation
 </template>
 
 <script setup>
-import { MessagesWidget, Field, Validators, ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
+import { MessagesWidget, Field, Validators, ValidationError, MdString } from '@dynamicforms/vue-forms';
 
 // Example field with validation
 const emailField = new Field({
@@ -286,7 +286,7 @@ const emailField = new Field({
 
 // Markdown message support (requires VueMarkdown component)
 const markdownErrors = [
-  new ValidationErrorRenderContent(
+  new ValidationError(
     new MdString('**Error**: This field contains *invalid* data.')
   )
 ];
@@ -305,9 +305,13 @@ The messages widget supports:
 Create dynamic forms with conditional logic using Statements and Operators:
 
 ```typescript
-import { 
-  Field, Group, Statement, Operator,
-  ConditionalVisibilityAction, ConditionalAccessAction
+import {
+  Field,
+  Group,
+  Statement,
+  Operator,
+  ConditionalVisibilityAction,
+  ConditionalAccessAction,
 } from '@dynamicforms/vue-forms';
 
 const form = new Group({

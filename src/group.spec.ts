@@ -17,7 +17,7 @@ import { Field } from './field';
 import { GenericFieldsInterface, Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
-import { Validators, ValidationErrorText } from './validators';
+import { Validators, ValidationError } from './validators';
 import type { Visibility } from './visibility';
 
 describe('Group', () => {
@@ -290,7 +290,7 @@ describe('Group value initialization', () => {
   it('keeps the verdict of a constructor-supplied validator that rejects the constructed value', () => {
     const group = new Group(
       { a: new Field({ value: 1 }) },
-      { validators: [new Validators.Validator(() => [new ValidationErrorText('not allowed')])] },
+      { validators: [new Validators.Validator(() => [new ValidationError('not allowed')])] },
     );
 
     expect(group.valid).toBe(false);
@@ -365,7 +365,7 @@ describe('Form Validation', () => {
     expect(form.valid).toBe(true);
 
     // Act - add form-level validation error
-    form.errors = [new ValidationErrorText('At least one contact method (phone or email) is required')];
+    form.errors = [new ValidationError('At least one contact method (phone or email) is required')];
     form.validate();
 
     // Assert
@@ -397,7 +397,7 @@ describe('Form Validation', () => {
     const form = new Group({ optionalField: new Field({ value: '' }) });
 
     // Add form-level error
-    form.errors = [new ValidationErrorText('Custom form validation error')];
+    form.errors = [new ValidationError('Custom form validation error')];
     form.validate();
     expect(form.valid).toBe(false);
 
@@ -422,7 +422,7 @@ describe('Cross-field validation with revalidate', () => {
     const crossFieldValidator = new Validators.Validator((newValue) => {
       const minVal = form.fields.minValue.value;
       if (newValue <= minVal) {
-        return [new ValidationErrorText(`Max value must be greater than min value (${minVal})`)];
+        return [new ValidationError(`Max value must be greater than min value (${minVal})`)];
       }
       return null;
     });
@@ -791,7 +791,7 @@ describe('Group validity reading', () => {
     const root = new Group({ inner });
     expect(root.valid).toBe(true);
 
-    inner.fields.member.errors.push(new ValidationErrorText('pushed in'));
+    inner.fields.member.errors.push(new ValidationError('pushed in'));
 
     expect(inner.valid).toBe(false);
     expect(root.valid).toBe(false);

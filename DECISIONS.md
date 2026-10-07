@@ -620,3 +620,25 @@ name each validator's values; all of it is the application's knowledge.
 
 **Rejected: a `text` option on `InAllowedValues`.** It names the values for the one validator that lists them, and
 leaves the rest of the message's phrasing in the library.
+
+## D-036 — An error is renderable content with a code, and rendering primitives live apart from errors
+
+**Version:** 3.0.0
+
+`RenderableValue` is content rendered as plain text, markdown or a component, with its CSS classes, and it lives in
+`render-content.ts` with `MdString`, `SimpleComponentDef`, the `RenderContent` types and their guards.
+`ValidationError` extends it with a `code`, `params` and an `origin`; `ValidationErrorDescription` extends that.
+`ValidationErrorText` and `ValidationErrorRenderContent` are gone.
+
+**What forced it.** `RenderableValue` was a subclass of an error class, so every grid cell, header and modal title
+built from it carried an error code, params and an origin it had no use for, and `MessagesWidget` was typed for
+errors while it rendered all of them. The rendering primitives sat in `validation-error.ts`, which `@dynamicforms/
+vuetify-inputs` labels and `@dynamicforms/vue-grid` cells import for reasons unrelated to errors. Content is the
+general notion and an error is content with something to say about a failure, so the inheritance runs that way.
+
+**One error class.** `ValidationErrorText` rendered a string, which `ValidationErrorRenderContent` rendered as well,
+and the base `ValidationError` rendered as an unresolvable `<Comment>` component. A single class taking any content
+covers all three; a custom error class overrides the same getters on it.
+
+**Rejected: keeping the two classes as aliases.** 3.0.0 is already a major release, and aliases would leave three
+names for one thing in every listing of the exports.

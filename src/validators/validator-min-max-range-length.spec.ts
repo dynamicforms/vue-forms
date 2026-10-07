@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Field } from '../field';
 
-import { Validators, ValidationErrorRenderContent } from '.';
+import { Validators, ValidationError } from '.';
 
 describe('MinLength Validator', () => {
   it('returns error when string length is less than minimum', () => {
@@ -15,7 +15,7 @@ describe('MinLength Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns error when array length is less than minimum', () => {
@@ -28,7 +28,7 @@ describe('MinLength Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns error when object keys length is less than minimum', () => {
@@ -41,7 +41,7 @@ describe('MinLength Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns no error when length equals minimum', () => {
@@ -117,7 +117,7 @@ describe('MaxLength Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns error when array length exceeds maximum', () => {
@@ -130,7 +130,7 @@ describe('MaxLength Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns error when object keys length exceeds maximum', () => {
@@ -143,7 +143,7 @@ describe('MaxLength Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns no error when length equals maximum', () => {
@@ -196,7 +196,7 @@ describe('LengthInRange Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns error when length exceeds range', () => {
@@ -210,7 +210,7 @@ describe('LengthInRange Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns no error when length is at minimum boundary', () => {

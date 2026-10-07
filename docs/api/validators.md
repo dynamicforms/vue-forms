@@ -17,7 +17,7 @@ The error classes and `MdString` are what a field hands back rather than what va
 from the package root:
 
 ```typescript
-import { ValidationErrorText, ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
+import { ValidationError, MdString } from '@dynamicforms/vue-forms';
 import { Validators } from '@dynamicforms/vue-forms';
 
 class Even extends Validators.Validator<number> { /* … */ }
@@ -42,11 +42,11 @@ than that object itself. Rendering is unaffected — every getter answers throug
 Base class for custom validators. Extend it or instantiate it directly for one-off rules.
 
 ```typescript
-import { Validators, ValidationErrorRenderContent } from '@dynamicforms/vue-forms';
+import { Validators, ValidationError } from '@dynamicforms/vue-forms';
 
 const myValidator = new Validators.Validator(async (newValue, oldValue, field) => {
   if (newValue === 'forbidden') {
-    return [new ValidationErrorRenderContent('This value is not allowed')];
+    return [new ValidationError('This value is not allowed')];
   }
   return null; // no errors
 });
@@ -115,7 +115,7 @@ Nothing re-runs a validator on its own once the value has settled: assigning the
 so a failure error survives until something starts a new run. Call `field.validate(true)` — on the field or on the
 `Group` above it — to retry after the service is back. The failure message names no cause, because the validator has none to name. When the user
 should read something more specific, catch inside the validation function and return an error of your own, e.g.
-`[new ValidationErrorRenderContent('Could not verify this value')]`.
+`[new ValidationError('Could not verify this value')]`.
 
 [`clearValidators()`](/api/field#methods) also cancels validation that is still in flight: it drops the validators,
 empties `field.errors` and recalculates the verdict over the emptied list, and a run that settles afterwards — with a
@@ -144,7 +144,7 @@ Hand it to the work the function commissions and that work stops as soon as its 
 ```typescript
 new Validators.Validator(async (newValue, oldValue, field, signal) => {
   const response = await fetch(`/api/available?name=${newValue}`, { signal });
-  return (await response.json()).free ? null : [new ValidationErrorText('This name is taken')];
+  return (await response.json()).free ? null : [new ValidationError('This name is taken')];
 });
 ```
 
@@ -405,10 +405,21 @@ none. The codes the library states, with their params and the English detail a b
 ### `ValidationError`
 
 ```typescript
-new ValidationError(/* optional code */, /* optional origin */, /* optional params */)
+new ValidationError(content?, /* optional CSS classes */, /* optional code */, /* optional origin */, /* optional params */)
 ```
 
-Base class. Its constructor arguments are the [code](#error-codes), the [origin](#origin) and the params. It returns `componentName === 'Comment'`, empty bindings and an empty body, so `MessagesWidget` renders it as an empty `<comment>` element (Vue also logs `Failed to resolve component: Comment` unless you register a component under that name yourself). Use it as the base for your own error classes by overriding `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
+An error a field carries. It is a [`RenderableValue`](/api/components#renderablevalue) — content rendered as plain
+text, markdown or a component — together with the [code](#error-codes), the [origin](#origin) and the params.
+
+`content` is a `RenderContentRef`: a `string`, an `MdString` (markdown), a `SimpleComponentDef` object, a `Ref` to
+any of those, or a function `() => string | MdString | SimpleComponentDef`. The same type is used for the `message`
+parameter of every built-in validator. Without content the error renders as empty text. A custom error class extends
+it and overrides `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
+
+A message given as a `Ref` or a `computed` keeps its reactivity all the way to the rendered output. The reference is
+resolved when the message is read, not when validation runs, and `{placeholder}` substitution happens at that same
+moment, so changing what the reference holds changes the displayed message with no need to revalidate the field. A
+`Ref` holding an `MdString` still renders as markdown, with its `options` and `plugins` preserved.
 
 #### `sameAs(other): boolean`
 
@@ -431,31 +442,8 @@ once the user has worked on the field — and code reads it to withdraw the erro
 as [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned) does.
 
 ```typescript
-field.errors.push(new ValidationErrorText('This name is taken', '', 'name-taken', 'server'));
+field.errors.push(new ValidationError('This name is taken', '', 'name_taken', 'server'));
 ```
-
-### `ValidationErrorText`
-
-```typescript
-new ValidationErrorText('Something went wrong', /* optional CSS classes */, /* optional code */, /* optional origin */, /* optional params */)
-```
-
-Renders as plain text. Accessible via `.text` and `.classes`.
-
-### `ValidationErrorRenderContent`
-
-```typescript
-new ValidationErrorRenderContent(message, /* optional CSS classes */, /* optional code */, /* optional origin */, /* optional params */)
-```
-
-Accepts a `RenderContentRef`: a `string`, an `MdString` (markdown), a `SimpleComponentDef` object, a `Ref` to any of those, or a function `() => string | MdString | SimpleComponentDef` (useful for reactive or translated messages — the function is evaluated on every render). The same type is used for the `message` parameter of every built-in validator. The consuming UI component reads `componentName`, `componentBindings`, `componentBody` and `extraClasses` to render it.
-
-A message given as a `Ref` or a `computed` keeps its reactivity all the way to the rendered output. The reference is
-resolved when the message is read, not when validation runs, and `{placeholder}` substitution happens at that same
-moment, so changing what the reference holds changes the displayed message with no need to revalidate the field. This
-is what carries the i18n path: pass `computed(() => t('validation.required'))` as the message and a locale switch
-retranslates the errors already sitting on the field. A `Ref` holding an `MdString` still renders as markdown, with
-its `options` and `plugins` preserved.
 
 `SimpleComponentDef`:
 
@@ -494,7 +482,7 @@ const body = await response.json(); // { detail, detail_code?, detail_params? }
 field.errors.push(
   body.detail_code
     ? new ValidationErrorDescription(body.detail_code, body.detail_params ?? {}, body.detail, '', 'server')
-    : new ValidationErrorText(body.detail, '', undefined, 'server'),
+    : new ValidationError(body.detail, '', undefined, 'server'),
 );
 ```
 

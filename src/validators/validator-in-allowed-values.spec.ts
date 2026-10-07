@@ -3,7 +3,7 @@ import { ref, unref } from 'vue';
 
 import { Field } from '../field';
 
-import { ValidationErrorRenderContent } from './validation-error';
+import { ValidationError } from './validation-error';
 import InAllowedValues from './validator-in-allowed-values';
 
 describe('InAllowedValues Validator', () => {
@@ -17,7 +17,7 @@ describe('InAllowedValues Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns error when value is not in allowed values (number)', () => {
@@ -30,7 +30,7 @@ describe('InAllowedValues Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns no error when value is in allowed values', () => {
@@ -84,7 +84,7 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(1);
 
     // Check that the error message contains truncated text
-    const errorContentText = (unref(field.errors[0]) as ValidationErrorRenderContent).componentBody;
+    const errorContentText = (unref(field.errors[0]) as ValidationError).componentBody;
     expect(errorContentText).toContain('...');
     expect(errorContentText).toContain('30 items total');
     // the 40 character budget covers the suffix too, so only the first two values survive
@@ -102,7 +102,7 @@ describe('InAllowedValues Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    const errorText = (unref(field.errors[0]) as ValidationErrorRenderContent).componentBody;
+    const errorText = (unref(field.errors[0]) as ValidationError).componentBody;
     expect(errorText).toBe(customMessage);
   });
 });
@@ -139,12 +139,12 @@ describe('InAllowedValues Validator with a list that arrives later', () => {
     const allowedValues = ref(['red']);
     const field = new Field({ value: 'blue', validators: [new InAllowedValues(allowedValues)] });
 
-    expect((field.errors[0] as ValidationErrorRenderContent).componentBody).toBe('Must be one of [red]');
+    expect((field.errors[0] as ValidationError).componentBody).toBe('Must be one of [red]');
 
     allowedValues.value = ['red', 'green'];
     field.value = 'yellow';
 
-    expect((field.errors[0] as ValidationErrorRenderContent).componentBody).toBe('Must be one of [red, green]');
+    expect((field.errors[0] as ValidationError).componentBody).toBe('Must be one of [red, green]');
   });
 
   it('states the in_allowed_values code on the error it produces', () => {

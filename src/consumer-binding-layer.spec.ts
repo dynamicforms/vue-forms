@@ -5,7 +5,7 @@ import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { Group } from './group';
-import { ValidationErrorText, Validators } from './validators';
+import { ValidationError, Validators } from './validators';
 import { ValidationFunctionResult, Validator } from './validators/validator';
 
 /**
@@ -192,7 +192,7 @@ describe('the verdict a binding layer renders', () => {
 
     expect(field.validating).toBe(true);
 
-    settle([new ValidationErrorText('rejected by the service')]);
+    settle([new ValidationError('rejected by the service')]);
     await vi.waitFor(() => {
       expect(field.validating).toBe(false);
     });

@@ -1,59 +1,7 @@
 import { isEqual } from 'lodash-es';
-import { computed, ComputedRef, Ref, unref } from 'vue';
 
 import { getConfig } from '../config';
-
-/**
- * Marks content for markdown rendering
- */
-export class MdString extends String {
-  plugins?: any[];
-  options?: any;
-
-  constructor(value: string, options?: any, plugins?: any[]) {
-    super(value);
-    this.plugins = plugins;
-    this.options = options;
-  }
-}
-
-/**
- * Interface for custom component content definition
- */
-export interface SimpleComponentDef {
-  componentName: string;
-  componentProps?: Record<any, any>;
-  componentVHtml?: string;
-}
-
-export type ClassType = string | string[] | Record<string, boolean>;
-export type ClassTypes = ClassType | ClassType[];
-
-export type RenderContentNonCallable = string | MdString | SimpleComponentDef;
-export type RenderContentCallable = () => RenderContentNonCallable;
-/**
- * Type for different renderable content formats: plain string, markdown, or custom component
- */
-export type RenderContent = RenderContentNonCallable | RenderContentCallable;
-/**
- * Type for different renderable content formats (supporting references): plain string, markdown, or custom component
- */
-export type RenderContentRef = RenderContent | Ref<RenderContent>;
-
-/**
- * Type guard to check if content is a custom component definition
- * @param msg - Content to check
- * @returns True if content is a custom component definition
- */
-export function isSimpleComponentDef(msg?: RenderContentRef): msg is SimpleComponentDef {
-  const uMsg = unref(msg);
-  // typeof null is 'object', and `in` refuses null: the answer for it is that it defines no component
-  return typeof uMsg === 'object' && uMsg !== null && 'componentName' in uMsg;
-}
-
-export function isCallableFunction(msg?: RenderContentRef): msg is RenderContentCallable {
-  return typeof unref(msg) === 'function';
-}
+import { ClassTypes, RenderableValue, RenderContentRef } from '../render-content';
 
 /**
  * Where an error comes from. `'validator'` is an error a validator produced, `'server'` one the server returned and
@@ -80,11 +28,15 @@ export interface ErrorDescription {
 }
 
 /**
- * Base validation error class with component rendering capabilities
+ * An error a field carries: content rendered as plain text, markdown or a component, as any `RenderableValue` is,
+ * together with what a program reads off it - the `code` of what failed, the `params` it failed with and its
+ * `origin`.
  */
-
-export class ValidationError {
+export class ValidationError extends RenderableValue {
   /**
+   * @param content What the error reads as: plain text, an `MdString` or a component, a reference to one of those or
+   * a function answering one.
+   * @param classes CSS classes the error is rendered with.
    * @param code Machine-readable identifier of what failed, in snake_case. Every validator this library ships states
    * one, so code that reacts to a particular failure does not have to match the message text. It is optional: an
    * error built by hand carries whatever its author gives it, or nothing.
@@ -92,10 +44,14 @@ export class ValidationError {
    * @param params The values the failure is stated with, such as `minValue` for `min_value`.
    */
   constructor(
+    content?: RenderContentRef,
+    classes: ClassTypes = '',
     public code?: string,
     private readonly statedOrigin?: ErrorOrigin,
     public readonly params: Readonly<Record<string, unknown>> = {},
-  ) {}
+  ) {
+    super(content, classes);
+  }
 
   /**
    * Where the error comes from: the origin its author stated, and otherwise `'validator'` for an error a validator
@@ -116,7 +72,7 @@ export class ValidationError {
    *
    * The comparison is over what renders - the component, its bindings, its body and the classes - because that is
    * what a reader of `field.errors` sees. A structural comparison of the errors themselves answers nothing useful:
-   * `ValidationErrorRenderContent` holds a Vue `computed`, and two of those are never structurally equal.
+   * an error holds a Vue `computed`, and two of those are never structurally equal.
    */
   sameAs(other: ValidationError): boolean {
     return (
@@ -129,127 +85,6 @@ export class ValidationError {
       isEqual(this.extraClasses, other.extraClasses)
     );
   }
-
-  get componentName() {
-    return 'Comment';
-  }
-
-  get componentBindings() {
-    return {};
-  }
-
-  get componentBody() {
-    return '';
-  }
-
-  get extraClasses(): ClassTypes {
-    return '';
-  }
-}
-
-/**
- * Simple text-only ValidationError
- */
-export class ValidationErrorText extends ValidationError {
-  constructor(
-    public text: string,
-    public classes: ClassTypes = '',
-    code?: string,
-    origin?: ErrorOrigin,
-    params?: Readonly<Record<string, unknown>>,
-  ) {
-    super(code, origin, params);
-  }
-
-  get componentName() {
-    return 'template';
-  }
-
-  get componentBody() {
-    return this.text;
-  }
-
-  get extraClasses() {
-    return this.classes;
-  }
-}
-
-/**
- * Validation error that supports multiple content types (plain text, markdown, component)
- */
-export class ValidationErrorRenderContent extends ValidationError {
-  private text: RenderContent | Ref<RenderContent>;
-
-  private textType: ComputedRef<'string' | 'md' | 'component'>;
-
-  constructor(
-    text: RenderContentRef,
-    public classes: ClassTypes = '',
-    code?: string,
-    origin?: ErrorOrigin,
-    params?: Readonly<Record<string, unknown>>,
-  ) {
-    super(code, origin, params);
-    this.text = text;
-    this.textType = computed(() => this.getTextType);
-  }
-
-  get resolvedText() {
-    const text = unref(this.text);
-    return isCallableFunction(text) ? text() : text;
-  }
-
-  get getTextType() {
-    const msg = this.resolvedText;
-
-    if (!msg) return 'string';
-    if (msg instanceof MdString) return 'md';
-    if (isSimpleComponentDef(msg)) return 'component';
-    return 'string';
-  }
-
-  get componentName() {
-    switch (unref(this.textType)) {
-      case 'string':
-        return 'template';
-      case 'md':
-        return 'vue-markdown';
-      case 'component':
-        return (this.resolvedText as SimpleComponentDef).componentName;
-      default:
-        return 'template';
-    }
-  }
-
-  get componentBindings() {
-    switch (unref(this.textType)) {
-      case 'string':
-        return {};
-      case 'md': {
-        const text = this.resolvedText as MdString;
-        return { source: text.toString(), options: text.options, plugins: text.plugins };
-      }
-      case 'component':
-        return (this.resolvedText as SimpleComponentDef).componentProps || {};
-      default:
-        return {};
-    }
-  }
-
-  get componentBody() {
-    switch (unref(this.textType)) {
-      case 'string':
-        return this.resolvedText as string;
-      case 'component':
-        return (this.resolvedText as SimpleComponentDef).componentVHtml || '';
-      default:
-        return '';
-    }
-  }
-
-  get extraClasses() {
-    return this.classes;
-  }
 }
 
 /**
@@ -257,7 +92,7 @@ export class ValidationErrorRenderContent extends ValidationError {
  * its English `detail` where `errorText` is not set or answers `undefined`. Every built-in validator reports its
  * failures this way, unless it is given a message of its own.
  */
-export class ValidationErrorDescription extends ValidationErrorRenderContent implements ErrorDescription {
+export class ValidationErrorDescription extends ValidationError implements ErrorDescription {
   declare code: string;
 
   constructor(
@@ -274,14 +109,3 @@ export class ValidationErrorDescription extends ValidationErrorRenderContent imp
     return getConfig().errorText?.(this) ?? this.detail;
   }
 }
-
-/**
- * A value, renderable three different ways (plain text, markdown, component) - alias for ValidationErrorRenderContent
- */
-export class RenderableValue extends ValidationErrorRenderContent {}
-
-/** ********************************************************************************************************************
- *
- at some point there will be classes here that will support links or action buttons or something even more complex
- *
- ******************************************************************************************************************** */

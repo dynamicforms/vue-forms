@@ -5,7 +5,7 @@ import { Group } from '../group';
 import { List } from '../list';
 import { transaction } from '../transaction';
 
-import { ValidationError, ValidationErrorRenderContent, ValidationErrorText } from './validation-error';
+import { ValidationError } from './validation-error';
 import { ValidationFunctionResult, Validator } from './validator';
 
 const delay = (ms: number) =>
@@ -18,22 +18,21 @@ const settled = (field: Field) =>
     expect(field.validating).toBe(false);
   });
 
-/** the text an error renders, whichever of the two error classes carries it */
-const messageOf = (error: ValidationError) =>
-  error instanceof ValidationErrorRenderContent ? String(error.resolvedText) : error.componentBody;
+/** the text an error renders */
+const messageOf = (error: ValidationError) => String(error.resolvedText);
 
 /** a remote check: 'bad' is refused, 'unreachable' cannot be reached, anything else is accepted */
 const remoteCheck = () =>
   new Validator(async (newValue: string) => {
     if (newValue === 'unreachable') throw new Error('validation service is down');
-    return newValue === 'bad' ? [new ValidationErrorText('bad value')] : null;
+    return newValue === 'bad' ? [new ValidationError('bad value')] : null;
   });
 
 describe('Asynchronous validation sequencing', () => {
   it('keeps the verdict of the run that started last, however long the earlier one takes', async () => {
     const validator = new Validator(async (newValue: string) => {
       await delay(newValue === 'bad' ? 40 : 1);
-      return newValue === 'bad' ? [new ValidationErrorText('bad value')] : null;
+      return newValue === 'bad' ? [new ValidationError('bad value')] : null;
     });
     const field = new Field({ value: 'initial', validators: [validator] });
     await settled(field);
@@ -50,7 +49,7 @@ describe('Asynchronous validation sequencing', () => {
 
   it('lets a synchronous verdict invalidate an asynchronous run started before it', async () => {
     const validator = new Validator((newValue: string) => {
-      if (newValue === 'bad') return delay(20).then(() => [new ValidationErrorText('bad value')]);
+      if (newValue === 'bad') return delay(20).then(() => [new ValidationError('bad value')]);
       return null;
     });
     const field = new Field({ value: 'initial', validators: [validator] });
@@ -110,7 +109,7 @@ describe('Asynchronous validation sequencing', () => {
     });
     const validator = new Validator((newValue: string) => {
       if (newValue === 'unreachable') return unreachable;
-      return Promise.resolve(newValue === 'bad' ? [new ValidationErrorText('bad value')] : null);
+      return Promise.resolve(newValue === 'bad' ? [new ValidationError('bad value')] : null);
     });
     const field = new Field({ value: 'initial', validators: [validator] });
     await settled(field);
@@ -141,7 +140,7 @@ describe('Asynchronous validation sequencing', () => {
     expect(field.validating).toBe(true);
 
     field.clearValidators();
-    resolveFn([new ValidationErrorText('arrived too late')]);
+    resolveFn([new ValidationError('arrived too late')]);
     await settled(field);
 
     expect(field.errors.length).toBe(0);
@@ -245,7 +244,7 @@ describe('Cancellation of asynchronous validation', () => {
     const validator = new Validator(
       (newValue: string, oldValue: string, field: unknown, signal: AbortSignal) =>
         new Promise<ValidationFunctionResult>((resolve, reject) => {
-          const timer = setTimeout(() => resolve([new ValidationErrorText(`${newValue} is refused`)]), 20);
+          const timer = setTimeout(() => resolve([new ValidationError(`${newValue} is refused`)]), 20);
           signal.addEventListener('abort', () => {
             clearTimeout(timer);
             reject(signal.reason);
@@ -328,7 +327,7 @@ describe('Runs in flight where the form the field stands in changes under them',
     const validator = new Validator(
       (newValue: string, oldValue: string, field: unknown, signal: AbortSignal) =>
         new Promise<ValidationFunctionResult>((resolve, reject) => {
-          const timer = setTimeout(() => resolve([new ValidationErrorText('bad value')]), 20);
+          const timer = setTimeout(() => resolve([new ValidationError('bad value')]), 20);
           signal.addEventListener('abort', () => {
             clearTimeout(timer);
             reject(signal.reason);

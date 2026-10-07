@@ -7,7 +7,8 @@
  */
 import { reactive } from 'vue';
 
-import type { ErrorDescription, RenderContentNonCallable } from './validators/validation-error';
+import type { RenderContentNonCallable } from './render-content';
+import type { ErrorDescription } from './validators/validation-error';
 
 export interface FormsConfig {
   /**

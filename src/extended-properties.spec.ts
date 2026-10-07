@@ -3,7 +3,7 @@ import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
-import { ValidationErrorText } from './validators/validation-error';
+import { ValidationError } from './validators/validation-error';
 import { Validator } from './validators/validator';
 
 /** what a UI layer attaches to an element: the properties it binds to the input it renders the element with */
@@ -108,7 +108,7 @@ describe('binding', () => {
 
   it('has them in place before the eager actions the binding takes on run', () => {
     const validator = new Validator<number>((newValue, oldValue, field) =>
-      (field as Field<number, Presentation>).extra.label ? null : [new ValidationErrorText('no label')],
+      (field as Field<number, Presentation>).extra.label ? null : [new ValidationError('no label')],
     );
     const field = new Field<number, Presentation>({
       value: 1,

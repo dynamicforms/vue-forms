@@ -1,9 +1,10 @@
 import { vi } from 'vitest';
-import { ref } from 'vue';
+import { ref, toRaw } from 'vue';
 
 import { Field } from '../field';
+import { MdString } from '../render-content';
 
-import { MdString, ValidationError, ValidationErrorRenderContent, ValidationErrorText } from './validation-error';
+import { ValidationError } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 import Required from './validator-required';
 
@@ -15,7 +16,7 @@ describe('Validator', () => {
     const field = new Field();
     field.validate = vi.fn();
 
-    const validationFn: ValidationFunction = () => [new ValidationErrorText('Error message')];
+    const validationFn: ValidationFunction = () => [new ValidationError('Error message')];
     const validator = new Validator(validationFn);
 
     // Act
@@ -23,17 +24,17 @@ describe('Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorText);
-    expect((field.errors[0] as ValidationErrorText).text).toBe('Error message');
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
+    expect((field.errors[0] as ValidationError).resolvedText).toBe('Error message');
     expect(field.validate).toHaveBeenCalled();
   });
 
   it('removes previous errors from the same validator', () => {
     // Arrange
-    const existingError = new ValidationErrorText('Existing error');
+    const existingError = new ValidationError('Existing error');
 
     const validationFn: ValidationFunction = (newValue) => {
-      if (newValue === 'old') return [new ValidationErrorText('New error')];
+      if (newValue === 'old') return [new ValidationError('New error')];
       return null;
     };
     const validator = new Validator(validationFn);
@@ -47,7 +48,7 @@ describe('Validator', () => {
     field.value = 'new';
     // Assert - Should only have the original error left
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toStrictEqual(existingError);
+    expect(toRaw(field.errors[0])).toBe(existingError);
   });
 
   it('continues the action chain by calling supr', () => {
@@ -81,7 +82,7 @@ describe('Validator', () => {
             newValue: 'new-value',
             oldValue: 'old-value',
           });
-          return [new ValidationErrorText(errorText as string)];
+          return [new ValidationError(errorText as string)];
         });
       }
 
@@ -98,7 +99,7 @@ describe('Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect((field.errors[0] as ValidationErrorText).text).toBe('New: new-value, Old: old-value');
+    expect((field.errors[0] as ValidationError).resolvedText).toBe('New: new-value, Old: old-value');
   });
 
   it('properly replaces placeholders with direct method call', () => {
@@ -148,7 +149,7 @@ describe('Validator', () => {
   it('creates validator with field instance instead of mock', () => {
     // Create a field with a validator directly
     const validationFn: ValidationFunction = (newValue) =>
-      newValue === 'invalid' ? [new ValidationErrorText('Invalid value')] : null;
+      newValue === 'invalid' ? [new ValidationError('Invalid value')] : null;
 
     const field = new Field({
       value: 'valid',
@@ -163,7 +164,7 @@ describe('Validator', () => {
 
     // Should have error
     expect(field.errors.length).toBe(1);
-    expect((field.errors[0] as ValidationErrorText).text).toBe('Invalid value');
+    expect((field.errors[0] as ValidationError).resolvedText).toBe('Invalid value');
 
     // Change back to valid
     field.value = 'valid';
@@ -177,7 +178,7 @@ describe('Shared ValidationError', () => {
   const failWith = (errors: ValidationError[]) => new Validator((newValue) => (newValue === 'bad' ? errors : null));
 
   it('accepts one error instance produced by two validators of the same field', () => {
-    const shared = new ValidationErrorText('Shared error');
+    const shared = new ValidationError('Shared error');
 
     const build = () =>
       new Field({
@@ -191,7 +192,7 @@ describe('Shared ValidationError', () => {
   });
 
   it('lets both validators withdraw their error when the first field is cleared first', () => {
-    const shared = new ValidationErrorText('Shared error');
+    const shared = new ValidationError('Shared error');
     const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
     const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
 
@@ -209,7 +210,7 @@ describe('Shared ValidationError', () => {
   });
 
   it('lets both validators withdraw their error when the second field is cleared first', () => {
-    const shared = new ValidationErrorText('Shared error');
+    const shared = new ValidationError('Shared error');
     const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
     const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
 
@@ -224,7 +225,7 @@ describe('Shared ValidationError', () => {
   });
 
   it('does not repeat an unchanged error instance returned by the same validator twice', () => {
-    const shared = new ValidationErrorText('Shared error');
+    const shared = new ValidationError('Shared error');
     const field = new Field({ value: 'bad', validators: [failWith([shared])] });
 
     expect(field.errors.length).toBe(1);
@@ -239,8 +240,8 @@ describe('Shared ValidationError', () => {
   it('renders the error a second validator receives exactly like the shared instance', () => {
     const options = { html: true };
     const plugins = [{ name: 'plugin' }];
-    const text = new ValidationErrorText('Shared text', 'text-class');
-    const content = new ValidationErrorRenderContent(new MdString('**shared**', options, plugins), 'content-class');
+    const text = new ValidationError('Shared text', 'text-class');
+    const content = new ValidationError(new MdString('**shared**', options, plugins), 'content-class');
     const shared = [text, content];
 
     const field1 = new Field({ value: 'bad', validators: [failWith(shared)] });
@@ -248,8 +249,8 @@ describe('Shared ValidationError', () => {
 
     expect(field1.errors.length).toBe(2);
     expect(field2.errors.length).toBe(2);
-    expect(field2.errors[0]).toBeInstanceOf(ValidationErrorText);
-    expect(field2.errors[1]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field2.errors[0]).toBeInstanceOf(ValidationError);
+    expect(field2.errors[1]).toBeInstanceOf(ValidationError);
 
     [text, content].forEach((original, idx) => {
       expect(field2.errors[idx].componentName).toBe(original.componentName);
@@ -295,7 +296,7 @@ describe('Async Validator', () => {
         setTimeout(resolve, 1);
       });
       if (newValue === 'test@taken.com') {
-        return [new ValidationErrorText('Email already taken')];
+        return [new ValidationError('Email already taken')];
       }
       return null;
     });
@@ -372,20 +373,20 @@ describe('Error codes', () => {
   it('carries the code a custom validator gives its error', () => {
     const field = new Field({
       value: 'bad',
-      validators: [failWith([new ValidationErrorText('Not allowed here', '', 'not-in-this-country')])],
+      validators: [failWith([new ValidationError('Not allowed here', '', 'not-in-this-country')])],
     });
 
     expect(field.errors[0].code).toBe('not-in-this-country');
   });
 
   it('leaves the code undefined on an error built without one', () => {
-    expect(new ValidationErrorText('Plain').code).toBeUndefined();
-    expect(new ValidationErrorRenderContent('Plain').code).toBeUndefined();
+    expect(new ValidationError('Plain').code).toBeUndefined();
+    expect(new ValidationError('Plain').code).toBeUndefined();
     expect(new ValidationError().code).toBeUndefined();
   });
 
   it('keeps the code on the copy a second validator of the same error instance receives', () => {
-    const shared = new ValidationErrorText('Shared error', '', 'shared-code');
+    const shared = new ValidationError('Shared error', '', 'shared-code');
     const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
     const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
 

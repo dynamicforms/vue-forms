@@ -1,5 +1,5 @@
 import { Field } from './field';
-import { ValidationErrorText, Validators } from './validators';
+import { ValidationError, Validators } from './validators';
 
 const required = (value: string) => new Field<string>({ value, validators: [new Validators.Required()] });
 
@@ -8,8 +8,8 @@ describe('The origin of an error', () => {
     const field = required('');
 
     expect(field.errors[0].origin).toBe('validator');
-    expect(new ValidationErrorText('taken').origin).toBe('application');
-    expect(new ValidationErrorText('taken', '', 'taken', 'server').origin).toBe('server');
-    expect(new ValidationErrorText('stale', '', 'stale', 'sync').origin).toBe('sync');
+    expect(new ValidationError('taken').origin).toBe('application');
+    expect(new ValidationError('taken', '', 'taken', 'server').origin).toBe('server');
+    expect(new ValidationError('stale', '', 'stale', 'sync').origin).toBe('sync');
   });
 });
