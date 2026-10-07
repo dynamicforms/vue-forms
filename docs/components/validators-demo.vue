@@ -1,7 +1,8 @@
 <template>
   <div class="validators-form-demo">
     <v-card class="mb-4">
-      <v-card-title>Validators Demo</v-card-title>
+      <v-card-title>{{ text.title }}</v-card-title>
+      <v-card-subtitle class="intro">{{ text.intro }}</v-card-subtitle>
       <v-card-text>
         <div class="locales mb-4">
           <v-btn-toggle v-model="locale" mandatory variant="outlined" divided color="primary">
@@ -13,12 +14,12 @@
             <v-btn value="zh" size="small">🇨🇳 中文</v-btn>
           </v-btn-toggle>
         </div>
-        <v-switch v-model="useMarkdown" label="Markdown in messages" color="primary" density="compact" />
+        <v-switch v-model="useMarkdown" :label="text.markdown" color="primary" density="compact" />
         <v-form @submit.prevent>
           <!-- Username field (Required) -->
           <v-text-field
             v-model="validatedForm.fields.username.value"
-            label="Username"
+            :label="text.username"
             :error-messages="getErrorMessages(validatedForm.fields.username)"
             outlined
             class="mb-2"
@@ -29,12 +30,12 @@
           <!-- Email field (Pattern) -->
           <v-text-field
             v-model="validatedForm.fields.email.value"
-            label="Email"
+            :label="text.email"
             :error-messages="getErrorMessages(validatedForm.fields.email)"
             :loading="validatedForm.fields.email.validating"
             outlined
             class="mb-2"
-            hint="Try entering something@taken.com to see async validation"
+            :hint="text.emailHint"
             persistent-hint
           >
             <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
@@ -44,7 +45,7 @@
           <v-text-field
             v-model.number="validatedForm.fields.age.value"
             type="number"
-            label="Age"
+            :label="text.age"
             :error-messages="getErrorMessages(validatedForm.fields.age)"
             outlined
             class="mb-2"
@@ -56,7 +57,7 @@
           <v-select
             v-model="validatedForm.fields.role.value"
             :items="['admin', 'user', 'guest']"
-            label="Role"
+            :label="text.role"
             :error-messages="getErrorMessages(validatedForm.fields.role)"
             outlined
             class="mb-2"
@@ -67,7 +68,7 @@
           <!-- Bio field (LengthInRange) -->
           <v-textarea
             v-model="validatedForm.fields.bio.value"
-            label="Bio"
+            :label="text.bio"
             :error-messages="getErrorMessages(validatedForm.fields.bio)"
             outlined
             counter="200"
@@ -84,26 +85,26 @@
           :disabled="!formValid || formBusy"
           :loading="formBusy"
         >
-          Submit
+          {{ text.submit }}
         </v-btn>
         <v-btn
           color="secondary"
           @click="resetForm"
           class="ml-2"
         >
-          Reset
+          {{ text.reset }}
         </v-btn>
       </v-card-actions>
     </v-card>
 
     <v-card>
-      <v-card-title>Form Validation Status</v-card-title>
+      <v-card-title>{{ text.status }}</v-card-title>
       <v-card-text>
         <v-alert
           :type="formValid ? 'success' : 'error'"
           class="mb-3"
         >
-          Form is {{ formValid ? 'valid' : 'invalid' }}
+          {{ formValid ? text.valid : text.invalid }}
         </v-alert>
         <pre class="output">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
       </v-card-text>
@@ -161,6 +162,120 @@ const messages = {
 };
 const locale = ref('en');
 
+// The demo's own text: labels, hints and the messages it gives its validators. They belong to the application and
+// come from its own translations, not from translateStrings.
+const ui = {
+  en: {
+    title: 'Validators Demo',
+    intro: 'Switch the language or the markdown setting: the errors already on the fields follow without revalidating.',
+    markdown: 'Markdown in messages',
+    username: 'Username',
+    email: 'Email',
+    emailHint: 'Try entering something@taken.com to see async validation',
+    invalidEmail: 'Please enter a valid email address',
+    emailTaken: 'This email address is already taken',
+    age: 'Age',
+    role: 'Role',
+    bio: 'Bio',
+    submit: 'Submit',
+    reset: 'Reset',
+    status: 'Form Validation Status',
+    valid: 'Form is valid',
+    invalid: 'Form is invalid',
+  },
+  sl: {
+    title: 'Demo validatorjev',
+    intro: 'Preklopite jezik ali markdown: napake, ki so že na poljih, sledijo brez ponovne validacije.',
+    markdown: 'Markdown v sporočilih',
+    username: 'Uporabniško ime',
+    email: 'E-pošta',
+    emailHint: 'Vnesite something@taken.com za prikaz asinhrone validacije',
+    invalidEmail: 'Vnesite veljaven e-poštni naslov',
+    emailTaken: 'Ta e-poštni naslov je že zaseden',
+    age: 'Starost',
+    role: 'Vloga',
+    bio: 'Opis',
+    submit: 'Pošlji',
+    reset: 'Ponastavi',
+    status: 'Stanje validacije obrazca',
+    valid: 'Obrazec je veljaven',
+    invalid: 'Obrazec ni veljaven',
+  },
+  de: {
+    title: 'Validatoren-Demo',
+    intro: 'Wechseln Sie die Sprache oder Markdown: Die Fehler an den Feldern folgen ohne erneute Validierung.',
+    markdown: 'Markdown in Meldungen',
+    username: 'Benutzername',
+    email: 'E-Mail',
+    emailHint: 'Geben Sie something@taken.com ein, um die asynchrone Validierung zu sehen',
+    invalidEmail: 'Bitte geben Sie eine gültige E-Mail-Adresse ein',
+    emailTaken: 'Diese E-Mail-Adresse ist bereits vergeben',
+    age: 'Alter',
+    role: 'Rolle',
+    bio: 'Biografie',
+    submit: 'Absenden',
+    reset: 'Zurücksetzen',
+    status: 'Validierungsstatus des Formulars',
+    valid: 'Das Formular ist gültig',
+    invalid: 'Das Formular ist ungültig',
+  },
+  es: {
+    title: 'Demostración de validadores',
+    intro: 'Cambie el idioma o el markdown: los errores ya mostrados en los campos cambian sin volver a validar.',
+    markdown: 'Markdown en los mensajes',
+    username: 'Nombre de usuario',
+    email: 'Correo electrónico',
+    emailHint: 'Introduzca something@taken.com para ver la validación asíncrona',
+    invalidEmail: 'Introduzca una dirección de correo válida',
+    emailTaken: 'Esta dirección de correo ya está en uso',
+    age: 'Edad',
+    role: 'Rol',
+    bio: 'Biografía',
+    submit: 'Enviar',
+    reset: 'Restablecer',
+    status: 'Estado de validación del formulario',
+    valid: 'El formulario es válido',
+    invalid: 'El formulario no es válido',
+  },
+  ja: {
+    title: 'バリデーターのデモ',
+    intro: '言語や Markdown を切り替えると、表示中のエラーも再検証なしで切り替わります。',
+    markdown: 'メッセージ内の Markdown',
+    username: 'ユーザー名',
+    email: 'メールアドレス',
+    emailHint: '非同期検証を見るには something@taken.com を入力してください',
+    invalidEmail: '有効なメールアドレスを入力してください',
+    emailTaken: 'このメールアドレスは既に使用されています',
+    age: '年齢',
+    role: '役割',
+    bio: '自己紹介',
+    submit: '送信',
+    reset: 'リセット',
+    status: 'フォームの検証状態',
+    valid: 'フォームは有効です',
+    invalid: 'フォームは無効です',
+  },
+  zh: {
+    title: '验证器演示',
+    intro: '切换语言或 Markdown：字段上已显示的错误无需重新验证即可随之更新。',
+    markdown: '消息中的 Markdown',
+    username: '用户名',
+    email: '电子邮件',
+    emailHint: '输入 something@taken.com 查看异步验证',
+    invalidEmail: '请输入有效的电子邮件地址',
+    emailTaken: '该电子邮件地址已被占用',
+    age: '年龄',
+    role: '角色',
+    bio: '简介',
+    submit: '提交',
+    reset: '重置',
+    status: '表单验证状态',
+    valid: '表单有效',
+    invalid: '表单无效',
+  },
+};
+const text = computed(() => ui[locale.value]);
+
 // A translation function shaped like vue-i18n's t: the translation of key with the placeholders substituted, or key
 // unchanged where there is none. It reads locale, so every error on screen follows a switch without revalidating.
 translateStrings((key, named) => interpolate(messages[locale.value]?.[key] ?? key, named));
@@ -191,7 +306,7 @@ const validatedForm = new Group({
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        'Please enter a valid email address'
+        computed(() => text.value.invalidEmail),
       ),
       // Async validator to simulate email availability check
       new Validators.Validator(async (newValue) => {
@@ -205,7 +320,7 @@ const validatedForm = new Group({
 
         // Check if email is "taken"
         if (newValue.endsWith('@taken.com')) {
-          return [new ValidationErrorRenderContent('This email address is already taken')];
+          return [new ValidationErrorRenderContent(computed(() => text.value.emailTaken))];
         }
 
         return null; // Email is available
@@ -269,6 +384,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 <style scoped>
 .validators-form-demo {
   margin: 2rem 0;
+}
+.intro {
+  white-space: normal;
 }
 .locales {
   overflow-x: auto;

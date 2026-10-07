@@ -145,7 +145,8 @@ With namespace `forms`, key `MinValue` is looked up as `forms.MinValue`. The val
 before every message is translated.
 
 Each read of a message calls `t`, so an error already on screen follows a locale switch, and a later
-`translateStrings` call, without the field revalidating.
+`translateStrings` call, without the field revalidating. The [validators demo](/examples/validators) switches its messages
+between six languages this way.
 
 A translation is markdown, like the English default: with
 [`useMarkdownInValidators`](/api/config) off, its markup is stripped after the placeholders are substituted.
