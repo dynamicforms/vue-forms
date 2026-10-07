@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `${namespace}.${key}`, and `t` substitutes the placeholders; a key `t` has no translation for keeps its English
   default. An error on screen follows a locale switch without another `translateStrings` call.
 - A value substituted into a built-in message is part of its markdown: with `useMarkdownInValidators` off, it is
-  stripped along with the rest of the message.
+  stripped along with the rest of the message. The configuration page describes how to keep such values intact.
 - The configuration is reactive: a built-in validator's message on screen follows a later change of
   `useMarkdownInValidators`.
 

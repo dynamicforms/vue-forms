@@ -35,6 +35,26 @@ const options: Partial<FormsConfig> = { useMarkdownInValidators: false };
 |--------|------|---------|-------------|
 | `useMarkdownInValidators` | `boolean` | `true` | When `true`, the library's built-in validator messages are wrapped in `MdString` and rendered through the globally registered `vue-markdown` component. When `false`, markdown syntax is stripped from them and they are emitted as plain strings. Messages you pass to a validator yourself are used verbatim — run them through `buildErrorMessage()` if you want them to honour this setting. |
 
+### Values that contain markdown characters
+
+A placeholder value is part of the message's markdown: with `useMarkdownInValidators` on, the renderer reads a `*` or
+`_` in it as markup, and with it off, the stripping removes them along with the rest. Where values must keep such
+characters, leave the setting on and register as `vue-markdown` a component that shows the source as it stands:
+
+```typescript
+import { h } from 'vue';
+
+app.component('VueMarkdown', {
+  props: ['source', 'options', 'plugins'],
+  setup: (props) => () => h('span', props.source),
+});
+```
+
+The library then changes nothing in the message, and the component decides what is shown. The built-in English
+defaults carry `**` around their placeholders, which such a component shows as it stands, so give the
+[translation function](/guide/getting-started#translation) a translation without markup for every key, English
+included.
+
 ### `buildErrorMessage(text)`
 
 Returns an `MdString` when `useMarkdownInValidators` is `true`, otherwise the same text with markdown syntax

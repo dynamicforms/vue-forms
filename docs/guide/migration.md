@@ -53,7 +53,8 @@ Read a built-in message's translation through the application's own translation 
 
 A value substituted into a built-in message is markdown along with the rest of it: rendered as markdown with
 `useMarkdownInValidators` on, and stripped with the rest of the markup with it off. Before, with the setting off,
-only the template was stripped and the value was inserted as it stands. The change is silent.
+only the template was stripped and the value was inserted as it stands. The change is silent. Where values must
+keep characters such as `*` or `_`, see [values that contain markdown characters](/api/config#values-that-contain-markdown-characters).
 
 ### A built-in message follows `useMarkdownInValidators`
 
