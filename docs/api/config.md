@@ -35,6 +35,21 @@ const options: Partial<FormsConfig> = { errorText: (error) => myErrorText(error)
 |--------|------|---------|-------------|
 | `errorText` | `(error: ErrorDescription) => RenderContentNonCallable \| undefined` | none | What an error stated by code, params and English detail reads as. Every built-in validator given no `message` reports such an error, a [`ValidationErrorDescription`](/api/validators#validationerrordescription), and so can an error the server returned. The function answers the application's text for it — a string, an `MdString` for markdown or a `SimpleComponentDef` — or `undefined` to leave the English detail. |
 
+The argument is the `ValidationErrorDescription` being rendered, typed by the interface it implements, so the
+function reads only what an error states and can be called with any object of that shape:
+
+```typescript
+interface ErrorDescription {
+  readonly code: string;                               // what failed, in snake_case
+  readonly params: Readonly<Record<string, unknown>>;  // the values it failed with
+  readonly detail: string;                             // the failure in English, params substituted
+  readonly origin: ErrorOrigin;                        // 'validator', 'server', 'application' or the application's own
+}
+```
+
+`ErrorDescription` is exported. The codes and their params are listed under
+[Error codes](/api/validators#error-codes).
+
 `errorText` is called on every read of an error, so an error on screen follows the reactive state the function
 reads, such as the locale, without the field revalidating. [Error messages and
 translation](/guide/getting-started#error-messages-and-translation) shows it with vue-i18n.
