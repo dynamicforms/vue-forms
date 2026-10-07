@@ -154,18 +154,16 @@ The same options are reachable without the plugin, through `getConfig()` and `se
 
 ## Versioning and support
 
-The package is in `0.x`, where a breaking change goes in the **minor** version: `0.9.0` → `0.10.0` may break your
-code, `0.10.0` → `0.10.1` does not. Every such change is listed in the
-[migration guide](/guide/migration) with before/after code and in the
-[changelog](/guide/changelog). The public surface is not frozen
-until 1.0.
+The package follows Semantic Versioning: a breaking change goes in the **major** version, so `2.x` → `3.0.0` may
+break your code and a minor or patch release does not. Every breaking change is listed in the
+[migration guide](/guide/migration) with before/after code and in the [changelog](/guide/changelog).
 
 | | Supported |
 |---|---|
 | Vue | `^3.5.2` |
 | Node | 22 or newer |
 | Module formats | ESM, with type definitions |
-| Browsers | whatever your bundler targets — the build is `es2015` and uses no browser API of its own |
+| Browsers | whatever your bundler targets — the build is `es2022` and uses no browser API of its own |
 
 ## Next Steps
 
