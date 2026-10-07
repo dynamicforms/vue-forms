@@ -5,6 +5,20 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-10-07
+
+### Changed
+- Requires `@dynamicforms/translatable` 0.2. `translateStrings(t, namespace?)` takes the application's translation
+  function, shaped like vue-i18n's `t`, in place of a callback returning raw templates. Each key is looked up as
+  `${namespace}.${key}`, and `t` substitutes the placeholders; a key `t` has no translation for keeps its English
+  default. An error on screen follows a locale switch without another `translateStrings` call.
+- A value substituted into a built-in message is part of its markdown: with `useMarkdownInValidators` off, it is
+  stripped along with the rest of the message.
+
+### Removed
+- The `strings` dictionary and `translatedMessage`. `translateStrings` is the only export for translation; an
+  application reads a translated message through its own translation function.
+
 ## [2.0.3] - 2026-10-06
 
 ### Changed

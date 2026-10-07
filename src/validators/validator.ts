@@ -6,7 +6,7 @@ import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
 import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
 
-import { translatedMessage } from './translations';
+import { translatedMessage, type TranslationKey } from './translations';
 import {
   isCallableFunction,
   isSimpleComponentDef,
@@ -48,7 +48,7 @@ const ValidatorClassIdentifier = Symbol('Validator');
  * Message shown when a validation run rejects. It is built per rejection because the markdown setting it reads is
  * a runtime configuration value.
  */
-const validationFailedMessage = (): RenderContentRef => translatedMessage('ValidationFailed');
+const validationFailedMessage = (): RenderContentRef => translatedMessage('ValidationFailed', {});
 
 /**
  * Validator is a specialized action that performs validation when a field's value changes.
@@ -227,6 +227,18 @@ export class Validator<T = any> extends ValueChangedAction {
    */
   protected newBindingState(): ValidatorBindingState {
     return { run: 0 };
+  }
+
+  /**
+   * The message an error reports: `message` with `params` substituted, or the built-in message `key`, translated
+   * with `params`, where `message` is not given.
+   */
+  protected messageFor(
+    message: RenderContentRef | undefined,
+    key: TranslationKey,
+    params: Record<string, any>,
+  ): RenderContentRef {
+    return message ? this.replacePlaceholders(message, params) : translatedMessage(key, params);
   }
 
   protected replacePlaceholdersFunction(text: RenderContentRef, replace: Record<string, any>): RenderContentRef {

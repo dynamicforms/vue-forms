@@ -12,6 +12,56 @@ exists.
 
 <!-- New releases go directly below this comment, above the previous one, as `## Upgrading to vX.Y.Z (from vA.B.x)`. -->
 
+## Upgrading to v3.0.0 (from v2.0.x)
+
+3.0.0 requires `@dynamicforms/translatable` 0.2. Upgrade both together.
+
+### `translateStrings` takes a translation function
+
+`translateStrings` takes a function shaped like vue-i18n's `t` — `(key, named) => string`, returning the key
+unchanged when there is no translation — and an optional namespace prefixed to every key. The function substitutes
+the placeholders itself. A callback returning a template for a key, or `null`/`undefined` for none, is a compile
+error.
+
+```typescript
+// before
+translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
+
+// after
+translateStrings(i18n.global.t, 'forms');
+```
+
+Translations keep their keys, placeholders and markdown. A plain dictionary becomes a function with
+`interpolate` from `@dynamicforms/translatable`:
+
+```typescript
+import { interpolate } from '@dynamicforms/translatable';
+
+translateStrings((key, named) => interpolate(dictionary[key] ?? key, named));
+```
+
+A locale switch updates the messages on screen wherever `t` reads the locale reactively, as vue-i18n's does;
+calling `translateStrings` again on every switch is no longer needed.
+
+### `strings` and `translatedMessage` are gone
+
+Read a built-in message's translation through the application's own translation function, e.g.
+`t('forms.MinValue', { minValue: 5 })`. A validator of your own builds its message with
+`buildErrorMessage(computed(() => t('forms.Required')))`.
+
+### A substituted value is part of the message's markdown
+
+A value substituted into a built-in message is markdown along with the rest of it: rendered as markdown with
+`useMarkdownInValidators` on, and stripped with the rest of the markup with it off. Before, with the setting off,
+only the template was stripped and the value was inserted as it stands. The change is silent.
+
+### Checklist for 3.0.0
+
+1. Upgrade `@dynamicforms/translatable` to 0.2.
+2. Pass `translateStrings` a translation function and a namespace in place of the callback.
+3. Replace every read of `strings` and every call of `translatedMessage` with the application's translation
+   function.
+
 ## Upgrading to v2.0.2 (from v1.x)
 
 2.0.2 is the first 2.0 release; 2.0.0 and 2.0.1 were withdrawn. A project on either of them follows this section as

@@ -2,7 +2,6 @@ import { isArray, isObject, isString } from 'lodash-es';
 
 import type { FieldBase } from '../field-base';
 
-import { translatedMessage } from './translations';
 import { RenderContentRef, ValidationErrorRenderContent } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
@@ -16,12 +15,11 @@ function toLength(a: any): number {
 
 export class MinLength extends Validator {
   constructor(minLength: number, message?: RenderContentRef) {
-    const msg = message || translatedMessage('MinLength');
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       if (toLength(newValue) < minLength) {
         return [
           new ValidationErrorRenderContent(
-            this.replacePlaceholders(msg, { newValue, oldValue, field, minLength }),
+            this.messageFor(message, 'MinLength', { newValue, oldValue, field, minLength }),
             '',
             'min-length',
           ),
@@ -36,12 +34,11 @@ export class MinLength extends Validator {
 
 export class MaxLength extends Validator {
   constructor(maxLength: number, message?: RenderContentRef) {
-    const msg = message || translatedMessage('MaxLength');
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       if (toLength(newValue) > maxLength) {
         return [
           new ValidationErrorRenderContent(
-            this.replacePlaceholders(msg, { newValue, oldValue, field, maxLength }),
+            this.messageFor(message, 'MaxLength', { newValue, oldValue, field, maxLength }),
             '',
             'max-length',
           ),
@@ -56,13 +53,12 @@ export class MaxLength extends Validator {
 
 export class LengthInRange extends Validator {
   constructor(minLength: number, maxLength: number, message?: RenderContentRef) {
-    const msg = message || translatedMessage('LengthInRange');
     const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
       const len = toLength(newValue);
       if (len < minLength || len > maxLength) {
         return [
           new ValidationErrorRenderContent(
-            this.replacePlaceholders(msg, { newValue, oldValue, field, minLength, maxLength }),
+            this.messageFor(message, 'LengthInRange', { newValue, oldValue, field, minLength, maxLength }),
             '',
             'range-length',
           ),

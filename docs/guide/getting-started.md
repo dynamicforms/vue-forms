@@ -106,8 +106,8 @@ of spaces alone is no value; pass `new Validators.Required({ trim: false })` whe
 ## Translation
 
 Every built-in validator's message has an English default and a key naming what it validates, not its English text.
-The library never picks a locale itself — call `translateStrings` once per locale to supply translations for as
-many of them as you have.
+The library never picks a locale itself. Hand `translateStrings` your application's translation function, and the
+messages are looked up through it.
 
 The authoritative list of keys and their English defaults is
 [`src/validators/translations.ts`](https://github.com/dynamicforms/vue-forms/blob/main/src/validators/translations.ts)
@@ -127,36 +127,33 @@ code by construction rather than copied into this page where it could drift. As 
 | `InAllowedValues` | `Must be one of [**{allowedAsText}**]` |
 | `ValidationFailed` | `Validation could not be completed` |
 
-A translation keeps a message's `{name}` placeholders as they stand — the validator substitutes them, against the
-value it is currently validating, after translation.
-
-Call `translateStrings` once per locale to supply translations for as many of these keys as you have:
+With vue-i18n, pass its `t` and the namespace that holds these keys:
 
 ```typescript
 import { translateStrings } from '@dynamicforms/vue-forms';
 
-function applyLocale(locale: string) {
-  const dictionary = translations[locale]; // however your app keeps its translations
-  translateStrings((key, defaultValue) => dictionary[key] ?? defaultValue);
-}
+translateStrings(i18n.global.t, 'forms');
 ```
 
-The callback receives the key and its English default, and returns the translation for the current locale, or
-`null`/`undefined` to leave the English default in place — so a locale can be adopted before every message is
-translated. An error already on screen updates in place when `translateStrings` is called, `{minValue}`-style
-placeholders re-interpolated against the value being validated, without the field revalidating. Wiring an
-existing i18n setup in is the same shape:
-
-```typescript
-import { useI18n } from 'vue-i18n';
-
-const { t } = useI18n();
-translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
+```json
+{ "forms": { "MinValue": "Vrednost mora biti vsaj **{minValue}**" } }
 ```
 
-`translateStrings` comes from [`@dynamicforms/translatable`](https://github.com/dynamicforms/translatable), the
-primitive this library and its sibling `@dynamicforms` packages share — its own readme covers the same recipe in
-more general terms, and how a library declares translatable strings in the first place.
+With namespace `forms`, key `MinValue` is looked up as `forms.MinValue`. The validator passes the values for the
+`{name}` placeholders ([which ones](/api/validators#message-placeholders)) to `t`, and `t` substitutes them. A key
+`t` has no translation for — it returns the key unchanged — keeps its English default, so a locale can be adopted
+before every message is translated.
+
+Each read of a message calls `t`, so an error already on screen follows a locale switch, and a later
+`translateStrings` call, without the field revalidating.
+
+A translation is markdown, like the English default: with
+[`useMarkdownInValidators`](/api/config) off, its markup is stripped after the placeholders are substituted.
+
+Any function shaped like vue-i18n's `t` works — `(key, named) => string`, returning the key unchanged when there is
+no translation. `translateStrings` comes from
+[`@dynamicforms/translatable`](https://github.com/dynamicforms/translatable), the primitive this library and its
+sibling `@dynamicforms` packages share; its readme covers building such a function without an i18n library.
 
 ## Plugin Setup
 

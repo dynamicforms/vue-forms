@@ -170,7 +170,7 @@ Returns an `MdString` when [`useMarkdownInValidators`](/api/config) is enabled (
 
 ## Built-in validators
 
-All default messages below are the literal strings passed to `buildErrorMessage()`, so with the default configuration they end up as `MdString` and are rendered as markdown — see [`useMarkdownInValidators`](/api/config).
+All default messages below are passed to `buildErrorMessage()` once translated and with their placeholders substituted, so with the default configuration they end up as `MdString` and are rendered as markdown — see [`useMarkdownInValidators`](/api/config) and [Translation](/guide/getting-started#translation).
 
 `InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` take a type argument, which types a
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
@@ -495,7 +495,7 @@ All built-in error messages support `{placeholder}` substitution. The available 
 | `{allowedAsText}` | `InAllowedValues` |
 | `{otherField}` | `CompareTo` |
 
-Substitution is purely textual (`String.replaceAll`). `{newValue}`/`{oldValue}` on a group, a list or an object-valued field render as `[object Object]`, and `{field}`/`{otherField}` name an element, which renders as `[object Field]` — its class rather than what it holds. Use a function message (`() => ...`) to read what you need off the element instead. Note also that `{allowedValues}` produces `admin,user` while `{allowedAsText}` produces `admin, user` (truncated when longer than 60 characters).
+In a default message the [translation function](/guide/getting-started#translation) substitutes the placeholders. Where none is set or it has no translation, and in a message you pass to a validator, substitution is purely textual (`String.replaceAll`), which is what the rest of this paragraph describes. `{newValue}`/`{oldValue}` on a group, a list or an object-valued field render as `[object Object]`, and `{field}`/`{otherField}` name an element, which renders as `[object Field]` — its class rather than what it holds. Use a function message (`() => ...`) to read what you need off the element instead. Note also that `{allowedValues}` produces `admin,user` while `{allowedAsText}` produces `admin, user` (truncated when longer than 60 characters).
 
 ---
 
