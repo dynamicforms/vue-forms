@@ -175,7 +175,7 @@ const messages = {
   },
 };
 const locales = [
-  { value: 'en', title: '🇺🇸 English' },
+  { value: 'en', title: '🇬🇧 English' },
   { value: 'sl', title: '🇸🇮 Slovenščina' },
   { value: 'de', title: '🇩🇪 Deutsch' },
   { value: 'es', title: '🇪🇸 Español' },
