@@ -3,18 +3,14 @@ import { nextTick, ref } from 'vue';
 
 import { setConfig } from '../config';
 import { Field } from '../field';
+import { MdString } from '../render-content';
 
-import {
-  type ErrorDescription,
-  MdString,
-  ValidationErrorDescription,
-  ValidationErrorRenderContent,
-} from './validation-error';
+import { type ErrorDescription, ValidationErrorDescription, ValidationError } from './validation-error';
 import { Validator } from './validator';
 import { MinValue } from './validator-min-max-range';
 import Required from './validator-required';
 
-const textOf = (field: Field) => (field.errors[0] as ValidationErrorRenderContent).resolvedText;
+const textOf = (field: Field) => (field.errors[0] as ValidationError).resolvedText;
 
 describe('errorText', () => {
   afterEach(() => {
@@ -45,7 +41,7 @@ describe('errorText', () => {
     const texts: Record<string, string> = { en: 'Enter a value', sl: 'Vnesite vrednost' };
     setConfig({ errorText: () => texts[locale.value] });
     const field = new Field({ value: '', validators: [new Required()] });
-    const error = field.errors[0] as ValidationErrorRenderContent;
+    const error = field.errors[0] as ValidationError;
     expect(error.componentBody).toBe('Enter a value');
 
     locale.value = 'sl';
@@ -66,7 +62,7 @@ describe('errorText', () => {
 
   it('should render what errorText answers as markdown where it answers an MdString', () => {
     setConfig({ errorText: (error) => new MdString(`at least **${error.params.minValue}**`) });
-    const error = new Field({ value: 1, validators: [new MinValue(5)] }).errors[0] as ValidationErrorRenderContent;
+    const error = new Field({ value: 1, validators: [new MinValue(5)] }).errors[0] as ValidationError;
 
     expect(error.componentName).toBe('vue-markdown');
     expect(error.componentBindings).toMatchObject({ source: 'at least **5**' });

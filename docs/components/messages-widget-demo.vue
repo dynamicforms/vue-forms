@@ -126,7 +126,7 @@
 
 <script setup>
 import { computed, ref } from 'vue';
-import { Group, Field, Validators, ValidationErrorText, ValidationErrorRenderContent, MdString } from '../../src';
+import { Group, Field, Validators, ValidationError, MdString } from '../../src';
 import MarkdownItAttrs from 'markdown-it-attrs';
 import MessagesWidget from '../../src/components/messages-widget.vue';
 
@@ -170,14 +170,14 @@ const markdownContent = ref(`
   `,
 );
 const markdownErrors = computed(() => [
-  new ValidationErrorRenderContent(new MdString(markdownContent.value, undefined, [MarkdownItAttrs]))
+  new ValidationError(new MdString(markdownContent.value, undefined, [MarkdownItAttrs]))
 ]);
 
 // Custom errors
 const customErrors = ref([]);
 
 // Custom error class for demo
-class CustomAlertError extends ValidationErrorText {
+class CustomAlertError extends ValidationError {
   constructor(message, extraClasses = '') {
     super(message, extraClasses);
   }
@@ -195,7 +195,7 @@ class CustomAlertError extends ValidationErrorText {
   }
 
   get componentBody() {
-    return this.text;
+    return this.resolvedText;
   }
 }
 

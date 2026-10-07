@@ -6,7 +6,7 @@ import { FieldBase } from './field-base';
 import { Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
-import { ValidationErrorText, Validators } from './validators';
+import { ValidationError, Validators } from './validators';
 
 /** every transition of `element`'s own announcements of one kind, newest last */
 function watchOwn(element: FieldBase, kind: 'value' | 'valid' | 'contribution'): unknown[] {
@@ -193,7 +193,7 @@ describe('An error written by hand into a member that sends nothing', () => {
   it('stays on the member and is not counted by the container', () => {
     const field = new Field({ value: 'x' });
     const form = new Group({ field });
-    field.errors.push(new ValidationErrorText('refused by the server'));
+    field.errors.push(new ValidationError('refused by the server'));
     field.validate();
     expect(form.valid).toBe(false);
 

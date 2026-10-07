@@ -67,9 +67,9 @@ The component supports different types of validation errors:
 
 #### Text Errors
 ```js
-import { ValidationErrorText } from '@dynamicforms/vue-forms';
+import { ValidationError } from '@dynamicforms/vue-forms';
 
-const textError = new ValidationErrorText('Username is required', 'custom-class');
+const textError = new ValidationError('Username is required', 'custom-class');
 ```
 
 The optional second argument sets per-message classes (`extraClasses`); MessagesWidget merges them with its own
@@ -77,9 +77,9 @@ The optional second argument sets per-message classes (`extraClasses`); Messages
 
 #### Markdown Errors
 ```js
-import { ValidationErrorRenderContent, MdString } from '@dynamicforms/vue-forms';
+import { ValidationError, MdString } from '@dynamicforms/vue-forms';
 
-const markdownError = new ValidationErrorRenderContent(
+const markdownError = new ValidationError(
   new MdString('**Error**: This field contains *invalid* data.')
 );
 ```
@@ -110,9 +110,9 @@ moment, and a reference holding an `MdString` still renders as markdown with its
 
 #### Custom Component Errors
 ```js
-import { ValidationErrorText } from '@dynamicforms/vue-forms';
+import { ValidationError } from '@dynamicforms/vue-forms';
 
-class CustomAlertError extends ValidationErrorText {
+class CustomAlertError extends ValidationError {
   get componentName() { 
     return 'v-alert'; 
   }
@@ -125,7 +125,7 @@ class CustomAlertError extends ValidationErrorText {
   }
   
   get componentBody() { 
-    return this.text; 
+    return this.resolvedText; 
   }
 }
 ```
@@ -218,9 +218,9 @@ import '@dynamicforms/vue-forms/style.css';
 ## Key Features
 
 - **Flexible Message Types**: Supports strings, validation errors, markdown, and custom components. The content of a
-  `ValidationErrorRenderContent` may also be a function, a `Ref` or a `computed` returning the string / MdString /
-  component definition, resolved on every read and therefore reactive — the i18n path. The `message` prop itself must
-  be a string or an array of `ValidationError`s. 
+  `ValidationError` or a `RenderableValue` may also be a function, a `Ref` or a `computed` returning the string /
+  MdString / component definition, resolved on every read and therefore reactive. The `message` prop itself must be
+  a string or an array of `RenderableValue`s, `ValidationError`s among them.
 - **Customizable Styling**: Multiple ways to apply CSS classes
 - **Markdown Support**: Rich text formatting when VueMarkdown is available
 - **Validation Integration**: Works seamlessly with form validation errors

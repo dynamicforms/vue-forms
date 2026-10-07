@@ -4,7 +4,7 @@ import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { Group } from './group';
 import { transaction, type TransactionControl } from './transaction';
-import { ValidationErrorText } from './validators/validation-error';
+import { ValidationError } from './validators/validation-error';
 import { Validator } from './validators/validator';
 import CompareTo from './validators/validator-compare-to';
 import Required from './validators/validator-required';
@@ -147,7 +147,7 @@ describe('transaction', () => {
       const validator = new Validator(async (newValue: string) => {
         if (newValue === 'bad') {
           await gate;
-          return [new ValidationErrorText('rejected')];
+          return [new ValidationError('rejected')];
         }
         return null;
       });

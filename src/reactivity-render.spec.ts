@@ -6,7 +6,7 @@ import MessagesWidget from './components/messages-widget.vue';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
-import { ValidationErrorText } from './validators';
+import { ValidationError } from './validators';
 
 // MessagesWidget resolves vue-markdown at setup; a stub keeps the resolution warning out of the way so that the
 // console.warn spy below only ever sees warnings this suite is actually about
@@ -49,7 +49,7 @@ describe('rendering a live form', () => {
 
     expect(wrapper.findAll('div')).toHaveLength(0);
 
-    form.errors.push(new ValidationErrorText('At least one contact is required'));
+    form.errors.push(new ValidationError('At least one contact is required'));
     await nextTick();
 
     const divs = wrapper.findAll('div');

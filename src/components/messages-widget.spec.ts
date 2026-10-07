@@ -3,7 +3,8 @@ import MarkdownItAttrs from 'markdown-it-attrs';
 import { vi } from 'vitest';
 import VueMarkdown from 'vue-markdown-render';
 
-import { ValidationError, ValidationErrorText, ValidationErrorRenderContent, MdString } from '../validators';
+import { MdString } from '../render-content';
+import { ValidationError } from '../validators';
 
 import MessagesWidget from './messages-widget.vue';
 
@@ -62,8 +63,8 @@ describe('MessagesWidget', () => {
 
   it('renders errors when message is ValidationError array', () => {
     const errors = [
-      new ValidationErrorText('First error', 'error-class-1'),
-      new ValidationErrorText('Second error', 'error-class-2'),
+      new ValidationError('First error', 'error-class-1'),
+      new ValidationError('Second error', 'error-class-2'),
     ];
 
     const wrapper = buildMockWrapper({ message: errors, classes: 'text-error' });
@@ -79,7 +80,7 @@ describe('MessagesWidget', () => {
 
   it('renders markdown content as div when VueMarkdown component is not registered', () => {
     const mdContent = new MdString('**Bold** markdown content');
-    const errors = [new ValidationErrorRenderContent(mdContent)];
+    const errors = [new ValidationError(mdContent)];
 
     const originalWarn = console.warn;
     console.warn = vi.fn(); // Suppresses warnings ([Vue warn]: Failed to resolve component: vue-markdown)
@@ -99,7 +100,7 @@ describe('MessagesWidget', () => {
 
   it('renders markdown content using VueMarkdown when component is registered', () => {
     const mdContent = new MdString('**Bold** markdown content');
-    const errors = [new ValidationErrorRenderContent(mdContent)];
+    const errors = [new ValidationError(mdContent)];
 
     const wrapper = buildWrapper({ message: errors, classes: 'text-error' });
 
@@ -115,7 +116,7 @@ describe('MessagesWidget', () => {
     const mdContent = new MdString('**Bold** markdown [content](https://example.com){target="_blank"}', undefined, [
       MarkdownItAttrs,
     ]);
-    const errors = [new ValidationErrorRenderContent(mdContent)];
+    const errors = [new ValidationError(mdContent)];
 
     const wrapper = buildWrapper({ message: errors, classes: 'text-error' });
     const markdownDiv = wrapper.find('.df-messages-widget-markdown');
@@ -157,7 +158,7 @@ describe('MessagesWidget', () => {
 
   it('handles multiple mixed error types', () => {
     const mdContent = new MdString('Markdown **error**');
-    const errors = [new ValidationErrorText('Plain text error'), new ValidationErrorRenderContent(mdContent)];
+    const errors = [new ValidationError('Plain text error'), new ValidationError(mdContent)];
 
     const wrapper = buildMockWrapper({ message: errors });
 
@@ -193,7 +194,7 @@ describe('MessagesWidget', () => {
 
   it('applies CSS styles correctly', () => {
     const mdContent = new MdString('Markdown content');
-    const errors = [new ValidationErrorRenderContent(mdContent)];
+    const errors = [new ValidationError(mdContent)];
 
     const wrapper = buildMockWrapper({ message: errors });
 
@@ -203,7 +204,7 @@ describe('MessagesWidget', () => {
 
   it('renders custom component without innerHTML when componentBody is empty', () => {
     const errors = [
-      new ValidationErrorRenderContent({
+      new ValidationError({
         componentName: 'custom-alert',
         componentProps: { type: 'warning', dismissible: true },
       }),

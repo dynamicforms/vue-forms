@@ -1,6 +1,6 @@
 import type { FieldBase } from '../field-base';
+import { RenderContentRef } from '../render-content';
 
-import { RenderContentRef } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 export class MinValue<T = any> extends Validator {

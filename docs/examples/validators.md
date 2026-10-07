@@ -25,7 +25,7 @@ import {
   MdString,
   ValueChangedAction,
   Validators,
-  ValidationErrorRenderContent,
+  ValidationError,
   getConfig,
   setConfig,
 } from '@dynamicforms/vue-forms';
@@ -114,7 +114,7 @@ const validatedForm = new Group({
 
         // Check if email is "taken"
         if (newValue.endsWith('@taken.com')) {
-          return [new ValidationErrorRenderContent(computed(() => text.value.emailTaken))];
+          return [new ValidationError(computed(() => text.value.emailTaken))];
         }
 
         return null; // Email is available

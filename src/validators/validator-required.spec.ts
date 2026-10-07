@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { unref } from 'vue';
 
 import { Field } from '../field';
 
-import { ValidationErrorRenderContent } from './validation-error';
+import { ValidationError } from './validation-error';
 import Required from './validator-required';
 
 describe('Required Validator', () => {
@@ -26,7 +25,7 @@ describe('Required Validator', () => {
 
       // Assert
       expect(field.errors.length).toBe(1);
-      expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+      expect(field.errors[0]).toBeInstanceOf(ValidationError);
     }
   });
 
@@ -66,9 +65,7 @@ describe('Required Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-
-    // @ts-expect-error text is private, but we want to use it here internally in the library
-    const errorText = unref((field.errors[0] as ValidationErrorRenderContent).text);
+    const errorText = (field.errors[0] as ValidationError).resolvedText;
     expect(errorText).toBe(customMessage);
   });
 });

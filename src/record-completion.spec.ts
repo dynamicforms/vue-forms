@@ -2,7 +2,7 @@ import { ValueChangedAction } from './actions';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
-import { ValidationErrorText, Validators } from './validators';
+import { ValidationError, Validators } from './validators';
 
 /** a unit price that is required while the quantity of the same row is above zero */
 function lineItem() {
@@ -17,7 +17,7 @@ function lineItem() {
         field.markRecordIncomplete();
         return null;
       }
-      return row.fields.quantity.value > 0 && newValue == null ? [new ValidationErrorText('required')] : null;
+      return row.fields.quantity.value > 0 && newValue == null ? [new ValidationError('required')] : null;
     }),
   );
   return template;

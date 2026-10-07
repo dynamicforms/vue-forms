@@ -3,18 +3,16 @@ import { isRef, unref } from 'vue';
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
-import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
-
 import {
   isCallableFunction,
   isSimpleComponentDef,
   MdString,
   RenderContentNonCallable,
   RenderContentRef,
-  ValidationError,
-  ValidationErrorDescription,
-  ValidationErrorRenderContent,
-} from './validation-error';
+} from '../render-content';
+import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
+
+import { ValidationError, ValidationErrorDescription } from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
 /**
@@ -242,13 +240,7 @@ export class Validator<T = any> extends ValueChangedAction {
     params: Record<string, unknown>,
   ): ValidationError {
     if (!message) return new ValidationErrorDescription(code, params, interpolate(detail, params));
-    return new ValidationErrorRenderContent(
-      this.replacePlaceholders(message, { ...params, field }),
-      '',
-      code,
-      undefined,
-      params,
-    );
+    return new ValidationError(this.replacePlaceholders(message, { ...params, field }), '', code, undefined, params);
   }
 
   protected replacePlaceholdersFunction(text: RenderContentRef, replace: Record<string, any>): RenderContentRef {

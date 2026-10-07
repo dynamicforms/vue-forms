@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 
 import type { Access } from './access';
 import type { IFieldConstructorParams } from './field.interface';
-import { ValidationErrorText } from './validators/validation-error';
+import { ValidationError } from './validators/validation-error';
 import type { Visibility } from './visibility';
 
 import Form from '.';
@@ -53,7 +53,7 @@ describe('Field', () => {
     const onValidChanged = vi.fn();
     const field = new Form.Field({ access: 'editable' }).registerAction(new Form.ValidChangedAction(onValidChanged));
 
-    field.errors = [new ValidationErrorText('Napaka')];
+    field.errors = [new ValidationError('Napaka')];
     field.value = 'test';
 
     expect(field.valid).toBe(false);
@@ -242,7 +242,7 @@ describe('Field construction', () => {
       validators: [
         new Form.Validators.Validator<string>((newValue) => {
           runs.push(newValue);
-          return newValue === '' ? [new ValidationErrorText('Required field')] : null;
+          return newValue === '' ? [new ValidationError('Required field')] : null;
         }),
       ],
     });

@@ -5,10 +5,10 @@
 <script setup lang="ts">
 import { h, resolveComponent } from 'vue';
 
-import { ClassTypes, ValidationError } from '../validators';
+import { ClassTypes, RenderableValue } from '../render-content';
 
 interface Props {
-  message: string | ValidationError[];
+  message: string | RenderableValue[];
   classes?: ClassTypes;
 }
 

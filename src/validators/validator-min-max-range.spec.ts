@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Field } from '../field';
 
-import { ValidationErrorRenderContent } from './validation-error';
+import { ValidationError } from './validation-error';
 import { MinValue, MaxValue, ValueInRange } from './validator-min-max-range';
 
 describe('MinValue Validator', () => {
@@ -16,11 +16,11 @@ describe('MinValue Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
 
     field.value = undefined;
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns no error when value equals minimum', () => {
@@ -83,7 +83,7 @@ describe('MaxValue Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns no error when value equals maximum', () => {
@@ -123,7 +123,7 @@ describe('ValueInRange Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns error when value is outside the range (too high)', () => {
@@ -137,7 +137,7 @@ describe('ValueInRange Validator', () => {
 
     // Assert
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationErrorRenderContent);
+    expect(field.errors[0]).toBeInstanceOf(ValidationError);
   });
 
   it('returns no error when value is at the minimum boundary', () => {

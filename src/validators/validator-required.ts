@@ -2,8 +2,8 @@ import { isArray, isObject, isString } from 'lodash-es';
 import { isRef, unref } from 'vue';
 
 import type { FieldBase } from '../field-base';
+import { RenderContentRef } from '../render-content';
 
-import { RenderContentRef } from './validation-error';
 import { ValidationFunction, Validator } from './validator';
 
 function toLength(a: any): number {

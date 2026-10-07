@@ -60,7 +60,7 @@ You want a field to show an error the server reported for it, and the error to g
 function showServerErrors(form: Group, errors: Record<string, string>) {
   Object.entries(errors).forEach(([name, message]) => {
     const field = form.field(name);
-    if (field) field.errors = [...field.errors, new ValidationErrorText(message, '', 'server-error', 'server')];
+    if (field) field.errors = [...field.errors, new ValidationError(message, '', 'server_error', 'server')];
   });
 }
 
@@ -240,7 +240,7 @@ lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, old
     return null;
   }
   return row.fields.quantity.value > 0 && newValue == null
-    ? [new ValidationErrorText('Unit price is required when quantity is above zero')]
+    ? [new ValidationError('Unit price is required when quantity is above zero')]
     : null;
 }));
 

@@ -5,38 +5,47 @@ import { reactive, ref } from 'vue';
 import {
   MdString,
   SimpleComponentDef,
-  ValidationError,
-  ValidationErrorText,
-  ValidationErrorRenderContent,
   isSimpleComponentDef,
   RenderableValue,
   isCallableFunction,
-} from './validation-error';
+} from '../render-content';
+
+import { ValidationError } from './validation-error';
 
 describe('ValidationError', () => {
-  it('has default component properties', () => {
+  it('renders as empty text when built without content', () => {
     const error = new ValidationError();
 
-    expect(error.componentName).toBe('Comment');
+    expect(error.componentName).toBe('template');
     expect(error.componentBindings).toEqual({});
     expect(error.componentBody).toBe('');
   });
-});
 
-describe('ValidationErrorText', () => {
-  it('stores and provides text message', () => {
-    const error = new ValidationErrorText('Test error message');
+  it('is a RenderableValue, rendered the way any content is', () => {
+    const error = new ValidationError('Test error message');
 
-    expect(error.text).toBe('Test error message');
+    expect(error).toBeInstanceOf(RenderableValue);
+    expect(error.resolvedText).toBe('Test error message');
+    expect(error.kind).toBe('string');
     expect(error.componentName).toBe('template');
     expect(error.componentBody).toBe('Test error message');
-    expect(error.componentBindings).toEqual({});
   });
 });
 
-describe('ValidationErrorRenderContent', () => {
+describe('RenderableValue', () => {
+  it('carries no code, params or origin', () => {
+    const value = new RenderableValue(new MdString('**cell**'), 'bold');
+
+    expect(value.kind).toBe('md');
+    expect(value.extraClasses).toBe('bold');
+    expect('code' in value).toBe(false);
+    expect('origin' in value).toBe(false);
+  });
+});
+
+describe('ValidationError', () => {
   it('handles plain string content', () => {
-    const error = new ValidationErrorRenderContent('Plain text error');
+    const error = new ValidationError('Plain text error');
 
     expect(error.componentName).toBe('template');
     expect(error.componentBody).toBe('Plain text error');
@@ -53,7 +62,7 @@ describe('ValidationErrorRenderContent', () => {
 
   it('handles markdown string content', () => {
     const mdContent = new MdString('**Bold** error message');
-    const error = new ValidationErrorRenderContent(mdContent);
+    const error = new ValidationError(mdContent);
 
     expect(error.componentName).toBe('vue-markdown');
     expect(error.componentBody).toBe('');
@@ -66,7 +75,7 @@ describe('ValidationErrorRenderContent', () => {
       componentProps: { type: 'danger', dismissible: true },
     };
 
-    const error = new ValidationErrorRenderContent(componentDef);
+    const error = new ValidationError(componentDef);
 
     expect(error.componentName).toBe('CustomError');
     expect(error.componentBody).toBe('');
@@ -75,7 +84,7 @@ describe('ValidationErrorRenderContent', () => {
 
   it('handles reactive content', () => {
     const contentRef = ref('Initial error');
-    const error = new ValidationErrorRenderContent(contentRef);
+    const error = new ValidationError(contentRef);
 
     expect(error.componentBody).toBe('Initial error');
     expect(error.componentName).toBe('template');
@@ -86,7 +95,7 @@ describe('ValidationErrorRenderContent', () => {
   });
 
   it('handles empty content gracefully', () => {
-    const error = new ValidationErrorRenderContent('');
+    const error = new ValidationError('');
 
     expect(error.componentName).toBe('template');
     expect(error.componentBody).toBe('');
@@ -129,10 +138,10 @@ describe('MdString', () => {
   });
 });
 
-describe('ValidationErrorRenderContent with callable functions', () => {
+describe('ValidationError with callable functions', () => {
   it('handles callable function that returns plain string', () => {
     const contentFn = () => 'Dynamic error message';
-    const error = new ValidationErrorRenderContent(contentFn);
+    const error = new ValidationError(contentFn);
 
     expect(error.componentName).toBe('template');
     expect(error.componentBody).toBe('Dynamic error message');
@@ -141,7 +150,7 @@ describe('ValidationErrorRenderContent with callable functions', () => {
 
   it('handles callable function that returns MdString', () => {
     const contentFn = () => new MdString('**Dynamic** markdown');
-    const error = new ValidationErrorRenderContent(contentFn);
+    const error = new ValidationError(contentFn);
 
     expect(error.componentName).toBe('vue-markdown');
     expect(error.componentBody).toBe('');
@@ -154,7 +163,7 @@ describe('ValidationErrorRenderContent with callable functions', () => {
       componentProps: { severity: 'error' },
       componentVHtml: '<strong>Error</strong>',
     });
-    const error = new ValidationErrorRenderContent(contentFn);
+    const error = new ValidationError(contentFn);
 
     expect(error.componentName).toBe('DynamicAlert');
     expect(error.componentBindings).toEqual({ severity: 'error' });
@@ -164,7 +173,7 @@ describe('ValidationErrorRenderContent with callable functions', () => {
   it('handles reactive ref containing callable function', () => {
     const contentFn = () => 'Translated message';
     const contentRef = ref(contentFn);
-    const error = new ValidationErrorRenderContent(contentRef);
+    const error = new ValidationError(contentRef);
 
     expect(error.componentBody).toBe('Translated message');
   });
@@ -172,7 +181,7 @@ describe('ValidationErrorRenderContent with callable functions', () => {
   it('evaluates callable function on each access (useful for translations)', () => {
     let counter = -1;
     const contentFn = () => `Error count: ${++counter}`;
-    const error = new ValidationErrorRenderContent(contentFn);
+    const error = new ValidationError(contentFn);
 
     expect(error.componentBody).toBe('Error count: 1');
     expect(error.componentBody).toBe('Error count: 2');
@@ -188,7 +197,7 @@ describe('ValidationErrorRenderContent with callable functions', () => {
       return translations[key] || key;
     };
 
-    const error = new ValidationErrorRenderContent(() => t('error.required'));
+    const error = new ValidationError(() => t('error.required'));
     expect(error.componentBody).toBe('This field is required');
   });
 });
@@ -225,9 +234,9 @@ describe('isSimpleComponentDef', () => {
 
 describe('sameAs', () => {
   it('answers over what renders, not over what the instances hold', () => {
-    const left = new ValidationErrorRenderContent(() => 'the same message');
-    const right = new ValidationErrorRenderContent(() => 'the same message');
-    const other = new ValidationErrorRenderContent(() => 'a different message');
+    const left = new ValidationError(() => 'the same message');
+    const right = new ValidationError(() => 'the same message');
+    const other = new ValidationError(() => 'a different message');
 
     // the instances differ - each carries a computed of its own - and what they render does not
     expect(isEqual(left, right)).toBe(false);
@@ -236,19 +245,20 @@ describe('sameAs', () => {
   });
 
   it('separates errors that differ only in their code or class', () => {
-    const plain = new ValidationErrorText('too short');
-    const coded = new ValidationErrorText('too short', '', 'min_length');
+    const plain = new ValidationError('too short');
+    const coded = new ValidationError('too short', '', 'min_length');
 
     expect(plain.sameAs(coded)).toBe(false);
-    expect(coded.sameAs(new ValidationErrorText('too short', '', 'min_length'))).toBe(true);
-    expect(coded.sameAs(new ValidationErrorText('too short', 'highlighted', 'min_length'))).toBe(false);
+    expect(coded.sameAs(new ValidationError('too short', '', 'min_length'))).toBe(true);
+    expect(coded.sameAs(new ValidationError('too short', 'highlighted', 'min_length'))).toBe(false);
   });
 
   it('separates two classes that render the same body', () => {
-    const text = new ValidationErrorText('message');
-    const content = new ValidationErrorRenderContent('message');
+    class ServerError extends ValidationError {}
+    const error = new ValidationError('message');
+    const server = new ServerError('message');
 
-    expect(text.componentBody).toBe(content.componentBody);
-    expect(text.sameAs(content as any)).toBe(false);
+    expect(error.componentBody).toBe(server.componentBody);
+    expect(error.sameAs(server)).toBe(false);
   });
 });

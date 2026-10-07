@@ -15,7 +15,9 @@ exists.
 ## Upgrading to v3.0.0 (from v2.0.x)
 
 3.0.0 takes translation and markdown out of the library: a built-in validator states what failed, and the
-application decides how that reads. One change is silent and comes first: the renamed error codes. There is a
+application decides how that reads. The error classes are consolidated with it. Two changes are silent: the renamed
+error codes, which come first, and a bare `new ValidationError(code)`, described under
+[`ValidationError` is the error class](#validationerror-is-the-error-class). There is a
 [checklist](#checklist-for-3-0-0) at the end of this section.
 
 ### Error codes are renamed
@@ -54,6 +56,30 @@ The translations move from the message keys to the codes: `MinValue` to `min_val
 [Error codes](/api/validators#error-codes) table lists every code with its params. `undefined` leaves the English
 detail. An error on screen follows a locale switch, because `errorText` is read when the error is rendered.
 
+### `ValidationError` is the error class
+
+`ValidationErrorText` and `ValidationErrorRenderContent` are gone; using either is a compile error. `ValidationError`
+takes their place with the same constructor arguments — content, classes, code, origin, params:
+
+```typescript
+// before
+new ValidationErrorText('This name is taken', '', 'name_taken', 'server');
+new ValidationErrorRenderContent(new MdString('**Required**'));
+
+// after
+new ValidationError('This name is taken', '', 'name_taken', 'server');
+new ValidationError(new MdString('**Required**'));
+```
+
+Two reads change with it. `.text` of a `ValidationErrorText` is `resolvedText`, and `getTextType` is `kind`.
+
+`new ValidationError(code)` built a bare error whose first argument was its code; the first argument is now the
+content, so such a call compiles and renders the code as text. Pass the code third: `new ValidationError('', '',
+code)`.
+
+`RenderableValue` is now the base class of `ValidationError` instead of a subclass of it. Its constructor is
+unchanged, and it no longer carries `code`, `params` or `origin`.
+
 ### Built-in messages are plain text
 
 The English details carry no markdown, and `useMarkdownInValidators` and `buildErrorMessage` are gone; using either
@@ -75,7 +101,10 @@ new Validators.Required(new MdString('**Required**'));
 3. Remove `useMarkdownInValidators` from the plugin options and `setConfig` calls; answer an `MdString` from
    `errorText` where markdown is wanted.
 4. Replace `buildErrorMessage(text)` with the text, or with `new MdString(text)` for markdown.
-5. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
+5. Replace `ValidationErrorText` and `ValidationErrorRenderContent` with `ValidationError`, `.text` with
+   `resolvedText` and `getTextType` with `kind`; move the code of a bare `new ValidationError(code)` to the third
+   argument.
+6. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

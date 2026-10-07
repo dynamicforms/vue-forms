@@ -5,7 +5,7 @@ import { Action } from './action';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
-import { ValidationErrorText, Validators } from './validators';
+import { ValidationError, Validators } from './validators';
 
 /**
  * A field is not a proxy of itself - it carries __v_skip, and what is reactive is the state it holds its members
@@ -299,7 +299,7 @@ describe('Group reactivity', () => {
     const errorCount = track(() => group.errors.length);
 
     // validate() exists to fire ValidChangedAction; rendering does not depend on it
-    group.errors.push(new ValidationErrorText('At least one contact is required'));
+    group.errors.push(new ValidationError('At least one contact is required'));
     await nextTick();
 
     expect(valid).toEqual([true, false]);
@@ -311,7 +311,7 @@ describe('Group reactivity', () => {
     const group = new Group({ a: new Field({ value: 1 }) });
     const valid = track(() => group.valid);
 
-    group.errors = [new ValidationErrorText('napaka')];
+    group.errors = [new ValidationError('napaka')];
     await nextTick();
     expect(valid).toEqual([true, false]);
 
@@ -330,7 +330,7 @@ describe('Group reactivity', () => {
     await nextTick();
     expect(value).toEqual(['{"inner":{"x":1},"y":2}', '{"inner":{"x":9},"y":2}']);
 
-    inner.errors.push(new ValidationErrorText('napaka'));
+    inner.errors.push(new ValidationError('napaka'));
     await nextTick();
     expect(valid).toEqual([true, false]);
   });

@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `validation-failed` is `validation_failed`. `required` and `pattern` stay.
 - The English details of the built-in validators are plain text, without markdown.
 - The configuration is reactive: an error on screen follows a later write of `errorText`.
+- `ValidationError` is the one error class for content: `new ValidationError(content?, classes?, code?, origin?,
+  params?)`, the constructor `ValidationErrorRenderContent` had. Built without content it renders as empty text.
+- `RenderableValue` is the base class of `ValidationError` rather than a subclass of it, and carries no `code`,
+  `params` or `origin`. `MessagesWidget` takes `string | RenderableValue[]`.
+- `MdString`, `SimpleComponentDef`, the `RenderContent` types, `ClassTypes` and the type guards are declared in their
+  own module, beside `RenderableValue`; the package exports them as before.
 
 ### Added
 - `errorText` in the configuration: `(error: ErrorDescription) => string | MdString | SimpleComponentDef | undefined`,
@@ -26,10 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   server returns has the same shape.
 - `params` on every error, the values the failure is stated with, taken as the last constructor argument.
 - `{otherValue}` in a `CompareTo` message.
+- `kind` on a `RenderableValue`: `'string'`, `'md'` or `'component'`, the form its content takes.
 
 ### Removed
 - The dependency on `@dynamicforms/translatable`, together with `translateStrings` and the `strings` dictionary.
 - `useMarkdownInValidators` and `buildErrorMessage`.
+- `ValidationErrorText` and `ValidationErrorRenderContent`; `ValidationError` takes their place with the same
+  constructor arguments.
+- `getTextType` on a rendered value; `kind` takes its place.
 
 ## [2.0.3] - 2026-10-06
 
