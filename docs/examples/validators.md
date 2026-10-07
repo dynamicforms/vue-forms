@@ -5,7 +5,7 @@ This example demonstrates how to use validators with form fields in `@dynamicfor
 ## Demo
 
 Here's a live demo of form validation using various validators. It also shows the built-in messages
-[translated](#translated-messages-in-this-demo) into six languages and the markdown setting switched at run time: the
+[translated](#translated-messages-in-this-demo) into eight languages and the markdown setting switched at run time: the
 errors already on the fields follow either change without revalidating.
 
 <ValidatorsFormDemo />
@@ -63,7 +63,30 @@ const messages = {
     InAllowedValues: '必须是 [**{allowedAsText}**] 之一',
     LengthInRange: '长度必须介于 **{minLength}** 和 **{maxLength}** 之间',
   },
+  fa: {
+    Required: 'لطفاً یک مقدار وارد کنید',
+    ValueInRange: 'مقدار باید بین **{minValue}** و **{maxValue}** باشد',
+    // U+2068 and U+2069 isolate the Latin list, so its brackets stay in place inside the right-to-left sentence
+    InAllowedValues: 'باید یکی از \u2068[**{allowedAsText}**]\u2069 باشد',
+    LengthInRange: 'طول باید بین **{minLength}** و **{maxLength}** باشد',
+  },
+  bn: {
+    Required: 'একটি মান লিখুন',
+    ValueInRange: 'মান **{minValue}** থেকে **{maxValue}** এর মধ্যে হতে হবে',
+    InAllowedValues: '[**{allowedAsText}**] এর মধ্যে একটি হতে হবে',
+    LengthInRange: 'দৈর্ঘ্য **{minLength}** থেকে **{maxLength}** এর মধ্যে হতে হবে',
+  },
 };
+const locales = [
+  { value: 'en', title: '🇺🇸 English' },
+  { value: 'sl', title: '🇸🇮 Slovenščina' },
+  { value: 'de', title: '🇩🇪 Deutsch' },
+  { value: 'es', title: '🇪🇸 Español' },
+  { value: 'ja', title: '🇯🇵 日本語' },
+  { value: 'zh', title: '🇨🇳 中文' },
+  { value: 'fa', title: '🇮🇷 فارسی' },
+  { value: 'bn', title: '🇧🇩 বাংলা' },
+];
 const locale = ref('en');
 
 // The demo's own text: labels, hints and the messages it gives its validators. They belong to the application and
@@ -177,12 +200,61 @@ const ui = {
     valid: '表单有效',
     invalid: '表单无效',
   },
+  fa: {
+    rtl: true,
+    title: 'نمایش اعتبارسنج‌ها',
+    intro: 'زبان یا مارک‌داون را تغییر دهید: خطاهای نمایش‌داده‌شده بدون اعتبارسنجی دوباره به‌روز می‌شوند.',
+    markdown: 'مارک‌داون در پیام‌ها',
+    username: 'نام کاربری',
+    email: 'ایمیل',
+    emailHint: 'برای دیدن اعتبارسنجی ناهمگام something@taken.com را وارد کنید',
+    invalidEmail: 'لطفاً یک نشانی ایمیل معتبر وارد کنید',
+    emailTaken: 'این نشانی ایمیل قبلاً استفاده شده است',
+    age: 'سن',
+    role: 'نقش',
+    bio: 'درباره من',
+    submit: 'ارسال',
+    reset: 'بازنشانی',
+    status: 'وضعیت اعتبارسنجی فرم',
+    valid: 'فرم معتبر است',
+    invalid: 'فرم نامعتبر است',
+  },
+  bn: {
+    title: 'ভ্যালিডেটর ডেমো',
+    intro: 'ভাষা বা মার্কডাউন পরিবর্তন করুন: ফিল্ডে দেখানো ত্রুটিগুলি পুনরায় যাচাই ছাড়াই বদলে যায়।',
+    markdown: 'বার্তায় মার্কডাউন',
+    username: 'ব্যবহারকারীর নাম',
+    email: 'ইমেল',
+    emailHint: 'অ্যাসিঙ্ক্রোনাস যাচাই দেখতে something@taken.com লিখুন',
+    invalidEmail: 'একটি বৈধ ইমেল ঠিকানা লিখুন',
+    emailTaken: 'এই ইমেল ঠিকানাটি ইতিমধ্যে ব্যবহৃত হয়েছে',
+    age: 'বয়স',
+    role: 'ভূমিকা',
+    bio: 'পরিচিতি',
+    submit: 'জমা দিন',
+    reset: 'রিসেট',
+    status: 'ফর্ম যাচাইয়ের অবস্থা',
+    valid: 'ফর্মটি বৈধ',
+    invalid: 'ফর্মটি অবৈধ',
+  },
 };
 const text = computed(() => ui[locale.value]);
 
+// The translation function receives the placeholder values as they are, so it formats the numbers among them for the
+// locale: Persian and Bengali write their own digits.
+const formatNumbers = (named) => {
+  const format = new Intl.NumberFormat(locale.value);
+  return Object.fromEntries(
+    Object.entries(named).map(([name, value]) => [name, typeof value === 'number' ? format.format(value) : value]),
+  );
+};
+
 // A translation function shaped like vue-i18n's t: the translation of key with the placeholders substituted, or key
 // unchanged where there is none. It reads locale, so every error on screen follows a switch without revalidating.
-translateStrings((key, named) => interpolate(messages[locale.value]?.[key] ?? key, named));
+translateStrings((key, named) => {
+  const template = messages[locale.value]?.[key];
+  return template ? interpolate(template, formatNumbers(named)) : key;
+});
 
 // The configuration is reactive, so the errors on screen follow the switch. Each field's message slot renders its
 // errors through the globally registered vue-markdown component, so a markdown message shows its emphasis.
@@ -290,115 +362,116 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 ```vue
 <template>
   <div class="validators-form-demo">
-    <v-card class="mb-4">
-      <v-card-title>{{ text.title }}</v-card-title>
-      <v-card-subtitle class="intro">{{ text.intro }}</v-card-subtitle>
-      <v-card-text>
-        <div class="locales mb-4">
-          <v-btn-toggle v-model="locale" mandatory variant="outlined" divided color="primary">
-            <v-btn value="en" size="small">🇺🇸 English</v-btn>
-            <v-btn value="sl" size="small">🇸🇮 Slovenščina</v-btn>
-            <v-btn value="de" size="small">🇩🇪 Deutsch</v-btn>
-            <v-btn value="es" size="small">🇪🇸 Español</v-btn>
-            <v-btn value="ja" size="small">🇯🇵 日本語</v-btn>
-            <v-btn value="zh" size="small">🇨🇳 中文</v-btn>
-          </v-btn-toggle>
-        </div>
-        <v-switch v-model="useMarkdown" :label="text.markdown" color="primary" density="compact" />
-        <v-form @submit.prevent>
-          <!-- Username field (Required) -->
-          <v-text-field
-            v-model="validatedForm.fields.username.value"
-            :label="text.username"
-            :error-messages="getErrorMessages(validatedForm.fields.username)"
-            outlined
-            class="mb-2"
+    <v-locale-provider :rtl="text.rtl ?? false">
+      <v-card class="mb-4">
+        <v-card-title>{{ text.title }}</v-card-title>
+        <v-card-subtitle class="intro">{{ text.intro }}</v-card-subtitle>
+        <v-card-text>
+          <div class="settings mb-2">
+            <v-select
+              v-model="locale"
+              :items="locales"
+              density="compact"
+              hide-details
+              class="locale"
+            ></v-select>
+            <v-checkbox v-model="useMarkdown" :label="text.markdown" color="primary" density="compact" hide-details />
+          </div>
+          <v-form @submit.prevent>
+            <!-- Username field (Required) -->
+            <v-text-field
+              v-model="validatedForm.fields.username.value"
+              :label="text.username"
+              :error-messages="getErrorMessages(validatedForm.fields.username)"
+              outlined
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-text-field>
+
+            <!-- Email field (Pattern) -->
+            <v-text-field
+              v-model="validatedForm.fields.email.value"
+              :label="text.email"
+              :error-messages="getErrorMessages(validatedForm.fields.email)"
+              :loading="validatedForm.fields.email.validating"
+              outlined
+              class="mb-2"
+              :hint="text.emailHint"
+              persistent-hint
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-text-field>
+
+            <!-- Age field (ValueInRange) -->
+            <v-text-field
+              v-model.number="validatedForm.fields.age.value"
+              type="number"
+              :label="text.age"
+              :error-messages="getErrorMessages(validatedForm.fields.age)"
+              outlined
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-text-field>
+
+            <!-- Role field (InAllowedValues) -->
+            <v-select
+              v-model="validatedForm.fields.role.value"
+              :items="['admin', 'user', 'guest']"
+              :label="text.role"
+              :error-messages="getErrorMessages(validatedForm.fields.role)"
+              outlined
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-select>
+
+            <!-- Bio field (LengthInRange) -->
+            <v-textarea
+              v-model="validatedForm.fields.bio.value"
+              :label="text.bio"
+              :error-messages="getErrorMessages(validatedForm.fields.bio)"
+              outlined
+              counter="200"
+              class="mb-2"
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-textarea>
+          </v-form>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-btn
+            color="primary"
+            :disabled="!formValid || formBusy"
+            :loading="formBusy"
           >
-            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-          </v-text-field>
-
-          <!-- Email field (Pattern) -->
-          <v-text-field
-            v-model="validatedForm.fields.email.value"
-            :label="text.email"
-            :error-messages="getErrorMessages(validatedForm.fields.email)"
-            :loading="validatedForm.fields.email.validating"
-            outlined
-            class="mb-2"
-            :hint="text.emailHint"
-            persistent-hint
+            {{ text.submit }}
+          </v-btn>
+          <v-btn
+            color="secondary"
+            @click="resetForm"
+            class="ml-2"
           >
-            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-          </v-text-field>
+            {{ text.reset }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
 
-          <!-- Age field (ValueInRange) -->
-          <v-text-field
-            v-model.number="validatedForm.fields.age.value"
-            type="number"
-            :label="text.age"
-            :error-messages="getErrorMessages(validatedForm.fields.age)"
-            outlined
-            class="mb-2"
+      <v-card>
+        <v-card-title>{{ text.status }}</v-card-title>
+        <v-card-text>
+          <v-alert
+            :type="formValid ? 'success' : 'error'"
+            class="mb-3"
           >
-            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-          </v-text-field>
-
-          <!-- Role field (InAllowedValues) -->
-          <v-select
-            v-model="validatedForm.fields.role.value"
-            :items="['admin', 'user', 'guest']"
-            :label="text.role"
-            :error-messages="getErrorMessages(validatedForm.fields.role)"
-            outlined
-            class="mb-2"
-          >
-            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-          </v-select>
-
-          <!-- Bio field (LengthInRange) -->
-          <v-textarea
-            v-model="validatedForm.fields.bio.value"
-            :label="text.bio"
-            :error-messages="getErrorMessages(validatedForm.fields.bio)"
-            outlined
-            counter="200"
-            class="mb-2"
-          >
-            <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-          </v-textarea>
-        </v-form>
-      </v-card-text>
-
-      <v-card-actions>
-        <v-btn
-          color="primary"
-          :disabled="!formValid || formBusy"
-          :loading="formBusy"
-        >
-          {{ text.submit }}
-        </v-btn>
-        <v-btn
-          color="secondary"
-          @click="resetForm"
-          class="ml-2"
-        >
-          {{ text.reset }}
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-
-    <v-card>
-      <v-card-title>{{ text.status }}</v-card-title>
-      <v-card-text>
-        <v-alert
-          :type="formValid ? 'success' : 'error'"
-          class="mb-3"
-        >
-          {{ formValid ? text.valid : text.invalid }}
-        </v-alert>
-        <pre class="output">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
-      </v-card-text>
-    </v-card>
+            {{ formValid ? text.valid : text.invalid }}
+          </v-alert>
+          <pre class="output" dir="ltr">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
+        </v-card-text>
+      </v-card>
+    </v-locale-provider>
   </div>
 </template>
 ```
@@ -428,12 +501,15 @@ error inside the validation function only when the user should read something mo
 
 ## Translated Messages in This Demo
 
-The language buttons switch the demo between English, Slovenian, German, Spanish, Japanese and Chinese.
+The language selector switches the demo between English, Slovenian, German, Spanish, Japanese, Chinese, Persian and
+Bengali.
 
 The built-in messages come through `translateStrings`. The demo hands it a translation function over a small
 dictionary, written with `interpolate` from `@dynamicforms/translatable`; with vue-i18n,
 `translateStrings(i18n.global.t, 'forms')` takes its place. The function reads `locale`, so the errors already on the
 fields change language without the fields revalidating. A key a locale does not translate keeps its English default.
+The function receives the placeholder values as they are, so it also formats the numbers among them with
+`Intl.NumberFormat` for the locale: Persian and Bengali show the age range in their own digits.
 See [Translation](/guide/getting-started#translation).
 
 The labels, the hint and the messages the demo gives its own validators belong to the application, so they come
@@ -443,6 +519,10 @@ follows the locale the same way.
 The switch sets [`useMarkdownInValidators`](/api/config). The configuration is reactive, so the errors on screen
 follow it too: on, the placeholder values are bold; off, the markup is stripped. Each field renders its messages
 through the `vue-markdown` component in Vuetify's `message` slot, since the `error-messages` prop shows plain text.
+
+Persian is written right to left: the demo wraps itself in Vuetify's `v-locale-provider` with `rtl` set for it, and
+the Persian message for `InAllowedValues` isolates the Latin list with U+2068 and U+2069, so its brackets stay in
+place.
 
 Both settings are global, so the demo restores them when it is unmounted.
 
@@ -461,7 +541,7 @@ Both settings are global, so the demo restores them when it is unmounted.
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
   run deciding the verdict, and `form.busy` disabling submit while the tree is still deciding
-- **Translated Messages**: The built-in messages in six languages, following a locale switch on screen
+- **Translated Messages**: The built-in messages in eight languages, numbers in the locale's digits, following a locale switch on screen
 - **Markdown Setting**: `useMarkdownInValidators` switched at run time
 - **Form-level Validation**: Tracking overall form validity based on individual field states
 - **Error Display**: Showing validation errors to the user
