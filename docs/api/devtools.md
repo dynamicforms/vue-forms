@@ -81,8 +81,9 @@ lists only elements named with `describeState()`.
 
 Every function above, and the registration of an element at its construction, run only where
 `process.env.NODE_ENV` is not `'production'`. A production build of the application replaces that expression, and
-the bundler removes the registry, the devtools plugin and the import of `@vue/devtools-api`; Vite does so
-completely. The functions remain as empty functions.
+the bundler removes the registry and the devtools plugin; Vite does so completely. The functions remain as empty
+functions. The library has no dependency on a devtools package: the plugin registers through the global hook the
+devtools install in the page (`__VUE_DEVTOOLS_GLOBAL_HOOK__`), which every version of the devtools accepts.
 
 ## Several apps and server-side rendering
 

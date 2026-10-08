@@ -1,4 +1,3 @@
-import { setupDevtoolsPlugin } from '@vue/devtools-api';
 import { type App, toRaw } from 'vue';
 
 import type { FieldBase } from '../field-base';
@@ -6,6 +5,28 @@ import type { FieldBase } from '../field-base';
 import { callerFile, componentPath, type Entry, entryById, entryOf, listed, onRegistryChanged } from './registry';
 
 const INSPECTOR = 'dynamicforms-state';
+
+/** The part of the devtools plugin API the inspector uses. */
+interface DevtoolsApi {
+  addInspector(options: Record<string, unknown>): void;
+  sendInspectorTree(inspectorId: string): void;
+  sendInspectorState(inspectorId: string): void;
+  on: {
+    getInspectorTree(handler: (payload: any) => void): void;
+    getInspectorState(handler: (payload: any) => void): void;
+    inspectComponent(handler: (payload: any) => void): void;
+  };
+}
+
+/**
+ * Registers a devtools plugin through the global devtools hook, the way every version of the devtools accepts one:
+ * the devtools kit that initialised the devtools listens for `devtools-plugin:setup` on the hook. A copy of the kit
+ * bundled with a library (`@vue/devtools-api` 7 and 8) registers only with itself, so a plugin set up through it is
+ * not seen where another copy initialised the devtools.
+ */
+function setupDevtoolsPlugin(descriptor: Record<string, unknown>, setupFn: (api: DevtoolsApi) => void): void {
+  (globalThis as any).__VUE_DEVTOOLS_GLOBAL_HOOK__?.emit?.('devtools-plugin:setup', descriptor, setupFn);
+}
 /** the rows of a list the tree shows; the rest are summed up in one node */
 const ROWS_SHOWN = 100;
 

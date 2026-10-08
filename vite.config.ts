@@ -42,7 +42,6 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@vue/devtools-api',
         'lodash-es',
         'vue',
       ],

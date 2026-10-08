@@ -11,18 +11,16 @@ import { describeState, hideState, setDevtoolsRegistration } from './api';
 import { callerFile, entryOf, listed } from './registry';
 
 const handlers: Record<string, (payload: any) => void> = {};
-vi.mock('@vue/devtools-api', () => ({
-  setupDevtoolsPlugin: (_descriptor: unknown, setup: (api: unknown) => void) =>
-    setup({
-      addInspector: () => undefined,
-      sendInspectorTree: () => undefined,
-      sendInspectorState: () => undefined,
-      on: new Proxy(
-        {},
-        { get: (_target, name: string) => (handler: (payload: any) => void) => (handlers[name] = handler) },
-      ),
-    }),
-}));
+// the devtools API a plugin's setup function receives; the handlers it registers are kept for the tests
+const api = {
+  addInspector: () => undefined,
+  sendInspectorTree: () => undefined,
+  sendInspectorState: () => undefined,
+  on: new Proxy(
+    {},
+    { get: (_target, name: string) => (handler: (payload: any) => void) => (handlers[name] = handler) },
+  ),
+};
 
 const isListed = (element: object) => listed().some((item) => item.element === element);
 
@@ -98,7 +96,9 @@ describe('the devtools plugin', () => {
   it('lists global and component state, shows an element, and adds component state', async () => {
     const app = { config: {} };
     const hook = {
-      emit: () => undefined,
+      emit: (event: string, _descriptor: unknown, setup: (devtools: unknown) => void) => {
+        if (event === 'devtools-plugin:setup') setup(api);
+      },
       on: () => undefined,
       once: () => undefined,
       off: () => undefined,
