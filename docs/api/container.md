@@ -120,11 +120,12 @@ is revalidated first and the container then computes its own validity over the r
 net transition of its validity. A child that becomes valid while a later child is still unchecked produces no
 notification on the container.
 
-## Inherited from FieldBase
+## Inherited members
 
 `value`, `fullValue`, `bind()` and the other inherited members are typed with the container's value shape.
 `value` and `bind()` are abstract here and implemented by `Group` and `List`.
 
+::: details Inherited from FieldBase
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -157,6 +158,7 @@ notification on the container.
 | [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`value`](/api/field-base#prop-value) | Current value; writable |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+:::
 
 ## What a container serializes
 
