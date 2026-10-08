@@ -109,7 +109,7 @@ describe('the devtools plugin', () => {
     describeState(global, { name: 'Profile', file: 'src/stores/profile.ts' });
     let inComponent: Group | undefined;
     const Owner = defineComponent({
-      name: 'Owner',
+      name: 'StateOwner',
       setup() {
         inComponent = new Group({ count: new Field({ value: 1 }) });
         return () => h('div');
