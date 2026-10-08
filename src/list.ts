@@ -2,6 +2,7 @@ import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
+import { noteInternal } from './devtools/api';
 import { type ListSlots, listSlots, ReorderRows } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
@@ -46,6 +47,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     super(listSlots<R>());
 
     this._itemTemplate = itemTemplate;
+    if (itemTemplate) noteInternal(itemTemplate);
 
     // construction is one transaction, so all rows are in place before anything is announced
     transactional(() => {

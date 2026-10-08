@@ -66,6 +66,7 @@
     "@typescript-eslint/eslint-plugin": "^8.67.0",
     "@typescript-eslint/parser": "^8.67.0",
     "@vitest/coverage-v8": "^4",
+    "@vue/devtools-kit": "^8.2.1",
     "@vue/test-utils": "^2.2.4",
     "@vue/tsconfig": "^0.7.0",
     "baseline-browser-mapping": "^2.8.31",

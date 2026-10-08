@@ -4,6 +4,13 @@ export { type Visibility, visibilityValues, defaultVisibility, isVisibility } fr
 export * from './actions';
 export * from './action';
 export * from './container';
+export {
+  describeState,
+  type DevtoolsRegistration,
+  hideState,
+  setDevtoolsRegistration,
+  type StateDescription,
+} from './devtools/api';
 export * from './field';
 export * from './field.interface';
 export * from './field-base';

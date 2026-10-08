@@ -1,4 +1,5 @@
 import type FieldActionBase from './actions/field-action-base';
+import { noteChange } from './devtools/api';
 import type { FieldBase } from './field-base';
 
 /**
@@ -221,6 +222,7 @@ export class Transaction {
     // everything is announced and the change is committed, so the work registered with whenCommitted runs here
     for (let index = 0; index < this.settled.length; index++) this.settled[index]();
     this.settled.length = 0;
+    noteChange();
   }
 
   /**

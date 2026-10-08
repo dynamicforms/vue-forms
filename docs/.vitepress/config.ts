@@ -54,6 +54,7 @@ export default defineConfig({
             { text: 'Validators', link: '/api/validators' },
             { text: 'Actions', link: '/api/actions' },
             { text: 'Transactions', link: '/api/transactions' },
+            { text: 'Devtools', link: '/api/devtools' },
           ]
         }
       ],
