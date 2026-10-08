@@ -13,34 +13,34 @@ form instanceof Container; // true
 name.parent === form;      // true; name.parent is typed Container | undefined
 ```
 
-`Group` holds named members and `List` holds rows by position. Everything below is what the two share; reaching a
-child — `group.fields.name`, `list.get(0)` — is each class's own and is described on its page.
+`Group` holds named members and `List` holds rows by position. This page describes what the two share. Child
+access (`group.fields.name`, `list.get(0)`) is specific to each class and is described on its page.
 
 ## Properties and methods
 
 | Member | Type | Description |
 |--------|------|-------------|
-| `valid` | `boolean` | `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries — see [What a container serializes](#what-a-container-serializes). The read is composed over the children and memoised, so an error written into a child without a `validate()` call shows here as well |
-| `busy` | `boolean` | `true` while an `Action.execute()` in any child has yet to settle |
+| `valid` | `boolean` | `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well |
+| `busy` | `boolean` | `true` while an `Action.execute()` in any child is pending |
 | `touched` | `boolean`, writable | `true` where any child is touched. Assigning it assigns every child |
-| `validate(revalidate?)` | `void` | With `revalidate: true`, every child is revalidated first and the container forms its own verdict afterwards, over the finished set, so it announces one net transition of its validity at most |
-| `notifyValueChanged()` | `void` | Records that a child changed what it holds or sends, so that the [transaction](/api/transactions) in progress works out at commit what the container holds and sends and announces each once. The mutation methods call it themselves; you rarely need to |
+| `validate(revalidate?)` | `void` | With `revalidate: true`, every child is revalidated first and the container then computes its own validity over the result, so it announces at most one net transition of its validity |
+| `notifyValueChanged()` | `void` | Records that a child changed what it holds or sends, so that the open [transaction](/api/transactions) computes at commit what the container holds and sends and announces each once. The mutation methods call it, so a direct call is rarely needed |
 
-Every other member — `value`, `fullValue`, `errors`, `access`, `bind()`, `rebind()` and the rest — is the
-[`FieldBase`](/api/field#fieldbase-t) one, with the value shape of the container that holds it.
+All other members (`value`, `fullValue`, `errors`, `access`, `bind()`, `rebind()` and the rest) are inherited from
+[`FieldBase`](/api/field#fieldbase-t), typed with the container's value shape.
 
 ## What a container serializes
 
 ::: tip
-The [Cookbook](/guide/cookbook) applies these rules to the cases a form meets: fields that depend on a type, an
-optional section, loading a record, submitting.
+The [Cookbook](/guide/cookbook) applies these rules to common cases: fields that depend on a type, an optional
+section, loading a record, submitting.
 :::
 
-A container has two values. `value` is what the form sends: the payload a save hands to the server. `fullValue`
-is what the form holds: every child's own `fullValue`, whatever its access. One member of each child decides what it
-contributes to `value`, and with it whether the child is validated: its `access`.
+A container has two values. `value` is what the form sends: the payload a save passes to the server. `fullValue`
+is what the form holds: every child's own `fullValue`, regardless of access. A child's `access` determines what it
+sends to `value` and whether it is validated.
 
-| `access` | Accepts input | Contributes to `value` | Validated |
+| `access` | Accepts input | Sends to `value` | Validated |
 |---|---|---|---|
 | `'editable'` | yes | its value | over its value |
 | `'readonly'` | no | its value | over its value |
@@ -49,45 +49,47 @@ contributes to `value`, and with it whether the child is validated: its `access`
 
 The values follow HTML: a `readonly` input is submitted with its value and a `disabled` one is left out.
 
-A container's access applies to everything inside it, and `effectiveAccess` states the result on each element. A
-container that is `'disabled'` or `'disabled-null'` sends none of its children, whatever they hold, so every element
-below it is `'disabled'` there: none of them is validated, and none carries an error from a validator. Below a
-`'readonly'` container an `'editable'` element is `'readonly'`. Anywhere else an element's own access applies.
+A container's access applies to everything inside it, and `effectiveAccess` holds the result on each element. A
+container that is `'disabled'` or `'disabled-null'` sends none of its children, regardless of what they hold, so
+every element below it has `effectiveAccess` `'disabled'`: none of them is validated, and none carries an error from
+a validator. Below a `'readonly'` container an `'editable'` element is `'readonly'`. Elsewhere an element's own
+access applies.
 
-The rule is stated once, in `FieldBase.serializesAs(purpose)`, and every container composes `value` by asking each
-child. It applies to the members of a `Group` and the rows of a `List` alike. The method is protected: a subclass of
-an element that contributes by a rule of its own overrides it, and every container holding that element follows.
+The rule is implemented in `FieldBase.serializesAs(purpose)`, and every container composes `value` by calling it on
+each child. It applies equally to the members of a `Group` and the rows of a `List`. The method is protected: a
+subclass of an element that sends by a different rule overrides it, and every container holding that element uses
+the override.
 
-An element keeps what it holds whatever its access. Making it `'editable'` again brings its value back into the
-container's, and `bind()` carries it into a binding, so a rule that switches what is sent never destroys what was
-entered. `visibility` plays no part here: it states how a rendering layer draws the element and nothing else.
+An element keeps its value regardless of its access. Making it `'editable'` again puts its value back into the
+container's value, and `bind()` copies it into a binding, so a rule that changes what is sent never discards entered
+data. `visibility` has no effect here: it only controls how a rendering layer draws the element.
 
 ### Validation follows what is sent
 
-An element's validators run over what it sends — its value, or `null` for `'disabled-null'` — and only where it is
-sent at all. A container counts the verdict of every child that sends something, `null` included; a `'disabled'`
-child is not counted, so an error written into it by hand — one the server returned, say — stays on the child and
-holds nothing back. So a `Required` on a section that is sent as `null` refuses it, while the required fields inside that
-section are not checked until the section is sent again; a section switched off leaves no error behind and holds no
-submit button back. A switch of access runs the validators again on the element and on every element below it whose
-`effectiveAccess` moved.
+An element's validators run over what it sends (its value, or `null` for `'disabled-null'`), and only when it is
+sent. A container counts the validity of every child that sends something, `null` included. A `'disabled'` child is
+not counted, so an error written into it directly (for example one returned by the server) stays on the child and
+does not make the container invalid. A `Required` on a section sent as `null` therefore fails, while the required
+fields inside that section are not checked until the section is sent again. A disabled section leaves no error and
+does not block a submit button. A change of access reruns the validators on the element and on every element below
+it whose `effectiveAccess` changed.
 
 ### Where `null` comes from
 
-`null` appears in a container's value in exactly two ways: a child whose own value is `null`, or a child that is
-`'disabled-null'`. A container itself is never `null`. Where nothing inside it contributes — every member disabled, a
-list without rows — a `Group` reads `{}` and a `List` reads `[]`. Assigning `null` to a container empties it: a
+`null` appears in a container's value in exactly two cases: a child whose own value is `null`, or a child that is
+`'disabled-null'`. A container's own value is never `null`. Where no child sends anything (every member disabled, a
+list without rows), a `Group` reads `{}` and a `List` reads `[]`. Assigning `null` to a container empties it: a
 `Group` writes `null` into every member, a `List` releases every row.
 
-| The form states | Declare it as |
+| Meaning | Declare it as |
 |---|---|
 | a value | a child with that value, `'editable'` or `'readonly'` |
-| "this holds nothing" — the server clears it | a child with value `null`, or a child that is `'disabled-null'` |
-| "this is not part of the form" — the server leaves it alone | a child that is `'disabled'` |
+| "this holds nothing": the server clears it | a child with value `null`, or a child that is `'disabled-null'` |
+| "this is not part of the form": the server leaves it unchanged | a child that is `'disabled'` |
 
-The two ways to send `null` differ in what the form keeps. `value = null` empties the child, and what it held is
-gone. `'disabled-null'` sends `null` while the child keeps its values, which is what a section switched off by a
-toggle wants: switching it back on brings back what was entered.
+The two ways to send `null` differ in what the form keeps. `value = null` empties the child and discards its
+previous value. `'disabled-null'` sends `null` while the child keeps its values. This suits a section switched off by
+a toggle: switching it back on restores what was entered.
 
 ```typescript
 const billing = new Group({ street: new Field({ value: '' }), city: new Field({ value: '' }) });
@@ -98,20 +100,20 @@ form.value;                         // { customer: 'Ada', billing: null }
 billing.access = 'editable';        // the address holds what was typed into it
 ```
 
-Writing a value is not part of these rules: an assignment reaches the element whatever its access, and `value` is
-composed from what the elements hold at the moment it is read. The order in which a form's rules change access
-therefore never loses data.
+These rules do not apply to writes: an assignment is applied to the element regardless of its access, and `value`
+is composed from what the elements hold when it is read. The order in which a form's rules change access therefore
+never loses data.
 
-Reading a record back into the form is plain assignment, and it does not touch access: `form.value = record` writes
-every member, disabled ones included, and `{ billing: null }` empties the billing address. What is sent is decided by
-the rules of the form — a type field, a toggle — not by the data.
+Loading a record into the form is a plain assignment and does not change access: `form.value = record` writes
+every member, disabled ones included, and `{ billing: null }` empties the billing address. What is sent is determined
+by the form's rules (a type field, a toggle), not by the data.
 
 ### Reading the values
 
 `value` is for sending: every key is optional, because a `'disabled'` member is left out, and nullable, because a
-`'disabled-null'` one is `null`. Hand it to the server as it is.
+`'disabled-null'` one is `null`. Pass it to the server unchanged.
 
-`fullValue` is for reading what the form holds, every member included whatever its access, and its keys carry the
+`fullValue` is for reading what the form holds, including every member regardless of access, and its keys have the
 members' own types:
 
 ```typescript
@@ -121,15 +123,15 @@ form.fullValue.billing;   // what the address holds, sent or not
 
 ### What a change announces
 
-A container announces two things, and a change can move either without the other.
-[`ValueChangedAction`](/api/actions#valuechangedaction) reports what the container holds — its `fullValue` — and
-[`ContributionChangedAction`](/api/actions#contributionchangedaction) reports what it sends to its own container —
-its `value` where its access sends it, `null`, or `undefined` for nothing. A write into a `'disabled'` field changes
-what the form holds and not what it sends; a switch of access changes what it sends and not what it holds.
+A container announces two things, and a change can affect either one without the other.
+[`ValueChangedAction`](/api/actions#valuechangedaction) announces what the container holds (its `fullValue`), and
+[`ContributionChangedAction`](/api/actions#contributionchangedaction) announces what it sends to its own container
+(its `value` where its access sends it, `null`, or `undefined` for nothing). A write into a `'disabled'` field changes
+what the form holds and not what it sends; a change of access changes what it sends and not what it holds.
 
 ### A container that follows its children
 
-A container is not disabled on its own when its children are. Where a form wants that, one effect states it:
+A container is not disabled automatically when its children are. Where a form needs that, one effect sets it:
 
 ```typescript
 import { watchEffect } from 'vue';
@@ -145,23 +147,23 @@ watchEffect(() => {
 });
 ```
 
-The first leaves the key out of the parent's value, the second sends it as `null` — the two outcomes the table
-above tells apart.
+The first leaves the key out of the parent's value, the second sends it as `null`, matching the two rows of the
+table above.
 
 ## `parent`
 
-Every element's `parent` is a `Container | undefined`: a `Group` holds its members and a `List` its rows, and an
-element does not know which of the two it sits in. `Container` names no children, so a sibling lookup states the
-container it expects:
+Every element's `parent` is typed `Container | undefined`: a `Group` holds its members and a `List` its rows, and
+the type does not specify which of the two holds the element. `Container` declares no child accessors, so a sibling
+lookup must name the container type it expects:
 
 ```typescript
 // checked: the branch runs only where the parent is a Group
 if (field.parent instanceof Group) field.parent.fields.other.validate(true);
 
-// stated: where the structure guarantees the parent is a Group
+// cast: where the structure guarantees the parent is a Group
 (field.parent as Group | undefined)?.fields.other.validate(true);
 ```
 
-A cast checks nothing at runtime: where the parent turns out to be a `List`, `fields` reads `undefined` and the
-lookup after it throws. Naming the sibling and letting [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message) resolve it needs
-neither.
+A cast is not checked at runtime: where the parent is a `List`, `fields` reads `undefined` and the lookup after it
+throws. Passing the sibling's name to [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message),
+which resolves it, needs neither.

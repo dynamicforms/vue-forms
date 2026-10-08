@@ -45,7 +45,7 @@
 <script setup>
 import { Field, List, Validators } from '../../src'; // from '@dynamicforms/vue-forms'
 
-// Every row is a Field bound from this template, so the value is an array of strings and every tag carries the
+// Every row is a Field bound from this item template, so the value is an array of strings and every tag has the
 // Required validator
 const tags = new List(new Field({ value: '', validators: [new Validators.Required()] }), {
   value: ['urgent', 'billing']

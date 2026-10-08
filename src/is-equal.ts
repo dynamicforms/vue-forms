@@ -3,10 +3,10 @@ import { isEqual as structuralEqual, isEqualWith } from 'lodash-es';
 import { FieldBase } from './field-base';
 
 /**
- * Compares `a` against `b`, wherever either side is a `FieldBase`, by comparing what it holds rather than the
- * element itself: a structural comparison of two elements reaches nothing, their state being in private class
- * fields. `undefined` defers to lodash's own structural comparison, which is what lets this reach an element
- * nested inside a plain object or an array — `list.items`, a `Map`, a hand-built record — at any depth.
+ * Where either side is a `FieldBase`, compares the value it holds: a structural comparison of two elements finds
+ * no properties, because their state is in private class fields. Returning `undefined` passes the comparison to
+ * lodash's structural comparison, so an element nested at any depth inside a plain object or an array
+ * (`list.items`, a `Map`, a hand-built record) is reached too.
  */
 function customizer(a: unknown, b: unknown): boolean | undefined {
   const aValue = a instanceof FieldBase ? a.value : a;
@@ -15,12 +15,11 @@ function customizer(a: unknown, b: unknown): boolean | undefined {
 }
 
 /**
- * Structural equality that treats a `FieldBase` as what it holds. `isEqual(fieldA, fieldB)` and
- * `isEqual(list.items, other.items)` compare values the way `isEqual(fieldA.value, fieldB.value)` already does,
- * without a call site having to unwrap every element by hand.
+ * Structural equality that compares a `FieldBase` by the value it holds. `isEqual(fieldA, fieldB)` and
+ * `isEqual(list.items, other.items)` compare values as `isEqual(fieldA.value, fieldB.value)` does, without
+ * unwrapping each element at the call site.
  *
- * Two `FieldBase` operands skip `isEqualWith`'s dispatch and compare `.value` directly — about 40% faster than
- * routing the same comparison through the customizer, measured comparing two single-field elements.
+ * Two `FieldBase` operands are compared by `.value` directly, without the `isEqualWith` customizer dispatch.
  */
 export function isEqual(a: unknown, b: unknown): boolean {
   if (a instanceof FieldBase && b instanceof FieldBase) return structuralEqual(a.value, b.value);

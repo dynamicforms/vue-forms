@@ -19,35 +19,35 @@ Always call `supr(field, newValue, oldValue)` unless you deliberately want to st
 
 ## A handler is synchronous
 
-A handler runs inside the write that triggered it — `field.value = x` returns once the chain has run — so a
-handler that returns a promise hands back something nobody waits for. The chain passes it along and the setter
-discards it. Two things follow, and neither is reported as an error by the library:
+A handler runs inside the write that triggered it (`field.value = x` returns once the chain has run), so a promise
+returned by a handler is not awaited. The chain passes it along and the setter discards it. This has two
+consequences, and the library reports neither as an error:
 
-- **A rejection is unhandled.** It surfaces the way any unhandled rejection does, through the runtime rather than
-  through the form: the browser console, or Node's `unhandledRejection`. The element carries no error and no
-  handler downstream is told. An [`AbortEventHandlingException`](#aborteventhandlingexception) is the one
-  exception: the trigger answers with it rather than rejecting, so the discarded promise carries no rejection.
-- **Everything after the first `await` runs outside the transaction.** The write has committed by then, so a
-  rollback cannot take that work back, and a value the continuation writes opens a transaction of its own.
+- **A rejection is unhandled.** It is reported by the runtime, not by the form: in the browser console, or through
+  Node's `unhandledRejection`. The element gets no error and no handler further down the chain is called. The
+  exception is [`AbortEventHandlingException`](#aborteventhandlingexception): the trigger returns it instead of
+  rejecting, so the discarded promise does not reject.
+- **Code after the first `await` runs outside the transaction.** The write has committed by then, so a rollback
+  does not undo that code's effects, and a value written there opens a separate transaction.
 
 ```typescript
-// the rejection is lost to the form: the setter returned before the fetch resolved
+// the form does not see the rejection: the setter has returned before the fetch settles
 field.registerAction(new ValueChangedAction(async (f, supr, newValue, oldValue) => {
   await fetch('/api/log', { method: 'POST', body: newValue });
   return supr(f, newValue, oldValue);
 }));
 
-// state the intent instead: the handler stays synchronous and owns what it starts
+// the handler stays synchronous and handles the rejection of the request it starts
 field.registerAction(new ValueChangedAction((f, supr, newValue, oldValue) => {
   fetch('/api/log', { method: 'POST', body: newValue }).catch(reportToUser);
   return supr(f, newValue, oldValue);
 }));
 ```
 
-Where the work has to be part of the form's state, the library offers two paths that do wait for it:
-[an asynchronous `ValidationFunction`](/api/validators#asynchronous-validation), which holds `validating` while it
-runs and reports a rejection as an error on the field, and [`Action.execute()`](#executeaction), which
-holds `busy` and answers with a promise the caller awaits.
+Where the work has to be part of the form's state, the library has two mechanisms that await it:
+[an asynchronous `ValidationFunction`](/api/validators#asynchronous-validation), which sets `validating` while it
+runs and reports a rejection as an error on the field, and [`Action.execute()`](#executeaction), which sets
+`busy` and returns a promise the caller awaits.
 
 `supr` has the exported type `FieldActionExecute<T>`:
 
@@ -55,30 +55,30 @@ holds `busy` and answers with a promise the caller awaits.
 type FieldActionExecute<T = any> = (field: FieldBase<T>, ...params: any[]) => any;
 ```
 
-At the end of every chain sits a handler that returns `null`, so `supr` is always a function.
+The last handler of every chain returns `null`, so `supr` is always a function.
 
 ### One action, many elements
 
-An action instance is registered on an element, and every binding of that element carries the same instance — so an
+An action instance is registered on an element, and every binding of that element holds the same instance, so an
 action registered on a `List`'s item template fires for **every row of the list**. The element the executor
-receives as its first argument is the one it fired for, and it is what a handler that cares about a single row
-checks. The same holds for validators, which are actions: one `Required` instance validates every row's field.
+receives as its first argument is the one it fired for; a handler that applies to a single row checks it. The same
+holds for validators, which are actions: one `Required` instance validates every row's field.
 
-Actions belong to the **declaration**, and a binding reads the declaration's. A row of a list is a binding of the
-item template, so registering on a row registers on the template and the rule applies to every row — the ones that
-already exist as much as the ones added later, and whichever element the call named:
+Actions belong to the **declaration**, and a binding uses the declaration's actions. A row of a list is a binding
+of the item template, so registering on a row registers on the item template, and the action applies to every row,
+existing and added later, regardless of which element the call was made on:
 
 ```typescript
 list.push({ amount: 1 });
-// registered on a row that already exists, and every row is driven by it, this one included
+// registered on an existing row; the validator applies to every row, this one included
 list.get(0).fields.amount.registerAction(new Validators.Required());
 ```
 
-`unregisterAction()` and `clearValidators()` read the same way: they name the declaration, so they reach every row.
-What stays per row is the **data** — the value, the errors the rule produces there, the verdict.
+`unregisterAction()` and `clearValidators()` also act on the declaration, so they affect every row. Per row are
+the **data**: the value, the errors the action produces there, and the validity.
 
-A handler that means to answer for one row checks the element it was handed, and one that does not care answers for
-all of them:
+A handler that applies to one row checks the element it receives; a handler without such a check applies to all
+rows:
 
 ```typescript
 template.fields.amount.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
@@ -88,16 +88,16 @@ template.fields.amount.registerAction(new ValueChangedAction((field, supr, newVa
 ```
 
 A handler that does not call `supr` ends the run for **every** handler registered before it, on that declaration
-and therefore on every row — the handlers of one declaration stand in one chain.
+and therefore on every row, because the handlers of one declaration form one chain.
 
-An action that has to remember something between runs keeps it against the element it ran over, not on itself —
-see [Writing custom actions](#custom-actions). Anything it keeps on itself is shared by every row.
+An action that keeps data between runs stores it against the element it ran for, not on the action instance (see
+[Writing custom actions](#custom-actions)). Data stored on the instance is shared by every row.
 
 ### `AbortEventHandlingException`
 
-Throwing `AbortEventHandlingException` from a handler ends the run it is in. It never escapes the setter: the
-trigger catches it and **answers with it**, so a caller tells a run a handler ended from one that reached no
-handler at all. All other exceptions propagate to the caller.
+Throwing `AbortEventHandlingException` from a handler ends the current run. It is not thrown out of the setter:
+the trigger catches it and **returns it**, so the caller can distinguish a run a handler ended from a run that
+reached no handler. All other exceptions propagate to the caller.
 
 ```typescript
 import { AbortEventHandlingException, ValueChangedAction } from '@dynamicforms/vue-forms';
@@ -109,20 +109,21 @@ field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) =>
 
 const answer = field.triggerAction(ExecuteAction, params);
 if (answer instanceof AbortEventHandlingException) {
-  // a handler ended the run, and said why
+  // a handler ended the run; message holds the reason
   console.log(answer.message);
 }
 ```
 
-| what happened | the trigger answers |
+| what happened | the trigger returns |
 |---|---|
 | a handler threw `AbortEventHandlingException` | that exception, or a promise resolving to it where the chain ran through an asynchronous handler |
 | a handler returned `null`, or none is registered | `null` |
 
-**Inside the chain it stays an exception.** `supr` hands on what the handler below it raised: a throw where that
-handler is synchronous, a rejected promise where it is not. A synchronous handler is therefore unwound and does not
-reach the code after its own `supr` call, and a handler that awaits `supr` reaches the same exception through the
-await. A handler that means to carry on catches it, and answers with it so the caller reads it off the answer:
+**Inside the chain it remains an exception.** `supr` passes on what the handler below it raised: a throw where that
+handler is synchronous, a rejected promise where it is asynchronous. A synchronous handler is therefore unwound and
+does not run the code after its own `supr` call, and a handler that awaits `supr` receives the same exception from
+the await. A handler that continues after it catches the exception and returns it, so the caller receives it as
+the result:
 
 ```typescript
 field.registerAction(new ExecuteAction(async (field, supr, params) => {
@@ -136,37 +137,36 @@ field.registerAction(new ExecuteAction(async (field, supr, params) => {
 }));
 ```
 
-The conversion happens once, at the trigger, and what the trigger answers with carries it whether the chain ran
-synchronously or not: where the chain answered with a `Promise`, the abort is answered with on that promise, so
-`Action.execute()` resolves with the exception rather than rejecting. It is the type that decides, not a `then`
-member — a value object carrying one is answered with untouched, and so a promise from another realm or another
-library is not converted.
+The conversion happens once, at the trigger, for synchronous and asynchronous chains alike: where the chain
+returned a `Promise`, the trigger returns a promise that resolves with the exception, so `Action.execute()`
+resolves with it and does not reject. The check is `instanceof Promise`, not the presence of a `then` member: a
+value object with a `then` member is returned unchanged, and a promise from another realm or another library is
+not converted.
 
-**The eager pass does not answer with it.** `triggerEager()` runs each identifier's eager group on its own, and a
-group that ends this way ends only itself: the remaining groups run and nothing reaches the caller. The paths a
-consumer knows by name are where this happens:
+**The eager pass does not return it.** `triggerEager()` runs each identifier's eager group separately, and an
+exception thrown in one group ends only that group: the remaining groups run and nothing is returned to the
+caller. The eager pass runs in these places:
 
-- `registerAction()` and `registerActionBefore()` — both go through `triggerEagerFor()`, which returns the
-  exception, and the caller discards it, so nothing reaches the consumer there either;
-- the trigger that closes a constructor;
-- binding an element — `bind()`, and every `List` row built from an item template with it;
-- a write to a leaf's `value`, where the validators run — the commonest of them all;
-- a switch of access, on the element and on every element below it whose `effectiveAccess` moved;
-- a container re-forming what it sends;
+- `registerAction()` and `registerActionBefore()`: both call `triggerEagerFor()`, which returns the exception, and
+  discard it, so the consumer does not receive it;
+- the trigger at the end of a constructor;
+- binding an element: `bind()`, and every `List` row built from an item template with it;
+- a write to a leaf's `value`, where the validators run (the most frequent case);
+- a change of access, on the element and on every element below it whose `effectiveAccess` changed;
+- a container recomputing what it sends;
 - `validate(true)`;
-- a container completing a record — a `Group` that has written its members, a `List` that has taken a row.
-  `group.addField()` sets it off directly, as does a row taken into a `List`: `list.value = [...]`, an insert, an
+- a container completing a record: a `Group` that has written its members, a `List` that has added a row.
+  `group.addField()` triggers it directly, as does a row added to a `List`: `list.value = [...]`, an insert, an
   append.
 
-An eager action therefore states a refusal through the element's verdict — an error — rather than by throwing.
+An eager action therefore reports a refusal by setting an error on the element, not by throwing.
 
 **In a `*Changing*` handler it refuses the write.** `AccessChangingAction`, `EnabledChangingAction` and
-`VisibilityChangingAction` are
-asked before the value is written, so ending the run there means the setter writes nothing and announces nothing —
-no `*Changed*` event, no enrolment in an open transaction. Returning the old value refuses the write just as well;
-the exception is the form that also says why, and that stops the handlers registered before it from running. The
-two setters read what the chain answered as the value to write, so an asynchronous handler answers them with a
-promise and is refused by the type each of them requires.
+`VisibilityChangingAction` run before the value is written, so ending the run there means the setter writes
+nothing and announces nothing: no `*Changed*` event, no enrolment in an open transaction. Returning the old value
+also refuses the write; the exception additionally carries a reason and prevents the handlers registered before it
+from running. The two setters use the chain's return value as the value to write, so an asynchronous handler
+returns a promise, which fails the type check of either setter.
 
 ```typescript
 field.registerAction(new VisibilityChangingAction((f, supr, newValue, oldValue) => {
@@ -175,20 +175,57 @@ field.registerAction(new VisibilityChangingAction((f, supr, newValue, oldValue) 
 }));
 ```
 
-**In a `*Changed*` handler it does not.** `ValueChangedAction` and its kind fire *after* the value is written, so
-ending the run stops the handlers below it and nothing else — the change stands. To undo the change as well, throw
-an ordinary error: a throw out of a handler rolls the whole [transaction](/api/transactions) back and rethrows.
+**In a `*Changed*` handler it does not refuse the write.** `ValueChangedAction` and the other `*Changed*` actions
+fire *after* the value is written, so ending the run only stops the handlers below it; the change remains. To undo
+the change, throw an ordinary error: a throw out of a handler rolls the whole [transaction](/api/transactions)
+back and rethrows.
+
+## Actions and `watch()`
+
+Every member of an element is a tracked read, so Vue's `watch()` and `watchEffect()` observe an element without an
+action:
+
+```typescript
+// an action
+form.fields.country.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
+  form.fields.vatId.visibility = newValue === 'SI' ? 'full' : 'suppress';
+  return supr(field, newValue, oldValue);
+}));
+
+// a watcher
+watch(() => form.fields.country.value, (country) => {
+  form.fields.vatId.visibility = country === 'SI' ? 'full' : 'suppress';
+});
+```
+
+Both set the visibility. The differences:
+
+| | Action | `watch()` |
+|---|---|---|
+| Runs | inside the transaction of the change, at its commit | after the transaction, in Vue's scheduler (`flush: 'pre'` by default) |
+| A throw | rolls the transaction back | is reported to `app.config.errorHandler`; the change stays |
+| Refuses or changes a write | yes, with `*ChangingAction` | no |
+| Order and chaining | handlers run in registration order through `supr`, and a handler can stop the chain | independent callbacks |
+| `List` rows | an action on the item template applies to every row | a watcher observes the elements it reads; a new row needs its own watcher |
+| Lifetime | the element's | the effect scope's (the component, or a `stop()` call) |
+| Declared with the form | yes, the form definition carries it | no, it lives in the component or module that creates it |
+
+The conditional actions (`ConditionalVisibilityAction`, `ConditionalAccessAction`, `ConditionalValueAction`,
+`ConditionalStatementAction`) can be replaced by a `watchEffect()` that sets the same member, with the same
+differences. On a `List` item template, the `watchEffect()` does not reach the rows.
+
+---
 
 ## Value events
 
 ### `ValueChangedAction`
 
-Fires when what the element holds changes: a `Field`'s `value` (after the new value is set), and a `Group`'s or a `List`'s `fullValue` when anything below it changes what it holds. A switch of access changes what is sent rather than what is held, so it fires [`ContributionChangedAction`](#contributionchangedaction) instead.
+Fires when the element's value changes: a `Field`'s `value` (after the new value is set), and a `Group`'s or a `List`'s `fullValue` when any value below it changes. A change of access changes what is sent, not the value, so it fires [`ContributionChangedAction`](#contributionchangedaction) instead.
 
-It fires when the [transaction](/api/transactions) carrying the change commits, over the value the element ends
-that transaction holding: `oldValue` is what the element last announced, so a value that goes `A → B → A` within
-one transaction announces nothing at all. An operation you open no transaction around is a transaction of its own,
-so a single write announces exactly one change, as it always has.
+It fires when the [transaction](/api/transactions) containing the change commits, with the value the element holds
+at the end of that transaction: `oldValue` is the value of the last announcement, so a value that goes
+`A → B → A` within one transaction announces nothing. An operation without an explicit transaction is its own
+transaction, so a single write announces exactly one change.
 
 ```typescript
 new ValueChangedAction((field, supr, newValue, oldValue) => {
@@ -204,15 +241,18 @@ new ValueChangedAction((field, supr, newValue, oldValue) => {
 | `newValue` | `T` | The new value |
 | `oldValue` | `T` | The previous value |
 
-On a `Group` or a `List` the two values are the container's `fullValue` after and before the change, so the very
-first change of a member reports what the container was constructed holding as `oldValue`.
+On a `Group` or a `List` the two values are the container's `fullValue` after and before the change, so on the
+first change of a member `oldValue` is the value the container was constructed with.
+
+**With `watch()`:** `watch(() => field.value, cb)`, and `watch(() => container.fullValue, cb)` on a `Group` or a
+`List`. The watcher runs after the transaction. See [Actions and `watch()`](#actions-and-watch).
 
 ### `ContributionChangedAction`
 
 Fires when what the element sends to its container changes: its `value` where its access sends it, `null` for
-`'disabled-null'`, and `undefined` for `'disabled'`, whose key or row is left out. It answers the question
-`ValueChangedAction` does not: a switch of access changes what is sent without changing what is held, and a write
-into a `'disabled'` field changes what is held without changing what is sent.
+`'disabled-null'`, and `undefined` for `'disabled'`, whose key or row is omitted. It covers the cases
+`ValueChangedAction` does not: a change of access changes what is sent without changing the value, and a write to a
+`'disabled'` field changes the value without changing what is sent.
 
 ```typescript
 form.registerAction(new ContributionChangedAction((field, supr, newValue, oldValue) => {
@@ -221,10 +261,12 @@ form.registerAction(new ContributionChangedAction((field, supr, newValue, oldVal
 }));
 ```
 
-It fires when the [transaction](/api/transactions) carrying the change commits, with the pair (what the element
-sends now, what it sent at the last announcement), so a switch that goes `'editable' → 'disabled' → 'editable'`
-within one transaction announces nothing. On a container it fires where what the container sends moved — a member's
-value, a member's access, or the container's own access.
+It fires when the [transaction](/api/transactions) containing the change commits, with the pair (what the element
+sends now, what it sent at the last announcement), so a change that goes `'editable' → 'disabled' → 'editable'`
+within one transaction announces nothing. On a container it fires when what the container sends changes: through a
+member's value, a member's access, or the container's own access.
+
+**With `watch()`:** `watch(() => element.contribution, cb)`. See [Actions and `watch()`](#actions-and-watch).
 
 ---
 
@@ -236,14 +278,16 @@ Fires **before** `field.access` changes. The return value becomes the access wri
 
 ```typescript
 new AccessChangingAction((field, supr, newValue, oldValue) => {
-  // answer with the access to write instead, or throw AbortEventHandlingException to refuse
+  // return the access to write instead, or throw AbortEventHandlingException to refuse
   return supr(field, newValue, oldValue);
 })
 ```
 
 If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so plainly returning `supr(...)` means "no change to `newValue`". Returning `oldValue` refuses the write: nothing is written and nothing is announced. If the resulting value is none of the four accesses, the setter throws `Error("'x' is not an access: …")` and leaves `field.access` as it was.
 
-The setter asks it only where the write is a change. Assigning the access the element already holds runs no handler and fires no event, so a handler that answers with a value of its own is never reached by such a write — `field.access = field.access` leaves the element exactly as it stands. The same holds for `VisibilityChangingAction`.
+The setter runs the chain only when the write is a change. Assigning the access the element already has runs no handler and fires no event, so a handler that would return a different value is not called for such a write: `field.access = field.access` leaves the element unchanged. The same holds for `VisibilityChangingAction`.
+
+**With `watch()`:** no equivalent. A watcher runs after the write and cannot refuse or change it.
 
 ### `AccessChangedAction`
 
@@ -256,15 +300,17 @@ new AccessChangedAction((field, supr, newValue, oldValue) => {
 })
 ```
 
+**With `watch()`:** `watch(() => element.access, cb)`. See [Actions and `watch()`](#actions-and-watch).
+
 ### `EnabledChangingAction`
 
-Asked **before** a write of `access` that would change `enabled` — a switch into or out of `'editable'` — after
-`AccessChangingAction`, over the access that would be written, with the two booleans. A switch between two accesses
-that are not `'editable'` does not ask it.
+Runs **before** a write of `access` that would change `enabled` (a change into or out of `'editable'`), after
+`AccessChangingAction`, for the access that would be written, with the two booleans. A change between two accesses
+other than `'editable'` does not run it.
 
-`enabled` is read from `access`, so the answer cannot set it; it lets the write of `access` through or refuses it.
-Answering with `newValue`, `null` or `undefined` lets it through. Answering with `oldValue`, or throwing
-`AbortEventHandlingException`, refuses it: `access` keeps what it held and nothing is announced. Any other answer
+`enabled` is derived from `access`, so the return value cannot set it; it allows or refuses the write of `access`.
+Returning `newValue`, `null` or `undefined` allows the write. Returning `oldValue`, or throwing
+`AbortEventHandlingException`, refuses it: `access` keeps its value and nothing is announced. Any other return value
 throws.
 
 ```typescript
@@ -275,10 +321,12 @@ new EnabledChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
+**With `watch()`:** no equivalent. A watcher runs after the write and cannot refuse or change it.
+
 ### `EnabledChangedAction`
 
-Fires **after** a write of `access` has changed `enabled` — a switch into or out of `'editable'` — right after
-`AccessChangedAction`, with the two booleans. A switch between two accesses that are not `'editable'` changes what
+Fires **after** a write of `access` has changed `enabled` (a change into or out of `'editable'`), right after
+`AccessChangedAction`, with the two booleans. A change between two accesses other than `'editable'` changes what
 the element sends but not `enabled`, and does not fire it.
 
 ```typescript
@@ -287,6 +335,8 @@ new EnabledChangedAction((field, supr, newValue, oldValue) => {
   return supr(field, newValue, oldValue);
 })
 ```
+
+**With `watch()`:** `watch(() => element.enabled, cb)`. See [Actions and `watch()`](#actions-and-watch).
 
 ---
 
@@ -304,9 +354,13 @@ new VisibilityChangingAction((field, supr, newValue, oldValue) => {
 
 If the action returns `null` or `undefined`, `newValue` is used instead. A result that is none of the four [visibilities](/api/field#visibility) makes the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
 
+**With `watch()`:** no equivalent. A watcher runs after the write and cannot refuse or change it.
+
 ### `VisibilityChangedAction`
 
 Fires **after** `field.visibility` has been updated.
+
+**With `watch()`:** `watch(() => element.visibility, cb)`. See [Actions and `watch()`](#actions-and-watch).
 
 ---
 
@@ -323,20 +377,22 @@ new ValidChangedAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-A `Group` and a `List` compose their validity from their members, so the action fires on the container whenever a
-member's verdict flips it — including when no value changed, as with an asynchronous validator settling or a
-`clearValidators()` that leaves a previously invalid member valid. Writing to `member.errors` from the outside
-moves `valid` on the member and on every container above it at once, but announces nothing: the member's
-`validate()` is what announces the transition and makes the container announce its own. The notification climbs no
-further than the first ancestor whose own validity stays the same.
+A `Group` and a `List` derive their validity from their members, so the action fires on the container whenever a
+member's validity changes the container's, also when no value changed, for example when an asynchronous validator
+settles or when `clearValidators()` makes a previously invalid member valid. Writing to `member.errors` directly
+changes `valid` on the member and on every container above it, but announces nothing: the member's `validate()`
+announces the transition and makes the container announce its own. The notification propagates up to the first
+ancestor whose validity does not change.
 
-Verdicts are announced when the [transaction](/api/transactions) carrying the change commits, and after the value
-changes of that same transaction: the deepest element first, so a container is heard from only once the member
-that caused the change has spoken. One assignment to a container's `value` therefore produces at most one
-notification on that container — the members are written first and the container evaluates afterwards, so it
-announces the net transition and never the verdict of a half-applied value. The same holds for an assignment to a
-single member, and for `validate(true)` on a container, which revalidates the members first and forms its own
-verdict once over the finished set.
+Validity changes are announced when the [transaction](/api/transactions) containing the change commits, after the
+value changes of that transaction, deepest element first, so a container announces only after the member that
+caused the change. One assignment to a container's `value` therefore produces at most one notification on that
+container: the members are written first and the container is evaluated afterwards, so it announces the net
+transition and never the validity of a partially applied value. The same holds for an assignment to a single
+member, and for `validate(true)` on a container, which revalidates the members first and computes its own validity
+once over the complete set.
+
+**With `watch()`:** `watch(() => element.valid, cb)`. `valid` follows `errors` at once, so the watcher also sees an error pushed by hand before `validate()` is called; `ValidChangedAction` fires only when `validate()` or a validator announces the change. See [Actions and `watch()`](#actions-and-watch).
 
 ---
 
@@ -357,28 +413,30 @@ field.registerAction(new ExecuteAction((field, supr, params) => {
 field.triggerAction(ExecuteAction, { reason: 'submit' });
 ```
 
-`triggerAction()` returns whatever the chain returns, the `AbortEventHandlingException` a handler threw to end the run — a promise resolving to it where the chain went through an asynchronous handler — or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and answers the same value, wrapped in a promise.
+`triggerAction()` returns whatever the chain returns, the `AbortEventHandlingException` a handler threw to end the run (a promise resolving to it where the chain went through an asynchronous handler), or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and returns the same value, wrapped in a promise.
+
+**With `watch()`:** no equivalent. `ExecuteAction` runs when `execute()` is called, not on a change of state.
 
 ### The `Action` class
 
-`Action` is a `Field` whose value is an `ActionValue` (`{ label?: unknown; icon?: unknown }`) — it represents a button or menu entry that runs an `ExecuteAction` chain.
+`Action` is a `Field` whose value is an `ActionValue` (`{ label?: unknown; icon?: unknown }`). It represents a button or menu entry that runs an `ExecuteAction` chain.
 
 ::: tip Action is not UI-agnostic, deliberately
-The library describes data and behaviour, and the few members that speak about the interface are listed in
-[Rationale](/guide/rationale#what-the-library-carries-for-the-interface). `Action` names a label and an icon because it exists as a *concept* — the element a form's submit, cancel and delete hang on — and that minimal
-pair is what makes the concept legible; without it, `Action` would be indistinguishable from `Field`.
+The library describes data and behaviour; the few members that concern the user interface are listed in
+[Rationale](/guide/rationale#what-the-library-carries-for-the-interface). `Action` has a label and an icon because it represents a *concept*: the element a form's submit, cancel and delete are attached to. The label and icon
+identify that concept; without them, `Action` would be indistinguishable from `Field`.
 
 The shape is minimal because **a UI library is expected to extend it**, and both members are typed `unknown` for
-that reason: `Action` names the concept and the library that renders it states what a label and an icon are. A
-subclass declares its value type with either member in whatever shape it renders — `string | MdString`, a
-per-breakpoint object — and the accessors the base class declares answer at that type, because they read it off the
-value rather than fixing one of their own.
+that reason: `Action` defines the concept and the rendering library defines what a label and an icon are. A
+subclass declares its value type with either member in the shape it renders (`string | MdString`, a
+per-breakpoint object), and the accessors the base class declares return that type, because they take it from the
+value type.
 [Widening the value in a subclass](#widening-the-value-in-a-subclass) has the rules.
 `@dynamicforms/vuetify-inputs` widens the value with render options and per-breakpoint variants and adds
-`renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes on top; its
-[df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows what that
-renders as. `busy` is form state on the same principle: the library counts the runs, and what that renders as
-stays yours.
+`renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes; its
+[df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows how these
+render. `busy` is form state for the same reason: the library counts the runs, and how that is rendered is up to
+the application.
 :::
 
 ```typescript
@@ -396,20 +454,20 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 
 | Member | Description |
 |--------|-------------|
-| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` — an `IFieldParams<T, X>` — applied in the same order: `validators` and `actions` are registered first, so one guarding `access` or `visibility` is in place for the assignment the same object makes, and each eager action runs once over the finished value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore reach its value — `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
-| `label` | Reads `value.label`, at the type `T` gives that member — `unknown` on an `Action` that states no value type; writing it assigns a new value object carrying the new label |
-| `icon` | Reads `value.icon`, at the type `T` gives that member; writing it assigns a new value object carrying the new icon |
-| `execute(params?)` | Triggers `ExecuteAction` on this action and answers what the chain returned, as a promise. A handler that throws rejects that promise rather than throwing out of the call, except for `AbortEventHandlingException`, which the promise resolves with — see [Handling a failed run](#handling-a-failed-run) |
-| `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action counts this in its own `busy`, so a form reports that a run is in flight below it. An asynchronous validation of the action itself is reported by `validating` |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` (an `IFieldParams<T, X>`), applied in the same order: `validators` and `actions` are registered first, so an action guarding `access` or `visibility` applies to the assignment from the same object, and each eager action runs once over the final value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore go to its value; `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
+| `label` | Reads `value.label`, at the type `T` gives that member (`unknown` on an `Action` without a value type argument); writing it assigns a new value object with the new label |
+| `icon` | Reads `value.icon`, at the type `T` gives that member; writing it assigns a new value object with the new icon |
+| `execute(params?)` | Triggers `ExecuteAction` on this action and returns the chain's return value as a promise. A handler that throws rejects that promise instead of throwing out of the call, except for `AbortEventHandlingException`, which the promise resolves with; see [Handling a failed run](#handling-a-failed-run) |
+| `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action includes this in its own `busy`, so a form reports that a run is in progress below it. An asynchronous validation of the action itself is reported by `validating` |
 
-`Action` is a `Field`, so resetting one — rarely needed, since a label and an icon are not normally form data — is
+`Action` is a `Field`, so resetting one (rarely needed, since a label and an icon are not normally form data) is
 `action.rebind(action.originalValue)`; see [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form).
 
 #### Handling a failed run
 
-`execute()` answers with a promise, so a handler that throws rejects it — every exception but
-[`AbortEventHandlingException`](#aborteventhandlingexception), which the promise resolves with. The answer is the
-caller's, and awaiting it is how a failure is reported:
+`execute()` returns a promise, so a handler that throws rejects it, with every exception except
+[`AbortEventHandlingException`](#aborteventhandlingexception), which the promise resolves with. The caller handles
+the result; awaiting it is how a failure is detected:
 
 ```typescript
 try {
@@ -420,17 +478,17 @@ try {
 }
 ```
 
-A call that neither awaits the answer nor attaches a `.catch()` leaves the rejection unhandled — it surfaces
-through the runtime rather than through the form, and the action carries no trace of it. `busy` is cleared either
-way, on the rejection as on the success.
+A call that neither awaits the result nor attaches a `.catch()` leaves the rejection unhandled: the runtime reports
+it, not the form, and the action holds no record of it. `busy` is cleared in both cases, on rejection and on
+success.
 
-The place this is easy to miss is a template, where an event handler is not awaited:
+In a template, an event handler is not awaited:
 
 ```vue
-<!-- the rejection has nowhere to go -->
+<!-- the rejection goes to app.config.errorHandler, not to the form -->
 <button @click="save.execute()" :disabled="save.busy">Save</button>
 
-<!-- state what happens when it fails -->
+<!-- the handler handles the failure -->
 <button @click="onSave" :disabled="save.busy">Save</button>
 ```
 
@@ -445,48 +503,47 @@ async function onSave() {
 ```
 
 `ActionValue` is the exported shape of the value: `{ label?: unknown; icon?: unknown }`. `Action<T extends
-ActionValue = ActionValue>` accepts a wider value type, so a subclass value carrying extra members — or restating
-these two — is inferred from `params.value` the same way `Field`'s is.
+ActionValue = ActionValue>` accepts a wider value type, so a subclass value with extra members (or redeclaring
+these two) is inferred from `params.value` the same way `Field`'s is.
 
-Both members are `unknown` because what a label and an icon are is the rendering library's to say, and `unknown` is
-what lets it say so: `interface RenderOptions extends ActionValue { label?: string | MdString }` is legal where a
-`string` in the base would have refused it, and a subclass cannot widen an accessor the base class typed. The
-consequence for an `Action` that states no value type is that `action.label` reads as `unknown` and the reader
-states what it expects. An action built from a literal is narrower than that on its own — `new Action({ value: {
-label: 'Save' } })` infers `T` from the literal, so its `label` reads as `string`.
+Both members are `unknown` because the rendering library defines what a label and an icon are, and `unknown` allows
+it to do so: `interface RenderOptions extends ActionValue { label?: string | MdString }` is legal, while a `string`
+in the base would reject it, and a subclass cannot widen an accessor the base class typed. Consequently, on an
+`Action` without a value type argument `action.label` is `unknown` and the reader asserts the expected type. An
+action built from a literal has a narrower type: `new Action({ value: { label: 'Save' } })` infers `T` from the
+literal, so its `label` is `string`.
 
-An `Action`'s value is always a shaped object, never `undefined`: `new Action()` starts out as
-`{ label: undefined, icon: undefined }`. A value object states something when any member it carries holds
-something other than `null` or `undefined`, so a subclass value naming a name, a render style or a set of
-per-breakpoint options states something whether or not it names a label or an icon. A `params.value` that states
-something is the action's value, kept as the object you passed; one that states nothing — `{}`, or members all
-`null`/absent — is replaced, by a copy of `params.originalValue` where that states something and by the pair of
-`undefined`s otherwise.
+An `Action`'s value is always an object, never `undefined`: `new Action()` starts with
+`{ label: undefined, icon: undefined }`. A value object is non-empty when any of its members holds something other
+than `null` or `undefined`, so a subclass value with a name, a render style or a set of per-breakpoint options is
+non-empty with or without a label or an icon. A non-empty `params.value` becomes the action's value, kept as the
+object you passed; an empty one (`{}`, or members all `null`/absent) is replaced by a copy of
+`params.originalValue` where that is non-empty, and by the pair of `undefined`s otherwise.
 
-`params.originalValue` becomes the baseline where it states something: a frozen copy of itself, carrying exactly
-the members it was declared with. Where it states nothing the baseline is the value the construction ends on, that
-object itself. `isChanged` is a structural comparison and reads own-key sets, so a baseline shaped like the value
-it baselines is what makes an action declared with a value and a matching `originalValue` read as unchanged from
-construction, and every `Group` and `List` above it read as unchanged too.
+A non-empty `params.originalValue` becomes the baseline as a frozen copy of itself, with exactly the members it was
+declared with. Where it is empty, the baseline is the value the construction ends with, that object itself.
+`isChanged` is a structural comparison that compares own-key sets, so because the baseline has the same shape as
+the value, an action declared with a value and a matching `originalValue` reads as unchanged after construction,
+and so does every `Group` and `List` above it.
 
-`label` and `icon` write through the value setter, so each is an ordinary value change: `ValueChangedAction` fires,
-`isChanged` answers over it, and a disabled action refuses the write. The value object the action holds is replaced
-rather than written into, so an object you passed as `params.value` and kept a reference to no longer follows the
-action once either setter has run. Writing the value the action already holds is not a change: it announces
-nothing and leaves the value of every container above untouched. Assigning `undefined` clears the member out of
-the value object rather than leaving a key holding `undefined`, so an action whose icon was never set reads as
+`label` and `icon` write through the value setter, so each write is an ordinary value change: `ValueChangedAction`
+fires, `isChanged` reflects it, and a disabled action takes the write like any other field. The setter replaces the value object
+instead of modifying it, so an object you passed as `params.value` and kept a reference to is no longer the
+action's value once either setter has run. Writing the value the action already holds is not a change: it
+announces nothing and leaves the value of every container above unchanged. Assigning `undefined` removes the member
+from the value object (the key is deleted, not set to `undefined`), so an action whose icon was never set reads as
 unchanged after `action.icon = undefined`.
 
-`execute()` is asynchronous. The chain is entered synchronously — a handler has already run by the time `execute()`
-returns — and the promise settles with what the chain produced, awaiting it where the handler returned a promise of
-its own. `busy` stands for that whole span, on the action rather than in its value, and is cleared whether the run
-resolves or rejects; overlapping runs are counted, so it stands until the last of them settles.
+`execute()` is asynchronous. The chain is entered synchronously (a handler has already run when `execute()`
+returns), and the promise settles with the chain's result, awaiting it where the handler returned a promise.
+`busy` covers that whole time, is a property of the action (not part of its value), and is cleared whether the run
+resolves or rejects; overlapping runs are counted, so it stays `true` until the last of them settles.
 
 ::: warning
 A handler that throws anything but `AbortEventHandlingException` rejects the promise instead of throwing out of the
-`execute()` call, so a caller that neither awaits the answer nor attaches a `.catch()` leaves the rejection
-unhandled — which under node's default settings ends the process. A template handler such as
-`@click="save.execute()"` is safe: Vue attaches its own catch to the promise an event handler returns and routes the
+`execute()` call, so a caller that neither awaits the result nor attaches a `.catch()` leaves the rejection
+unhandled, which under Node's default settings ends the process. A template handler such as
+`@click="save.execute()"` is safe: Vue attaches its own catch to the promise an event handler returns and passes the
 error to `app.config.errorHandler`.
 :::
 
@@ -494,20 +551,20 @@ error to `app.config.errorHandler`.
 <button :disabled="!save.enabled || save.busy" @click="save.execute()">{{ save.label }}</button>
 ```
 
-An action declared, enabled by the form's validity, executed and reporting `busy` through an asynchronous submit is
-worked through end to end in the [Action example](/examples/action).
+The [Action example](/examples/action) shows a complete action: declared, enabled by the form's validity, executed,
+and reporting `busy` during an asynchronous submit.
 
 #### Widening the value in a subclass
 
-`Action<T extends ActionValue>` takes a wider value type, so a subclass declares accessors over the members it added
-and keeps everything the base class does — the `ExecuteAction` chain, `busy`, `access`, `visibility`, the
+`Action<T extends ActionValue>` takes a wider value type, so a subclass declares accessors for the members it adds
+and keeps everything the base class does: the `ExecuteAction` chain, `busy`, `access`, `visibility`, the
 conditional actions, the transaction semantics.
 
-**The type of `label` and of `icon` is stated in the value type, not on the accessors.** `ActionValue` leaves both
-`unknown`, so a subclass restates them at the type it renders and the inherited accessors answer at that type —
-`Action`'s own read them off `T`. This is the whole of it, and it is what a subclass has to do rather than override
-an accessor: a getter declared on a subclass has to be assignable to the base class's, so widening one there is
-`TS2416` and no cast on the subclass's side reaches it.
+**The type of `label` and of `icon` is declared in the value type, not on the accessors.** `ActionValue` declares
+both as `unknown`, so a subclass redeclares them at the type it renders and the inherited accessors return that
+type, since `Action`'s accessors take it from `T`. A subclass does this and does not override an accessor: a getter
+declared on a subclass has to be assignable to the base class's, so widening it there is error `TS2416`, and no
+cast on the subclass's side avoids it.
 
 ```typescript
 import { Action, ActionValue } from '@dynamicforms/vue-forms';
@@ -526,8 +583,8 @@ save.label;                    // string | MdString | undefined
 save.label = 'Save';           // the plain type is still one of them
 ```
 
-A subclass declares an accessor of its own only where the *read* is to differ from the value — filtering it, for
-one — and then it declares the setter beside it, delegating to the base:
+A subclass declares its own accessor only where the *read* differs from the value (filtering it, for example), and
+then declares the setter beside it, delegating to the base:
 
 ```typescript
 import { Action, ActionValue } from '@dynamicforms/vue-forms';
@@ -545,7 +602,7 @@ class RenderedAction extends Action<RenderOptions> {
     return this.value.name;
   }
 
-  // the read is filtered by showLabel, so an action rendering icon-only answers undefined while carrying a label
+  // the read is filtered by showLabel, so an icon-only action returns undefined while it holds a label
   get label() {
     return this.value.showLabel ? this.value.label : undefined;
   }
@@ -564,30 +621,29 @@ class RenderedAction extends Action<RenderOptions> {
 }
 ```
 
-The setter is what keeps the write path alive. A class body stating `get label()` and nothing else defines the whole
-property from that body, so the property the subclass carries has no setter at all, and the base class's setter, one
-prototype further up, is shadowed rather than inherited alongside the narrowed getter. A write to a property that
-has a getter and no setter throws a `TypeError` in strict code, which module code always is, so
-`action.label = 'Save'` — the documented way to change either member — fails on such a subclass.
-TypeScript reads the getter-only accessor as read-only and refuses the assignment where the reference is typed as
-the subclass; a reference typed as `Action` compiles and throws at runtime. `super.label = newValue` calls the base
-setter with `this` bound to the action, so the write stays an ordinary value change: `ValueChangedAction` fires,
-`isChanged` answers over it, and a disabled action refuses it.
+The setter keeps the property writable. A class body declaring only `get label()` defines the whole property, so
+the subclass's property has no setter, and the base class's setter, one prototype further up, is shadowed, not
+inherited alongside the narrowed getter. A write to a property that has a getter and no setter throws a
+`TypeError` in strict mode, which module code always uses, so `action.label = 'Save'` (the documented way to change
+either member) fails on such a subclass. TypeScript treats the getter-only accessor as read-only and rejects the
+assignment where the reference is typed as the subclass; a reference typed as `Action` compiles and throws at
+runtime. `super.label = newValue` calls the base setter with `this` bound to the action, so the write is an
+ordinary value change: `ValueChangedAction` fires, `isChanged` reflects it, and a disabled action takes it like any other field.
 
-A narrowed read and an unnarrowed write do not answer each other. The setter reaches `value.label` whatever the
-getter filters on, so an action whose filter answers `undefined` still answers `undefined` right after a label has
-been written to it. `value.label` is the unfiltered read — `action.value.label` on any subclass — and it is what to
-read where the answer has to be the label the action carries rather than the one it renders.
+A narrowed getter and an unnarrowed setter are independent. The setter writes `value.label` regardless of the
+getter's filter, so an action whose filter returns `undefined` still returns `undefined` right after a label has
+been written to it. `value.label` is the unfiltered read (`action.value.label` on any subclass); read it where the
+result has to be the label the action holds, not the one it renders.
 
-Naming an action's presentation property something else is the separate rule about
+Giving an action's presentation property a different name is covered by the separate rule about
 [extended properties](/api/field#extended-properties), and it applies to a property that is neither `label` nor
-`icon`: a construction parameter of either name reaches the value rather than `extra`. A subclass reading either
-member differently narrows the accessor pair above instead of taking a name of its own.
+`icon`: a construction parameter with either of those names goes to the value, not to `extra`. A subclass that
+reads either member differently narrows the accessor pair as shown above, and does not use a different name.
 
-The same rule sets an action's extended properties apart from every other element's. `Action` declares
-`X extends object = Omit<Extras, keyof ActionValue>`, so a `label` or an `icon` that something augmented
-[`Extras`](/api/field#extras) with is absent from `action.extra` — the members above are where an action's label
-and icon are, on an action that declares no extended properties and on one that does.
+The same rule makes an action's extended properties differ from every other element's. `Action` declares
+`X extends object = Omit<Extras, keyof ActionValue>`, so a `label` or an `icon` added to
+[`Extras`](/api/field#extras) by augmentation is absent from `action.extra`. An action's label and icon are always
+the members above, whether or not the action declares extended properties.
 
 ### `NullableAction`
 
@@ -608,15 +664,17 @@ new ListItemAddedAction((field, supr, item, index) => {
 })
 ```
 
-`index` is the position `item` occupies in the list, which is also what `insert()` returns. A negative index handed
-to `insert()` is resolved the way `Array.prototype.splice` resolves it and announced resolved, so it is never
+`index` is the position of `item` in the list, which is also what `insert()` returns. A negative index passed to
+`insert()` is resolved the way `Array.prototype.splice` resolves it and announced resolved, so it is never
 negative here. `insert()` past the end of the list pads it first, and each padding item is announced with its own
 index before the final trigger for the inserted item.
 
-Additions and removals state operations rather than states, so they have no net over a
-[transaction](/api/transactions) and are never compared away: every one of them is announced, in the order the
-operations happened, before the value change they add up to. A handler reading `list.value` therefore sees the set
-the transaction finished on, not the one that stood when its own item was added.
+Additions and removals are operations, not states, so they have no net result over a
+[transaction](/api/transactions) and are never cancelled out: every one of them is announced, in the order the
+operations happened, before the resulting value change. A handler reading `list.value` therefore sees the rows at
+the end of the transaction, not the rows at the time its own item was added.
+
+**With `watch()`:** `watch(() => [...list.items], (rows, oldRows) => …)` observes additions and removals together; the callback compares the two arrays to find the added and removed rows. See [Actions and `watch()`](#actions-and-watch).
 
 ### `ListItemRemovedAction`
 
@@ -629,7 +687,9 @@ new ListItemRemovedAction((field, supr, item, index) => {
 })
 ```
 
-`item` is the removed row itself, released of the list (so without `parent`) and holding everything it held while it stood in the list — its values, its errors and the change history behind `isChanged`. It is the instance `remove()` answers the caller with, and the one `list.get(index)` answered with before the call. `pop()` delegates to `remove()`, so it behaves identically.
+`item` is the removed row itself, detached from the list (so without `parent`) and holding everything it held while it was in the list: its values, its errors and the change history behind `isChanged`. It is the instance `remove()` returns to the caller, and the one `list.get(index)` returned before the call. `pop()` delegates to `remove()`, so it behaves identically.
+
+**With `watch()`:** see `ListItemAddedAction`.
 
 ---
 
@@ -637,13 +697,12 @@ new ListItemRemovedAction((field, supr, item, index) => {
 
 Conditional actions automatically toggle a field property when a `Statement` evaluates to a different boolean.
 
-Conditional actions are eager: `registerAction()` evaluates the statement immediately and sets the field property right away. A conditional action handed to a constructor through `params.actions` does the same once the element is built, over its finished value. After that, the executor only runs when the result of the statement changes (`true` → `false` or `false` → `true`), not on every value change. The executor is applied to the fields the action is bound to, not to the fields appearing in the statement.
+Conditional actions are eager: `registerAction()` evaluates the statement immediately and sets the field property right away. A conditional action passed to a constructor through `params.actions` does the same once the element is built, over its final value. After that, the executor only runs when the result of the statement changes (`true` → `false` or `false` → `true`), not on every value change. The executor is applied to the fields the action is bound to, not to the fields appearing in the statement.
 
-Registered on a `List`'s item template, a conditional action serves every row, and **each row holds a result of its
-own**. A statement built from the template's fields reads the fields of the row it is evaluated over, so two rows
-disagreeing about the condition show two different verdicts, and a change in one row reaches that row alone. A
-field outside the rows — one the whole form holds — is read where it stands, and a change to it re-evaluates every
-row.
+Registered on a `List`'s item template, a conditional action applies to every row, and **each row has its own
+result**. A statement built from the item template's fields reads the fields of the row it is evaluated for, so
+two rows with different values can have different results, and a change in one row affects only that row. A field
+outside the rows (one that belongs to the whole form) is read as is, and a change to it re-evaluates every row.
 
 ```typescript
 const row = new Group({ kind: new Field({ value: 'standard' }), detail: new Field({ value: '' }) });
@@ -668,48 +727,48 @@ const stmt = new Statement(activeField, Operator.EQUALS, true);
 const combined = new Statement(stmt, Operator.AND, new Statement(ageField, Operator.GE, 18));
 ```
 
-`evaluate(scope?): boolean` always hands back a real boolean: the logical operators coerce their operands, so
+`evaluate(scope?): boolean` always returns a boolean: the logical operators coerce their operands, so
 `new Statement(0, Operator.AND, true).evaluate()` is `false` and not `0`, and a conditional executor therefore
 always receives a boolean `currentResult`.
 
-`scope` names an element whose record the field operands are read in — a row of a `List`, or the form itself.
+`scope` is an element whose record the field operands are read from: a row of a `List`, or the form itself.
 `statement.evaluate(list.get(1))` reads the second row's fields even where the statement was built from the item
-template's, which is what makes one statement serve every row. An operand belonging to another record is read
-where it stands, so a form-level field compared against a row's field means the same field for every row, and an
-operand taken from an *enclosing* item template is that template's own field rather than the field of the
-enclosing row a nested list sits in. Called without an argument, the statement reads exactly the fields it was
-built from.
+template's fields, so one statement can serve every row. An operand belonging to another record is read as is, so
+a form-level field compared against a row's field is the same field for every row, and an operand taken from an
+*enclosing* item template is that item template's own field, not the field of the enclosing row a nested list is
+in. Called without an argument, the statement reads exactly the fields it was built from.
 
 `EQUALS` / `NOT_EQUALS` compare with loose `==`, so `'1'` and `1` are equal, and so are `null` and `undefined`.
 
-Each operand has the exported type `OperandType` — a nested `Statement`, a `FieldBase` whose current `value` is
-compared, or a literal of any type. Because the union includes `any`, the type checker accepts anything there; the
-three cases are told apart at evaluation time by `instanceof`.
+Each operand has the exported type `OperandType`: a nested `Statement`, a `FieldBase` whose current `value` is
+compared, or a literal of any type. Because the union includes `any`, the type checker accepts any operand; the
+three cases are distinguished at evaluation time with `instanceof`.
 
-The constructor refuses the two shapes that are no operand at all, **throwing a `TypeError`** that names the
-position the operand was written at:
+The constructor rejects two values that are not operands, **throwing a `TypeError`** that names the operand's
+position:
 
-- `undefined` — what `group.fields.typoName` answers with. Compare against `null` to test for an unset value;
-  `group.field('typoName')` answers `null`, and `null` is a literal a statement may compare against;
-- a **function** — a field accessor handed over uncalled. State the field it answers with: `group.field('name')`.
+- `undefined`, which is what `group.fields.typoName` returns. Compare against `null` to test for an unset value;
+  `group.field('typoName')` returns `null`, and `null` is a valid literal operand;
+- a **function**, typically a field accessor passed without calling it. Pass the field it returns:
+  `group.field('name')`.
 
-Everything else stands: a field, a nested statement, `null`, `NaN`, `0`, `''`, an array, an object with
+All other values are accepted: a field, a nested statement, `null`, `NaN`, `0`, `''`, an array, an object with
 `includes`.
 
-`Operator.NOT` reads its first operand alone and is stated with one:
+`Operator.NOT` reads only its first operand and is written with one:
 
 ```typescript
-new Statement(field, Operator.NOT);                   // what NOT means
-new Statement(field, Operator.EQUALS, 'admin');       // every other operator compares two
+new Statement(field, Operator.NOT);                   // NOT takes one operand
+new Statement(field, Operator.EQUALS, 'admin');       // every other operator takes two
 ```
 
-A second operand under `NOT` is accepted and never read. An operator held in a variable — what
-`Operator.fromString()` answers with, and the form a condition arriving from a server takes — needs both, because
-the compiler cannot tell it from `NOT`:
+A second operand with `NOT` is accepted and ignored. An operator held in a variable (the return value of
+`Operator.fromString()`, which is how a condition from a server is typically parsed) requires both operands,
+because the compiler cannot distinguish it from `NOT`:
 
 ```typescript
 const operator = Operator.fromString(fromServer);
-new Statement(field, operator, other);   // state both, whichever operator it turns out to be
+new Statement(field, operator, other);   // pass both operands, whichever operator it is
 ```
 
 ```typescript
@@ -717,14 +776,14 @@ new Statement(form.fields.typo, Operator.EQUALS, 1);
 // TypeError: Statement operand 1 is undefined: an operand is a field, a nested statement or a literal, …
 ```
 
-`Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on any field. One handler is registered per field however many rows read it, and the handler re-evaluates the record the change happened in.
+`Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on any field. One handler is registered per field regardless of how many rows read it, and the handler re-evaluates the record the change happened in.
 
 `collectFields(): Set<FieldBase>` is public: it walks the statement and its nested statements and returns the field
 instances themselves, which is useful when you want to attach your own handlers to the same set.
 
-`operand1Value` and `operand2Value` read the two operands the way `evaluate()` does — a nested statement is
-evaluated, a field contributes its `value`, a literal is itself — over the fields the statement was built from.
-Neither takes a record, so on a statement serving a `List` they answer for the item template.
+`operand1Value` and `operand2Value` read the two operands the way `evaluate()` does (a nested statement is
+evaluated, a field gives its `value`, a literal is itself), over the fields the statement was built from. Neither
+takes a record, so on a statement serving a `List` they return the item template's values.
 
 ### `Operator`
 
@@ -734,16 +793,16 @@ Enum of supported operators:
 |-------|--------|
 | Logic | `NOT`, `OR`, `AND`, `XOR`, `NAND`, `NOR` |
 | Comparison | `EQUALS`, `NOT_EQUALS`, `LT`, `LE`, `GE`, `GT` |
-| Membership | `IN`, `NOT_IN` — evaluate `operand2.includes(operand1)` (array or string) and coerce its result to a boolean. `NOT_IN` is the negation of `IN`, so an `operand2` without a callable `includes` gives `IN` `false` and `NOT_IN` `true` |
-| Substring | `INCLUDES`, `NOT_INCLUDES` — `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` and `NOT_INCLUDES` `true` |
+| Membership | `IN`, `NOT_IN`: evaluate `operand2.includes(operand1)` (array or string) and coerce its result to a boolean. `NOT_IN` is the negation of `IN`, so an `operand2` without a callable `includes` gives `IN` `false` and `NOT_IN` `true` |
+| Substring | `INCLUDES`, `NOT_INCLUDES`: `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` and `NOT_INCLUDES` `true` |
 
 Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`.
 
 ### `ConditionalVisibilityAction(statement, whenTrue?, whenFalse?)`
 
 Sets `field.visibility` to `whenTrue` (default `'full'`) while `statement` is `true` and to `whenFalse` (default
-`'suppress'`) otherwise. Visibility is presentation alone, so what the field sends is left to its access; a field
-that is to drop out of the payload as well carries a `ConditionalAccessAction` beside it.
+`'suppress'`) otherwise. Visibility affects presentation only, so what the field sends is determined by its access;
+a field that also has to be omitted from the payload needs a `ConditionalAccessAction` as well.
 
 ```typescript
 import { ConditionalVisibilityAction, Statement, Operator } from '@dynamicforms/vue-forms';
@@ -768,7 +827,7 @@ vatId.registerAction(
 
 Sets `field.value = trueValue` when `statement` transitions to `true`. Does nothing on `false`.
 
-The value is set only on the transition from `false`/`undefined` to `true`: if you later change the value manually, the action will not restore it until the statement goes back to `false` and becomes `true` again. The field takes the value whatever its access.
+The value is set only on the transition from `false`/`undefined` to `true`: if you later change the value manually, the action will not restore it until the statement goes back to `false` and becomes `true` again. The value is set regardless of the field's access.
 
 ### `ConditionalStatementAction(statement, executorFn)`
 
@@ -791,11 +850,13 @@ targetField.registerAction(new ConditionalStatementAction(
 | `currentResult` | `boolean` | Current evaluation of the statement |
 | `previousResult` | `boolean \| undefined` | Previous result (`undefined` on first run) |
 
+**With `watch()`:** a `watchEffect()` that reads the statement's fields and sets the member. It does not reach the rows of a `List` when the action would sit on the item template. See [Actions and `watch()`](#actions-and-watch).
+
 ---
 
 ## Custom actions
 
-For actions that are not conditional, derive from the exported `FieldActionBase`. Every action class must declare a static `classIdentifier` — it is the key under which `ActionsMap` stores the chain. Without it the base class throws `Error('classIdentifier must be declared')` on registration.
+For actions that are not conditional, derive from the exported `FieldActionBase`. Every action class must declare a static `classIdentifier`: it is the key under which `ActionsMap` stores the chain. Without it the base class throws `Error('classIdentifier must be declared')` on registration.
 
 ```typescript
 import { FieldActionBase } from '@dynamicforms/vue-forms';
@@ -812,21 +873,21 @@ field.registerAction(new MyAction((field, supr, ...params) => supr(field, ...par
 field.triggerAction(MyAction, 'some param');
 ```
 
-Deriving from `FieldActionBase` is the only way to write an action: `registerAction()` checks
-`instanceof FieldActionBase` and rejects anything else with `Error('Invalid action type')`, so a hand-rolled object
-with a matching `execute` method does not work.
+An action must derive from `FieldActionBase`: `registerAction()` checks `instanceof FieldActionBase` and rejects
+anything else with `Error('Invalid action type')`, so a plain object with a matching `execute` method is rejected.
 
 Optional overrides:
 
 | Member | Description |
 |--------|-------------|
-| `get eager()` | Return `true` to have the action run over what the element sends — its [`contribution`](/api/field#properties) — at every point the eager pass reaches it: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` that changes what it sends — inside the write, before any `ValueChangedAction` fires — a switch of access, and a container re-forming what it sends, which is what re-runs a group's eager action when a member changes. [The full set is listed with `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: a lazy action standing under the same `classIdentifier` as an eager one is not run by the eager pass |
-| `boundToBinding(binding)` | Called once for every element this action comes to serve: the element it is registered on, and every binding of that element as the binding takes the action on. Use it to record the elements the action answers for |
-| `unregisterFrom(binding)` | Called by `unregisterAction()` and by `clearValidators()`, naming the element the action was dropped from. Override it to release what the action installed for that element — `CompareTo` stops answering for it, and `Validator` withdraws the errors it put there. It runs inside the operation that dropped the registration, so a rollback puts back both the registration and what this took back |
+| `get eager()` | Return `true` to have the action run over what the element sends (its [`contribution`](/api/field#properties)) at every point the eager pass runs: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` that changes what it sends (inside the write, before any `ValueChangedAction` fires), a change of access, and a container recomputing what it sends, which re-runs a group's eager action when a member changes. [The full list is under `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: the eager pass does not run a non-eager action registered under the same `classIdentifier` as an eager one |
+| `boundToBinding(binding)` | Called once for every element this action applies to: the element it is registered on, and every binding of that element when the binding receives the action. Use it to record the elements the action applies to |
+| `unregisterFrom(binding)` | Called by `unregisterAction()` and by `clearValidators()`, with the element the action was removed from. Override it to release what the action installed for that element: `CompareTo` stops validating it, and `Validator` removes the errors it set there. It runs inside the operation that removed the registration, so a rollback restores both the registration and what this method removed |
 
-State an action keeps between runs belongs to the element it ran over, because the instance is shared by every
-binding of the element it was registered on. `protected state<S>(key, init): S` holds it: the key is the element, or
-the record the element belongs to where the fact is about the whole record, and the entry is released with the key.
+State an action keeps between runs belongs to the element it ran for, because the instance is shared by every
+binding of the element it was registered on. `protected state<S>(key, init): S` stores it: the key is the element,
+or the record the element belongs to where the state concerns the whole record, and the entry is released together
+with the key.
 
 ```typescript
 class CountingAction extends ValueChangedAction {
@@ -844,49 +905,50 @@ class CountingAction extends ValueChangedAction {
 
 ### Reading a second element of the record
 
-An eager action that reads a second element — a validator comparing two fields, a statement over another field of
-the row — can run before the record it reads exists: a `List` row is built by binding the item template member by
-member, and a member's eager pass runs while the member is still on its own. Where the lookup reaches nothing,
-call `field.markRecordIncomplete()` and reach no verdict. The container that finishes the record runs the pass
-again over the record it then has — a `Group` once it has written the data it was given — and a pass that still
-reaches nothing says so again, so the container above —
-the `List` taking the row into the form — answers for it in turn. `CompareTo` and the conditional actions do
-exactly this, which is how a row that holds the very values its template holds still carries its own verdict.
+An eager action that reads a second element (a validator comparing two fields, a statement over another field of
+the row) can run before the record it reads exists: a `List` row is built by binding the item template member by
+member, and a member's eager pass runs while the member is not yet in a record. Where the lookup finds nothing,
+call `field.markRecordIncomplete()` and do not set a validation result. The container that completes the record
+runs the pass again over the complete record (a `Group` after it has written the data it was given), and a pass
+that still finds nothing marks the record incomplete again, so the container above (the `List` adding the row to
+the form) runs it in turn. `CompareTo` and the conditional actions do this, so a row whose values equal the item
+template's still has its own validation result.
 
-`element.declaration` and `container.bindingsOf(declaration)` are what such an action resolves with: the first
-tells a row's field from the item template's field it was declared as, the second answers with every element of a
-subtree that was declared as a given one.
+`element.declaration` and `container.bindingsOf(declaration)` are the means for such an action to resolve
+elements: the first returns, for a row's field, the item template's field it was declared as; the second returns
+every element of a subtree declared as a given element.
 
 ### `ActionsMap`
 
 The actions one element has registered, grouped by `classIdentifier`. It is the type of `FieldBase`'s internal
 action store and is exported so that type can be named; `registerAction()`, `registerActionBefore()`,
-`unregisterAction()`, `triggerAction()` and `clearValidators()` on the field are the supported way to drive it. Its
-own surface is `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerFor()`, `willTrigger()`,
+`unregisterAction()`, `triggerAction()` and `clearValidators()` on the field are the supported way to use it. Its
+own members are `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerFor()`, `willTrigger()`,
 `hasEager`, `validators` and `bindTo()`.
 
-Within a group the actions stand in registration order and are run from the end backwards, so the newest
-registration is the outermost handler and reaches the ones before it through the `supr` it is handed.
+Within a group the actions are stored in registration order and run from the last to the first, so the newest
+registration is the outermost handler and calls the ones before it through its `supr`.
 
-`register(action, before?)` appends `action` to its group, or — where `before` is given — puts it in that action's
-place, so `before` wraps it. `before` has to be registered under the same identifier; anything else throws.
-`unregister(action)` drops it and answers whether the map held it. The group is replaced rather than written, so a
-run already walking one finishes on the list it started with and the removal takes effect from the next trigger.
+`register(action, before?)` appends `action` to its group, or, where `before` is given, inserts it at that action's
+position, so `before` wraps it. `before` must be registered under the same identifier; anything else throws.
+`unregister(action)` removes it and returns whether the map contained it. The group array is replaced, not
+modified, so a run already in progress finishes on the array it started with and the removal takes effect from the
+next trigger.
 
-`trigger(ActionClass, field, ...params)` runs the group registered under that class and answers with what its
-outermost handler returned. `triggerEager(field, ...params)` runs the eager actions of every identifier, each group
-on its own, and `triggerEagerFor(identifier, field, ...params)` runs those of one identifier. `trigger` and
-`triggerEagerFor` answer with an `AbortEventHandlingException` a handler threw, and with a promise resolving to it
-where the chain ran through an asynchronous handler; `triggerEager` answers with nothing, and such an exception ends
-the group it was thrown in and no other, on the asynchronous path as on the synchronous one.
-`willTrigger(identifier)` answers whether anything stands under that identifier and `hasEager` whether any eager
-action is registered at all, so a caller that has to build the parameters first can skip building them.
+`trigger(ActionClass, field, ...params)` runs the group registered under that class and returns what its outermost
+handler returned. `triggerEager(field, ...params)` runs the eager actions of every identifier, each group
+separately, and `triggerEagerFor(identifier, field, ...params)` runs those of one identifier. `trigger` and
+`triggerEagerFor` return an `AbortEventHandlingException` a handler threw, or a promise resolving to it where the
+chain ran through an asynchronous handler; `triggerEager` returns nothing, and such an exception ends only the
+group it was thrown in, on the asynchronous path as on the synchronous one.
+`willTrigger(identifier)` returns whether any action is registered under that identifier and `hasEager` whether
+any eager action is registered at all, so a caller can skip building the parameters when nothing would run.
 
-Binding an element takes on the declaration's map itself rather than a copy, and `bindTo(owner)` tells each action
-in it that it now serves `owner`. That is what makes an action registered on an item template serve every row.
+Binding an element uses the declaration's map itself, not a copy, and `bindTo(owner)` notifies each action in it
+that it now applies to `owner`. This is how an action registered on an item template applies to every row.
 
-A handler reaches the one before it by calling `supr`, so a chain is walked on the call stack and its depth is
-bounded by it: about 1300 handlers under one identifier on one element, after which firing it throws a
+A handler calls the one before it through `supr`, so a chain runs on the call stack and its depth is limited by
+the stack size: about 1300 handlers under one identifier on one element, beyond which firing it throws a
 `RangeError`. Registrations spread over several identifiers or several elements do not add up.
 
 ---

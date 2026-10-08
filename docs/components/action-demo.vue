@@ -77,8 +77,8 @@ const form = new Group({
   }),
 });
 
-// Validity is a verdict rather than a value, and a Statement reads values, so the form's verdict is mirrored
-// into a field the statement can read.
+// A Statement reads field values, and validity is not a field value, so the form's validity is copied into a
+// field the statement reads.
 const formValid = new Field({ value: false });
 form.registerAction(
   new ValidChangedAction((field, supr, newValid, oldValid) => {

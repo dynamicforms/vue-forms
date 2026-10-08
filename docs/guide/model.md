@@ -1,33 +1,31 @@
 # The model
 
-This page describes the whole of what the library does, in one place. The [API reference](/api/field) carries the
-per-symbol truth — every signature, default and thrown error; this is the shape those symbols belong to. Read it
-once and the reference pages become lookups.
+This page describes the whole library in one place. The [API reference](/api/field) documents each symbol: every
+signature, default and thrown error. This page describes how those symbols fit together.
 
 ## Elements
 
-A form is a tree of **elements**. There are four classes and they share one base, `FieldBase`:
+A form is a tree of **elements**. There are four classes, and they share one base, `FieldBase`:
 
 | Class | What it holds |
 |-------|---------------|
 | `Field<T>` | one value |
 | `Action<T>` | one value of the shape `{ label?, icon? }`, plus `execute()` and `busy` |
 | `Group<T>` | a named map of member elements; its value is an object |
-| `List<R>` | an ordered set of rows of type `R` — a `Group`, a `Field`, another `List`; its value is an array of the rows' values |
+| `List<R>` | an ordered set of rows of type `R` (a `Group`, a `Field` or another `List`); its value is an array of the rows' values |
 
-`Group` and `List` are elements themselves, so a group nests in a group, a list nests in a group, and any element
-is a row of a list. Both extend [`Container`](/api/container), which composes `valid`, `busy` and `touched` over the
-children and is the type of every element's `parent`. Everything below applies at every level.
+`Group` and `List` are elements, so a group nests in a group, a list nests in a group, and any element can be a row
+of a list. Both extend [`Container`](/api/container), which composes `valid`, `busy` and `touched` over the children
+and is the type of every element's `parent`. Everything below applies at every level.
 
-Every element carries the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
+Every element has the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
 `access`, `effectiveAccess`, `enabled`, `visibility`, `touched`, `validating`, `busy`, `settled()`, `isChanged`, `parent`
-and `fieldName`. A container adds
-its own — `fields`, `field()`, `addField()` and `removeField()` on a `Group`, `length`, `items`, `get()`,
-`push()`, `insert()`, `remove()` and `clear()` on a `List`. Anything your application needs an element to carry
-beyond those goes in `extra`, the element's
-[extended properties](/api/field#extended-properties): declared once by augmenting
+and `fieldName`. A container adds its own: `fields`, `field()`, `addField()` and `removeField()` on a `Group`;
+`length`, `items`, `get()`, `push()`, `insert()`, `remove()` and `clear()` on a `List`. Any additional data the
+application stores on an element goes in `extra`, the element's
+[extended properties](/api/field#extended-properties). They are declared once by augmenting
 [`Extras`](/api/field#extras) or per element as its second type argument, given at construction, written with
-`setExtendedValues()` and read like every other member.
+`setExtendedValues()`, and read like every other member.
 
 ```typescript
 import { Field, Group, List } from '@dynamicforms/vue-forms';
@@ -39,38 +37,37 @@ const invoice = new Group({
 });
 ```
 
-A `Group`'s members are usually the ones its constructor was given, and `addField(name, field)` and
-`removeField(name)` change the set afterwards — a form that grows a field because a server said so, or drops one a
-condition took away. A field a group takes in is held exactly as a constructed member is, and the field
-`removeField()` hands back is detached and free to be taken by another container.
+A `Group`'s members are the ones passed to its constructor. `addField(name, field)` and `removeField(name)` change
+the set afterwards, for example to add a field the server describes or to remove one a condition no longer needs.
+A field added with `addField()` is held the same way as a constructor member. `removeField()` returns the removed
+field detached, and another container can take it.
 
 ### Reactivity
 
-An element's mutable state is held in a reactive object beside it. Every read through the element —
-`field.value`, `group.valid`, `list.errors`, `field.parent` — is tracked, so a template, a `computed`, a
-`watchEffect` or a getter passed to `watch` all follow it, and an assignment re-renders whatever read it. There is
+An element's mutable state is held in a reactive object beside it. Every read through the element
+(`field.value`, `group.valid`, `list.errors`, `field.parent`) is tracked, so a template, a `computed`, a
+`watchEffect` and a getter passed to `watch` all follow it, and an assignment re-renders whatever read it. There is
 no `ref` to unwrap and no computed mirror to maintain.
 
-The element itself is not a Vue proxy. Two forms therefore do nothing, silently:
+The element itself is not a Vue proxy. `watch(field, cb)` and `readonly(field)` have no effect and raise no error:
 
 ```typescript
 watch(field, cb);              // subscribes to nothing, silently
 watch(() => field.value, cb);  // watch what you read
 
-readonly(field);               // hands the element straight back, silently
-computed(() => field.value);   // hand out the value, or a computed over it
+readonly(field);               // returns the element unchanged, silently
+computed(() => field.value);   // expose the value, or a computed over it
 ```
 
 ## Declarations and bindings
 
-`new Field({ … })`, `new Group({ … })` and `new List(template)` build a **declaration**: an element that states
-what something is — its validators, its actions, its defaults. `bind(data)` puts it to work over one record: it
-produces another element of the same class, holding that data.
+`new Field({ … })`, `new Group({ … })` and `new List(template)` build a **declaration**: an element that defines
+validators, actions and defaults. `bind(data)` creates another element of the same class that holds the given data.
 
-What a binding takes on is **data, not behaviour**. It carries the action and validator *instances* the element it
-was bound from holds — the very same objects — and its own `value`, `access`, `visibility` and extended
-properties. It starts detached: no `parent`, no `fieldName`, and `originalValue` baselined to the data it was
-bound to, so `isChanged` is `false`.
+A binding takes over **data, not behaviour**. It holds the same action and validator *instances* as the element it
+was bound from (the same objects, not copies), and its own `value`, `access`, `visibility` and extended
+properties. It starts detached: no `parent`, no `fieldName`, and `originalValue` set to the data it was bound to,
+so `isChanged` is `false`.
 
 ```typescript
 const template = new Field({ value: '', validators: [new Validators.Required()] });
@@ -78,28 +75,28 @@ const copy = template.bind('John');
 // one Required instance now validates both
 ```
 
-`rebind(data)` is the same exchange made **in place**: the element stays the very instance it was, keeps its
-actions, its extended properties and its place in whatever container holds it, and comes out holding the new
-record with its change history started over. It is what recycles a row across records — a virtualised renderer
-keeping one component per visible row rebinds it as the data scrolls past — and it announces no value change of
-its own, though the members of a rebound group announce theirs and a verdict that moves is announced as always.
+`rebind(data)` does the same **in place**: the element remains the same instance, keeps its actions, its extended
+properties and its position in its container, and holds the new record with its change history reset. It is used to
+recycle a row across records, for example by a virtualised renderer that keeps one component per visible row and
+rebinds it as the data scrolls. `rebind()` announces no value change for the element itself. The members of a
+rebound group announce their value changes, and a change of validity is announced as usual.
 
-`declaration` names the element a family was declared as. It answers itself for an element built from parameters
-and the element it was bound from for a binding, transitively — so a binding of a binding names the same one:
+`declaration` is the element a family was declared as. For an element built from parameters it is the element
+itself. For a binding it is the declaration of the element it was bound from, transitively, so a binding of a
+binding returns the same declaration:
 
 ```typescript
 copy.declaration === template;         // true
 copy.bind().declaration === template;  // true
 ```
 
-`element.bindingsOf(declaration)` answers with every element of a subtree that was declared as the given one, which
-is how a declaration is turned back into the elements standing for it: `list.bindingsOf(template.fields.a)` is the
-`a` field of every row.
+`element.bindingsOf(declaration)` returns every element in the subtree that was declared as the given declaration.
+`list.bindingsOf(template.fields.a)` is the `a` field of every row.
 
 ### One action instance, many elements
 
-Because a binding takes on the instances rather than copies of them, **an action registered on an element fires
-for every binding of that element**. The element the executor receives as its first argument is the one it fired for:
+A binding holds the same instances, not copies, so **an action registered on an element fires for every binding of
+that element**. The first argument the executor receives is the element it fired for:
 
 ```typescript
 template.registerAction(new ValueChangedAction((field, supr, newValue) => {
@@ -108,48 +105,48 @@ template.registerAction(new ValueChangedAction((field, supr, newValue) => {
 }));
 ```
 
-The consequence for anyone writing an action: what the instance keeps on itself is shared by every element it
-serves. What belongs to one element goes into `protected state(key, init)`, keyed by that element or by the record
-it belongs to, and is released with the key. `boundToBinding(binding)` is called once for every element the action
-comes to serve, and `unregisterFrom(binding)` once for an element the action is dropped from.
+For action authors: state stored on the action instance is shared by every element the action serves. Per-element
+state goes into `protected state(key, init)`, keyed by the element or by its record, and is released together with
+the key. `boundToBinding(binding)` is called once for every element the action is attached to, and
+`unregisterFrom(binding)` once for every element it is removed from.
 
-An action belongs to the declaration, and a binding reads the declaration's actions rather than a copy of them.
-Registering on one row of a list therefore registers on the item template, and the rule drives every row: the rows
-that already exist as much as the ones added later. `unregisterAction()` and `clearValidators()` reach every row for
-the same reason. What stays per row is the data — the value, the errors the rule produces there, the verdict.
+An action belongs to the declaration, and a binding reads the declaration's actions directly. Registering an action
+on one row of a list therefore registers it on the item template, and it applies to every row, existing and added
+later. For the same reason `unregisterAction()` and `clearValidators()` apply to every row. Per row are only the
+data: the value, the errors the rule produces for that row, and the validity.
 
 ## How a `List` builds rows
 
-The element handed to `new List(template)` is not a row. It is the declaration every row is built from, and every
-row is a binding of it — its members, its validators and its actions included.
+The element passed to `new List(template)` is not a row. It is the item template every row is built from, and
+every row is a binding of it, including its members, validators and actions.
 
 | Operation | What it does with rows |
 |---|---|
 | `new List(tpl, { value: [...] })` | one binding per item, each over that item's data |
-| `push(item)` / `insert(item, index)` | one binding, taken into the list at that position |
-| `insert(item, index)` past the end | bindings of the template, carrying the template's own values, fill the gap |
-| `push(element)` / `insert(element, …)` | an existing element is taken as it stands, not bound |
-| `list.value = rows` | where the list has an item template and the item is plain data, the row already standing at that position is **reused** and reset; otherwise a binding takes its place. Surplus rows are released |
-| `remove(index)` / `pop()` | the row itself is released — it loses its `parent`, can be handed to another list, and holds everything it held in the list — and it is what the call answers with |
+| `push(item)` / `insert(item, index)` | one binding, inserted into the list at that position |
+| `insert(item, index)` past the end | bindings of the item template, holding the item template's own values, fill the gap |
+| `push(element)` / `insert(element, …)` | an existing element is inserted as it is, not bound |
+| `list.value = rows` | where the list has an item template and the item is plain data, the existing row at that position is **reused** and reset; otherwise a new binding replaces it. Surplus rows are released |
+| `remove(index)` / `pop()` | the row itself is released and returned: it loses its `parent`, can be inserted into another list, and keeps all of its state |
 | `clear()` | every row is released |
 
-A list without an item template builds each row from its own item — a `Group` from a plain object, a `List` from an
-array, a `Field` from anything else — so its rows need not be of one kind or carry the same members.
+A list without an item template builds each row from its own item (a `Group` from a plain object, a `List` from an
+array, a `Field` from any other value), so its rows can differ in kind and in members.
 
-Because an assignment reuses row objects, `list.get(0)` survives `list.value = rows` when the new array is the
-same length, and a keyed `v-for` does not remount. A reused row is reset to the state the row built for that
-position would have been in: a member the new item carries no key for takes the template's value, and
-`originalValue`, `isChanged`, `touched` and `errors` all start over.
+An assignment reuses row objects, so `list.get(0)` returns the same row after `list.value = rows` when the new array
+has the same length, and a keyed `v-for` does not remount. A reused row is reset to the state a newly built row at
+that position would have: a member with no key in the new item takes the item template's value, and
+`originalValue`, `isChanged`, `touched` and `errors` are reset.
 
 ## Records: how a shared rule finds the right element
 
-A rule that reads a second element — a `CompareTo`, a `Statement` over another field — is one instance serving
-every row, so it has to be told which second element it means for the row it is running over. The structure
-answers: the element the rule was declared against, and the **record** it is running in, name it between them.
+A rule that reads a second element (a `CompareTo`, a `Statement` over another field) is one instance serving every
+row, so it must determine which second element applies to the row it runs over. Two inputs determine it: the
+element the rule was declared against, and the **record** the rule runs in.
 
-A record is the `List` row that holds an element, or the top of its container chain where no row does. A `Group`
-names every member it holds; a `List` holds a row without a name — so the element its container gave no name to is
-where a record begins.
+A record is the `List` row that holds an element or, where no row holds it, the top of its container chain. A `Group`
+holds every member under a name; a `List` holds rows without a name. A record therefore begins at an element that
+its container holds without a name.
 
 ```typescript
 const row = new Group({ password: new Field(), confirmation: new Field() });
@@ -161,38 +158,40 @@ const users = new List(row, { value: [{ password: 'a', confirmation: 'a' }] });
 // row 0's confirmation compares against row 0's password
 ```
 
-Three ways to name the second element, all of which answer within the record being validated:
+The second element can be given in three ways, all resolved within the record being validated:
 
-- **the element itself** — resolved to the member the record holds at the same position. An element belonging to
-  another record — a form field the rows read — is read where it stands, and one change there speaks for every row;
-- **a name** (`CompareTo` only) — looked up in the nearest container above the validated field that holds it, so a
-  row is searched before the form the list sits in;
-- **a callback** (`CompareTo` only) — handed the field being validated, working it out itself.
+- **the element itself**: resolved to the member at the same position in the record. An element that belongs to a
+  different record (for example a form field the rows read) is read where it is, and a change to it applies to every
+  row;
+- **a name** (`CompareTo` only): looked up in the nearest container above the validated field that holds it, so a
+  row is searched before the form the list is in;
+- **a callback** (`CompareTo` only): receives the field being validated and returns the element.
 
-`Statement.evaluate(scope)` takes the record explicitly, so one statement serves every row:
+`Statement.evaluate(scope)` takes the record as an argument, so one statement serves every row:
 `statement.evaluate(list.get(1))` reads the second row's fields.
 
 ### A rule that runs before its record exists
 
-A row is built member by member: every member is bound on its own, the bindings are handed to a `Group`, and the
-group is then handed the row's data. A member's eager actions run at the moment it is bound, when it holds neither
-its siblings nor its row — so a rule reading a second element reaches nothing there.
+A row is built member by member: each member is bound separately, the bindings are passed to a `Group`, and the
+group then receives the row's data. A member's eager actions run when the member is bound, before it has siblings
+or a row, so a rule that reads a second element finds nothing at that point.
 
-Reaching nothing is **no verdict**, not a pass. An action that finds nothing says so with
-`field.markRecordIncomplete()` and returns without a verdict. The container that completes the record runs that
-element's eager actions again — the `Group` once it has taken its members and written the data it was given, the
-`List` once it has taken the row into the form — and a pass that still reaches nothing says so again, so the next
-container above answers for it. `CompareTo` and the conditional actions do this themselves; a hand-written rule
-does it as [A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record)
-shows.
+A rule that finds nothing produces no validation result; this is not the same as valid. An action that finds
+nothing calls `field.markRecordIncomplete()` and returns without a result. The container that completes the record
+runs that element's eager actions again: the `Group` after it has received its members and written its data, the
+`List` after it has inserted the row into the form. If the second run also finds nothing, it calls
+`markRecordIncomplete()` again, and the next container above runs the actions. `CompareTo` and the conditional
+actions do this themselves; a hand-written rule does it as shown in
+[A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record).
 
 ## Transactions: when events fire
 
-**Every mutating operation is a transaction.** Where you open none, the operation is the transaction, so a single
-write is atomic without anything at the call site.
+**Every mutating operation is a transaction.** Where no transaction is open, the operation is its own transaction,
+so a single write is atomic.
 
-Writes land in the elements as they are made; only the **announcement** waits. At the end of the transaction the
-net transitions are measured against what the elements last announced, and each is announced once.
+Writes are applied to the elements immediately; only the **announcement** is deferred. At the end of the
+transaction, each element's net transitions are compared with what it last announced, and each transition is
+announced once.
 
 ```typescript
 import { transaction } from '@dynamicforms/vue-forms';
@@ -207,125 +206,129 @@ transaction(() => {
 | What | When it runs |
 |---|---|
 | validators | while the transaction is open, at the write that triggers them |
-| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed`, `EnabledChanging`/`Changed` | at the write — a *Changing* action may alter or refuse the value, so it cannot wait |
-| `ValueChangedAction` | at commit, over the value the element ends the transaction holding |
-| `ValidChangedAction` | at commit, after the value announcements, over the verdict the element ends with |
+| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed`, `EnabledChanging`/`Changed` | at the write; a *Changing* action may alter or refuse the value, so it cannot be deferred |
+| `ValueChangedAction` | at commit, with the value the element holds at the end of the transaction |
+| `ValidChangedAction` | at commit, after the value announcements, with the element's final validity |
 | `ListItemAddedAction` / `ListItemRemovedAction` | at commit, in the order the operations happened |
 
-Validators run inside the transaction because the verdict they reach is what the commit announces. A validator
-therefore reads the **working** state: one reading a sibling sees the sibling's new value, which is what makes
-cross-field rules work at all. Vue effects are scheduled after the turn, so a render sees the committed state.
+Validators run inside the transaction because the commit announces the validity they produce. A validator
+therefore reads the **working** state: a validator that reads a sibling sees the sibling's new value, which is
+required for cross-field rules. Vue effects are scheduled after the current tick, so a render sees the committed
+state.
 
-The announcement runs **deepest first** — field, then row, then list — which is the order the change travelled in.
-Value transitions coalesce: a value that goes `A → B → A` announces nothing. Additions and removals state
-operations rather than states, so they have no net and are emitted in order.
+The announcement runs **deepest first** (field, then row, then list), the order in which the change propagated.
+Value transitions coalesce: a value that goes `A → B → A` announces nothing. Additions and removals are operations,
+not states, so they have no net value and are emitted in order.
 
-A transaction may not cross an `await`: `transaction()` throws a `TypeError` the moment its callback returns a
-thenable. A nested call joins the transaction it found.
+A transaction cannot span an `await`: `transaction()` throws a `TypeError` when its callback returns a thenable. A
+nested call joins the open transaction.
 
-**A throw rolls back and rethrows.** The first time a transaction modifies an element it records the whole of that
-element's mutable state, and a rollback puts all of it back and announces nothing. What a rollback cannot take back
-are side effects — a handler that called a server already did.
+**A throw rolls back and rethrows.** The first time a transaction modifies an element, it records the element's
+entire mutable state; a rollback restores all of it and announces nothing. A rollback cannot undo side effects,
+such as a server call a handler already made.
 
 The full contract, including `tx.rollback()`, is in [Transactions](/api/transactions).
 
 ## Where validity comes from
 
-An element is valid when its `errors` array is empty and, for a container, every member is valid too. That verdict
-is reached along two paths, and knowing which is which explains everything `valid` does.
+An element is valid when its `errors` array is empty and, for a container, every member is valid. Validity is
+computed along two paths.
 
-- **The read path.** `element.valid` walks the members' live `errors` arrays, memoised by Vue. It follows an error
-  pushed into a member by hand, immediately and without any call, and a container's `valid` follows with it.
-- **The event path.** Each container keeps a tally of how many of its members last *announced* themselves invalid.
-  The commit settles the deepest element first, so a container forms its own verdict over a finished tally, and
-  `ValidChangedAction` fires once per element whose verdict actually changed.
+- **The read path.** `element.valid` reads the members' live `errors` arrays, memoised by Vue. An error pushed into
+  a member directly is reflected immediately, without any call, in the member's `valid` and in its container's.
+- **The event path.** Each container counts how many of its members last *announced* themselves invalid. The commit
+  settles the deepest element first, so a container computes its validity over a complete count, and
+  `ValidChangedAction` fires once for each element whose validity changed.
 
 ```typescript
 field.errors.push(new ValidationError('rejected', {}, 'Rejected by the server', 'server'));
 field.valid;      // false already
 group.valid;      // false already
 // no ValidChangedAction has fired
-field.validate(); // now it does, and the container re-forms its verdict
+field.validate(); // now it does, and the container recomputes its validity
 ```
 
-`validate()` re-forms the verdict and announces a transition of it. `validate(true)` also re-runs the eager
-actions — the validators among them — over the value the element holds; on a container it does that for every
-member first and forms the container's own verdict once, over the finished set.
+`validate()` recomputes the validity and announces a change of it. `validate(true)` also re-runs the eager actions,
+including the validators, over the element's current value; on a container it does this for every member first and
+then computes the container's own validity once, over the complete set.
 
-`clearValidators()` drops the validators of an element's declaration, empties the `errors` of every element that
-reads them, and announces the verdicts that leave. Called on one row of a list it therefore clears the rule for
-every row, because the rule was the declaration's. It does not descend into members. `unregisterAction()` drops a
-single action — a validator among them — and withdraws the errors that validator contributed, wherever it put
-them.
+`clearValidators()` removes the validators of an element's declaration, removes the errors they added on every
+element that uses them, empties the `errors` of the element it is called on (errors from other sources included),
+and announces the resulting validity changes. Called on one row of a list, it therefore clears the rule
+for every row, because the rule belongs to the declaration. It does not descend into members. `unregisterAction()`
+removes a single action (a validator, for example) and removes the errors that validator added, from every
+element it added them to.
 
-Validators are **eager**: they run once at construction, once at registration, at every value change, on
-`validate(true)`, and once more where a run reached no verdict because its record was not assembled yet. A field
-is therefore often invalid before anyone has touched it — which is what `touched` is for, as the flag your UI
-sets and reads to decide when to show errors.
+Validators are **eager**: they run once at construction, once at registration, on every value change, on
+`validate(true)`, and once more where a run produced no result because its record was not yet assembled. A field
+is therefore often invalid before the user has interacted with it. `touched` is the flag the UI sets and reads to
+decide when to show errors.
 
-An asynchronous validator returns a promise. `validating` counts the runs in flight — on the element itself and on
-everything below it, so a form answers for the whole tree — only the newest run decides that validator's verdict on
-a field, and a rejection leaves the field invalid with a `Validation could not be completed` error rather than
-reading as a pass. A run whose verdict stops counting has the `AbortSignal` its validation function was handed
-aborted, so the work behind it can be called off.
+An asynchronous validator returns a promise. `validating` counts the runs in progress on the element and on every
+element below it, so a form's `validating` covers the whole tree. Only the newest run determines that validator's
+result on a field. A rejected promise makes the field invalid with a `validation_failed` error
+(`Validation could not be completed`). When a run's result is no longer used, the `AbortSignal` passed to its
+validation function is aborted, so the work behind it can be cancelled.
 
-`busy` asks the other question: true while an `Action.execute()` at or below the element has yet to settle. An
-element that is not an action executes nothing and answers false, so `busy` never speaks for a validation and
-`validating` never speaks for an execution. A form that gates on the tree being idle reads both — or awaits
-`settled()`, which resolves once neither answers true and is what a submit path uses instead of polling.
+`busy` is `true` while an `Action.execute()` at or below the element has not settled, and `false` otherwise.
+`busy` does not include validation, and `validating` does not
+include execution. To wait until the tree is idle, read both, or await `settled()`, which resolves when both are
+`false`; a submit path uses it instead of polling.
 
 ## Where a value comes from
 
-A `Field` holds its value, and it takes a write whatever its access: `access` decides what the container above
-sends for the element and whether a rendering layer accepts input into it, never whether a write reaches it. Values are compared by identity, so assigning the very object the field already holds announces
-nothing, while a new object announces a change even when it is deeply equal to the old one — mutate a copy and
-assign it. An object a field holds is one value to the library: a write into it — `field.value.push(item)` on a
-`Field<string[]>` — goes through no transaction and announces nothing, and neither the field nor a container above
-it reports a change.
+A `Field` holds its value and accepts a write regardless of its access: `access` determines what the container
+above sends for the element and whether a rendering layer accepts input into it, not whether a write is applied.
+Values are compared by identity, so assigning the object the field already holds announces nothing, while a new
+object announces a change even when it is deeply equal to the old one. To change an object value, modify a copy and
+assign it. The library treats an object held by a field as a single value: a write into it (`field.value.push(item)`
+on a `Field<string[]>`) runs outside any transaction and announces nothing, and neither the field nor any container
+above it registers a change.
 
-A write states what the caller wants the field to hold rather than what it ends up holding: a `ValueChangedAction`
-may write another value back, and a handler that throws unwinds it. Where the
-field ends up holding the value it started with, nothing a rendering layer reads moves — the case that layer has
-to handle itself is worked through in [Writing the value](/api/field#writing-the-value).
+A write sets the value the caller requests, which is not necessarily the value the field ends up holding: a
+`ValueChangedAction` may write another value back, and a handler that throws reverts it. Where the field ends up
+holding its original value, nothing a rendering layer reads changes. The case the rendering layer must handle itself
+is described in [Writing the value](/api/field#writing-the-value).
 
-A container composes its value from its members, and the object it hands out is **frozen** and reused until the
-next change:
+A container composes its value from its members and returns a **frozen** object, reused until the next change:
 
 ```typescript
 group.value === group.value;     // true until something below changes
-Object.isFrozen(group.value);    // true — assign a new value instead of writing into it
+Object.isFrozen(group.value);    // true; assign a new value instead of writing into it
 ```
 
-A `Group` sends each member by its `access`: an `'editable'` or `'readonly'` member with its value, a
-`'disabled-null'` one as `null`, and a `'disabled'` one not at all. It reads back `{}` when nothing is sent. A
-`List` sends its rows by the same rule and reads back `[]` while it sends none. A container is never `null`.
-`fullValue` is what the container holds: every member's own `fullValue`, whatever its access.
+The freeze covers the objects the containers build. An array or object that a `Field` holds as its value is not
+frozen: writing into it changes the field's value without a `ValueChangedAction`, so assign a new array or object
+instead.
 
-A container's access applies to everything inside it: nothing below a `'disabled'` or `'disabled-null'` container is
-sent, and so nothing there is validated. An element's validators run over what it sends, and only where it is sent
-at all. `visibility` is presentation alone and decides none of this. The whole rule, with what to declare for each
-outcome, is in [What a container serializes](/api/container#what-a-container-serializes). The [Cookbook](/guide/cookbook) applies it
-recipe by recipe.
+A `Group` sends each member according to its `access`: an `'editable'` or `'readonly'` member with its value, a
+`'disabled-null'` member as `null`, and a `'disabled'` member not at all. Its value is `{}` when no member is sent.
+A `List` sends its rows by the same rule, and its value is `[]` when no row is sent. A container's value is never
+`null`. `fullValue` is everything the container holds: every member's own `fullValue`, regardless of access.
 
-The composed object is cached behind a version counter that a write raises along its own branch, so a container
-does not walk its members again while nothing below it has moved, and a write of one field costs the depth of the
-nesting rather than the size of the tree.
+A container's access applies to everything inside it: nothing below a `'disabled'` or `'disabled-null'` container
+is sent, and therefore nothing there is validated. An element's validators run over what it sends, and only where
+it is sent. `visibility` is presentation only and affects neither. The full rule, with what to declare for each
+outcome, is in [What a container serializes](/api/container#what-a-container-serializes). The
+[Cookbook](/guide/cookbook) applies it in individual recipes.
 
-`originalValue` is the baseline `isChanged` compares against, and assigning it rebaselines the comparison. On a
-container it is a copy of its own, never the frozen object `value` reads back, so it is writable where the value
-is not.
+The composed object is cached behind a version counter that a write increments along its own branch. A container
+does not traverse its members again while nothing below it has changed, and writing one field costs the depth of
+the nesting, not the size of the tree.
+
+`originalValue` is the baseline `isChanged` compares against, and assigning it resets that baseline. On a container
+it is a separate copy, not the frozen object `value` returns, so it is writable where the value is not.
 
 ## Comparing elements
 
-An element's state is private, so a structural comparison of two elements reaches none of it: `isEqual(fieldA,
-fieldB)` is `false` unless the two are the same element. Compare `isEqual(fieldA.value, fieldB.value)` instead —
-that alone is enough, and `value` already unwraps a container fully, so plain lodash `isEqual(list.value,
-other.value)` needs nothing further.
+An element's state is private, so a structural comparison of two elements cannot read it: `isEqual(fieldA,
+fieldB)` is `false` unless the two are the same element. Compare `isEqual(fieldA.value, fieldB.value)` instead.
+`value` unwraps a container fully, so plain lodash `isEqual(list.value, other.value)` needs nothing further.
 
-`items`, unlike `value`, hands out the rows themselves — live `Group` instances, not their data — so comparing two
-of those arrays hits the same private-state wall as comparing two fields directly. The package's own `isEqual(a,
-b)` — built on `lodash-es`, already a dependency — is for that case: it treats a `FieldBase` anywhere in `a` or `b`
-as its `value`, so `isEqual(list.items, other.items)` compares row by row without a loop.
+`items`, unlike `value`, returns the rows themselves (live `Group` instances, not their data), so comparing two such
+arrays has the same limitation as comparing two fields directly. The package's own `isEqual(a, b)`, built on
+`lodash-es` (already a dependency), handles this case: it treats a `FieldBase` anywhere in `a` or `b` as its
+`value`, so `isEqual(list.items, other.items)` compares row by row without a loop.
 
 ## Where to read next
 

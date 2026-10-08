@@ -1,6 +1,6 @@
 /**
- * Operators provides us a functionality for backend to send us complex condition upon which we send
- * dynamic visibility prop for form input fields
+ * The operators of a `Statement`. A backend can send a condition composed of them, which sets the visibility of
+ * form elements.
  */
 enum Operator {
   // Logic Operators
@@ -59,8 +59,7 @@ namespace Operator {
     return Object.values(Operator).includes(check);
   }
 
-  // c8 bug: it doesn't matter what there is in the next line (e.g. console.log()).
-  // it will always be a branch with one branch not covered
+  // c8 reports the next line as a branch with one uncovered path, whatever the line contains
   export function isLogicOperator(operator: Operator): boolean {
     return operator >= 0;
   }

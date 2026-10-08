@@ -10,7 +10,7 @@ invoice, a single `Field` per row for a list of tags, and a whole `List` per row
 
 ## Source Code
 
-The switch only picks which of three components is shown; each of them is a complete example of its own.
+The switch selects which of the three components is shown. Each component is a complete example.
 
 ::: code-group
 
@@ -28,69 +28,67 @@ The switch only picks which of three components is shown; each of them is a comp
 
 ### The Item Template
 
-The `Group` handed to `new List(...)` is not a row of the list — it is the declaration every row is built from. Each
-row is a binding of it, so whatever the template carries, every row carries: the `Required` validator on
-`description` is written once and rejects an empty description in row one and in row twelve alike, and an action
-registered on a template field runs in each row separately, on that row's field.
+The `Group` passed to `new List(...)` is not a row of the list. It is the item template every row is built from.
+Each row is a binding of it, so every row has what the item template has: the `Required` validator on `description`
+is declared once and rejects an empty description in every row, and an action registered on a field of the item
+template runs in each row separately, on that row's field.
 
-The rows are created for the values the list is given and for every `push()` and `insert()` afterwards, so a
-template changed after the list has rows only reaches the rows added from then on. Declare the template
-completely before building the list from it.
+Rows are created for the list's initial value and for every later `push()` and `insert()`, so a change to the item
+template after the list has rows applies only to rows added afterwards. Declare the item template completely before
+building the list from it.
 
 ### Reaching a Sibling Field
 
-Inside a row, `field.parent` is the row's own `Group`, which is what makes `row.fields.quantity` the quantity of
-the row being validated rather than the template's. `parent` is typed [`Container`](/api/container), which names no
-members, so the validator checks `row instanceof Group` before it reads one: the check narrows the type and answers
-the question the validator has to ask anyway, whether the row exists yet. The same expression written on the
-template resolves per row, because the field the validator receives is the row's field, not the one the template
-holds.
+Inside a row, `field.parent` is the row's own `Group`, so `row.fields.quantity` is the quantity of the row being
+validated. `parent` is typed [`Container`](/api/container), which declares no members, so the validator checks
+`row instanceof Group` before it reads one. The check narrows the type and also tests whether the row exists yet.
+The expression is written on the item template and resolves per row, because the field the validator receives is
+the row's field.
 
-A row is built member by member — every member is bound on its own, the bindings are handed to a `Group`, and the
-group is then handed the row's data — so this validator's first run happens while the unit price still has no
-`parent`. Reaching nothing there is *no verdict*, not a pass: `field.markRecordIncomplete()` says so, and the
-container that completes the record runs the validator again once the row holds its members and their data. That is why a row created
-with a quantity above zero and no unit price is invalid from the moment it exists, without anything revalidating
-it by hand.
+A row is built member by member: every member is bound separately, the bindings are passed to a `Group`, and the
+group then receives the row's data. This validator's first run therefore happens while the unit price has no
+`parent`. In that case the validator has no result: `field.markRecordIncomplete()` records this, and the container
+that completes the record runs the validator again once the row holds its members and their data. A row created
+with a quantity above zero and no unit price is therefore invalid as soon as it exists, without manual
+revalidation.
 
-A validator runs when its own field changes, so the unit price rule fires when the unit price is edited. The other
-half of the rule is the quantity, and a change there has to send the unit price through its validators again:
-`field.parent.fields.unitPrice.validate(true)` does that from a `ValueChangedAction` on the quantity, behind the
-same `instanceof Group` check. `validate(true)` re-runs the field's eager actions, its validators among them;
-`validate()` alone announces the verdict the errors already recorded support.
+A validator runs when its own field changes, so the unit price rule runs when the unit price is edited. A change of
+the quantity must re-validate the unit price: `field.parent.fields.unitPrice.validate(true)` does that from a
+`ValueChangedAction` on the quantity, behind the same `instanceof Group` check. `validate(true)` re-runs the field's
+eager actions, including its validators; `validate()` alone recomputes validity from the errors already recorded.
 
 ### List Validity
 
-`list.valid` is `true` when the list has no errors of its own and every row is valid, so it is the single value the
-Submit button's `disabled` state binds to. Emptying a description or clearing a unit price on a row with a
+`list.valid` is `true` when the list has no errors of its own and every row is valid. The Submit button's `disabled`
+state binds to it. Emptying a description or clearing a unit price on a row with a
 quantity above zero turns the whole list invalid; removing that row makes it valid again.
 
 ### Reading the Value
 
 `list.value` is the plain data: one object per row, in row order, `[]` while the list is empty. It is recomputed
-whenever a field, a row or the list itself changes, so the output panel below the form re-renders on its own.
+whenever a field, a row or the list itself changes, so the output panel below the form re-renders automatically.
 
 ## Tags: a Field per Row
 
-`new List(new Field(...))` is a list of plain values. Every row is a `Field` bound from the template, so it carries
-the template's `Required` validator, and `tags.value` is an array of strings — `['urgent', 'billing']` — rather than
-an array of objects. A row binds to an input directly through `tag.value`, and `tags.push('')` adds one: the item
-is the data the new row is bound to.
+`new List(new Field(...))` is a list of plain values. Every row is a `Field` bound from the item template, so it
+has the item template's `Required` validator, and `tags.value` is an array of strings, such as
+`['urgent', 'billing']`. A row binds to an input directly through `tag.value`, and `tags.push('')` adds a row: the
+argument is the data the new row is bound to.
 
 ## Score Sheet: a List per Row
 
-A row can be a list as well. The outer list is built from a template that is itself a `List` of number fields, so
-every round is a list of its own, with its own `push()` and `remove()`, and the sheet's value is an array of
-arrays — `[[3, 5], [4]]`. `rounds.push([0])` adds a round holding one score. The `MinValue` validator is declared
-once on the innermost template and runs on every score of every round, and `rounds.valid` answers for all of them.
+A row can also be a list. The outer list's item template is a `List` of number fields, so every round is a list
+with its own `push()` and `remove()`, and the sheet's value is an array of arrays, such as `[[3, 5], [4]]`.
+`rounds.push([0])` adds a round holding one score. The `MinValue` validator is declared once on the innermost item
+template and runs on every score of every round, and `rounds.valid` covers all of them.
 
 ## API Reference
 
-- [List](/api/list) — item template, `get()`, `push()`, `insert()`, `remove()`, `value`, `valid`
-- [Group](/api/group) — `fields`, `parent`, serialization rules
-- [Validators](/api/validators) — all built-in validators and the custom `Validator` signature
-- [Container](/api/container) — `parent`, and what a `Group` and a `List` share
-- [Actions → ListItemAddedAction](/api/actions#listitemaddedaction) — the events the buttons produce
+- [List](/api/list): item template, `get()`, `push()`, `insert()`, `remove()`, `value`, `valid`
+- [Group](/api/group): `fields`, `parent`, rules for what a group sends
+- [Validators](/api/validators): all built-in validators and the custom `Validator` signature
+- [Container](/api/container): `parent`, and what a `Group` and a `List` share
+- [Actions → ListItemAddedAction](/api/actions#listitemaddedaction): the events the buttons produce
 
 ## Key Features Demonstrated
 
@@ -98,7 +96,7 @@ once on the innermost template and runs on every score of every round, and `roun
 - **Item Template**: One `Group` declaring the shape, the validators and the actions of every row
 - **Mutations**: `push()`, `insert()` at a position, and `remove()`, each wired to a button
 - **List Events**: `ListItemAddedAction` and `ListItemRemovedAction` reporting the index involved
-- **Per-Row Validation**: A validator declared once on the template and enforced in every row
+- **Per-Row Validation**: A validator declared once on the item template and enforced in every row
 - **Cross-Field Validation**: A row's field reading a sibling through `field.parent`, narrowed with `instanceof Group`
 - **Aggregated Validity**: `list.valid` driving the Submit button
 - **Plain Data**: `list.value` read back as an array of objects, of strings or of arrays

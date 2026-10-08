@@ -15,10 +15,9 @@ export default abstract class FieldActionBase {
   private readonly executorFn: ActionExecutor;
 
   /**
-   * What this action remembers about one of the elements it serves. An action instance is shared - a `List` row
-   * carries the instances the item template carries - so anything an action holds about the element it last ran
-   * over belongs to that element rather than to the action: a verdict, a sequence number, a listener it installed.
-   * The keys are weak, so what an action remembers about a row is released with the row.
+   * The per-element state of this action. An action instance is shared (a `List` row has the same instances as
+   * the item template), so state about the element it runs over is stored per element: a validation result, a
+   * sequence number, a listener it installed. The keys are weak, so the state for a row is released with the row.
    */
   private readonly states = new WeakMap<object, any>();
 
@@ -27,9 +26,8 @@ export default abstract class FieldActionBase {
   }
 
   /**
-   * This action's state for `key`, created by `init` the first time it is asked for. The key is the element the
-   * action is running over, or the record that element belongs to where what is remembered is a fact about the
-   * whole record.
+   * Returns this action's state for `key`, created by `init` on first access. The key is the element the action
+   * runs over, or the record that element belongs to if the state concerns the whole record.
    */
   protected state<S>(key: object, init: () => S): S {
     if (!this.states.has(key)) this.states.set(key, init());
@@ -45,18 +43,18 @@ export default abstract class FieldActionBase {
   }
 
   /**
-   * Announces that this action now serves `binding`. It runs once per element the action is registered on, the
-   * copies of that element included: a copy takes on the instances it was copied from and each is told about the
-   * copy as it does.
+   * Called when this action is bound to `binding`. It runs once per element the action is registered on, bindings
+   * of that element included: a binding uses the action instances of its declaration, and each is called with the
+   * binding.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   boundToBinding(binding: FieldBase) {}
 
   /**
-   * Announces that `binding` no longer holds this action, and takes back what running it left there. It names one
-   * element rather than the action as a whole, because the instance goes on serving every other element it was
-   * registered on. It runs inside the operation that drops the registration, so an operation that unwinds puts the
-   * registration and what this took back both back.
+   * Called when `binding` no longer has this action; an override removes what running the action left on it. It
+   * receives one element because the same instance stays registered on other elements. It runs inside the
+   * operation that removes the registration, so a rollback of that operation restores both the registration and
+   * what this method removed.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   unregisterFrom(binding: FieldBase) {}

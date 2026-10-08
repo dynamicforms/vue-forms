@@ -4,21 +4,22 @@ import { type GenericFieldsInterface, Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
 
-/** a member of the form in the shape a view hands it out: the view of a container, the value of anything else */
+/** the type a view returns for a member: the view of a container, the value of any other element */
 type Slot<E> = E extends Container ? View<E> : E extends FieldBase ? E['value'] : never;
 
 /** the data keys of a group's view */
 type GroupData<F extends GenericFieldsInterface> = {
-  // a container is replaced through `$value`, so its key is read-only; a field's key reads and writes its value
+  // a container's value is assigned through `$.value`, so its key is read-only; a field's key reads and writes
+  // its value
   readonly [K in keyof F as F[K] extends Container ? K : never]: Slot<F[K]>;
 } & {
   -readonly [K in keyof F as F[K] extends Container ? never : K]: Slot<F[K]>;
 };
 
-/** what a list's view takes as a row: the data a row is built from, an element, or the view of one */
+/** what a list's view accepts as a row: the data a row is built from, an element, or the view of one */
 type RowInput<R extends FieldBase> = R['value'] | R | View<R>;
 
-/** the array a list's view is: every read an array has, and the mutations taken as the list's own operations */
+/** the type of a list's view: every array read, and the mutations performed as the list's own operations */
 type ListData<R extends FieldBase> = Omit<Slot<R>[], 'push' | 'unshift' | 'splice' | 'fill' | 'copyWithin'> & {
   push(...items: RowInput<R>[]): number;
   unshift(...items: RowInput<R>[]): number;
@@ -26,8 +27,8 @@ type ListData<R extends FieldBase> = Omit<Slot<R>[], 'push' | 'unshift' | 'splic
 };
 
 /**
- * An element seen as its data: the members of a group, or the rows of a list, as plain properties, and the element
- * itself as `$`. See `view()`.
+ * An element presented as its data: the members of a group, or the rows of a list, as plain properties, and the
+ * element itself as `$`. See `view()`.
  */
 export type View<E extends FieldBase> = (E extends Group<infer F, any>
   ? GroupData<F>
@@ -35,18 +36,18 @@ export type View<E extends FieldBase> = (E extends Group<infer F, any>
     ? ListData<R>
     : unknown) & { readonly $: E };
 
-/** the views made so far, one per element, and the element behind each */
+/** the views created so far, one per element, and the element of each */
 const views = new WeakMap<FieldBase, object>();
 const elements = new WeakMap<object, FieldBase>();
 
-/** the array methods that move rows: a view carries them out as the list's own operations, rows included */
+/** the array methods that move rows: a view performs them as the list's own operations, keeping the row elements */
 const listMutations = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin']);
 
 function isIndex(key: string | symbol): key is string {
   return typeof key === 'string' && /^(0|[1-9]\d*)$/.test(key);
 }
 
-/** the element a view stands for, or the argument itself where it is not a view */
+/** the element of a view, or the argument itself if it is not a view */
 function unwrap<T>(item: T): T | FieldBase {
   return (typeof item === 'object' && item !== null && elements.get(item as object)) || item;
 }
@@ -61,13 +62,13 @@ function writeSlot(element: FieldBase, value: unknown): void {
   element.value = unwrap(value) instanceof FieldBase ? (unwrap(value) as FieldBase).value : value;
 }
 
-/** the keys a view answers to on behalf of Vue and the language rather than as data */
+/** the keys a view handles for Vue and the language, not as data */
 function special(key: string | symbol): { answered: boolean; value?: unknown } {
-  // reactive() leaves the view as it is, and a template reads through it: every read already reaches the tracked
-  // state of the element behind it
+  // reactive() returns the view unwrapped, and a template reads through it: every read already reaches the tracked
+  // state of the view's element
   if (key === '__v_skip') return { answered: true, value: true };
   if (typeof key === 'string' && key.startsWith('__v_')) return { answered: true, value: undefined };
-  // a view is never a thenable: `await` hands it back as it is
+  // a view is not a thenable: `await` returns it unchanged
   if (key === 'then') return { answered: true, value: undefined };
   return { answered: false };
 }
@@ -114,14 +115,14 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
 function listView(list: List<any, any>): unknown[] {
   // the rows a view shows, in order: every row the list holds, whatever it sends
   const shown = (): FieldBase[] => [...list.items];
-  // the position in the list a view's index stands for; an index past the last shown row appends
+  // the list position of a view index; an index past the last shown row appends
   const positionOf = (index: number): number => {
     const rows = shown();
     return index < rows.length ? list.items.indexOf(rows[index]) : list.length;
   };
   const clamp = (index: number, length: number) => (index < 0 ? Math.max(length + index, 0) : Math.min(index, length));
 
-  /** puts `rows` in place of the shown rows, keeping every row element and its state */
+  /** replaces the shown rows with `rows`, keeping every row element and its state */
   const reorder = (rows: FieldBase[]) =>
     transaction(() => {
       const shownRows = shown();
@@ -278,7 +279,7 @@ function fieldHandler(field: FieldBase): ProxyHandler<object> {
   };
 }
 
-/** a group member whose name a view cannot hand out as a data key */
+/** throws for a group member whose name a view cannot expose as a data key */
 function refuseReservedNames(group: Group<any, any>): void {
   Object.keys(group.fields).forEach((name) => {
     if (name === '$' || name === 'then' || name.startsWith('__v_')) {
@@ -291,19 +292,18 @@ function refuseReservedNames(group: Group<any, any>): void {
 }
 
 /**
- * The element seen as its data. A group's members and a list's rows are plain properties of the view - a field as
- * its value, a container as its own view - and `$` is the element itself: `view.$.valid`,
+ * Returns the element presented as its data. A group's members and a list's rows are plain properties of the view
+ * (a field as its value, a container as its own view), and `$` is the element itself: `view.$.valid`,
  * `view.$.access = 'readonly'`, `view.$.registerAction(...)`.
  *
- * A member reads what the element holds, by the rule `fullValue` follows: every member is there whatever its access,
- * so a disabled field reads and writes like any other. Every read goes
- * through the element's tracked state, so an effect reading `view.address.city` re-runs when that field changes and
- * not when another one does.
+ * A member reads what the element holds, as in `fullValue`: every member is present whatever its access, so a
+ * disabled field reads and writes like any other. Every read goes through the element's tracked state, so an
+ * effect that reads `view.address.city` re-runs when that field changes and not when another one does.
  *
  * A list's view is an array: it reads like one, and `push`, `pop`, `shift`, `unshift`, `splice`, `sort` and
- * `reverse` are carried out as the list's own operations, so every row keeps its element and its state.
+ * `reverse` are performed as the list's own operations, so every row keeps its element and its state.
  *
- * One element has one view: `view(element) === view(element)`, and `view()` of a view hands it back.
+ * One element has one view: `view(element) === view(element)`, and `view()` of a view returns the same view.
  */
 export function view<V extends View<any>>(of: V): V;
 // eslint-disable-next-line no-redeclare

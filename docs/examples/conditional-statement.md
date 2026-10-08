@@ -78,7 +78,7 @@ conditionsForm.fields.submitAction.registerAction(
 ```
 
 ::: tip
-`visibility` is presentation alone: a suppressed field is not rendered, and it is still sent. A field that is also to drop out of what the form sends carries a `ConditionalAccessAction` beside it — see [What a container serializes](/api/container#what-a-container-serializes).
+`visibility` affects only rendering: a suppressed field is not rendered and is still sent. To also leave a field out of what the form sends, register a `ConditionalAccessAction` on it as well; see [What a container serializes](/api/container#what-a-container-serializes).
 :::
 
 ### Vue Template
@@ -153,7 +153,7 @@ conditionsForm.fields.submitAction.registerAction(
 
 ## API Reference
 
-- [Actions → Conditional actions](/api/actions#conditional-actions) — `Statement`, `Operator`,
+- [Actions → Conditional actions](/api/actions#conditional-actions): `Statement`, `Operator`,
   `ConditionalVisibilityAction`, `ConditionalAccessAction`, `ConditionalValueAction`
 - [Field → Visibility](/api/field#visibility)
 
@@ -161,7 +161,7 @@ conditionsForm.fields.submitAction.registerAction(
 
 - **ConditionalValueAction**: Automatically sets a field's value based on another field's value
 - **ConditionalVisibilityAction**: Shows or hides a field based on a condition
-- **ConditionalAccessAction**: Sets a field's access based on a condition — editable while it holds, disabled otherwise
+- **ConditionalAccessAction**: Sets a field's access based on a condition: by default `'editable'` while the condition is true, `'disabled'` otherwise
 - **Statement**: Creates logical conditions that can be evaluated
 - **Logical Operators**: Using AND, OR, EQUALS, and other operators to create complex conditions
 

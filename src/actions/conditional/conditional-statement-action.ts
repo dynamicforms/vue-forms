@@ -11,7 +11,7 @@ const ConditionalStatementActionClassIdentifier = Symbol('ConditionalStatementAc
 
 type ConditionalExecutorFn = (field: FieldBase, currentResult: boolean, previousResult: boolean | undefined) => void;
 
-/** What the action remembers about one record: the result the record's fields last produced. */
+/** The action's state for one record: the last result of the statement over that record. */
 interface ConditionalRecordState {
   lastResult: boolean | undefined;
 }
@@ -22,23 +22,23 @@ export class ConditionalStatementAction extends ValueChangedAction {
   private readonly conditionalExecutor: ConditionalExecutorFn;
 
   /**
-   * What the elements this action was registered on were declared as. It holds declarations rather than the
-   * elements themselves, so one entry stands for every row of a list, and the element a result is applied to is
-   * the one that declaration names within the record the change happened in.
+   * The declarations of the elements this action was registered on. It holds declarations, not the elements, so one
+   * entry covers every row of a list; a result is applied to the element that corresponds to the declaration within
+   * the record the change happened in.
    */
   private readonly declarations = new Set<FieldBase>();
 
   /**
-   * The elements this action was registered on. Registration reaches one element at a time - the rows of a list
-   * take the action on one by one, as they are built from the item template that carries it - so this is what
-   * says which of the elements a declaration stands for the action actually drives.
+   * The elements this action was registered on. Registration happens one element at a time (the rows of a list
+   * receive the action one by one, as they are built from the item template), so this set determines which of the
+   * elements of a declaration the action controls.
    */
   private readonly registrations = new WeakSet<FieldBase>();
 
   constructor(statement: Statement, executorFn: ConditionalExecutorFn) {
-    // the element the action fires for names the record: an eager pass over one row's field re-evaluates that
-    // row's fields and reaches that row's targets. A pass that reaches none of them is running over an element
-    // whose record is still being built, and the container that finishes it runs the pass again
+    // the element the action fires for determines the record: an eager pass over one row's field re-evaluates the
+    // statement over that row and applies it to that row's targets. A pass that finds no target runs over an
+    // element whose record is still being built, and the container that completes it runs the pass again
     super((field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => {
       if (!this.applyIn(scopeOf(field))) field.markRecordIncomplete();
       return supr(field, newValue, oldValue);
@@ -47,9 +47,9 @@ export class ConditionalStatementAction extends ValueChangedAction {
     this.statement = statement;
     this.conditionalExecutor = executorFn;
 
-    // one listener per field the statement reads, however many records that field ends up having: the listener
-    // receives the field that changed, which is what says which record to re-evaluate. Registering per record
-    // instead would grow the field's handler chain by one link for every row a list holds.
+    // one listener per field the statement reads, however many records the field has: the listener receives the
+    // field that changed, which determines the record to re-evaluate. A listener per record would add one handler
+    // to the field's chain for every row of a list.
     const relay = new ValueChangedAction((source: FieldBase, supr: FieldActionExecute, ...params: any[]) => {
       this.applyFrom(source);
       return supr(source, ...params);
@@ -75,8 +75,8 @@ export class ConditionalStatementAction extends ValueChangedAction {
   }
 
   /**
-   * The elements of `scope` this action controls: what each declaration it serves names within that record, and of
-   * those the ones that took the action on. A row of a list that never took it on is not one this action drives.
+   * The elements of `scope` this action controls: for each of its declarations, the corresponding elements within
+   * that record that the action is registered on. A row of a list the action is not registered on is skipped.
    */
   private targetsIn(scope: FieldBase): FieldBase[] {
     const targets: FieldBase[] = [];
@@ -89,10 +89,10 @@ export class ConditionalStatementAction extends ValueChangedAction {
   }
 
   /**
-   * Re-evaluates the statement over one record and applies the result where it changed. The result is recorded
-   * before the executor runs, because an executor that writes a value re-enters through that value's eager pass
-   * and what it has to find there is the result being applied. It answers whether the record held anything for
-   * this action to drive, which is how a caller learns that the record is not assembled yet.
+   * Re-evaluates the statement over one record and applies the result if it changed. The result is recorded before
+   * the executor runs, because an executor that writes a value re-enters through that value's eager pass, which
+   * must see the result being applied. Returns whether the record contains a target for this action; false means
+   * the record is not assembled yet.
    */
   private applyIn(scope: FieldBase): boolean {
     const targets = this.targetsIn(scope);
@@ -107,10 +107,10 @@ export class ConditionalStatementAction extends ValueChangedAction {
   }
 
   /**
-   * Re-evaluates the records a change of `source` speaks for. A field of the record the targets live in speaks for
-   * that record alone, which is what keeps one row of a list from answering for another; a field above them - a
-   * form field every row reads - speaks for every record below it, and for the record the action was declared in
-   * where the change reaches none.
+   * Re-evaluates the records affected by a change of `source`. A change of an element in the targets' record
+   * affects only that record, so one row of a list does not affect another; a change of an element above them (a
+   * form field every row reads) affects every record below it, or the record the action was declared in if there
+   * is no record below it.
    */
   private applyFrom(source: FieldBase): void {
     const scopes = new Set<FieldBase>();
@@ -123,8 +123,8 @@ export class ConditionalStatementAction extends ValueChangedAction {
 
 /**
  * Sets the visibility of the elements it is registered on from the statement's result: `whenTrue` while the
- * statement holds, `whenFalse` otherwise. Visibility is presentation alone, so what the elements send is left to
- * their access.
+ * statement is true, `whenFalse` otherwise. Visibility affects presentation only; what the elements send is
+ * determined by their access.
  */
 export class ConditionalVisibilityAction extends ConditionalStatementAction {
   constructor(statement: Statement, whenTrue: Visibility = 'full', whenFalse: Visibility = 'suppress') {
@@ -136,7 +136,7 @@ export class ConditionalVisibilityAction extends ConditionalStatementAction {
 
 /**
  * Sets the access of the elements it is registered on from the statement's result: `whenTrue` while the statement
- * holds, `whenFalse` otherwise.
+ * is true, `whenFalse` otherwise.
  */
 export class ConditionalAccessAction extends ConditionalStatementAction {
   constructor(statement: Statement, whenTrue: Access = 'editable', whenFalse: Access = 'disabled') {

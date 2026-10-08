@@ -6,10 +6,11 @@ import { FieldActionExecute } from '@/field.interface';
 const EnabledChangingActionClassIdentifier = Symbol('EnabledChangingAction');
 
 /**
- * Asked before a write of `access` that would change `enabled`: a switch into or out of `'editable'`. It is asked
- * after `AccessChangingAction`, over the access that would be written. `enabled` is read from `access`, so the
- * answer cannot set it: answering with the value `enabled` has now, or throwing `AbortEventHandlingException`,
- * refuses the write of `access`, and answering with the new value, `null` or `undefined` lets it through.
+ * Fires before a write of `access` that would change `enabled`: a change into or out of `'editable'`. It fires
+ * after `AccessChangingAction`, for the access that would be written. `enabled` is read from `access`, so the
+ * return value cannot set it: returning the current value of `enabled`, or throwing
+ * `AbortEventHandlingException`, cancels the write of `access`; returning the new value, `null` or `undefined`
+ * allows it.
  */
 export class EnabledChangingAction extends FieldActionBase {
   constructor(
@@ -30,8 +31,8 @@ export class EnabledChangingAction extends FieldActionBase {
 const EnabledChangedActionClassIdentifier = Symbol('EnabledChangedAction');
 
 /**
- * Told once a write of `access` changed `enabled`: a switch into or out of `'editable'`. It fires after
- * `AccessChangedAction`, and a switch between two accesses that are not `'editable'` does not fire it.
+ * Fires after a write of `access` changed `enabled`: a change into or out of `'editable'`. It fires after
+ * `AccessChangedAction`; a change between two accesses that are not `'editable'` does not fire it.
  */
 export class EnabledChangedAction extends FieldActionBase {
   constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => void) {

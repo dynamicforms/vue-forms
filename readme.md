@@ -5,47 +5,48 @@ UI components.
 
 ## Introduction
 
-`@dynamicforms/vue-forms` manages form data, validation and state, and leaves rendering entirely to you.
+`@dynamicforms/vue-forms` manages form data, validation and state; rendering is left to the application.
 
-What it models beyond state is the behaviour *between* fields. Visibility, enablement and values can be declared
-as conditions over other fields, and every change travels through an action pipeline in which each handler decides
-whether to pass the event on and may reshape its result. Groups and lists compose recursively, so the same
+In addition to state, the library models the behaviour *between* fields. Visibility, enablement and values can be
+declared as conditions over other fields, and every change passes through an action pipeline in which each handler
+decides whether to pass the event on and may modify its result. Groups and lists compose recursively, so the same
 mechanism applies at every level of a nested form.
 
 ### Design Goals
 
-- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own. The few members that speak about the interface — `visibility`, `enabled`, `touched` and `Action` — are there because nearly every form needs them; [Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface) lists them with the reason for each.
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own. The few members that relate to the interface (`visibility`, `enabled`, `touched` and `Action`) exist because nearly every form needs them; [Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface) lists them with the reason for each.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read, and a group's value type is inferred from the fields it holds, nested structures included.
-- **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
+- **Structural serialization**: A group's value has the shape of its fields, and `Group.createFromFormData()` builds a form from a plain object.
 
 ## Features
 
 - **UI-agnostic**: a logic layer for form state, validation and dynamic behaviour. Any Vue components render it,
-  your own included; the few members that speak about the interface are [listed with their reasons](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface)
-- **Transactional**: every mutating operation is atomic — events are announced once, over the net change, and a
-  handler that throws leaves the form exactly as it was. `transaction()` makes several writes one operation, and
-  `tx.rollback()` withdraws one without an error
-- **Lists that scale**: a `List` is meant to hold thousands of rows. Writing one field of one row costs that row
-  and the depth it sits at, a `push()` costs one row, and reading `value` or `valid` again costs nothing
-- **Declared once, bound per record**: the element handed to `new List(template)` is the declaration every row is
-  built from. One validator instance and one conditional rule serve every row, and each row answers for itself
-- **Reactive**: every member of a field, group or list is a tracked read — assign a property directly, with no
+  your own included; the few members that relate to the interface are [listed with their reasons](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface)
+- **Transactional**: every mutating operation is atomic. Events are announced once, over the net change, and a
+  handler that throws leaves the form unchanged. `transaction()` makes several writes one operation, and
+  `tx.rollback()` reverts one without throwing
+- **Lists that scale**: a `List` is designed to hold thousands of rows. Writing one field of one row costs that row
+  and the depth of its nesting, a `push()` costs one row, and reading `value` or `valid` again with no change in
+  between costs nothing
+- **Declared once, bound per record**: the element passed to `new List(template)` is the item template every row is
+  built from. One validator instance and one conditional rule serve every row, and each row has its own result
+- **Reactive**: every member of a field, group or list is a tracked read. Properties are assigned directly, with no
   `ref` to unwrap and no computed mirror to keep in sync
 - **Nested structures**: fields, groups and lists compose recursively, at every level
-- **Event system**: every change travels through an action pipeline; a handler may pass it on, reshape it or stop it
+- **Event system**: every change passes through an action pipeline; a handler may pass it on, modify it or stop it
 - **Validation**: built-in validators, custom synchronous and asynchronous rules, cross-field comparisons, and
-  errors that carry a `code` and render as text, markdown or a component of your own
+  errors that contain a `code` and render as text, markdown or a component of your own
 - **Conditional logic**: visibility, enablement and values declared as statements over other fields
-- **Extended properties**: a field carries whatever your UI renders it with — a label, a hint, a width — declared
-  as a second type argument, checked by the compiler and read through `extra`
-- **Application state, not only forms**: the same elements hold state no screen shows — a cart, the filters of a list view, editor
-  settings — with the reactivity, transactions and validation a form has
-- **Plain-data views**: `view(group)` reads an element as plain properties — `form.address.city`,
-  `v-model="form.name"` — with the element itself as `form.$`
-- **Access**: `'editable'`, `'readonly'`, `'disabled'` and `'disabled-null'` decide whether an element accepts input
-  and what it contributes to the value its form sends — its own value, `null`, or nothing — and validation follows
-  what is sent; `visibility` states how it is drawn
+- **Extended properties**: a field holds the data your UI renders it with (a label, a hint, a width), declared as a
+  second type argument, checked by the compiler and read through `extra`
+- **Application state, not only forms**: the same elements hold state that no screen displays (a cart, the filters
+  of a list view, editor settings), with the same reactivity, transactions and validation as a form
+- **Plain-data views**: `view(group)` reads an element as plain properties (`form.address.city`,
+  `v-model="form.name"`), with the element itself as `form.$`
+- **Access**: `'editable'`, `'readonly'`, `'disabled'` and `'disabled-null'` determine whether an element accepts
+  input and what it sends in its form's value (its own value, `null`, or nothing); validation applies to what is
+  sent. `visibility` determines how it is drawn
 - **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds
 
 ## Installation
@@ -60,12 +61,12 @@ module, which Node supports. Type definitions ship with the build. The package s
 ## Basic Usage Example
 
 Every form element is created with the constructor: `new Field({ ... })`, `new Action({ ... })`,
-`new Group({ ... })`, `new List(template)`. Every read through it is tracked from that moment on, so reading
-`field.value` in a template tracks it and `field.value = x` re-renders — there is no `ref` to unwrap and no
-computed mirror to maintain. The element itself is not a Vue proxy, so watch what you read:
+`new Group({ ... })`, `new List(template)`. Every read through it is tracked, so reading `field.value` in a
+template tracks it and `field.value = x` re-renders. There is no `ref` to unwrap and no computed mirror to
+maintain. The element itself is not a Vue proxy, so `watch()` takes a getter of the member read:
 `watch(() => field.value, cb)`.
 
-Here's a simple example of how to create and use a form with fields and groups:
+Creating and using a form with fields and groups:
 
 ```typescript
 import { Field, Group } from '@dynamicforms/vue-forms';
@@ -104,16 +105,16 @@ const saveAction = new Action({
 await saveAction.execute({ form: personForm });  // 'saving { form: ... }'; saveAction.busy until it settles
 ```
 
-`Action` is one of the few members that speak about the interface, listed with their reasons in
-[Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface):
-it names a label and an icon because it exists as the element a form's submit and cancel hang on, and that minimal
-pair is what makes the concept legible. The shape is
-minimal because a UI library is expected to extend it — [`@dynamicforms/vuetify-inputs`](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html)
-widens the value with render options and per-breakpoint variants on top of it.
+`Action` is one of the few members that relate to the interface, listed with their reasons in
+[Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface).
+It has a label and an icon because it is the element a form's submit and cancel are attached to. The shape is
+minimal because a UI library is expected to extend it:
+[`@dynamicforms/vuetify-inputs`](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html)
+extends the value with render options and per-breakpoint variants.
 
 ## Events Example
 
-The library provides a powerful event system for field changes and other actions:
+Field changes and other events are handled by actions:
 
 ```typescript
 import { Field, Group, ValueChangedAction, ValidationError } from '@dynamicforms/vue-forms';
@@ -141,11 +142,11 @@ const form = new Group({
 }));
 ```
 
-Assigning `field.errors` directly replaces the whole array, including errors owned by validators — prefer a
-`Validator` (see below) when all you want is to add a validation rule.
+Assigning `field.errors` directly replaces the whole array, including errors added by validators. To add a
+validation rule, use a `Validator` (see below).
 
-Events are announced when the operation carrying them finishes, over the net change. Wrap several writes in a
-`transaction()` and they announce as one:
+Events are announced over the net change when the operation that contains them finishes. Several writes wrapped
+in a `transaction()` are announced as one:
 
 ```typescript
 import { transaction } from '@dynamicforms/vue-forms';
@@ -157,11 +158,11 @@ transaction(() => {
 });
 ```
 
-A throw out of the callback rolls the whole transaction back and rethrows, so a form is never left half-applied.
+An exception thrown from the callback rolls back the whole transaction and is rethrown.
 
 ## Built-in Validators
 
-The library provides several built-in validators for common validation scenarios:
+Built-in validators for common rules:
 
 ```typescript
 import { Field, Group, Validators } from '@dynamicforms/vue-forms';
@@ -206,28 +207,28 @@ const validatedForm = new Group({
 });
 ```
 
-Validators run eagerly — a field is validated the moment it is created, so a form built from empty required fields is
-invalid immediately. Use `field.touched` to decide when to show the errors in the UI. `Required` trims a string
-before it measures it, so a value of spaces alone is no value; `new Validators.Required({ trim: false })` keeps the
-spaces where they are part of what the field holds.
+Validators run eagerly: a field is validated when it is created, so a form built from empty required fields is
+invalid immediately. `field.touched` determines when the UI shows the errors. `Required` trims a string before
+measuring it, so a value of only spaces counts as empty; `new Validators.Required({ trim: false })` keeps spaces as
+part of the value.
 
-An error is data: a `code` — `required`, `pattern`, `min_length`, … — the `params` it failed with, and an English
+An error is data: a `code` (`required`, `pattern`, `min_length`, …), the `params` it failed with, and an English
 `detail`. The library does not render it. The application, or a UI library such as `@dynamicforms/vuetify-inputs`,
-turns it into text, translated by its code. A validator's last argument, `{ code, detail }`, replaces the code and
-the English detail it states.
+converts it into text, translated by its code. A validator's last argument, `{ code, detail }`, replaces the
+validator's default code and English detail.
 
-A validation function may return a `Promise`. `field.validating` is `true` while such a run is pending — on the
-field and on every container above it, so a form answers for the whole tree — and the verdict applied to the field
-is always the one belonging to the newest run, so a slow check cannot overwrite a faster one started after it. The
-function receives an `AbortSignal` as its fourth argument, which aborts the moment the run's verdict stops
-counting, so the request behind it can be called off. `form.busy` is the same question with the `Action.execute()`
-runs below it included — what a submit button binds to.
-`field.clearValidators()` drops the validators, empties the errors and cancels whatever validation is still in
-flight.
+A validation function may return a `Promise`. `field.validating` is `true` while such a run is pending, on the
+field and on every container above it, so a form's `validating` covers the whole tree. The result applied to the
+field is always that of the newest run, so a slow run cannot overwrite a faster one started after it. The function
+receives an `AbortSignal` as its fourth argument, which is aborted when the run's result is no longer used, so the
+request behind it can be cancelled. `form.busy` is `true` while an `Action.execute()` below the form has not settled. It
+does not include validation, so a submit button binds to both `busy` and `validating`.
+`field.clearValidators()` removes the validators, empties the errors and cancels any validation still in
+progress.
 
 ## Conditional Form Behavior
 
-Create dynamic forms with conditional logic using Statements and Operators:
+Conditional logic is declared with `Statement` and `Operator`:
 
 ```typescript
 import {
@@ -261,7 +262,7 @@ const isPerson = new Statement(form.fields.isCompany, Operator.EQUALS, false);
 
 ## Advanced Data Structures (Lists)
 
-Work with array data using the List component:
+`List` holds array data:
 
 ```typescript
 import { Field, Group, List } from '@dynamicforms/vue-forms';
@@ -280,7 +281,7 @@ const contactsList = new List(contactTemplate);
 contactsList.push({ name: 'John Doe', email: 'john@example.com', phone: '123-456-7890' });
 contactsList.push({ name: 'Jane Doe', email: 'jane@example.com', phone: '987-654-3210' });
 
-// Access list items: items hands out the rows, get() answers undefined for an invalid index
+// Access list items: items returns the rows, get() returns undefined for an invalid index
 console.log(contactsList.length);            // 2
 const firstContact = contactsList.get(0)!;
 console.log(firstContact.fields.name.value); // 'John Doe'
@@ -293,12 +294,12 @@ contactsList.remove(1);
 ```
 
 Every list mutation is tracked, so a `v-for` over `contactsList.items` re-renders on `push()`, `insert()`,
-`remove()`, `pop()` and `clear()` without any extra wiring. `items` hands out a frozen array of the live rows,
-rebuilt once per change of the set.
+`remove()`, `pop()` and `clear()` without extra wiring. `items` returns a frozen array of the live rows, rebuilt
+once per change of the set of rows.
 
 ## TypeScript Support
 
-The library is written in TypeScript and provides full type definitions:
+The library is written in TypeScript and ships full type definitions:
 
 ```typescript
 import { Field, Group, GenericFieldsInterface } from '@dynamicforms/vue-forms';
@@ -344,7 +345,7 @@ const email: string = userForm.fields.email.value;
 const age: number = userForm.fields.age.value;
 const darkMode: boolean = userForm.fields.preferences.fields.darkMode.value;
 
-// The serialized value is typed too, member by member. Every member is optional, because a 'disabled' member is
+// The group's value is typed too, member by member. Every member is optional, because a 'disabled' member is
 // left out of the object the group builds, and nullable, because a 'disabled-null' one is sent as null
 const values = userForm.value;
 const emailFromValue: string | null | undefined = values.email;
@@ -365,13 +366,13 @@ const defaults: IFieldParams<string> = { value: '', access: 'readonly' };
 const field = new Field(defaults);
 ```
 
-It admits only the writable members — `value`, `originalValue`, `access`, `visibility`, `touched`, `errors`,
-`validators` and `actions`, listed by `IFieldConstructorParams<T>`. Derived members such as `valid` and
+It accepts only the writable members (`value`, `originalValue`, `access`, `visibility`, `touched`, `errors`,
+`validators` and `actions`), listed by `IFieldConstructorParams<T>`. Derived members such as `valid` and
 `isChanged` are getters, and passing one is a compile error.
 
-`X` is what an element carries beyond those: declare it, and the parameter object takes those properties too,
-`extra` reads them back and `setExtendedValues()` writes them. It is how a form built from a server's description
-carries the label, hint or css class a UI layer binds to its inputs:
+`X` declares the additional properties an element holds: the parameter object accepts them, `extra` reads them
+and `setExtendedValues()` writes them. A form built from a server's description stores in them the label, hint or
+css class a UI layer binds to its inputs:
 
 ```typescript
 interface Presentation { label: string; hint?: string }
@@ -382,7 +383,7 @@ name.setExtendedValues({ hint: 'as in your passport' });
 ```
 
 `FieldBase<T>` is the abstract base of `Field`, `Action`, `Group` and `List`, and the type to use in your own
-signatures whenever you accept any form element:
+signatures that accept any form element:
 
 ```typescript
 import { FieldBase } from '@dynamicforms/vue-forms';
@@ -394,20 +395,14 @@ function isDirty(field: FieldBase): boolean {
 
 ## Documentation
 
-For more detailed documentation and examples, check out the [documentation](https://docs.velis.si/dynamicforms/vue-forms).
+Full documentation and examples: [documentation](https://docs.velis.si/dynamicforms/vue-forms).
 
-[The model](https://docs.velis.si/dynamicforms/vue-forms/guide/model) is the whole library in one page: elements,
-declarations, transactions, where validity comes from and how a `List` builds its rows.
+[The model](https://docs.velis.si/dynamicforms/vue-forms/guide/model) describes the whole library on one page:
+elements, declarations, transactions, where validity comes from and how a `List` builds its rows.
 
 Upgrading an existing project? The
-[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration) walks the journey from 0.6.1
-onwards, silent breaks first, and keeps a section per release for a project crossing one.
-
-## Conclusion
-
-`@dynamicforms/vue-forms` provides a clean, flexible approach to form management in Vue applications. By focusing on 
-data structures and state management rather than UI components, it offers unparalleled flexibility while maintaining 
-a simple, intuitive API.
+[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration) has one section per release, newest
+first, from 3.0.0 back to 0.6.0, and a combined section for upgrading from a release before 0.12.
 
 ## License
 

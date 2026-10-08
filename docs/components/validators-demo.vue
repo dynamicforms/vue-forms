@@ -162,9 +162,9 @@ const translate = formatParams(t, (value) => {
 });
 
 // The text of an error: the demo's message for its code in the current language, with the params substituted. The
-// only list of allowed values in the demo is the roles, named by the demo rather than by their codes. A code the demo
-// has no message for shows the error's English detail. The function is called on every render, so the errors already
-// on the fields follow the language and the checkbox without revalidating.
+// only list of allowed values in the demo is the roles, shown by their translated names. A code the demo has no
+// message for shows the error's English detail. The function is called on every render, so the errors already on
+// the fields follow the language and the checkbox without revalidating.
 function errorText(error) {
   const params =
     error.code === 'in_allowed_values'
@@ -238,10 +238,10 @@ const validatedForm = new Group({
   })
 });
 
-// A group forms its verdict over its members, and busy answers for the whole tree: true while an asynchronous
-// validation is in flight anywhere below the group. Both reads are tracked, so these recompute on their own.
+// A group's validity is computed over its members. validating is true while an asynchronous validation runs
+// anywhere below the group, busy while an Action.execute() does. Both reads are reactive.
 const formValid = computed(() => validatedForm.valid);
-const formBusy = computed(() => validatedForm.busy);
+const formBusy = computed(() => validatedForm.validating || validatedForm.busy);
 
 // Function to reset the form
 function resetForm() {

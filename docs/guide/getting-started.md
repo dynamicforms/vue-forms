@@ -1,6 +1,6 @@
 # Getting Started
 
-See [Rationale](/guide/rationale) for what the library is trying to do and why it is shaped the way it is.
+[Rationale](/guide/rationale) describes the library's purpose and design.
 
 ## Installation
 
@@ -11,13 +11,13 @@ npm install @dynamicforms/vue-forms
 The package is ESM-only and requires Node 22 or newer. A CommonJS consumer reaches it through `require()` of an
 ES module, which Node supports.
 
-The library ships no components and no styles. The few members that speak about the interface, such as
+The library ships no components and no styles. The few members that relate to the interface, such as
 `visibility` and `enabled`, are listed with the reason for each in
 [What the library carries for the interface](/guide/rationale#what-the-library-carries-for-the-interface).
 
 ## Basic Usage
 
-Here's how to create a simple form with `@dynamicforms/vue-forms`:
+A simple form:
 
 ```typescript
 import { Field, Group } from '@dynamicforms/vue-forms';
@@ -31,14 +31,15 @@ const personForm = new Group({
 });
 ```
 
-Every form element — `Field`, `Action`, `Group` and `List` — is created with `new`, and every read through it is
-tracked from that moment on: reading `personForm.value` or `personForm.fields.age.enabled` in a template, in a
-`computed` or in a `watchEffect` subscribes to it, and plain assignment re-renders. The element itself is not a Vue
-proxy, so watch what you read — `watch(() => field.value, cb)` — rather than passing the element as the source.
+Every form element (`Field`, `Action`, `Group` and `List`) is created with `new`, and every read through it is
+tracked: reading `personForm.value` or `personForm.fields.age.enabled` in a template, a `computed` or a
+`watchEffect` subscribes to it, and a plain assignment re-renders. The element itself is not a Vue proxy, so
+`watch()` takes a getter of the member read, `watch(() => field.value, cb)`; the element itself as the source
+subscribes to nothing.
 
 ## Using with Vue Components
 
-You can bind the form fields to any Vue component:
+Form fields bind to any Vue component:
 
 ```vue
 <template>
@@ -66,12 +67,12 @@ const personForm = new Group({
 </script>
 ```
 
-A field whose `access` is `'disabled'` is omitted from `group.value` (use `group.fullValue` if you need every field
-whatever its access), and it still takes a write to `value`, so loading a record into the form reaches it.
+A field whose `access` is `'disabled'` is omitted from `group.value` (`group.fullValue` contains every field
+regardless of access). It still accepts a write to `value`, so loading a record into the form sets it.
 
 ## Validation
 
-Attach validators to a field and render the resulting errors yourself:
+Validators are attached to a field; the application renders the resulting errors:
 
 ```vue
 <template>
@@ -88,16 +89,17 @@ const username = new Field({ value: '', validators: [new Validators.Required()] 
 </script>
 ```
 
-Validators run eagerly — the field above is already invalid right after creation, because it has no value. That is why
-the template checks `touched` before showing the errors. `Required` trims a string before measuring it, so a value
-of spaces alone is no value; pass `new Validators.Required({ trim: false })` where the spaces belong to the field.
+Validators run eagerly: the field above is invalid immediately after creation because it has no value. The
+template therefore checks `touched` before showing the errors. `Required` trims a string before measuring it, so a
+value of only spaces counts as empty; `new Validators.Required({ trim: false })` keeps spaces as part of the value.
 
 `@dynamicforms/vuetify-inputs` renders `field.errors` in its inputs.
 
 ## Error messages and translation
 
-An error is data: a `code` naming what failed, `params` holding the values it failed with, and an English `detail`.
-The library ships no translations, picks no locale and renders nothing. The application turns an error into text:
+An error is data: a `code` identifying the failure, `params` holding the values it failed with, and an English
+`detail`. The library ships no translations, selects no locale and renders nothing. The application converts an
+error into text:
 
 ```typescript
 import { formatParams } from '@dynamicforms/translatable';
@@ -114,15 +116,15 @@ const errorText = (error) => (te(`errors.${error.code}`) ? tf(`errors.${error.co
 { "errors": { "min_value": "Vrednost mora biti vsaj {minValue}", "required": "Prosimo, vnesite vrednost" } }
 ```
 
-A function called on every render follows a locale switch without the field revalidating. Falling back to `detail`
-lets an application adopt a locale before it translates every code. The codes, their params and their English
-details are listed under [Error codes](/api/validators#error-codes). An error the server returned has the same shape
-when it is built as a [`ValidationError`](/api/validators#validationerror) from the `detail_code`, `detail_params`
-and `detail` a `@dynamicforms/fastapi-viewsets` server answers with. The [validators demo](/examples/validators)
-renders its errors in eight languages, with and without markdown, this way.
+A function called on every render reflects a locale switch without revalidating the field. Falling back to
+`detail` allows an application to use a locale before every code is translated. The codes, their params and their
+English details are listed under [Error codes](/api/validators#error-codes). A server error has the same shape when
+it is built as a [`ValidationError`](/api/validators#validationerror) from the `detail_code`, `detail_params` and
+`detail` a `@dynamicforms/fastapi-viewsets` server returns. The [validators demo](/examples/validators) renders its
+errors this way in eight languages, with and without markdown.
 
-A validator takes `{ code, detail }` as its last argument. A field that needs its own text for a failure gets its own
-code, and the application translates that code like any other:
+A validator takes `{ code, detail }` as its last argument. A field that needs its own text for a failure uses its
+own code, which the application translates like any other:
 
 ```typescript
 new Validators.Required({ code: 'role_required', detail: 'Select a role' });
@@ -130,8 +132,8 @@ new Validators.Required({ code: 'role_required', detail: 'Select a role' });
 
 ## Versioning and support
 
-The package follows Semantic Versioning: a breaking change goes in the **major** version, so `2.x` → `3.0.0` may
-break your code and a minor or patch release does not. Every breaking change is listed in the
+The package follows Semantic Versioning: breaking changes are released only in a **major** version, so `2.x` →
+`3.0.0` may break existing code and a minor or patch release does not. Every breaking change is listed in the
 [migration guide](/guide/migration) with before/after code and in the [changelog](/guide/changelog).
 
 | | Supported |
@@ -139,16 +141,15 @@ break your code and a minor or patch release does not. Every breaking change is 
 | Vue | `^3.5.2` |
 | Node | 22 or newer |
 | Module formats | ESM, with type definitions |
-| Browsers | whatever your bundler targets — the build is `es2022` and uses no browser API of its own |
+| Browsers | whatever your bundler targets; the build is `es2022` and uses no browser API of its own |
 
 ## Next Steps
 
-[The model](/guide/model) is the whole library in one page — elements, declarations, transactions, validity, and
-how a `List` builds its rows. The [Cookbook](/guide/cookbook) has short recipes for what a form needs next —
-loading and submitting a record, server errors, optional sections, fields that depend on a type. The
-[Examples](/examples/basic-form) section shows the patterns in running forms and the API reference names every
-member: [Field](/api/field), [Group](/api/group) and
-[Validators](/api/validators).
+[The model](/guide/model) describes the whole library on one page: elements, declarations, transactions, validity,
+and how a `List` builds its rows. The [Cookbook](/guide/cookbook) has short recipes for common form tasks: loading
+and submitting a record, server errors, optional sections, and fields that depend on a type. The
+[Examples](/examples/basic-form) section shows the patterns in working forms, and the API reference documents every
+member: [Field](/api/field), [Group](/api/group) and [Validators](/api/validators).
 
-Upgrading an existing project? The [migration guide](/guide/migration) has a section per release, newest first,
-starting with 1.x to 2.0.
+Upgrading an existing project? The [migration guide](/guide/migration) has one section per release, newest first,
+from 3.0.0 back to 0.6.0, and a combined section for upgrading from a release before 0.12.
