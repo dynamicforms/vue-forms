@@ -149,24 +149,34 @@ interface SubmitResult<R = any> {
 ```
 
 A second `execute()` while a submit of the same action is running resolves with a `SubmitRefusedException` whose
-`reason` is `'running'` and does not call `handler`. A `handler` that throws or rejects makes `execute()` reject with that error, and the target is
-not changed. Writing a server's field errors to the fields is the handler's: it writes them to `field.errors`
-before it throws, as in [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned).
+`reason` is `'running'` and does not call `handler`. Writing a server's field errors to the fields is the handler's:
+it writes them to `field.errors` before it throws, as in
+[Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned).
 
 `canExecute()` is `true` while the target is valid and not `pending`, so `Action.executable` is `false` while the
 form is invalid, a validation is running or the submit itself is running.
 
-`SubmitRefusedException` extends `AbortEventHandlingException`. Its `reason` (`SubmitRefusalReason`) states why the
-submit was refused:
+Every outcome of a submit is the resolved value of `execute()` (and of `Container.confirm()`):
 
-| `reason` | Cause |
+| Resolved value | Outcome |
 |---|---|
-| `'invalid'` | the target is invalid after its validation finished |
-| `'running'` | a submit of the same action is running |
+| `SubmitResult` | the handler returned; the target is rebound to the result (see `options.rebind`) |
+| `SubmitRefusedException`, `reason` `'invalid'` | the target is invalid after its validation finished; the handler was not called |
+| `SubmitRefusedException`, `reason` `'running'` | a submit of the same action is running; the handler was not called |
+| `SubmitFailedException` | the handler threw or rejected; `cause` is the error, and the target is not changed |
+
+Both exceptions extend `AbortEventHandlingException`, which `execute()` resolves with. `execute()` rejects only
+where something other than the submit fails, such as another handler in the chain or a `target` callback that
+returns no element.
 
 ```typescript
 const result = await form.confirm();
-if (result instanceof SubmitRefusedException && result.reason === 'invalid') form.touched = true;
+if (result instanceof SubmitFailedException) reportError(result.cause);
+else if (result instanceof SubmitRefusedException) {
+  if (result.reason === 'invalid') form.touched = true;
+} else if (result) {
+  const { sent, received } = result;
+}
 ```
 
 ## `RejectAction(target)`

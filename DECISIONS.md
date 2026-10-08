@@ -691,4 +691,8 @@ the bar.
 **Ambiguity executes nothing.** A form with sub-forms that each carry a confirm action does not know which of them
 Enter means; running the first one found would run code the form did not choose.
 
+**Every outcome of a submit resolves.** A refused submit and a failed handler end with `SubmitRefusedException` and
+`SubmitFailedException`, both `AbortEventHandlingException`, which `execute()` resolves with (D-033). A caller reads
+one resolved value; `execute()` rejects only where something other than the submit fails.
+
 **Rejected: `name` on `Action`.** An action in a container is named by its key (`fieldName`).

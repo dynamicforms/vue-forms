@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { watch } from 'vue';
 
 import { Action } from './action';
-import { ExecuteAction, RejectAction, SubmitAction, SubmitRefusedException } from './actions';
+import { ExecuteAction, RejectAction, SubmitAction, SubmitFailedException, SubmitRefusedException } from './actions';
 import { Field } from './field';
 import { type FieldBase } from './field-base';
 import { Group } from './group';
@@ -268,14 +268,17 @@ describe('SubmitAction', () => {
     expect(handler).toHaveBeenCalledWith({ name: 'a' }, form);
   });
 
-  it('rejects with the error the handler throws and leaves the target unchanged', async () => {
+  it('resolves with SubmitFailedException carrying the handler error, and leaves the target as it is', async () => {
     const failing = new SubmitAction(holder, async () => {
       throw new Error('offline');
     });
     const form = new Group({ name: new Field({ value: 'Ada' }), save: new Action({ actions: [failing] }) });
     form.fields.name.value = 'Grace';
 
-    await expect(form.fields.save.execute()).rejects.toThrow('offline');
+    const result = await form.fields.save.execute();
+
+    expect(result).toBeInstanceOf(SubmitFailedException);
+    expect((result.cause as Error).message).toBe('offline');
     expect(form.fields.name.value).toBe('Grace');
   });
 

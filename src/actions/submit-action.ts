@@ -71,6 +71,17 @@ export class SubmitRefusedException extends AbortEventHandlingException {
 }
 
 /**
+ * The exception a `SubmitAction` ends with when its handler throws or rejects; `cause` is what the handler threw.
+ * `execute()` resolves with it, so a failed submit, a refused one and a successful one all arrive as the resolved
+ * value.
+ */
+export class SubmitFailedException extends AbortEventHandlingException {
+  constructor(cause: unknown) {
+    super('the submit handler failed', { cause });
+  }
+}
+
+/**
  * Sends the value of `target` to `handler`. On `execute()` it:
  *
  * 1. waits until `target.validating` is false, so a validation started in the same event is finished. It does not
@@ -85,8 +96,9 @@ export class SubmitRefusedException extends AbortEventHandlingException {
  * A second `execute()` while a submit of the same action is running is refused with a `SubmitRefusedException`
  * with `reason` `'running'`.
  *
- * A `handler` that throws or rejects makes `execute()` reject with that error; the target is not changed. Mapping
- * a server's field errors to the fields is the handler's: it writes them to `field.errors` before it throws.
+ * A `handler` that throws or rejects ends the submit with a `SubmitFailedException` whose `cause` is the error;
+ * `execute()` resolves with it and the target is not changed. Mapping a server's field errors to the fields is the
+ * handler's: it writes them to `field.errors` before it throws.
  *
  * `canExecute()` is true while the target is valid and not `pending`, so `Action.executable` disables a submit
  * button while the form is invalid or a validation is running.
@@ -109,7 +121,12 @@ export class SubmitAction<R = any> extends TargetedExecuteAction {
         await validated(element);
         if (!element.valid) throw new SubmitRefusedException('invalid');
         const sent = element.value;
-        const received = await handler(sent, element);
+        let received: R;
+        try {
+          received = await handler(sent, element);
+        } catch (error) {
+          throw new SubmitFailedException(error);
+        }
         if (received !== undefined && options.rebind !== false) element.rebind(received);
         await supr(action, params);
         return { action, sent, received };
