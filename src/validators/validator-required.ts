@@ -1,15 +1,8 @@
-import { isArray, isObject, isString } from 'lodash-es';
+import { isString } from 'lodash-es';
 import { unref } from 'vue';
 
 import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
-
-function toLength(a: any): number {
-  if (a == null) return 0;
-  if (isArray(a)) return a.length;
-  if (isString(a)) return a.length;
-  if (isObject(a) && Object.getPrototypeOf(a) === Object.prototype) return Object.keys(a).length;
-  return String(a).length;
-}
+import { toLength } from './value-checks';
 
 /** How the value is read before its length is measured, and the error's code and detail. */
 export interface RequiredOptions extends ValidationErrorOptions {

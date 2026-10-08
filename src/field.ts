@@ -69,7 +69,8 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
     const oldValue = this._value;
     // the write is applied whatever the access: access determines what the field sends and whether an input
     // accepts typing, and a record loaded into the form reaches every member
-    if (oldValue === newValue) return;
+    // NaN is not === to itself, so a write of NaN over NaN is compared as the same value, as Array.includes does
+    if (oldValue === newValue || (Number.isNaN(oldValue) && Number.isNaN(newValue))) return;
     transactional((tx) => {
       tx.touch(this);
       this._value = newValue;

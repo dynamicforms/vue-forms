@@ -17,8 +17,8 @@ exists.
 3.0.0 removes rendering from the library. An error is data — `code`, `params` and an English `detail` — and the
 application, or a UI library such as `@dynamicforms/vuetify-inputs`, renders it. The library ships no components,
 no styles and no configuration, and no longer depends on `@dynamicforms/translatable`. An `Action` is a command and
-sends nothing. Two changes are silent: the renamed error codes and the actions left out of a container's value,
-which come first. There is a [checklist](#checklist-for-3-0-0) at the end of this section.
+sends nothing. Four changes are silent and come first: the actions left out of a container's value, the validators
+that pass an empty value, the access and visibility events that fire at commit, and the renamed error codes. There is a [checklist](#checklist-for-3-0-0) at the end of this section.
 
 ### An action sends nothing
 
@@ -33,6 +33,27 @@ form.value;   // 2.0: { name: 'a', save: { label: 'Save' } }   3.0: { name: 'a' 
 
 An action's label change no longer makes its container `isChanged`, validators registered on an action do not
 run, and assigning or rebinding the container does not change its actions.
+
+### Validators other than `Required` pass an empty value
+
+`MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `Pattern` and `InAllowedValues`
+pass `null`, `undefined`, `''`, `[]` and `{}`. Refusing an empty value is `Required`'s.
+
+```typescript
+new Field({ value: undefined, validators: [new Validators.MinValue(5)] }).valid;
+// 2.0: false   3.0: true; add Validators.Required() where an empty value is refused
+```
+
+`MinValue`, `MaxValue` and `ValueInRange` refuse a value that cannot be compared with the bound: a value of another
+type than the bound (`'abc'` against `5`), `NaN` and an invalid date. In 2.0, `NaN` and `'abc'` passed `MinValue(5)`.
+
+### Access, enabled and visibility events fire at commit
+
+`AccessChangedAction`, `EnabledChangedAction` and `VisibilityChangedAction` fire when the transaction commits, once,
+with the net change, as `ValueChangedAction` does. In 2.0 they fired inside the setter, once per write, also for
+writes a rollback undid. A handler that read the change before the next statement of the code that wrote it now runs
+after the transaction; outside an explicit `transaction()` each write is its own transaction, so it still runs before
+the write returns.
 
 ### Error codes are renamed
 
@@ -140,6 +161,9 @@ app.use(forms, { useMarkdownInValidators: false });
 6. Import `MessagesWidget`, `MdString`, `RenderableValue` and the render types from the UI library instead.
 7. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
 8. Read an action's label from the action, not from the form's value; remove validators registered on actions.
+9. Add `Validators.Required()` to fields that relied on another validator to refuse an empty value.
+10. Check `AccessChangedAction`, `EnabledChangedAction` and `VisibilityChangedAction` handlers that relied on firing
+    inside an explicit `transaction()`.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

@@ -11,8 +11,8 @@ const ConditionalStatementActionClassIdentifier = Symbol('ConditionalStatementAc
 
 type ConditionalExecutorFn = (field: FieldBase, currentResult: boolean, previousResult: boolean | undefined) => void;
 
-/** The action's state for one record: the last result of the statement over that record. */
-interface ConditionalRecordState {
+/** The action's state for one target: the last result applied to it. */
+interface ConditionalTargetState {
   lastResult: boolean | undefined;
 }
 
@@ -89,20 +89,23 @@ export class ConditionalStatementAction extends ValueChangedAction {
   }
 
   /**
-   * Re-evaluates the statement over one record and applies the result if it changed. The result is recorded before
-   * the executor runs, because an executor that writes a value re-enters through that value's eager pass, which
-   * must see the result being applied. Returns whether the record contains a target for this action; false means
-   * the record is not assembled yet.
+   * Re-evaluates the statement over one record and applies the result to every target whose last applied result
+   * differs, so a target registered after the result was applied to another one in the same record receives it.
+   * The result is recorded before the executor runs, because an executor that writes a value re-enters through that
+   * value's eager pass, which must see the result being applied. Returns whether the record contains a target for
+   * this action; false means the record is not assembled yet.
    */
   private applyIn(scope: FieldBase): boolean {
     const targets = this.targetsIn(scope);
     if (targets.length === 0) return false;
-    const state = this.state(scope, (): ConditionalRecordState => ({ lastResult: undefined }));
     const currentResult = this.statement.evaluate(scope);
-    if (currentResult === state.lastResult) return true;
-    const previousResult = state.lastResult;
-    state.lastResult = currentResult;
-    targets.forEach((target) => this.conditionalExecutor(target, currentResult, previousResult));
+    targets.forEach((target) => {
+      const state = this.state(target, (): ConditionalTargetState => ({ lastResult: undefined }));
+      if (currentResult === state.lastResult) return;
+      const previousResult = state.lastResult;
+      state.lastResult = currentResult;
+      this.conditionalExecutor(target, currentResult, previousResult);
+    });
     return true;
   }
 

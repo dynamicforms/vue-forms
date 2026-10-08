@@ -137,7 +137,10 @@ list.rebind(null);                   // empty: every row released
 ```
 
 Each call sets `originalValue` to the new data, resets `touched` to `false`, clears the element's own errors and
-re-runs validation, so the validation result matches the new data. `List.clear()` releases the rows and changes none
+re-runs validation, so the validation result matches the new data. A reset restores data, not state: `access` and
+`visibility` stay as they are. `group.originalValue` leaves a `'disabled'` member out, and the member is put back to
+its own baseline. A `'disabled'` row of a list is not in `list.originalValue`, so `list.rebind(list.originalValue)`
+does not restore it. `List.clear()` releases the rows and changes none
 of that state; use `list.rebind(null)` where a new validation result is needed. `group.value = {}` is not a reset:
 the setter patches by key, and a key missing from the object keeps its value.
 

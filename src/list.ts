@@ -151,9 +151,9 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       // group would keep its rows while every sibling field was cleared
       if (newValue == null) {
         this.releaseRows();
-        this.state.rows = null;
+        this.raw.rows = null;
       } else {
-        const previous = this.state.rows ?? [];
+        const previous = this.raw.rows ?? [];
         // the new rows are built in a separate array and installed together: writing a row runs its validators, and
         // a validator that reads this list during the loop must not see an unfilled position
         const rows: R[] = new Array(newValue.length);
@@ -174,7 +174,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
           }
         }
         for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
-        this.state.rows = rows;
+        this.raw.rows = rows;
       }
       if (List.rowsDiffer(held, this.raw.rows)) this.rowsChanged();
       this.bumpValueVersion();
@@ -188,7 +188,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
 
     const value: unknown[] = [];
-    (this.state.rows ?? []).forEach((row) => {
+    (this.rows ?? []).forEach((row) => {
       switch (this.childSerializesAs(row, 'value')) {
         case 'value':
           value.push(row.value);
@@ -257,12 +257,23 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return res;
   }
 
+  /**
+   * The rows, read so that the caller depends on the set of rows: the read of `rowsVersion` is tracked, and the
+   * array itself is held outside Vue's reactivity. A reactive array would route every element a `splice()` shifts
+   * through the proxy, so inserting or removing a row would cost a proxied write per row after it. Every change
+   * of the set of rows increments `rowsVersion`.
+   */
+  private get rows(): R[] | null {
+    void this.state.rowsVersion;
+    return this.raw.rows;
+  }
+
   protected get members(): FieldBase[] {
     return this.raw.rows ?? [];
   }
 
   protected get children(): readonly FieldBase[] {
-    return this.state.rows ?? [];
+    return this.rows ?? [];
   }
 
   /**
@@ -270,7 +281,9 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
    * whatever its access, and every field of a group row. A binding or a reset copies it.
    */
   get fullValue(): ListFullValue<R> {
-    return (this.state.rows ?? []).map((row) => row.fullValue);
+    return (this.rows ?? [])
+      .filter((row) => this.childSerializesAs(row, 'fullValue') !== 'omit')
+      .map((row) => row.fullValue);
   }
 
   /**
@@ -278,7 +291,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
    * added or removed.
    */
   get length(): number {
-    return this.state.rows?.length ?? 0;
+    return this.rows?.length ?? 0;
   }
 
   /**
@@ -302,25 +315,26 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   get(index: number): R | undefined {
-    return this.state.rows != null ? this.state.rows[index] : undefined;
+    return this.rows?.[index];
   }
 
   push(item: any): number {
-    return this.insert(item, this.state.rows?.length ?? 0) + 1;
+    return this.insert(item, this.raw.rows?.length ?? 0) + 1;
   }
 
   pop(): R | undefined {
-    return this.remove((this.state.rows?.length ?? 0) - 1);
+    return this.remove((this.raw.rows?.length ?? 0) - 1);
   }
 
   remove(index: number): R | undefined {
     let removedItem: R | undefined;
     transactional((tx) => {
-      if (this.state.rows == null || index < 0 || this.state.rows.length <= index) return;
+      const rows = this.raw.rows;
+      if (rows == null || index < 0 || rows.length <= index) return;
 
       // the row array is recorded before the splice, so a rollback restores the rows
       tx.touch(this);
-      const row = this.state.rows.splice(index, 1)?.[0];
+      const row = rows.splice(index, 1)?.[0];
       if (!row) return;
 
       // the removed row is returned as is: releaseChild clears its back-reference, so another container can take
@@ -344,20 +358,20 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     let position = 0;
     transactional((tx) => {
       tx.touch(this);
-      if (this.state.rows == null) this.state.rows = [];
+      const rows = (this.raw.rows ??= []);
       // a negative index counts back from the end and is clamped at the start, as in splice, so the announced and
       // returned position is the one the item occupies
-      position = index < 0 ? Math.max(this.state.rows.length + index, 0) : index;
-      while (this.state.rows.length < position) {
+      position = index < 0 ? Math.max(rows.length + index, 0) : index;
+      while (rows.length < position) {
         // an index beyond the end is reached by adding padding items
         const itm = this.createPaddingItem(item);
         // push returns the new length, while the event carries the index of the item that was added
-        const idx = this.state.rows.push(itm) - 1;
+        const idx = rows.push(itm) - 1;
         this.bumpValueVersion();
         tx.recordStructural(this, { actionClass: ListItemAddedAction, item: itm, index: idx });
       }
       const itm = this.processSetValueItem(item);
-      this.state.rows.splice(position, 0, itm);
+      rows.splice(position, 0, itm);
 
       tx.recordStructural(this, { actionClass: ListItemAddedAction, item: itm, index: position });
       // one item more is a different set, so the value change is announced without a comparison
@@ -371,15 +385,15 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
   /** Releases every row from this list, so a later validity change of a row does not affect its invalid count. */
   private releaseRows(): void {
-    this.state.rows?.forEach((row) => this.releaseChild(row));
+    this.raw.rows?.forEach((row) => this.releaseChild(row));
   }
 
   clear() {
     transactional((tx) => {
-      const hadItems = (this.state.rows?.length ?? 0) > 0;
+      const hadItems = (this.raw.rows?.length ?? 0) > 0;
       tx.touch(this);
       this.releaseRows();
-      this.state.rows = null;
+      this.raw.rows = null;
       // clearing a list without rows does not change its rows, so the array `items` returns is kept
       if (hadItems) this.rowsChanged();
       this.bumpValueVersion();

@@ -18,9 +18,9 @@ describe('MinValue Validator', () => {
     expect(field.errors.length).toBe(1);
     expect(field.errors[0]).toBeInstanceOf(ValidationError);
 
+    // an empty value is Required's to refuse
     field.value = undefined;
-    expect(field.errors.length).toBe(1);
-    expect(field.errors[0]).toBeInstanceOf(ValidationError);
+    expect(field.errors.length).toBe(0);
   });
 
   it('returns no error when value equals minimum', () => {

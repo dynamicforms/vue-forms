@@ -167,6 +167,15 @@ interface ValidationErrorOptions {
 The options do not change the params. A `{name}` placeholder that names no param stays in the detail unchanged. The
 application renders the error; see [Error messages and translation](/guide/getting-started#error-messages-and-translation).
 
+**Empty values.** Every built-in validator except `Required` and `CompareTo` passes an empty value: `null`,
+`undefined`, an empty string, an empty array or an empty plain object. Refusing an empty value is `Required`'s job, so
+an optional field carries only the other validators and a mandatory one adds `Required`:
+
+```typescript
+new Field({ value: null, validators: [new Validators.MinValue(18)] });                             // valid while empty
+new Field({ value: null, validators: [new Validators.Required(), new Validators.MinValue(18)] });  // invalid while empty
+```
+
 `InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` take a type argument, which types a
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
 `new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure any value
@@ -203,7 +212,7 @@ interface RequiredOptions extends ValidationErrorOptions {
 
 ### `new Validators.Pattern(pattern, options?)`
 
-Fails when the string representation of the value does not match `pattern`. The value is converted with `String(value)` before testing, so `undefined` is tested as the string `"undefined"`. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes and flags (`/^\d{4}$/`). Avoid the `g` flag: with it, `RegExp.test` keeps `lastIndex` between calls.
+Fails when the string representation of a non-empty value does not match `pattern`; the value is converted with `String(value)` before testing. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes and flags (`/^\d{4}$/`). The validator tests with a copy of `pattern` without the `g` and `y` flags, so every value is tested from its start, and the expression passed in is not modified.
 
 ```typescript
 new Validators.Pattern(/^\d{4}$/, { detail: 'Must be a 4-digit number' })
@@ -218,7 +227,7 @@ new Validators.Pattern(/^\d{4}$/, { detail: 'Must be a 4-digit number' })
 
 ### `new Validators.MinValue(minValue, options?)`
 
-Fails when `value < minValue`, and also when the value is `undefined` (the check is strictly `=== undefined`, so `null` is not caught by it). For optional fields register the validator conditionally or write your own `Validator`.
+Fails when a non-empty value is smaller than `minValue`, or cannot be compared with it. A number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -229,7 +238,7 @@ Fails when `value < minValue`, and also when the value is `undefined` (the check
 
 ### `new Validators.MaxValue(maxValue, options?)`
 
-Fails when `value > maxValue`, and also when the value is `undefined` (the check is strictly `=== undefined`, so `null` is not caught by it). For optional fields register the validator conditionally or write your own `Validator`.
+Fails when a non-empty value is larger than `maxValue`, or cannot be compared with it. A number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -240,7 +249,7 @@ Fails when `value > maxValue`, and also when the value is `undefined` (the check
 
 ### `new Validators.ValueInRange(minValue, maxValue, options?)`
 
-Fails when `value < minValue` or `value > maxValue`, and also when the value is `undefined` (the check is strictly `=== undefined`, so `null` is not caught by it). For optional fields register the validator conditionally or write your own `Validator`.
+Fails when a non-empty value is smaller than `minValue` or larger than `maxValue`, or cannot be compared with either. A number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 ```typescript
 new Validators.ValueInRange(0, 100, { detail: 'Must be between 0 and 100' })
@@ -256,7 +265,7 @@ new Validators.ValueInRange(0, 100, { detail: 'Must be between 0 and 100' })
 
 ### `new Validators.MinLength(minLength, options?)`
 
-Fails when the length of the value is less than `minLength`. Supports strings, arrays, and plain objects.
+Fails when the length of a non-empty value is less than `minLength`. Supports strings, arrays, and plain objects.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -267,7 +276,7 @@ Fails when the length of the value is less than `minLength`. Supports strings, a
 
 ### `new Validators.MaxLength(maxLength, options?)`
 
-Fails when the length of the value exceeds `maxLength`.
+Fails when the length of a non-empty value exceeds `maxLength`.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -278,7 +287,7 @@ Fails when the length of the value exceeds `maxLength`.
 
 ### `new Validators.LengthInRange(minLength, maxLength, options?)`
 
-Fails when the length of the value is outside `[minLength, maxLength]`.
+Fails when the length of a non-empty value is outside `[minLength, maxLength]`.
 
 ```typescript
 new Validators.LengthInRange(10, 200, { detail: 'Must be between 10 and 200 characters' })
@@ -294,7 +303,7 @@ new Validators.LengthInRange(10, 200, { detail: 'Must be between 10 and 200 char
 
 ### `new Validators.InAllowedValues(allowedValues, options?)`
 
-Fails when the value is not in `allowedValues`.
+Fails when a non-empty value is not in `allowedValues`.
 
 ```typescript
 new Validators.InAllowedValues(['admin', 'user', 'guest'])

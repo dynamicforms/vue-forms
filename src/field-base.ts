@@ -23,6 +23,7 @@ import {
   TxAnnounceValue,
   TxCapture,
   TxRestore,
+  TxAnnounceFlags,
   TxSettleValidity,
   type TxSnapshot,
   type TxStructuralEvent,
@@ -45,6 +46,20 @@ const bindingsMade = new WeakMap<object, Set<WeakRef<FieldBase>>>();
  * the element's members and its extended properties.
  */
 const registrationParams: ReadonlySet<string> = new Set(['validators', 'actions']);
+
+/**
+ * Whether `key` names an accessor (a getter, a setter or both) declared on `element`'s prototype chain below
+ * `Object.prototype`. A construction parameter with such a key is assigned to the element; any other key is an
+ * extended property.
+ */
+function accessorOf(element: object, key: string): boolean {
+  for (let proto = Object.getPrototypeOf(element); proto && proto !== Object.prototype;) {
+    const descriptor = Object.getOwnPropertyDescriptor(proto, key);
+    if (descriptor) return descriptor.get !== undefined || descriptor.set !== undefined;
+    proto = Object.getPrototypeOf(proto);
+  }
+  return false;
+}
 
 /** formats a value for an error message: a string quoted, anything else through String() */
 const describe = (value: unknown) => (typeof value === 'string' ? `'${value}'` : String(value));
@@ -231,15 +246,16 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     const extended: Record<string, any> = Object.create(null);
     Object.entries(params).forEach(([key, value]) => {
       if (registrationParams.has(key)) return;
-      if (!(key in this) || Object.hasOwn(Object.prototype, key)) extended[key] = value;
+      if (!accessorOf(this, key)) extended[key] = value;
     });
     return extended as Partial<X>;
   }
 
   /**
-   * Applies a parameter object: keys that are members of the element are assigned to the element and the other keys
-   * become its extended properties. Assigning a getter-only member throws a TypeError, so a parameter object that
-   * bypasses the type system and contains `valid` or `parent` throws.
+   * Applies a parameter object: a key that names an accessor of the element is assigned to the element, and every
+   * other key becomes an extended property. A key named like a method or another non-accessor member (`validate`,
+   * `bind`, `settled`) is stored in `extra` and leaves the member as it is. Assigning a getter-only accessor throws a
+   * TypeError, so a parameter object that bypasses the type system and contains `valid` or `parent` throws.
    */
   protected assignParams(params: object): void {
     refuseEnabled(params);
@@ -745,9 +761,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       const written = alteredValue ?? newValue;
       if (!isVisibility(written))
         throw new Error(`${describe(written)} is not a visibility: ${listOf(visibilityValues)}`);
+      // a handler that returned the current value refused the write
+      if (written === oldValue) return;
       tx.touch(this);
+      // the commit announces the net change: the value before the transaction's first write against the last one
+      if (this.#raw.announcedVisibility === undefined) this.#raw.announcedVisibility = oldValue;
       this.#state.visibility = written;
-      this.boundActions?.trigger(VisibilityChangedAction, this, written, oldValue);
+      tx.markFlagsDirty(this);
     });
   }
 
@@ -797,8 +817,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // what the element sends changed, so the commit compares its contribution and that of every container above
       // it again; what any of them holds did not change
       this.contributionChanged(tx, counted);
-      this.boundActions?.trigger(AccessChangedAction, this, written, oldValue);
-      if (this.enabled !== wasEnabled) this.boundActions?.trigger(EnabledChangedAction, this, this.enabled, wasEnabled);
+      if (this.#raw.announcedAccess === undefined) this.#raw.announcedAccess = oldValue;
+      tx.markFlagsDirty(this);
     });
   }
 
@@ -1052,6 +1072,33 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * without a value change (an asynchronous validator, an error written by hand) makes the container recompute its
    * own. The transaction settles the deepest element first, so a container is settled after its members.
    */
+  /**
+   * Announces the net change of access, enabled and visibility over the transaction: `AccessChangedAction` and
+   * `EnabledChangedAction` where the access differs from the one before the transaction's first write of it, and
+   * `VisibilityChangedAction` likewise. A value that went back to where it started announces nothing.
+   */
+  protected [TxAnnounceFlags](): void {
+    const raw = this.#raw;
+    const previousAccess = raw.announcedAccess;
+    if (previousAccess !== undefined) {
+      raw.announcedAccess = undefined;
+      const access = raw.access;
+      if (access !== previousAccess) {
+        this.boundActions?.trigger(AccessChangedAction, this, access, previousAccess);
+        const enabled = access === 'editable';
+        const wasEnabled = previousAccess === 'editable';
+        if (enabled !== wasEnabled) this.boundActions?.trigger(EnabledChangedAction, this, enabled, wasEnabled);
+      }
+    }
+    const previousVisibility = raw.announcedVisibility;
+    if (previousVisibility !== undefined) {
+      raw.announcedVisibility = undefined;
+      if (raw.visibility !== previousVisibility) {
+        this.boundActions?.trigger(VisibilityChangedAction, this, raw.visibility, previousVisibility);
+      }
+    }
+  }
+
   protected [TxSettleValidity](tx: Transaction): void {
     const oldValid = this.#raw.valid;
     const newValid = this.countedValid;

@@ -291,7 +291,9 @@ The setter runs the chain only when the write is a change. Assigning the access 
 
 ### `AccessChangedAction`
 
-Fires **after** `field.access` has been updated.
+Fires **after** `field.access` has been updated. It fires when the [transaction](/api/transactions) containing the change commits, once, with the net change: the
+value before the transaction's first write and the value at its end. A change that a transaction undoes or rolls
+back fires nothing.
 
 ```typescript
 new AccessChangedAction((field, supr, newValue, oldValue) => {
@@ -326,7 +328,7 @@ new EnabledChangingAction((field, supr, newValue, oldValue) => {
 ### `EnabledChangedAction`
 
 Fires **after** a write of `access` has changed `enabled` (a change into or out of `'editable'`), right after
-`AccessChangedAction`, with the two booleans. A change between two accesses other than `'editable'` changes what
+`AccessChangedAction` at the commit, with the two booleans of the net change. A change between two accesses other than `'editable'` changes what
 the element sends but not `enabled`, and does not fire it.
 
 ```typescript
@@ -352,13 +354,15 @@ new VisibilityChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. A result that is none of the four [visibilities](/api/field-base#visibility) makes the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
+If the action returns `null` or `undefined`, `newValue` is used instead. Returning `oldValue` refuses the write: nothing is written and nothing is announced. A result that is none of the four [visibilities](/api/field-base#visibility) makes the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
 
 **With `watch()`:** no equivalent. A watcher runs after the write and cannot refuse or change it.
 
 ### `VisibilityChangedAction`
 
-Fires **after** `field.visibility` has been updated.
+Fires **after** `field.visibility` has been updated. It fires when the [transaction](/api/transactions) containing the change commits, once, with the net change: the
+value before the transaction's first write and the value at its end. A change that a transaction undoes or rolls
+back fires nothing.
 
 **With `watch()`:** `watch(() => element.visibility, cb)`. See [Actions and `watch()`](#actions-and-watch).
 

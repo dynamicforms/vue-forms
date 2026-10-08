@@ -377,14 +377,17 @@ export class Group<
       tx.touch(this);
       if (this.errors.length) this.errors = [];
       Object.entries(this._fields).forEach(([name, field]) => {
-        // a member whose key is missing from the value takes its value from the template; a null value clears
-        // every member, as assigning null does
-        // an action holds no data and takes its value from the template, whatever the value contains
+        // a null value clears every member, as assigning null does. A member whose key is missing from a value takes
+        // the baseline of the template's member: for a group that is its own declaration that is the member's own
+        // originalValue, so a member the value leaves out (a 'disabled' one) is put back to its baseline, not left
+        // holding what was written to it since. Without a value, every member takes the template member's value.
+        // An action holds no data and takes its value from the template, whatever the value contains
+        const source = template.field(name) ?? field;
         let memberValue: any;
         if (this.childSerializesAs(field, 'fullValue') === 'omit') memberValue = undefined;
         else if (value === null) memberValue = null;
-        else if (value !== undefined && Object.hasOwn(value, name)) memberValue = value[name];
-        this.resetChild(field, template.field(name) ?? field, memberValue);
+        else if (value !== undefined) memberValue = Object.hasOwn(value, name) ? value[name] : source.originalValue;
+        this.resetChild(field, source, memberValue);
       });
       // a reset group announces nothing itself: the container that reset it announces the change
       this.recordAnnounced();

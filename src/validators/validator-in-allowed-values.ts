@@ -2,6 +2,7 @@ import { truncate } from 'lodash-es';
 import { type Ref, unref } from 'vue';
 
 import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
+import { isEmptyValue } from './value-checks';
 
 /**
  * The values a field may hold: a fixed list, or a ref or a callback for a list that is filled or replaced after
@@ -24,6 +25,7 @@ export default class InAllowedValues<T = any> extends Validator {
     };
 
     const validationFn: ValidationFunction = (newValue: T, oldValue: T) => {
+      if (isEmptyValue(unref(newValue))) return null;
       const values = resolve();
       if (!values.includes(unref(newValue))) {
         return [
