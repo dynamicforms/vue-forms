@@ -23,7 +23,7 @@ declares. `access`, `actions`, `errors`, `touched`, `validators` and `visibility
 takes; see [Constructor parameters](/api/field-base#constructor-parameters), which also describes the order in which
 they are applied and which parameters are rejected.
 
-| Parameter | Description |
+| Parameter<br>Type<br>Default | Description |
 |---|---|
 | **`params.originalValue`**<br>`T`<br>default same as `value` | Baseline for `isChanged`, and the initial value when no `value` is given |
 | **`params.value`**<br>`T`<br>default `undefined` | Initial value. Leaving it out, or passing `undefined`, falls back to `originalValue`; an explicit `null` is kept as the value |
@@ -35,7 +35,7 @@ and `new Field()` is a `Field<any>`. Pass it explicitly when the initial value d
 
 ## Properties
 
-| Property | Description |
+| Property<br>Type<br>Writable | Description |
 |---|---|
 | <a id="prop-touched"></a>**`touched`**<br>`boolean`<br>writable | Overrides [`FieldBase.touched`](/api/field-base#prop-touched): the field stores the flag and returns the value last assigned, or `params.touched` |
 | <a id="prop-value"></a>**`value`**<br>`T`<br>writable | Overrides [`FieldBase.value`](/api/field-base#prop-value): the single value the field holds. A write is accepted whatever the access; the value the field ends up holding depends on [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and does not fire when the field is assigned the object it already holds. Assign a modified copy instead of mutating in place. `isChanged` is separate and uses deep equality. |

@@ -63,7 +63,7 @@ different name. `actions`, `errors`, `validators` and `visibility` apply to the 
 [Constructor parameters](/api/field-base#constructor-parameters), which also describes the order in which the
 parameters are applied.
 
-| Parameter | Description |
+| Parameter<br>Type<br>Default | Description |
 |---|---|
 | **`itemTemplate`**<br>`R`<br>default `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
 | **`params.access`**<br>[`Access`](/api/field-base#access)<br>default `'editable'` | What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts value assignment and every mutation regardless of its access. See [What a container serializes](/api/container#what-a-container-serializes). |
@@ -73,7 +73,7 @@ parameters are applied.
 
 ## Properties
 
-| Property | Description |
+| Property<br>Type<br>Writable | Description |
 |---|---|
 | <a id="prop-fullValue"></a>**`fullValue`**<br>`ListFullValue<R>`<br>read-only | Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): the `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it |
 | <a id="prop-items"></a>**`items`**<br>`readonly R[]`<br>read-only | The rows themselves; see [The rows](#the-rows) |

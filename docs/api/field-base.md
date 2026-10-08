@@ -50,7 +50,7 @@ take `params` as an [`IFieldParams<T, X>`](#ifieldparams-t-x), with `T` the elem
 members below, plus the [extended properties](#extended-properties) the element's second type argument declares.
 `value`, `originalValue` and `touched` depend on the class and are described on each class's page.
 
-| Parameter | Description |
+| Parameter<br>Type<br>Default | Description |
 |---|---|
 | **`params.access`**<br>[`Access`](#access)<br>default `'editable'` | Whether the element accepts input, what it sends to its container, and whether it is validated. A write to `value` is accepted whatever the access. See [What a container serializes](/api/container#what-a-container-serializes). |
 | **`params.actions`**<br>`FieldActionBase[]`<br>default `[]` | Additional actions to register on the element |
@@ -237,7 +237,7 @@ apply them: `validators` and `actions` are copied from the declaration, and the 
 
 ## Properties
 
-| Property | Description |
+| Property<br>Type<br>Writable | Description |
 |---|---|
 | <a id="prop-access"></a>**`access`**<br>[`Access`](#access)<br>writable | Whether the element accepts input, what it sends to its container, and whether its validators run: `'editable'` and `'readonly'` send its value, `'disabled'` sends nothing and `'disabled-null'` sends `null`. A write to `value` is accepted whatever the access, so a record loaded into the form is written to the element. Changing `access` changes what every container above sends (each fires a [`ContributionChangedAction`](/api/actions#contributionchangedaction)) and runs the validators again on the element and its descendants. Writing the access the element already has is not a change: no `AccessChangingAction` runs, nothing is enrolled in an open transaction, and no `AccessChangedAction` fires. Writing a value that is not one of the four throws `Error("'x' is not an access: …")`. On a `Group` or a `List` the access also applies to every element inside it through `effectiveAccess`. See [What a container serializes](/api/container#what-a-container-serializes). |
 | <a id="prop-busy"></a>**`busy`**<br>`boolean`<br>read-only | `true` while an `Action.execute()` at or below the element has yet to settle. On `FieldBase` it is always `false`; [`Action.busy`](/api/actions#the-action-class) covers the action's own runs and [`Container.busy`](/api/container#prop-busy) the actions below a `Group` or `List`. `busy` covers executions and `validating` covers validations; `pending` covers both |

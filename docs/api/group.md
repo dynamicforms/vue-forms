@@ -27,7 +27,7 @@ for one group, `new Group<Fields, Presentation>(fields, { label: … })`. Both a
 [Constructor parameters](/api/field-base#constructor-parameters), which also describes the order in which the
 parameters are applied.
 
-| Parameter | Description |
+| Parameter<br>Type<br>Default | Description |
 |---|---|
 | **`fields`**<br>`GenericFieldsInterface` (`Record<string, FieldBase>`)<br>required | Map of member name → element instance |
 | **`params.access`**<br>[`Access`](/api/field-base#access)<br>default `'editable'` | What the group sends to its own container, and the access applied to its members through `effectiveAccess`. See [What a container serializes](/api/container#what-a-container-serializes). |
@@ -65,7 +65,7 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 
 ## Properties
 
-| Property | Description |
+| Property<br>Type<br>Writable | Description |
 |---|---|
 | <a id="prop-fields"></a>**`fields`**<br>`T`<br>read-only | The typed map of members. It is a guarded view over the group's map: reads return the members themselves, and every write throws a `TypeError`; `addField()` and `removeField()` change the set. The read is tracked, so a template rendering it re-renders when members are added or removed |
 | <a id="prop-fullValue"></a>**`fullValue`**<br>`FieldsToFullValues<T>`<br>read-only | Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): what the group holds (`value` is what it sends): every member's `fullValue`, regardless of access. A nested group includes its own full structure. A binding of the group copies this value |

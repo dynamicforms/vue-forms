@@ -18,7 +18,7 @@ access (`group.fields.name`, `list.get(0)`) is specific to each class and is des
 
 ## Properties
 
-| Property | Description |
+| Property<br>Type<br>Writable | Description |
 |---|---|
 | <a id="prop-busy"></a>**`busy`**<br>`boolean`<br>read-only | Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending` covers both |
 | <a id="prop-touched"></a>**`touched`**<br>`boolean`<br>writable | Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child |
