@@ -1,3 +1,4 @@
+/* eslint-disable vue/one-component-per-file -- each test mounts a component of its own */
 import { mount } from '@vue/test-utils';
 import { vi } from 'vitest';
 import { defineComponent, h } from 'vue';
@@ -139,5 +140,24 @@ describe('the devtools plugin', () => {
       expect.objectContaining({ type: 'vue-forms', key: `Group #${entryOf(inComponent!)!.id}`, value: { count: 1 } }),
     ]);
     delete (globalThis as any).__VUE_DEVTOOLS_GLOBAL_HOOK__;
+  });
+});
+
+describe('state a component constructs', () => {
+  it('is listed while the component is mounted', () => {
+    let built: Group | undefined;
+    const Holder = defineComponent({
+      name: 'StateHolder',
+      setup() {
+        built = new Group({ a: new Field({ value: 1 }) });
+        return () => h('div');
+      },
+    });
+    const wrapper = mount(Holder);
+    expect(isListed(built!)).toBe(true);
+
+    wrapper.unmount();
+
+    expect(isListed(built!)).toBe(false);
   });
 });

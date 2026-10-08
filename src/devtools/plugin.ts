@@ -16,7 +16,8 @@ type InspectorNode = {
   tags?: { label: string; textColor: number; backgroundColor: number }[];
 };
 
-const apps = new WeakSet<object>();
+/** set on an app once the plugin is set up on it; held on the app, so a reloaded module does not set it up twice */
+const SetUp = Symbol.for('@dynamicforms/vue-forms.devtools');
 const refreshers = new Set<() => void>();
 let scheduled = false;
 
@@ -117,8 +118,8 @@ function stateOf(element: FieldBase) {
 }
 
 function setup(app: App): void {
-  if (apps.has(app)) return;
-  apps.add(app);
+  if ((app as any)[SetUp]) return;
+  (app as any)[SetUp] = true;
   setupDevtoolsPlugin(
     {
       id: 'dynamicforms-vue-forms',
@@ -182,9 +183,11 @@ function setup(app: App): void {
       api.on.inspectComponent((payload) => {
         listed().forEach(({ entry, element }) => {
           if (entry.instance?.deref() !== payload.componentInstance) return;
+          const key = nameOf(entry, element);
+          if (payload.instanceData.state.some((item: any) => item.type === 'vue-forms' && item.key === key)) return;
           payload.instanceData.state.push({
             type: 'vue-forms',
-            key: nameOf(entry, element),
+            key,
             value: plain((element as any).value),
             editable: false,
           });

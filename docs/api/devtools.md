@@ -34,7 +34,9 @@ The inspector shows state; it does not edit it, and there is no timeline.
 ## What is listed
 
 An element is listed while it is a root: a member is shown inside its container, and an element a container
-releases is listed again. These are never listed:
+releases is listed again. An element a component's `setup()` constructed is listed while the component is mounted, and
+is removed when it is unmounted; an element the component hands on to outlive it is listed again with
+`describeState()`. These are never listed:
 
 - the bindings an element is bound to (`bind()`, the rows of a `List`);
 - a `List`'s item template;

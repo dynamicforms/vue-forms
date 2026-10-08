@@ -1,4 +1,4 @@
-import { type ComponentInternalInstance, getCurrentInstance } from 'vue';
+import { type ComponentInternalInstance, getCurrentInstance, getCurrentScope, onScopeDispose } from 'vue';
 
 import type { FieldBase } from '../field-base';
 
@@ -58,6 +58,14 @@ export function noteElement(element: FieldBase): void {
   };
   entries.set(entry.id, entry);
   byElement.set(element, entry);
+  // state a component constructs is listed while the component is mounted: an element is collected only when the
+  // garbage collector runs, which can be long after the component was unmounted
+  if (instance && getCurrentScope()) {
+    onScopeDispose(() => {
+      entries.delete(entry.id);
+      changed?.();
+    });
+  }
 }
 
 /** Marks a binding or an item template: part of another element's definition, never listed on its own. */
