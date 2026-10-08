@@ -1,10 +1,7 @@
 import { isArray, isObject, isString } from 'lodash-es';
-import { isRef, unref } from 'vue';
+import { unref } from 'vue';
 
-import type { FieldBase } from '../field-base';
-import { RenderContentRef } from '../render-content';
-
-import { ValidationFunction, Validator } from './validator';
+import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 
 function toLength(a: any): number {
   if (a == null) return 0;
@@ -14,8 +11,8 @@ function toLength(a: any): number {
   return String(a).length;
 }
 
-/** How the value is read before its length is taken. */
-export interface RequiredOptions {
+/** How the value is read before its length is taken, and what the error states. */
+export interface RequiredOptions extends ValidationErrorOptions {
   /**
    * Whether a string is trimmed before it is measured, so that whitespace alone is no value. Defaults to true.
    * Set it to false where the spaces are part of what the field holds.
@@ -23,26 +20,13 @@ export interface RequiredOptions {
   trim?: boolean;
 }
 
-/**
- * Tells the two first arguments apart. Every form a message takes is a string, a String subclass, a function, a
- * reference or an object naming a component; an object that is none of those is the options.
- */
-function isOptions(arg?: RenderContentRef | RequiredOptions): arg is RequiredOptions {
-  return (
-    typeof arg === 'object' && arg !== null && !isRef(arg) && !(arg instanceof String) && !('componentName' in arg)
-  );
-}
-
 export default class Required extends Validator {
-  constructor(options?: RequiredOptions);
-  constructor(message?: RenderContentRef, options?: RequiredOptions);
-  constructor(messageOrOptions?: RenderContentRef | RequiredOptions, options?: RequiredOptions) {
-    const message = isOptions(messageOrOptions) ? undefined : messageOrOptions;
-    const trim = (isOptions(messageOrOptions) ? messageOrOptions : options)?.trim ?? true;
-    const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
+  constructor(options?: RequiredOptions) {
+    const trim = options?.trim ?? true;
+    const validationFn: ValidationFunction = (newValue, oldValue) => {
       const value = unref(newValue);
       if (toLength(trim && isString(value) ? value.trim() : value) === 0) {
-        return [this.errorFor(field, message, 'required', 'Please enter a value', { newValue, oldValue })];
+        return [this.errorFor(options, 'required', 'Please enter a value', { newValue, oldValue })];
       }
       return null;
     };

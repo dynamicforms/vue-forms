@@ -1,264 +1,60 @@
-import { isEqual } from 'lodash-es';
-import { describe, expect, it } from 'vitest';
-import { reactive, ref } from 'vue';
-
-import {
-  MdString,
-  SimpleComponentDef,
-  isSimpleComponentDef,
-  RenderableValue,
-  isCallableFunction,
-} from '../render-content';
+import { Field } from '../field';
 
 import { ValidationError } from './validation-error';
+import { Validator } from './validator';
 
 describe('ValidationError', () => {
-  it('renders as empty text when built without content', () => {
-    const error = new ValidationError();
+  it('holds the code, params and detail it is built with', () => {
+    const error = new ValidationError('min_value', { minValue: 3 }, 'Value must be larger or equal to 3');
 
-    expect(error.componentName).toBe('template');
-    expect(error.componentBindings).toEqual({});
-    expect(error.componentBody).toBe('');
+    expect(error.code).toBe('min_value');
+    expect(error.params).toEqual({ minValue: 3 });
+    expect(error.detail).toBe('Value must be larger or equal to 3');
   });
 
-  it('is a RenderableValue, rendered the way any content is', () => {
-    const error = new ValidationError('Test error message');
-
-    expect(error).toBeInstanceOf(RenderableValue);
-    expect(error.resolvedText).toBe('Test error message');
-    expect(error.kind).toBe('string');
-    expect(error.componentName).toBe('template');
-    expect(error.componentBody).toBe('Test error message');
-  });
-});
-
-describe('RenderableValue', () => {
-  it('carries no code, params or origin', () => {
-    const value = new RenderableValue(new MdString('**cell**'), 'bold');
-
-    expect(value.kind).toBe('md');
-    expect(value.extraClasses).toBe('bold');
-    expect('code' in value).toBe(false);
-    expect('origin' in value).toBe(false);
-  });
-});
-
-describe('ValidationError', () => {
-  it('handles plain string content', () => {
-    const error = new ValidationError('Plain text error');
-
-    expect(error.componentName).toBe('template');
-    expect(error.componentBody).toBe('Plain text error');
-    expect(error.componentBindings).toEqual({});
+  it('stores the detail as given, without substituting params', () => {
+    expect(new ValidationError('min_value', { minValue: 3 }, 'At least {minValue}').detail).toBe('At least {minValue}');
   });
 
-  it('handles reactive object automatic unRef-fing', () => {
-    const error = reactive(new RenderableValue('Plain text error'));
-
-    expect(error.componentName).toBe('template');
-    expect(error.componentBody).toBe('Plain text error');
-    expect(error.componentBindings).toEqual({});
+  it('answers the stated origin, and application for an error no validator produced', () => {
+    expect(new ValidationError('taken', {}, 'Taken', 'server').origin).toBe('server');
+    expect(new ValidationError('taken', {}, 'Taken').origin).toBe('application');
   });
 
-  it('handles markdown string content', () => {
-    const mdContent = new MdString('**Bold** error message');
-    const error = new ValidationError(mdContent);
+  it('answers validator for an error a validator produced', () => {
+    const field = new Field({ value: '' });
+    field.errors.push(new ValidationError('own', {}, 'Own'));
 
-    expect(error.componentName).toBe('vue-markdown');
-    expect(error.componentBody).toBe('');
-    expect(error.componentBindings).toHaveProperty('source');
-  });
-
-  it('handles component content', () => {
-    const componentDef: SimpleComponentDef = {
-      componentName: 'CustomError',
-      componentProps: { type: 'danger', dismissible: true },
-    };
-
-    const error = new ValidationError(componentDef);
-
-    expect(error.componentName).toBe('CustomError');
-    expect(error.componentBody).toBe('');
-    expect(error.componentBindings).toEqual({ type: 'danger', dismissible: true });
-  });
-
-  it('handles reactive content', () => {
-    const contentRef = ref('Initial error');
-    const error = new ValidationError(contentRef);
-
-    expect(error.componentBody).toBe('Initial error');
-    expect(error.componentName).toBe('template');
-
-    // Change the reactive content
-    contentRef.value = 'Updated error';
-    expect(error.componentBody).toBe('Updated error');
-  });
-
-  it('handles empty content gracefully', () => {
-    const error = new ValidationError('');
-
-    expect(error.componentName).toBe('template');
-    expect(error.componentBody).toBe('');
-  });
-});
-
-describe('isCustomModalContentComponentDef', () => {
-  it('correctly identifies component definitions', () => {
-    const componentDef: SimpleComponentDef = {
-      componentName: 'CustomAlert',
-      componentProps: {},
-    };
-
-    expect(isSimpleComponentDef(componentDef)).toBe(true);
-    expect(isSimpleComponentDef('string')).toBe(false);
-    expect(isSimpleComponentDef(new MdString('markdown'))).toBe(false);
-    expect(isSimpleComponentDef(undefined)).toBe(false);
-  });
-
-  it('works with reactive references', () => {
-    const componentDef = ref({
-      componentName: 'CustomAlert',
-      componentProps: {},
+    const validated = new Field({
+      value: 1,
+      validators: [new Validator(() => [new ValidationError('bad', {}, 'Bad')])],
     });
 
-    expect(isSimpleComponentDef(componentDef)).toBe(true);
-
-    const stringRef = ref('string value');
-    expect(isSimpleComponentDef(stringRef)).toBe(false);
-  });
-});
-
-describe('MdString', () => {
-  it('extends String with proper instance checking', () => {
-    const mdString = new MdString('**Bold text**');
-
-    expect(mdString).toBeInstanceOf(MdString);
-    expect(mdString).toBeInstanceOf(String);
-    expect(mdString.toString()).toBe('**Bold text**');
-  });
-});
-
-describe('ValidationError with callable functions', () => {
-  it('handles callable function that returns plain string', () => {
-    const contentFn = () => 'Dynamic error message';
-    const error = new ValidationError(contentFn);
-
-    expect(error.componentName).toBe('template');
-    expect(error.componentBody).toBe('Dynamic error message');
-    expect(error.componentBindings).toEqual({});
-  });
-
-  it('handles callable function that returns MdString', () => {
-    const contentFn = () => new MdString('**Dynamic** markdown');
-    const error = new ValidationError(contentFn);
-
-    expect(error.componentName).toBe('vue-markdown');
-    expect(error.componentBody).toBe('');
-    expect(error.componentBindings).toHaveProperty('source', '**Dynamic** markdown');
-  });
-
-  it('handles callable function that returns component definition', () => {
-    const contentFn = () => ({
-      componentName: 'DynamicAlert',
-      componentProps: { severity: 'error' },
-      componentVHtml: '<strong>Error</strong>',
-    });
-    const error = new ValidationError(contentFn);
-
-    expect(error.componentName).toBe('DynamicAlert');
-    expect(error.componentBindings).toEqual({ severity: 'error' });
-    expect(error.componentBody).toBe('<strong>Error</strong>');
-  });
-
-  it('handles reactive ref containing callable function', () => {
-    const contentFn = () => 'Translated message';
-    const contentRef = ref(contentFn);
-    const error = new ValidationError(contentRef);
-
-    expect(error.componentBody).toBe('Translated message');
-  });
-
-  it('evaluates callable function on each access (useful for translations)', () => {
-    let counter = -1;
-    const contentFn = () => `Error count: ${++counter}`;
-    const error = new ValidationError(contentFn);
-
-    expect(error.componentBody).toBe('Error count: 1');
-    expect(error.componentBody).toBe('Error count: 2');
-    expect(error.componentBody).toBe('Error count: 3');
-  });
-
-  it('handles callable function with translation example', () => {
-    const t = (key: string) => {
-      const translations: Record<string, string> = {
-        'error.required': 'This field is required',
-        'error.invalid': 'Invalid value',
-      };
-      return translations[key] || key;
-    };
-
-    const error = new ValidationError(() => t('error.required'));
-    expect(error.componentBody).toBe('This field is required');
-  });
-});
-
-describe('isCallableFunction', () => {
-  it('correctly identifies callable functions', () => {
-    const fn = () => 'test';
-    expect(isCallableFunction(fn)).toBe(true);
-    expect(isCallableFunction('string')).toBe(false);
-    expect(isCallableFunction(new MdString('markdown'))).toBe(false);
-    expect(isCallableFunction({ componentName: 'Test' })).toBe(false);
-    expect(isCallableFunction(undefined)).toBe(false);
-  });
-
-  it('works with reactive references containing functions', () => {
-    const fnRef = ref(() => 'test');
-    expect(isCallableFunction(fnRef)).toBe(true);
-
-    const stringRef = ref('string value');
-    expect(isCallableFunction(stringRef)).toBe(false);
-  });
-});
-
-describe('isSimpleComponentDef', () => {
-  it('answers for every shape without raising', () => {
-    expect(isSimpleComponentDef({ componentName: 'MyWidget' })).toBe(true);
-    expect(isSimpleComponentDef('plain text')).toBe(false);
-    expect(isSimpleComponentDef(new MdString('**bold**'))).toBe(false);
-    expect(isSimpleComponentDef(undefined)).toBe(false);
-    // typeof null is 'object' and `in` refuses null, so the guard states what null is rather than raising over it
-    expect(isSimpleComponentDef(null as any)).toBe(false);
+    expect(field.errors[0].origin).toBe('application');
+    expect(validated.errors[0].origin).toBe('validator');
   });
 });
 
 describe('sameAs', () => {
-  it('answers over what renders, not over what the instances hold', () => {
-    const left = new ValidationError(() => 'the same message');
-    const right = new ValidationError(() => 'the same message');
-    const other = new ValidationError(() => 'a different message');
+  it('is true for errors of one class with equal code, params, detail and stated origin', () => {
+    const a = new ValidationError('min_value', { minValue: 3 }, 'At least 3', 'server');
+    const b = new ValidationError('min_value', { minValue: 3 }, 'At least 3', 'server');
 
-    // the instances differ - each carries a computed of its own - and what they render does not
-    expect(isEqual(left, right)).toBe(false);
-    expect(left.sameAs(right)).toBe(true);
-    expect(left.sameAs(other)).toBe(false);
+    expect(a.sameAs(b)).toBe(true);
   });
 
-  it('separates errors that differ only in their code or class', () => {
-    const plain = new ValidationError('too short');
-    const coded = new ValidationError('too short', '', 'min_length');
+  it('is false where any of them differs', () => {
+    const base = new ValidationError('min_value', { minValue: 3 }, 'At least 3');
 
-    expect(plain.sameAs(coded)).toBe(false);
-    expect(coded.sameAs(new ValidationError('too short', '', 'min_length'))).toBe(true);
-    expect(coded.sameAs(new ValidationError('too short', 'highlighted', 'min_length'))).toBe(false);
+    expect(base.sameAs(new ValidationError('max_value', { minValue: 3 }, 'At least 3'))).toBe(false);
+    expect(base.sameAs(new ValidationError('min_value', { minValue: 4 }, 'At least 3'))).toBe(false);
+    expect(base.sameAs(new ValidationError('min_value', { minValue: 3 }, 'At least 4'))).toBe(false);
+    expect(base.sameAs(new ValidationError('min_value', { minValue: 3 }, 'At least 3', 'server'))).toBe(false);
   });
 
-  it('separates two classes that render the same body', () => {
+  it('is false for a subclass with the same data', () => {
     class ServerError extends ValidationError {}
-    const error = new ValidationError('message');
-    const server = new ServerError('message');
 
-    expect(error.componentBody).toBe(server.componentBody);
-    expect(error.sameAs(server)).toBe(false);
+    expect(new ValidationError('x', {}, 'X').sameAs(new ServerError('x', {}, 'X'))).toBe(false);
   });
 });

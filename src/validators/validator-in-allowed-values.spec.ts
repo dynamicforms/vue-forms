@@ -84,7 +84,7 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(1);
 
     // Check that the error message contains truncated text
-    const errorContentText = (unref(field.errors[0]) as ValidationError).componentBody;
+    const errorContentText = (unref(field.errors[0]) as ValidationError).detail;
     expect(errorContentText).toContain('...');
     expect(errorContentText).toContain('30 items total');
     // the 40 character budget covers the suffix too, so only the first two values survive
@@ -97,12 +97,12 @@ describe('InAllowedValues Validator', () => {
 
     const field = new Field({
       value: 'superuser',
-      validators: [new InAllowedValues(allowedValues, customMessage)],
+      validators: [new InAllowedValues(allowedValues, { detail: customMessage })],
     });
 
     // Assert
     expect(field.errors.length).toBe(1);
-    const errorText = (unref(field.errors[0]) as ValidationError).componentBody;
+    const errorText = (unref(field.errors[0]) as ValidationError).detail;
     expect(errorText).toBe(customMessage);
   });
 });
@@ -139,12 +139,12 @@ describe('InAllowedValues Validator with a list that arrives later', () => {
     const allowedValues = ref(['red']);
     const field = new Field({ value: 'blue', validators: [new InAllowedValues(allowedValues)] });
 
-    expect((field.errors[0] as ValidationError).componentBody).toBe('Must be one of [red]');
+    expect((field.errors[0] as ValidationError).detail).toBe('Must be one of [red]');
 
     allowedValues.value = ['red', 'green'];
     field.value = 'yellow';
 
-    expect((field.errors[0] as ValidationError).componentBody).toBe('Must be one of [red, green]');
+    expect((field.errors[0] as ValidationError).detail).toBe('Must be one of [red, green]');
   });
 
   it('states the in_allowed_values code on the error it produces', () => {

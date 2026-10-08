@@ -58,14 +58,14 @@ describe('Required Validator', () => {
     const customMessage = 'This field is required!';
     const field = new Field({
       value: '',
-      validators: [new Required(customMessage)],
+      validators: [new Required({ detail: customMessage })],
     });
 
     // Act - validation happens on field creation
 
     // Assert
     expect(field.errors.length).toBe(1);
-    const errorText = (field.errors[0] as ValidationError).resolvedText;
+    const errorText = (field.errors[0] as ValidationError).detail;
     expect(errorText).toBe(customMessage);
   });
 });
@@ -96,21 +96,14 @@ describe('Required Validator whitespace', () => {
     expect(new Field({ value: [' '], validators: [new Required()] }).errors.length).toBe(0);
   });
 
-  it('takes the options next to a message', () => {
-    const field = new Field({ value: '  ', validators: [new Required('Enter something', { trim: false })] });
+  it('takes trim together with the error options', () => {
+    const field = new Field({ value: '  ', validators: [new Required({ detail: 'Enter something', trim: false })] });
 
     expect(field.errors.length).toBe(0);
 
     field.value = '';
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0].componentBody).toBe('Enter something');
-  });
-
-  it('reads a component message as the message rather than as options', () => {
-    const field = new Field({ value: '', validators: [new Required({ componentName: 'my-error' })] });
-
-    expect(field.errors.length).toBe(1);
-    expect(field.errors[0].componentName).toBe('my-error');
+    expect(field.errors[0].detail).toBe('Enter something');
   });
 
   it('states the required code on the error it produces', () => {

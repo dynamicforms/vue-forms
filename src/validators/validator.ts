@@ -1,18 +1,9 @@
-import { isRef, unref } from 'vue';
-
 import { ValueChangedAction } from '../actions/value-changed-action';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
-import {
-  isCallableFunction,
-  isSimpleComponentDef,
-  MdString,
-  RenderContentNonCallable,
-  RenderContentRef,
-} from '../render-content';
 import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
 
-import { ValidationError, ValidationErrorDescription } from './validation-error';
+import { ValidationError } from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
 /**
@@ -37,6 +28,14 @@ export interface ValidatorBindingState {
   run: number;
   /** cancels the asynchronous run in flight over the field, absent while no run is waiting for its verdict */
   abandon?: () => void;
+}
+
+/** What a built-in validator states on its error in place of its own `code` and `detail`. */
+export interface ValidationErrorOptions {
+  /** The error's `code`. Defaults to the validator's own, such as `required`. */
+  code?: string;
+  /** The error's English `detail`, plain text. `{name}` placeholders are replaced with the error's `params`. */
+  detail?: string;
 }
 
 const ValidatorClassIdentifier = Symbol('Validator');
@@ -128,9 +127,7 @@ export class Validator<T = any> extends ValueChangedAction {
               // successful run of the same validator withdraws it like any other error of its own. The reason never
               // reaches the user, whose message says only that the check did not complete, so it is logged.
               if (isCurrent()) {
-                processErrors([
-                  new ValidationErrorDescription('validation_failed', {}, 'Validation could not be completed'),
-                ]);
+                processErrors([new ValidationError('validation_failed', {}, 'Validation could not be completed')]);
                 console.error('Validation failed', reason);
               }
             },
@@ -228,42 +225,15 @@ export class Validator<T = any> extends ValueChangedAction {
   }
 
   /**
-   * The error a built-in validator reports for `field`: an `ValidationErrorDescription` with `code`, `params` and
-   * `detail`, the English sentence with `params` substituted, or where the validator was given a `message` of its
-   * own, that message with `params` and `field` substituted.
+   * The error a built-in validator reports: `code` and `detail` from `options` where it states them, the
+   * validator's own otherwise, with `params` substituted into the detail.
    */
   protected errorFor(
-    field: FieldBase,
-    message: RenderContentRef | undefined,
+    options: ValidationErrorOptions | undefined,
     code: string,
     detail: string,
     params: Record<string, unknown>,
   ): ValidationError {
-    if (!message) return new ValidationErrorDescription(code, params, interpolate(detail, params));
-    return new ValidationError(this.replacePlaceholders(message, { ...params, field }), '', code, undefined, params);
-  }
-
-  protected replacePlaceholdersFunction(text: RenderContentRef, replace: Record<string, any>): RenderContentRef {
-    return () => {
-      let ret = unref(text);
-      while (isCallableFunction(ret)) {
-        ret = unref(this.replacePlaceholders(ret(), replace));
-      }
-      return ret;
-    };
-  }
-
-  protected replacePlaceholders(text: RenderContentRef, replace: Record<string, any>): RenderContentRef {
-    if (isCallableFunction(text)) return this.replacePlaceholdersFunction(text, replace);
-
-    if (isSimpleComponentDef(text)) return text;
-    // a Ref is resolved on read, not here: substituting once would freeze the message at the value the reference
-    // held during validation, and a translated message would stay in the language that was active back then
-    if (isRef(text)) {
-      return this.replacePlaceholdersFunction(() => unref(text) as RenderContentNonCallable, replace);
-    }
-    const ret = unref(text) as string | MdString;
-    const substituted = interpolate(ret.toString(), replace);
-    return ret instanceof MdString ? new MdString(substituted, ret.options, ret.plugins) : substituted;
+    return new ValidationError(options?.code ?? code, params, interpolate(options?.detail ?? detail, params));
   }
 }

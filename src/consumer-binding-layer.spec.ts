@@ -192,7 +192,7 @@ describe('the verdict a binding layer renders', () => {
 
     expect(field.validating).toBe(true);
 
-    settle([new ValidationError('rejected by the service')]);
+    settle([new ValidationError('invalid', {}, 'rejected by the service')]);
     await vi.waitFor(() => {
       expect(field.validating).toBe(false);
     });
@@ -200,7 +200,7 @@ describe('the verdict a binding layer renders', () => {
 
     expect(valid).toEqual([true, false]);
     expect(errorCount).toEqual([0, 1]);
-    expect(field.errors.map((error) => error.componentBody)).toEqual(['rejected by the service']);
+    expect(field.errors.map((error) => error.detail)).toEqual(['rejected by the service']);
   });
 
   it('re-runs the touched read, which the layer both reads and writes', async () => {

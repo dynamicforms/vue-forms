@@ -9,15 +9,16 @@ import { Validators } from '@dynamicforms/vue-forms';
 ```
 
 The namespace contains the validators and the types that belong to writing one — `Validator`,
-`ValidationFunction`, `ValidationFunctionResult`, `ValidatorBindingState`, `Required`, `Pattern`, `MinValue`,
+`ValidationFunction`, `ValidationFunctionResult`, `ValidatorBindingState`, `ValidationErrorOptions`,
+`RequiredOptions`, `Required`, `Pattern`, `MinValue`,
 `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. The
 namespace is the only way to them: a validator is written `Validators.Required`, never `Required`.
 
-The error classes and `MdString` are what a field hands back rather than what validates it, so they are exported
-from the package root:
+`ValidationError` and the error types are what a field hands back rather than what validates it, so they are
+exported from the package root:
 
 ```typescript
-import { ValidationError, MdString } from '@dynamicforms/vue-forms';
+import { ValidationError } from '@dynamicforms/vue-forms';
 import { Validators } from '@dynamicforms/vue-forms';
 
 class Even extends Validators.Validator<number> { /* … */ }
@@ -29,13 +30,13 @@ Each validator only ever replaces its own errors when it re-runs; errors contrib
 
 The same `ValidationError` instance may be returned by more than one validator, whether they sit on one field or on
 several. A validator reporting an instance another validator already owns contributes a copy of it, which keeps the
-prototype and every own property and therefore renders identically. Each validator withdraws only what it
+prototype and every own property, so `sameAs` is true between the two. Each validator withdraws only what it
 contributed, so two rules of one field reporting the same instance leave two entries in `field.errors` — report the
 message from a single rule if you want it to appear once.
 
 `field.errors` is a reactive array, so what it reads back is a Vue proxy of the error a validator produced rather
-than that object itself. Rendering is unaffected — every getter answers through the proxy — but
-`field.errors[0] === myError` is `false`. Compare by content, or unwrap with `toRaw()`.
+than that object itself. Every property reads through the proxy, but `field.errors[0] === myError` is `false`.
+Compare with `sameAs`, or unwrap with `toRaw()`.
 
 ## `new Validators.Validator(validationFn)`
 
@@ -46,7 +47,7 @@ import { Validators, ValidationError } from '@dynamicforms/vue-forms';
 
 const myValidator = new Validators.Validator(async (newValue, oldValue, field) => {
   if (newValue === 'forbidden') {
-    return [new ValidationError('This value is not allowed')];
+    return [new ValidationError('forbidden', {}, 'This value is not allowed')];
   }
   return null; // no errors
 });
@@ -101,9 +102,7 @@ A rejected promise reaches no verdict, and no verdict does not count as a pass:
 
 - if the rejected run is still the current one, this validator's errors on the field are replaced by a single error
   reading `Validation could not be completed`, so the field is invalid while its value is unchecked and a form
-  cannot be submitted over it. The error is a [`ValidationErrorDescription`](#validationerrordescription) with the
-  code `validation_failed`, so the application's [`errorText`](/api/config) renders it like the errors of the
-  built-in validators. The error belongs to this validator like any other it contributes: the next
+  cannot be submitted over it. The error has the code `validation_failed` and no params. The error belongs to this validator like any other it contributes: the next
   successful run of the same validator withdraws it. The rejection reason never reaches the user; it is reported
   once as `console.error('Validation failed', reason)`;
 - a rejection from a superseded run is discarded silently — no error is placed and nothing is logged.
@@ -115,7 +114,7 @@ Nothing re-runs a validator on its own once the value has settled: assigning the
 so a failure error survives until something starts a new run. Call `field.validate(true)` — on the field or on the
 `Group` above it — to retry after the service is back. The failure message names no cause, because the validator has none to name. When the user
 should read something more specific, catch inside the validation function and return an error of your own, e.g.
-`[new ValidationError('Could not verify this value')]`.
+`[new ValidationError('unverified', {}, 'Could not verify this value')]`.
 
 [`clearValidators()`](/api/field#methods) also cancels validation that is still in flight: it drops the validators,
 empties `field.errors` and recalculates the verdict over the emptied list, and a run that settles afterwards — with a
@@ -144,7 +143,7 @@ Hand it to the work the function commissions and that work stops as soon as its 
 ```typescript
 new Validators.Validator(async (newValue, oldValue, field, signal) => {
   const response = await fetch(`/api/available?name=${newValue}`, { signal });
-  return (await response.json()).free ? null : [new ValidationError('This name is taken')];
+  return (await response.json()).free ? null : [new ValidationError('name_taken', {}, 'This name is taken')];
 });
 ```
 
@@ -155,144 +154,146 @@ bookkeeping, so `validating` returns to `false` once its promise settles.
 
 ## Built-in validators
 
-A built-in validator given no `message` reports a [`ValidationErrorDescription`](#validationerrordescription): its
-[code](#error-codes), its params and an English detail, the default shown for each validator below with the params
-substituted. The application renders it in its own language through [`errorText`](/api/config); see
-[Error messages and translation](/guide/getting-started#error-messages-and-translation). A validator given a `message`
-reports that message instead, with its [placeholders](#message-placeholders) substituted, and still states the code
-and the params.
+A built-in validator reports a [`ValidationError`](#validationerror) with its [code](#error-codes), its params and an
+English detail, the default shown for each validator below with the params substituted. The last constructor
+argument of every built-in validator is `ValidationErrorOptions`:
+
+```typescript
+interface ValidationErrorOptions {
+  code?: string;   // replaces the validator's code
+  detail?: string; // replaces the validator's detail; {name} placeholders are replaced with the params
+}
+```
+
+The params stay the validator's own. A `{name}` placeholder that names no param stays in the detail as written. The
+application renders the error; see [Error messages and translation](/guide/getting-started#error-messages-and-translation).
 
 `InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` take a type argument, which types a
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
 `new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure whatever
 the field holds.
 
-### `new Validators.Required(message?, options?)`
+### `new Validators.Required(options?)`
 
 Fails when the value is empty (zero-length string, empty array, empty plain object, or `null`/`undefined`). A
 string is trimmed before it is measured, so a value of spaces alone is no value and the field is invalid. Only
 strings are trimmed; an array, an object or any other value is measured as it stands.
 
 ```typescript
-new Field({ value: '', validators: [new Validators.Required('This field is required')] })
+new Field({ value: '', validators: [new Validators.Required({ code: 'name_required', detail: 'Enter a name' })] })
 
 // where the spaces are part of what the field holds
 new Field({ value: ' ', validators: [new Validators.Required({ trim: false })] })
 ```
 
-Both arguments are optional, and the options may stand on their own in the first position:
-
 ```typescript
-constructor(options?: RequiredOptions);
-constructor(message?: RenderContentRef, options?: RequiredOptions);
-
-interface RequiredOptions {
+interface RequiredOptions extends ValidationErrorOptions {
   trim?: boolean;
 }
 ```
 
-The first two arguments are told apart by shape: a string, an `MdString`, a function, a `Ref` and an object naming
-a component are messages, and any other object is the options. `RequiredOptions` is exported.
+`RequiredOptions` is exported.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
-| `message` | `RenderContentRef` | `'Please enter a value'` |
 | `options.trim` | `boolean` | `true` |
+| `options.code` | `string` | `'required'` |
+| `options.detail` | `string` | `'Please enter a value'` |
 
 ---
 
-### `new Validators.Pattern(pattern, message?)`
+### `new Validators.Pattern(pattern, options?)`
 
-Fails when the string representation of the value does not match `pattern`. The value is converted with `String(value)` before testing, so `undefined` is tested as the string `"undefined"`. The `{pattern}` placeholder renders the whole regex literal, including slashes and flags (`/^\d{4}$/`). Avoid the `g` flag — `RegExp.test` keeps `lastIndex` between calls with it.
+Fails when the string representation of the value does not match `pattern`. The value is converted with `String(value)` before testing, so `undefined` is tested as the string `"undefined"`. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes and flags (`/^\d{4}$/`). Avoid the `g` flag — `RegExp.test` keeps `lastIndex` between calls with it.
 
 ```typescript
-new Validators.Pattern(/^\d{4}$/, 'Must be a 4-digit number')
+new Validators.Pattern(/^\d{4}$/, { detail: 'Must be a 4-digit number' })
 ```
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `pattern` | `RegExp` | required |
-| `message` | `RenderContentRef` | `'Value must match pattern "{pattern}"'` |
+| `options` | `ValidationErrorOptions` | code `pattern`, detail `'Value must match pattern "{pattern}"'` |
 
 ---
 
-### `new Validators.MinValue(minValue, message?)`
+### `new Validators.MinValue(minValue, options?)`
 
 Fails when `value < minValue`, and also when the value is `undefined` (the check is strictly `=== undefined`, so `null` is not caught by it). For optional fields register the validator conditionally or write your own `Validator`.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minValue` | `T` | required |
-| `message` | `RenderContentRef` | `'Value must be larger or equal to {minValue}'` |
+| `options` | `ValidationErrorOptions` | code `min_value`, detail `'Value must be larger or equal to {minValue}'` |
 
 ---
 
-### `new Validators.MaxValue(maxValue, message?)`
+### `new Validators.MaxValue(maxValue, options?)`
 
 Fails when `value > maxValue`, and also when the value is `undefined` (the check is strictly `=== undefined`, so `null` is not caught by it). For optional fields register the validator conditionally or write your own `Validator`.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `maxValue` | `T` | required |
-| `message` | `RenderContentRef` | `'Value must be less than or equal to {maxValue}'` |
+| `options` | `ValidationErrorOptions` | code `max_value`, detail `'Value must be less than or equal to {maxValue}'` |
 
 ---
 
-### `new Validators.ValueInRange(minValue, maxValue, message?)`
+### `new Validators.ValueInRange(minValue, maxValue, options?)`
 
 Fails when `value < minValue` or `value > maxValue`, and also when the value is `undefined` (the check is strictly `=== undefined`, so `null` is not caught by it). For optional fields register the validator conditionally or write your own `Validator`.
 
 ```typescript
-new Validators.ValueInRange(0, 100, 'Must be between 0 and 100')
+new Validators.ValueInRange(0, 100, { detail: 'Must be between 0 and 100' })
 ```
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minValue` | `T` | required |
 | `maxValue` | `T` | required |
-| `message` | `RenderContentRef` | `'Value must be between {minValue} and {maxValue}'` |
+| `options` | `ValidationErrorOptions` | code `value_in_range`, detail `'Value must be between {minValue} and {maxValue}'` |
 
 ---
 
-### `new Validators.MinLength(minLength, message?)`
+### `new Validators.MinLength(minLength, options?)`
 
 Fails when the length of the value is less than `minLength`. Supports strings, arrays, and plain objects.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minLength` | `number` | required |
-| `message` | `RenderContentRef` | `'Length must be larger or equal to {minLength}'` |
+| `options` | `ValidationErrorOptions` | code `min_length`, detail `'Length must be larger or equal to {minLength}'` |
 
 ---
 
-### `new Validators.MaxLength(maxLength, message?)`
+### `new Validators.MaxLength(maxLength, options?)`
 
 Fails when the length of the value exceeds `maxLength`.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `maxLength` | `number` | required |
-| `message` | `RenderContentRef` | `'Length must be less than or equal to {maxLength}'` |
+| `options` | `ValidationErrorOptions` | code `max_length`, detail `'Length must be less than or equal to {maxLength}'` |
 
 ---
 
-### `new Validators.LengthInRange(minLength, maxLength, message?)`
+### `new Validators.LengthInRange(minLength, maxLength, options?)`
 
 Fails when the length of the value is outside `[minLength, maxLength]`.
 
 ```typescript
-new Validators.LengthInRange(10, 200, 'Must be between 10 and 200 characters')
+new Validators.LengthInRange(10, 200, { detail: 'Must be between 10 and 200 characters' })
 ```
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minLength` | `number` | required |
 | `maxLength` | `number` | required |
-| `message` | `RenderContentRef` | `'Length must be between {minLength} and {maxLength}'` |
+| `options` | `ValidationErrorOptions` | code `length_in_range`, detail `'Length must be between {minLength} and {maxLength}'` |
 
 ---
 
-### `new Validators.InAllowedValues(allowedValues, message?)`
+### `new Validators.InAllowedValues(allowedValues, options?)`
 
 Fails when the value is not in `allowedValues`.
 
@@ -310,7 +311,7 @@ new Validators.InAllowedValues(() => rolesFor(department.value))
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `allowedValues` | `AllowedValues<T>` (`T[] \| Ref<T[]> \| (() => T[])`) | required |
-| `message` | `RenderContentRef` | `'Must be one of [{allowedAsText}]'` |
+| `options` | `ValidationErrorOptions` | code `in_allowed_values`, detail `'Must be one of [{allowedAsText}]'` |
 
 `AllowedValues<T>` is exported. The list is read at each validation rather than at construction, so a reference or
 a callback answers with the list in force then, and that list is both the one the value is measured against and
@@ -319,11 +320,11 @@ list that changes does not revalidate the fields on its own — call `field.vali
 measured against the new list at once.
 
 The params carry the list as `allowedValues`, so an application names the values in its own language. `allowedAsText`
-is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` render as `value-0, value-1... (20 items total)`. The full list is in `allowedValues`.
+is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` give `value-0, value-1... (20 items total)`. The full list is in `allowedValues`.
 
 ---
 
-### `new Validators.CompareTo(otherField, isValidComparison, message)`
+### `new Validators.CompareTo(otherField, isValidComparison, options?)`
 
 Cross-field validator that re-validates whenever this field **or** the field it compares against changes.
 
@@ -331,7 +332,7 @@ Cross-field validator that re-validates whenever this field **or** the field it 
 new Validators.CompareTo(
   passwordField,
   (myValue, otherValue) => myValue === otherValue,
-  'Passwords must match'
+  { code: 'passwords_differ', detail: 'Passwords must match' },
 )
 ```
 
@@ -339,7 +340,7 @@ new Validators.CompareTo(
 |-----------|------|-------------|
 | `otherField` | `CompareToTarget` | The field to compare against: a field, the name its container holds it under, or a callback receiving the field being validated |
 | `isValidComparison` | `(myValue: T, otherValue: T) => boolean` | Return `true` when valid |
-| `message` | `RenderContentRef` | Error message — required, there is no default |
+| `options` | `ValidationErrorOptions` | code `compare_to`, detail `'Value does not match the comparison with {otherValue}'` |
 
 ```typescript
 type CompareToTarget = FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined);
@@ -356,12 +357,12 @@ lookup walks the containers the validated field has, so it finds the enclosing r
 ```typescript
 const row = new Group({ password: new Field(), confirmation: new Field() });
 row.fields.confirmation.registerAction(
-  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, 'Passwords must match'),
+  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, { detail: 'Passwords must match' }),
 );
 // every row of new List(row, …) now compares its own two fields
 
 // the same rule written against the name, which needs no reference to the template
-new Validators.CompareTo<string>('password', (mine, other) => mine === other, 'Passwords must match');
+new Validators.CompareTo<string>('password', (mine, other) => mine === other, { detail: 'Passwords must match' });
 ```
 
 A record that does not hold the compared field yet — a row is validated as it is assembled, before it holds either
@@ -375,18 +376,15 @@ verdict from this validator at all.
 
 ### Error codes
 
-Every error class takes a `code`: a snake_case identifier of what failed, reachable as `error.code` and typed
-`string | undefined`. It is what a program matches on when it reacts to one particular failure, so that it does not
-have to match the message text, and what an application's [`errorText`](/api/config) looks its translation up by. An
-error built by hand carries whatever its author gives it, or nothing.
+`error.code` is a snake_case identifier of what failed. A program matches on it to react to one particular failure,
+and a renderer looks the text of the error up by it.
 
 ```typescript
 const missing = field.errors.filter((error) => error.code === 'required');
 ```
 
-Beside the code, an error carries `params`: the values the failure is stated with, an empty object where it states
-none. The codes the library states, with their params and the English detail a built-in validator given no
-`message` reports:
+`error.params` holds the values the failure is stated with; it is an empty object where the error states none. The
+codes the library states, with their params and the English detail:
 
 | Code | Raised by | Params | English detail |
 |------|-----------|--------|----------------|
@@ -399,69 +397,21 @@ none. The codes the library states, with their params and the English detail a b
 | `max_length` | `MaxLength` | `newValue`, `oldValue`, `maxLength` | `Length must be less than or equal to {maxLength}` |
 | `length_in_range` | `LengthInRange` | `newValue`, `oldValue`, `minLength`, `maxLength` | `Length must be between {minLength} and {maxLength}` |
 | `in_allowed_values` | `InAllowedValues` | `newValue`, `oldValue`, `allowedValues`, `allowedAsText` | `Must be one of [{allowedAsText}]` |
-| `compare_to` | `CompareTo` | `newValue`, `oldValue`, `otherValue` | none: the validator always takes a `message` |
+| `compare_to` | `CompareTo` | `newValue`, `oldValue`, `otherValue` | `Value does not match the comparison with {otherValue}` |
 | `validation_failed` | a rejected validation promise | none | `Validation could not be completed` |
+
+`{name}` substitution is textual (`String.replaceAll`): a value that is an object, such as `newValue` of a group,
+is substituted as `[object Object]`, and `allowedValues` as `admin,user`. A renderer that needs the value reads it
+from `params`.
 
 ### `ValidationError`
 
 ```typescript
-new ValidationError(content?, /* optional CSS classes */, /* optional code */, /* optional origin */, /* optional params */)
+new ValidationError(code: string, params: Record<string, unknown>, detail: string, origin?: ErrorOrigin)
 ```
 
-An error a field carries. It is a [`RenderableValue`](/api/components#renderablevalue) — content rendered as plain
-text, markdown or a component — together with the [code](#error-codes), the [origin](#origin) and the params.
-
-`content` is a `RenderContentRef`: a `string`, an `MdString` (markdown), a `SimpleComponentDef` object, a `Ref` to
-any of those, or a function `() => string | MdString | SimpleComponentDef`. The same type is used for the `message`
-parameter of every built-in validator. Without content the error renders as empty text. A custom error class extends
-it and overrides `componentName`, `componentBindings`, `componentBody` and `extraClasses`.
-
-A message given as a `Ref` or a `computed` keeps its reactivity all the way to the rendered output. The reference is
-resolved when the message is read, not when validation runs, and `{placeholder}` substitution happens at that same
-moment, so changing what the reference holds changes the displayed message with no need to revalidate the field. A
-`Ref` holding an `MdString` still renders as markdown, with its `options` and `plugins` preserved.
-
-#### `sameAs(other): boolean`
-
-True where `other` is an error of the same class that renders exactly as this one does and reports the same code and the same stated origin — the component, its bindings, its body and the classes. A validator asks it when it re-runs: where the message it produces is the one the field already carries, the field keeps the instance it has rather than taking a fresh one, so a verdict that did not move re-renders nothing. Overriding `componentBody` and the rest is therefore enough for a custom error class; override `sameAs` only where two errors that render alike are still meant to count as different.
-
-#### `origin`
-
-```typescript
-type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
-```
-
-Where the error comes from: `'validator'` for one a validator produced, `'server'` for one the server returned, and
-`'application'` for one the application's own code computed and wrote into `errors`. An origin its author states as
-the last constructor argument stands; where none is stated, an error a validator hands the field is `'validator'` and
-any other is `'application'`. Any other string is an origin of the application's own.
-
-The library reads the origin for nothing of its own: it is information about the error, the way `code` is. A
-rendering layer reads it to decide when to show an error — one the server returned at once, one a validator produced
-once the user has worked on the field — and code reads it to withdraw the errors of one origin and leave the others,
-as [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned) does.
-
-```typescript
-field.errors.push(new ValidationError('This name is taken', '', 'name_taken', 'server'));
-```
-
-`SimpleComponentDef`:
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `componentName` | `string` | Name of a globally registered component (or a plain HTML element name) |
-| `componentProps` | `Record<any, any>` | Optional props/bindings passed to the component |
-| `componentVHtml` | `string` | Optional body rendered inside the component |
-
-### `ValidationErrorDescription`
-
-```typescript
-new ValidationErrorDescription(code, params, detail, /* optional CSS classes */, /* optional origin */)
-```
-
-An error stated by what failed rather than by its text, the way every built-in validator reports a failure and a
-`@dynamicforms/fastapi-viewsets` server returns one (`detail_code`, `detail_params`, `detail`). It implements
-`ErrorDescription`:
+An error a field carries. The library does not render it; a renderer chooses its text from `code` and `params` and
+falls back to `detail`. It implements `ErrorDescription`:
 
 ```typescript
 interface ErrorDescription {
@@ -472,50 +422,45 @@ interface ErrorDescription {
 }
 ```
 
-`detail` is the failure in English with the params substituted. The error reads as what the configuration's
-[`errorText`](/api/config) answers for it — a string, an `MdString` or a `SimpleComponentDef` — and as `detail` where
-`errorText` is not set or answers `undefined`. `errorText` is called on every read, so an error on screen follows the
-locale it reads without the field revalidating. An error the server returned goes through the same function:
+| Member | Description |
+|--------|-------------|
+| `code` | Machine-readable identifier of what failed, in snake_case |
+| `params` | The values the failure is stated with |
+| `detail` | The failure in English, plain text. The constructor stores it as given; the built-in validators substitute the params before they construct the error |
+| `origin` | Where the error comes from; see below |
+
+The shape is that of an error a `@dynamicforms/fastapi-viewsets` server returns (`detail_code`, `detail_params`,
+`detail`), so one function renders the errors of validators and of the server:
 
 ```typescript
 const body = await response.json(); // { detail, detail_code?, detail_params? }
-field.errors.push(
-  body.detail_code
-    ? new ValidationErrorDescription(body.detail_code, body.detail_params ?? {}, body.detail, '', 'server')
-    : new ValidationError(body.detail, '', undefined, 'server'),
-);
+field.errors.push(new ValidationError(body.detail_code ?? 'server_error', body.detail_params ?? {}, body.detail, 'server'));
 ```
 
-### `MdString`
+#### `sameAs(other): boolean`
+
+True where `other` has the same class, `code`, `params` (deep equality), `detail` and stated origin. When a validator
+re-runs and produces an error for which `sameAs` is true against one it already contributed, the field keeps the
+instance it has. A changed param, such as `newValue`, gives a new instance.
+
+#### `origin`
 
 ```typescript
-import { MdString } from '@dynamicforms/vue-forms';
-new MdString('**bold** error message')
+type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
 ```
 
-Wraps a string to signal that it should be rendered as markdown. Rendering markdown messages requires a globally registered `vue-markdown` component; without it `MessagesWidget` logs a warning and falls back to displaying the raw markdown source.
+`'validator'` for an error a validator produced, `'server'` for one the server returned, and `'application'` for one
+the application's own code computed and wrote into `errors`. An origin given as the last constructor argument
+stands; where none is given, an error a validator hands the field is `'validator'` and any other is `'application'`.
+Any other string is an origin of the application's own.
 
-## Message placeholders
+The library does not read the origin. A rendering layer reads it to decide when to show an error, and code reads it
+to withdraw the errors of one origin and leave the others, as
+[Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned) does.
 
-A `message` given to a built-in validator supports `{placeholder}` substitution: the validator's [params](#error-codes)
-and the element itself.
-
-| Placeholder | Available in |
-|-------------|-------------|
-| `{newValue}` | all |
-| `{oldValue}` | all |
-| `{field}` | all |
-| `{pattern}` | `Pattern` |
-| `{minValue}` | `MinValue`, `ValueInRange` |
-| `{maxValue}` | `MaxValue`, `ValueInRange` |
-| `{minLength}` | `MinLength`, `LengthInRange` |
-| `{maxLength}` | `MaxLength`, `LengthInRange` |
-| `{allowedValues}` | `InAllowedValues` |
-| `{allowedAsText}` | `InAllowedValues` |
-| `{otherValue}` | `CompareTo` |
-| `{otherField}` | `CompareTo` |
-
-Substitution is purely textual (`String.replaceAll`). `{newValue}`/`{oldValue}` on a group, a list or an object-valued field render as `[object Object]`, and `{field}`/`{otherField}` name an element, which renders as `[object Field]` — its class rather than what it holds. Use a function message (`() => ...`) to read what you need off the element instead. Note also that `{allowedValues}` produces `admin,user` while `{allowedAsText}` produces `admin, user` (truncated when longer than 60 characters).
+```typescript
+field.errors.push(new ValidationError('name_taken', {}, 'This name is taken', 'server'));
+```
 
 ---
 

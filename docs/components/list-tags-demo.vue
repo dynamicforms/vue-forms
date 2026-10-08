@@ -51,11 +51,9 @@ const tags = new List(new Field({ value: '', validators: [new Validators.Require
   value: ['urgent', 'billing']
 });
 
-// Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
-// componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.
+// Vuetify's error-messages prop takes strings; the demo shows each error's English detail
 function getErrorMessages(field) {
-  if (!field.errors || field.errors.length === 0) return [];
-  return field.errors.map(error => error.componentBody || error.componentBindings.source || 'Validation error');
+  return field.errors.map((error) => error.detail);
 }
 </script>
 

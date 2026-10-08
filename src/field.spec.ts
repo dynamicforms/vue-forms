@@ -53,7 +53,7 @@ describe('Field', () => {
     const onValidChanged = vi.fn();
     const field = new Form.Field({ access: 'editable' }).registerAction(new Form.ValidChangedAction(onValidChanged));
 
-    field.errors = [new ValidationError('Napaka')];
+    field.errors = [new ValidationError('invalid', {}, 'Napaka')];
     field.value = 'test';
 
     expect(field.valid).toBe(false);
@@ -99,7 +99,7 @@ describe('Field', () => {
     // Test with validator that creates error
     const fieldWithValidator = new Form.Field({
       value: '',
-      validators: [new Form.Validators.Required('Required field')],
+      validators: [new Form.Validators.Required({ detail: 'Required field' })],
     });
     expect(fieldWithValidator.valid).toBe(false);
     expect(fieldWithValidator.errors.length).toBe(1);
@@ -242,7 +242,7 @@ describe('Field construction', () => {
       validators: [
         new Form.Validators.Validator<string>((newValue) => {
           runs.push(newValue);
-          return newValue === '' ? [new ValidationError('Required field')] : null;
+          return newValue === '' ? [new ValidationError('invalid', {}, 'Required field')] : null;
         }),
       ],
     });

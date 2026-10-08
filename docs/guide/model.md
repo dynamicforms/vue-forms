@@ -241,7 +241,7 @@ is reached along two paths, and knowing which is which explains everything `vali
   `ValidChangedAction` fires once per element whose verdict actually changed.
 
 ```typescript
-field.errors.push(new ValidationError('from the server'));
+field.errors.push(new ValidationError('rejected', {}, 'Rejected by the server', 'server'));
 field.valid;      // false already
 group.valid;      // false already
 // no ValidChangedAction has fired

@@ -49,7 +49,7 @@ it('triggers action with custom parameters', () => {
 
 it('clears all validators and resets errors', () => {
   // Create a field with validators that will produce errors
-  const field = new Field({ value: '' }).registerAction(new Validators.Required('Required field'));
+  const field = new Field({ value: '' }).registerAction(new Validators.Required({ detail: 'Required field' }));
 
   // Initially should have errors (empty value with Required validator)
   expect(field.errors.length).toBe(1);
@@ -71,7 +71,7 @@ it('clears all validators and resets errors', () => {
 
 it('carries the actions that are not validators over to the new chain', () => {
   const seen: string[] = [];
-  const field = new Field({ value: 'a', validators: [new Validators.Required('Required field')] });
+  const field = new Field({ value: 'a', validators: [new Validators.Required({ detail: 'Required field' })] });
   field.registerAction(new ValueChangedAction((f, supr, newValue) => seen.push(String(newValue))));
 
   field.clearValidators();
@@ -87,11 +87,9 @@ it('clears CompareTo validator and its cross-field references', () => {
   const field2 = new Field<string>({ value: 'value2' });
 
   // Add CompareTo validator to check for equality
-  const compareToValidator = new Validators.CompareTo(
-    field2,
-    (val1: string, val2: string) => val1 === val2,
-    'Fields must match',
-  );
+  const compareToValidator = new Validators.CompareTo(field2, (val1: string, val2: string) => val1 === val2, {
+    detail: 'Fields must match',
+  });
   field1.registerAction(compareToValidator);
 
   // Initially should have errors (values don't match)
@@ -117,7 +115,7 @@ it('clears CompareTo validator and its cross-field references', () => {
 
 it('clears the validators of one field without silencing the same validator on another', () => {
   const limit = new Field<number>({ value: 10 });
-  const shared = new Validators.CompareTo<number>(limit, (mine, max) => mine <= max, 'above the limit');
+  const shared = new Validators.CompareTo<number>(limit, (mine, max) => mine <= max, { detail: 'above the limit' });
   const first = new Field<number>({ value: 1 });
   const second = new Field<number>({ value: 1 });
   first.registerAction(shared);
@@ -140,7 +138,7 @@ it('clears the validators of every row, because the rule was the declarations', 
     to: new Field<number>({ value: 0 }),
   });
   template.fields.to.registerAction(
-    new Validators.CompareTo<number>(template.fields.from, (to, from) => to >= from, 'to precedes from'),
+    new Validators.CompareTo<number>(template.fields.from, (to, from) => to >= from, { detail: 'to precedes from' }),
   );
 
   const list = new List(template, {
@@ -220,7 +218,7 @@ it('propagates a validity change to the enclosing groups', () => {
   expect(outer.valid).toBe(true);
 
   // an error pushed from the outside changes validity without any value change
-  child.errors.push(new ValidationError('pushed from outside'));
+  child.errors.push(new ValidationError('invalid', {}, 'pushed from outside'));
   child.validate();
 
   expect(inner.valid).toBe(false);
@@ -247,11 +245,11 @@ it('stops propagating validity upwards where the ancestor validity is unchanged'
     }),
   );
 
-  childA.errors.push(new ValidationError('a is bad'));
+  childA.errors.push(new ValidationError('invalid', {}, 'a is bad'));
   childA.validate();
   expect(fires).toEqual([false]);
 
-  childB.errors.push(new ValidationError('b is bad too'));
+  childB.errors.push(new ValidationError('invalid', {}, 'b is bad too'));
   childB.validate();
   expect(fires).toEqual([false]);
 });

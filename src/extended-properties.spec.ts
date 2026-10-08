@@ -108,7 +108,7 @@ describe('binding', () => {
 
   it('has them in place before the eager actions the binding takes on run', () => {
     const validator = new Validator<number>((newValue, oldValue, field) =>
-      (field as Field<number, Presentation>).extra.label ? null : [new ValidationError('no label')],
+      (field as Field<number, Presentation>).extra.label ? null : [new ValidationError('invalid', {}, 'no label')],
     );
     const field = new Field<number, Presentation>({
       value: 1,

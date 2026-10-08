@@ -8,8 +8,8 @@ import { transactional } from './transaction';
 /**
  * The value an `Action` holds. Both members are `unknown` because `Action` states the concept and a UI library
  * states what it renders: a subclass declares its value type with `label` and `icon` in whatever shape it renders
- * them - `string | MdString`, a per-breakpoint object - and the accessors below answer at that type, because they
- * read it off `T` rather than fixing one of their own.
+ * them - a string, a markdown string, a per-breakpoint object - and the accessors below answer at that type,
+ * because they read it off `T` rather than fixing one of their own.
  *
  * The consequence for an `Action` built without a type argument is that reading either member answers `unknown`
  * and the reader states what it expects. That is the shape the class is for; an application that renders actions

@@ -64,7 +64,7 @@ const props = defineProps<{ field: Field<string, Presentation> }>();
     <input v-model="field.value" :disabled="!field.enabled" />
   </label>
   <small v-if="field.extra.hint">{{ field.extra.hint }}</small>
-  <span v-for="error in field.errors" :key="error.componentBody">{{ error.componentBody }}</span>
+  <span v-for="error in field.errors" :key="error.code">{{ error.detail }}</span>
 </template>
 ```
 

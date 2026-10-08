@@ -4,7 +4,9 @@
       "required": "Please enter a value",
       "value_in_range": "Value must be between {minValue} and {maxValue}",
       "in_allowed_values": "Must be one of [{allowedAsText}]",
-      "length_in_range": "Length must be between {minLength} and {maxLength}"
+      "length_in_range": "Length must be between {minLength} and {maxLength}",
+      "invalid_email": "Please enter a valid email address",
+      "email_taken": "This email address is already taken"
     },
     "roles": {
       "admin": "Administrator",
@@ -18,8 +20,6 @@
       "username": "Username",
       "email": "Email",
       "emailHint": "Try entering something@taken.com to see async validation",
-      "invalidEmail": "Please enter a valid email address",
-      "emailTaken": "This email address is already taken",
       "age": "Age",
       "role": "Role",
       "bio": "Bio",
@@ -35,7 +35,9 @@
       "required": "Prosimo, vnesite vrednost",
       "value_in_range": "Vrednost mora biti med {minValue} in {maxValue}",
       "in_allowed_values": "Mora biti ena od [{allowedAsText}]",
-      "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}"
+      "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}",
+      "invalid_email": "Vnesite veljaven e-poštni naslov",
+      "email_taken": "Ta e-poštni naslov je že zaseden"
     },
     "roles": {
       "admin": "Skrbnik",
@@ -49,8 +51,6 @@
       "username": "Uporabniško ime",
       "email": "E-pošta",
       "emailHint": "Vnesite something@taken.com za prikaz asinhrone validacije",
-      "invalidEmail": "Vnesite veljaven e-poštni naslov",
-      "emailTaken": "Ta e-poštni naslov je že zaseden",
       "age": "Starost",
       "role": "Vloga",
       "bio": "Opis",
@@ -66,7 +66,9 @@
       "required": "Bitte geben Sie einen Wert ein",
       "value_in_range": "Der Wert muss zwischen {minValue} und {maxValue} liegen",
       "in_allowed_values": "Muss einer von [{allowedAsText}] sein",
-      "length_in_range": "Die Länge muss zwischen {minLength} und {maxLength} liegen"
+      "length_in_range": "Die Länge muss zwischen {minLength} und {maxLength} liegen",
+      "invalid_email": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
+      "email_taken": "Diese E-Mail-Adresse ist bereits vergeben"
     },
     "roles": {
       "admin": "Administrator",
@@ -80,8 +82,6 @@
       "username": "Benutzername",
       "email": "E-Mail",
       "emailHint": "Geben Sie something@taken.com ein, um die asynchrone Validierung zu sehen",
-      "invalidEmail": "Bitte geben Sie eine gültige E-Mail-Adresse ein",
-      "emailTaken": "Diese E-Mail-Adresse ist bereits vergeben",
       "age": "Alter",
       "role": "Rolle",
       "bio": "Biografie",
@@ -97,7 +97,9 @@
       "required": "Introduzca un valor",
       "value_in_range": "El valor debe estar entre {minValue} y {maxValue}",
       "in_allowed_values": "Debe ser uno de [{allowedAsText}]",
-      "length_in_range": "La longitud debe estar entre {minLength} y {maxLength}"
+      "length_in_range": "La longitud debe estar entre {minLength} y {maxLength}",
+      "invalid_email": "Introduzca una dirección de correo válida",
+      "email_taken": "Esta dirección de correo ya está en uso"
     },
     "roles": {
       "admin": "Administrador",
@@ -111,8 +113,6 @@
       "username": "Nombre de usuario",
       "email": "Correo electrónico",
       "emailHint": "Introduzca something@taken.com para ver la validación asíncrona",
-      "invalidEmail": "Introduzca una dirección de correo válida",
-      "emailTaken": "Esta dirección de correo ya está en uso",
       "age": "Edad",
       "role": "Rol",
       "bio": "Biografía",
@@ -128,7 +128,9 @@
       "required": "値を入力してください",
       "value_in_range": "値は {minValue} から {maxValue} の間でなければなりません",
       "in_allowed_values": "[{allowedAsText}] のいずれかでなければなりません",
-      "length_in_range": "長さは {minLength} から {maxLength} の間でなければなりません"
+      "length_in_range": "長さは {minLength} から {maxLength} の間でなければなりません",
+      "invalid_email": "有効なメールアドレスを入力してください",
+      "email_taken": "このメールアドレスは既に使用されています"
     },
     "roles": {
       "admin": "管理者",
@@ -142,8 +144,6 @@
       "username": "ユーザー名",
       "email": "メールアドレス",
       "emailHint": "非同期検証を見るには something@taken.com を入力してください",
-      "invalidEmail": "有効なメールアドレスを入力してください",
-      "emailTaken": "このメールアドレスは既に使用されています",
       "age": "年齢",
       "role": "役割",
       "bio": "自己紹介",
@@ -159,7 +159,9 @@
       "required": "请输入一个值",
       "value_in_range": "值必须介于 {minValue} 和 {maxValue} 之间",
       "in_allowed_values": "必须是 [{allowedAsText}] 之一",
-      "length_in_range": "长度必须介于 {minLength} 和 {maxLength} 之间"
+      "length_in_range": "长度必须介于 {minLength} 和 {maxLength} 之间",
+      "invalid_email": "请输入有效的电子邮件地址",
+      "email_taken": "该电子邮件地址已被占用"
     },
     "roles": {
       "admin": "管理员",
@@ -173,8 +175,6 @@
       "username": "用户名",
       "email": "电子邮件",
       "emailHint": "输入 something@taken.com 查看异步验证",
-      "invalidEmail": "请输入有效的电子邮件地址",
-      "emailTaken": "该电子邮件地址已被占用",
       "age": "年龄",
       "role": "角色",
       "bio": "简介",
@@ -190,7 +190,9 @@
       "required": "لطفاً یک مقدار وارد کنید",
       "value_in_range": "مقدار باید بین {minValue} و {maxValue} باشد",
       "in_allowed_values": "باید یکی از ⁨[{allowedAsText}]⁩ باشد",
-      "length_in_range": "طول باید بین {minLength} و {maxLength} باشد"
+      "length_in_range": "طول باید بین {minLength} و {maxLength} باشد",
+      "invalid_email": "لطفاً یک نشانی ایمیل معتبر وارد کنید",
+      "email_taken": "این نشانی ایمیل قبلاً استفاده شده است"
     },
     "roles": {
       "admin": "مدیر",
@@ -205,8 +207,6 @@
       "username": "نام کاربری",
       "email": "ایمیل",
       "emailHint": "برای دیدن اعتبارسنجی ناهمگام something@taken.com را وارد کنید",
-      "invalidEmail": "لطفاً یک نشانی ایمیل معتبر وارد کنید",
-      "emailTaken": "این نشانی ایمیل قبلاً استفاده شده است",
       "age": "سن",
       "role": "نقش",
       "bio": "درباره من",
@@ -222,7 +222,9 @@
       "required": "একটি মান লিখুন",
       "value_in_range": "মান {minValue} থেকে {maxValue} এর মধ্যে হতে হবে",
       "in_allowed_values": "[{allowedAsText}] এর মধ্যে একটি হতে হবে",
-      "length_in_range": "দৈর্ঘ্য {minLength} থেকে {maxLength} এর মধ্যে হতে হবে"
+      "length_in_range": "দৈর্ঘ্য {minLength} থেকে {maxLength} এর মধ্যে হতে হবে",
+      "invalid_email": "একটি বৈধ ইমেল ঠিকানা লিখুন",
+      "email_taken": "এই ইমেল ঠিকানাটি ইতিমধ্যে ব্যবহৃত হয়েছে"
     },
     "roles": {
       "admin": "প্রশাসক",
@@ -236,8 +238,6 @@
       "username": "ব্যবহারকারীর নাম",
       "email": "ইমেল",
       "emailHint": "অ্যাসিঙ্ক্রোনাস যাচাই দেখতে something@taken.com লিখুন",
-      "invalidEmail": "একটি বৈধ ইমেল ঠিকানা লিখুন",
-      "emailTaken": "এই ইমেল ঠিকানাটি ইতিমধ্যে ব্যবহৃত হয়েছে",
       "age": "বয়স",
       "role": "ভূমিকা",
       "bio": "পরিচিতি",

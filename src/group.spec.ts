@@ -290,7 +290,7 @@ describe('Group value initialization', () => {
   it('keeps the verdict of a constructor-supplied validator that rejects the constructed value', () => {
     const group = new Group(
       { a: new Field({ value: 1 }) },
-      { validators: [new Validators.Validator(() => [new ValidationError('not allowed')])] },
+      { validators: [new Validators.Validator(() => [new ValidationError('invalid', {}, 'not allowed')])] },
     );
 
     expect(group.valid).toBe(false);
@@ -365,7 +365,7 @@ describe('Form Validation', () => {
     expect(form.valid).toBe(true);
 
     // Act - add form-level validation error
-    form.errors = [new ValidationError('At least one contact method (phone or email) is required')];
+    form.errors = [new ValidationError('invalid', {}, 'At least one contact method (phone or email) is required')];
     form.validate();
 
     // Assert
@@ -397,7 +397,7 @@ describe('Form Validation', () => {
     const form = new Group({ optionalField: new Field({ value: '' }) });
 
     // Add form-level error
-    form.errors = [new ValidationError('Custom form validation error')];
+    form.errors = [new ValidationError('invalid', {}, 'Custom form validation error')];
     form.validate();
     expect(form.valid).toBe(false);
 
@@ -422,7 +422,7 @@ describe('Cross-field validation with revalidate', () => {
     const crossFieldValidator = new Validators.Validator((newValue) => {
       const minVal = form.fields.minValue.value;
       if (newValue <= minVal) {
-        return [new ValidationError(`Max value must be greater than min value (${minVal})`)];
+        return [new ValidationError('invalid', {}, `Max value must be greater than min value (${minVal})`)];
       }
       return null;
     });
@@ -791,7 +791,7 @@ describe('Group validity reading', () => {
     const root = new Group({ inner });
     expect(root.valid).toBe(true);
 
-    inner.fields.member.errors.push(new ValidationError('pushed in'));
+    inner.fields.member.errors.push(new ValidationError('invalid', {}, 'pushed in'));
 
     expect(inner.valid).toBe(false);
     expect(root.valid).toBe(false);
@@ -860,7 +860,7 @@ describe('Group membership after construction', () => {
 
   it('re-forms its verdict over the member it took and the one it gave up', () => {
     const group = new Group({ a: new Field({ value: 'a' }) });
-    const invalid = new Field({ value: '', validators: [new Validators.Required('Required')] });
+    const invalid = new Field({ value: '', validators: [new Validators.Required({ detail: 'Required' })] });
 
     expect(group.valid).toBe(true);
 
@@ -939,7 +939,7 @@ describe('Group membership after construction', () => {
       .registerAction(new ValidChangedAction(onValidChanged));
 
     transaction(() => {
-      group.addField('b', new Field({ value: '', validators: [new Validators.Required('Required')] }));
+      group.addField('b', new Field({ value: '', validators: [new Validators.Required({ detail: 'Required' })] }));
       group.addField('c', new Field({ value: 3 }));
       group.removeField('a');
     });
@@ -956,7 +956,9 @@ describe('Group membership after construction', () => {
       confirmation: new Field<string>({ value: '' }),
     });
     template.fields.confirmation.registerAction(
-      new Validators.CompareTo(template.fields.password, (mine: string, other: string) => mine === other, 'must match'),
+      new Validators.CompareTo(template.fields.password, (mine: string, other: string) => mine === other, {
+        detail: 'must match',
+      }),
     );
     const form = new Group({ password: template.fields.password.bind('secret') });
     // bound on its own, the rule reaches no record: the field it names lives in the form the binding has yet to join

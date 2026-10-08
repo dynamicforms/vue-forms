@@ -8,8 +8,6 @@ import VueMarkdown from 'vue-markdown-render';
 import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
 
-import { forms } from '../../../src';
-
 export default {
   extends: DefaultTheme,
   enhanceApp({ app }) {
@@ -22,7 +20,6 @@ export default {
     });
 
     app.use(vuetify);
-    app.use(forms);
     app.component('VueMarkdown', VueMarkdown);
   },
   Layout: () => {

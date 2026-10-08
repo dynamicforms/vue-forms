@@ -126,8 +126,8 @@ jobs:
           }
           JSON
           cat > probe.ts <<'TS'
-          import { Field, Group, List, MessagesWidget, Validators } from './lib.js';
-          export const widget = MessagesWidget;
+          import { Field, Group, List, ValidationError, Validators } from './lib.js';
+          export const error = new ValidationError('taken', {}, 'Taken', 'server');
           export const field = new Field({ value: 1, validators: [new Validators.Required()] });
           export const group = new Group({ field });
           export const list = new List(group);

@@ -330,7 +330,7 @@ describe('List', () => {
   it('keeps the verdict of a constructor-supplied validator that rejects the constructed value', () => {
     const list = new List(undefined, {
       value: [{ a: 1 }],
-      validators: [new Validators.Validator(() => [new ValidationError('too short')])],
+      validators: [new Validators.Validator(() => [new ValidationError('invalid', {}, 'too short')])],
     });
 
     expect(list.valid).toBe(false);
@@ -400,7 +400,7 @@ describe('List Validation', () => {
     expect(list.valid).toBe(true);
 
     // Act - add list-level validation error
-    list.errors = [new ValidationError('List must contain at least 3 items')];
+    list.errors = [new ValidationError('invalid', {}, 'List must contain at least 3 items')];
     list.validate();
 
     // Assert
@@ -437,7 +437,7 @@ describe('List Validation', () => {
     const list = new List(itemTemplate);
 
     // Add list-level error
-    list.errors = [new ValidationError('Custom list validation error')];
+    list.errors = [new ValidationError('invalid', {}, 'Custom list validation error')];
     list.validate();
     expect(list.valid).toBe(false);
 
@@ -506,7 +506,7 @@ describe('Cross-field validation with revalidate', () => {
       // a ValidationFunction receives a FieldBase, whose container may be a Group or a List; a field's is a Group
       const startDate = (field.parent as Group | undefined)?.fields.startDate.value;
       if (startDate && newValue && new Date(newValue) <= new Date(startDate)) {
-        return [new ValidationError('End date must be after start date')];
+        return [new ValidationError('invalid', {}, 'End date must be after start date')];
       }
       return null;
     });
@@ -907,7 +907,7 @@ describe('List validity reading', () => {
     const root = new Group({ list });
     expect(root.valid).toBe(true);
 
-    list.get(0)!.fields.a.errors.push(new ValidationError('pushed in'));
+    list.get(0)!.fields.a.errors.push(new ValidationError('invalid', {}, 'pushed in'));
 
     expect(list.get(0)!.valid).toBe(false);
     expect(list.valid).toBe(false);
@@ -1151,8 +1151,8 @@ describe('List row reuse', () => {
 
     list.value = [{ a: '1' }];
     const row = list.get(0)!;
-    row.fields.a.errors.push(new ValidationError('pushed in'));
-    row.errors.push(new ValidationError('pushed onto the row'));
+    row.fields.a.errors.push(new ValidationError('invalid', {}, 'pushed in'));
+    row.errors.push(new ValidationError('invalid', {}, 'pushed onto the row'));
 
     expect(list.valid).toBe(false);
 
@@ -1168,7 +1168,7 @@ describe('List row reuse', () => {
     const template = new Group({ a: new Field({ value: 'x', validators: [new Validators.Required()] }) });
     const list = new List(template, { value: [{ a: '' }] });
     const row = list.get(0)!;
-    row.fields.a.errors.push(new ValidationError('pushed in'));
+    row.fields.a.errors.push(new ValidationError('invalid', {}, 'pushed in'));
 
     list.value = [{ a: '' }];
 

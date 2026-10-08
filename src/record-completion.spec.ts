@@ -17,7 +17,9 @@ function lineItem() {
         field.markRecordIncomplete();
         return null;
       }
-      return row.fields.quantity.value > 0 && newValue == null ? [new ValidationError('required')] : null;
+      return row.fields.quantity.value > 0 && newValue == null
+        ? [new ValidationError('invalid', {}, 'required')]
+        : null;
     }),
   );
   return template;

@@ -5,41 +5,35 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-10-07
+## [3.0.0] - 2026-10-08
 
 ### Changed
-- A built-in validator given no `message` reports a `ValidationErrorDescription`: a `code`, the `params` it failed
-  with and an English `detail`. The application renders it through `errorText` in the configuration; without
-  `errorText` it reads as the detail.
+- `ValidationError` is data: `new ValidationError(code, params, detail, origin?)`. It carries the `code` of what
+  failed, the `params` it failed with, an English plain-text `detail` and an `origin`, and implements
+  `ErrorDescription`, the shape of an error a `@dynamicforms/fastapi-viewsets` server returns. The library does not
+  render it.
 - Error codes are snake_case and name what failed: `min` is `min_value`, `max` is `max_value`, `range` is
   `value_in_range`, `min-length` is `min_length`, `max-length` is `max_length`, `range-length` is
   `length_in_range`, `in-allowed-values` is `in_allowed_values`, `compare-to` is `compare_to` and
   `validation-failed` is `validation_failed`. `required` and `pattern` stay.
+- The built-in validators take `ValidationErrorOptions` (`{ code?, detail? }`) as their last argument instead of a
+  message. `RequiredOptions` extends it. `CompareTo` no longer requires it.
 - The English details of the built-in validators are plain text, without markdown.
-- The configuration is reactive: an error on screen follows a later write of `errorText`.
-- `ValidationError` is the one error class for content: `new ValidationError(content?, classes?, code?, origin?,
-  params?)`, the constructor `ValidationErrorRenderContent` had. Built without content it renders as empty text.
-- `RenderableValue` is the base class of `ValidationError` rather than a subclass of it, and carries no `code`,
-  `params` or `origin`. `MessagesWidget` takes `string | RenderableValue[]`.
-- `MdString`, `SimpleComponentDef`, the `RenderContent` types, `ClassTypes` and the type guards are declared in their
-  own module, beside `RenderableValue`; the package exports them as before.
+- `sameAs` compares the class, `code`, `params`, `detail` and the stated origin, so an error whose params changed
+  replaces the instance on the field.
 
 ### Added
-- `errorText` in the configuration: `(error: ErrorDescription) => string | MdString | SimpleComponentDef | undefined`,
-  called on every read of an error stated by code, so an error on screen follows the locale it reads.
-- `ErrorDescription`, the interface of an error stated by `code`, `params`, `detail` and `origin`, and
-  `ValidationErrorDescription`, the error class that implements it. An error a `@dynamicforms/fastapi-viewsets`
-  server returns has the same shape.
-- `params` on every error, the values the failure is stated with, taken as the last constructor argument.
-- `{otherValue}` in a `CompareTo` message.
-- `kind` on a `RenderableValue`: `'string'`, `'md'` or `'component'`, the form its content takes.
+- `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
+- `ValidationErrorOptions`.
+- `params` on every error.
 
 ### Removed
+- `MessagesWidget`, `RenderableValue`, `MdString`, `SimpleComponentDef`, the `RenderContent` types, `ClassType`,
+  `ClassTypes`, `isSimpleComponentDef`, `isCallableFunction` and the stylesheet `style.css`.
+- The plugin `forms`, `getConfig`, `setConfig`, `FormsConfig` and `useMarkdownInValidators`.
+- `ValidationErrorText` and `ValidationErrorRenderContent`.
+- `buildErrorMessage`.
 - The dependency on `@dynamicforms/translatable`, together with `translateStrings` and the `strings` dictionary.
-- `useMarkdownInValidators` and `buildErrorMessage`.
-- `ValidationErrorText` and `ValidationErrorRenderContent`; `ValidationError` takes their place with the same
-  constructor arguments.
-- `getTextType` on a rendered value; `kind` takes its place.
 
 ## [2.0.3] - 2026-10-06
 

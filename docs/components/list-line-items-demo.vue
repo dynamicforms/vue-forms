@@ -106,7 +106,7 @@ lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, old
     return null;
   }
   if (row.fields.quantity.value > 0 && (newValue === null || newValue === '')) {
-    return [new ValidationError('Unit price is required when quantity is above zero')];
+    return [new ValidationError('unit_price_required', {}, 'Unit price is required when quantity is above zero')];
   }
   return null;
 }));
@@ -155,11 +155,9 @@ function insertAbove(index) {
   lineItems.insert({ description: '', quantity: 1, unitPrice: null }, index);
 }
 
-// Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
-// componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.
+// Vuetify's error-messages prop takes strings; the demo shows each error's English detail
 function getErrorMessages(field) {
-  if (!field.errors || field.errors.length === 0) return [];
-  return field.errors.map(error => error.componentBody || error.componentBindings.source || 'Validation error');
+  return field.errors.map((error) => error.detail);
 }
 </script>
 

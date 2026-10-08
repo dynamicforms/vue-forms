@@ -1,12 +1,10 @@
 import { vi } from 'vitest';
-import { ref, toRaw } from 'vue';
+import { toRaw } from 'vue';
 
 import { Field } from '../field';
-import { MdString } from '../render-content';
 
 import { ValidationError } from './validation-error';
-import { ValidationFunction, Validator } from './validator';
-import Required from './validator-required';
+import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 
 import { Validators } from '.';
 
@@ -16,7 +14,7 @@ describe('Validator', () => {
     const field = new Field();
     field.validate = vi.fn();
 
-    const validationFn: ValidationFunction = () => [new ValidationError('Error message')];
+    const validationFn: ValidationFunction = () => [new ValidationError('invalid', {}, 'Error message')];
     const validator = new Validator(validationFn);
 
     // Act
@@ -25,16 +23,16 @@ describe('Validator', () => {
     // Assert
     expect(field.errors.length).toBe(1);
     expect(field.errors[0]).toBeInstanceOf(ValidationError);
-    expect((field.errors[0] as ValidationError).resolvedText).toBe('Error message');
+    expect((field.errors[0] as ValidationError).detail).toBe('Error message');
     expect(field.validate).toHaveBeenCalled();
   });
 
   it('removes previous errors from the same validator', () => {
     // Arrange
-    const existingError = new ValidationError('Existing error');
+    const existingError = new ValidationError('invalid', {}, 'Existing error');
 
     const validationFn: ValidationFunction = (newValue) => {
-      if (newValue === 'old') return [new ValidationError('New error')];
+      if (newValue === 'old') return [new ValidationError('invalid', {}, 'New error')];
       return null;
     };
     const validator = new Validator(validationFn);
@@ -69,87 +67,43 @@ describe('Validator', () => {
     expect(mockSupr.mock.calls[0][0]).toBe(field);
   });
 
-  it('replaces placeholders in error messages', () => {
-    // Arrange
+  it('substitutes params into the detail of the error it builds', () => {
+    class TestValidator extends Validator {
+      constructor(options?: ValidationErrorOptions) {
+        super((newValue, oldValue) => [
+          this.errorFor(options, 'test', 'New: {newValue}, Old: {oldValue}', { newValue, oldValue }),
+        ]);
+      }
+    }
     const field = new Field();
     field.validate = vi.fn();
 
-    // Create a custom validator with a validation function that uses replacePlaceholders
-    class TestValidator extends Validator {
-      constructor() {
-        super(() => {
-          const errorText = this.replacePlaceholders('New: {newValue}, Old: {oldValue}', {
-            newValue: 'new-value',
-            oldValue: 'old-value',
-          });
-          return [new ValidationError(errorText as string)];
-        });
-      }
+    new TestValidator().execute(field, vi.fn(), 'new-value', 'old-value');
 
-      // Expose protected method for testing
-      public testReplacePlaceholders(text: string, replace: Record<string, any>): string {
-        return this.replacePlaceholders(text, replace) as string;
-      }
-    }
-
-    const validator = new TestValidator();
-
-    // Act
-    validator.execute(field, vi.fn(), 'new-value', 'old-value');
-
-    // Assert
-    expect(field.errors.length).toBe(1);
-    expect((field.errors[0] as ValidationError).resolvedText).toBe('New: new-value, Old: old-value');
+    expect(field.errors[0].code).toBe('test');
+    expect(field.errors[0].detail).toBe('New: new-value, Old: old-value');
+    expect(field.errors[0].params).toEqual({ newValue: 'new-value', oldValue: 'old-value' });
   });
 
-  it('properly replaces placeholders with direct method call', () => {
-    // Create validator with exposed replacement method
+  it('states the code and the detail the options give, with params substituted into the detail', () => {
     class TestValidator extends Validator {
-      constructor() {
-        super(() => null);
-      }
-
-      // Expose protected method for testing
-      public testReplacePlaceholders(text: string, replace: Record<string, any>): string {
-        return this.replacePlaceholders(text, replace) as string;
+      constructor(options?: ValidationErrorOptions) {
+        super((newValue) => [this.errorFor(options, 'test', 'Default', { newValue })]);
       }
     }
+    const field = new Field();
+    field.validate = vi.fn();
 
-    const validator = new TestValidator();
+    new TestValidator({ code: 'custom', detail: 'Got {newValue}, {unknown} stays' }).execute(field, vi.fn(), 'a', '');
 
-    // Test replacement
-    const result = validator.testReplacePlaceholders('Name: {name}, Age: {age}, Value: {value}', {
-      name: 'John',
-      age: 30,
-      value: 'test',
-    });
-
-    expect(result).toBe('Name: John, Age: 30, Value: test');
+    expect(field.errors[0].code).toBe('custom');
+    expect(field.errors[0].detail).toBe('Got a, {unknown} stays');
   });
 
-  it('renders an element named as a placeholder by its class', () => {
-    class TestValidator extends Validator {
-      constructor() {
-        super(() => null);
-      }
-
-      public testReplacePlaceholders(text: string, replace: Record<string, any>): string {
-        return this.replacePlaceholders(text, replace) as string;
-      }
-    }
-
-    const validator = new TestValidator();
-    const field = new Field({ value: 'x' });
-
-    // every built-in validator hands the element it ran over in as {field}
-    expect(validator.testReplacePlaceholders('Value: {newValue}', { newValue: 'a', field })).toBe('Value: a');
-    // a message that names it reads the element's tag, which is its class rather than the bare object
-    expect(validator.testReplacePlaceholders('On {field}', { newValue: 'a', field })).toBe('On [object Field]');
-  });
   it('creates validator with field instance instead of mock', () => {
     // Create a field with a validator directly
     const validationFn: ValidationFunction = (newValue) =>
-      newValue === 'invalid' ? [new ValidationError('Invalid value')] : null;
+      newValue === 'invalid' ? [new ValidationError('invalid', {}, 'Invalid value')] : null;
 
     const field = new Field({
       value: 'valid',
@@ -164,7 +118,7 @@ describe('Validator', () => {
 
     // Should have error
     expect(field.errors.length).toBe(1);
-    expect((field.errors[0] as ValidationError).resolvedText).toBe('Invalid value');
+    expect((field.errors[0] as ValidationError).detail).toBe('Invalid value');
 
     // Change back to valid
     field.value = 'valid';
@@ -178,7 +132,7 @@ describe('Shared ValidationError', () => {
   const failWith = (errors: ValidationError[]) => new Validator((newValue) => (newValue === 'bad' ? errors : null));
 
   it('accepts one error instance produced by two validators of the same field', () => {
-    const shared = new ValidationError('Shared error');
+    const shared = new ValidationError('invalid', {}, 'Shared error');
 
     const build = () =>
       new Field({
@@ -192,7 +146,7 @@ describe('Shared ValidationError', () => {
   });
 
   it('lets both validators withdraw their error when the first field is cleared first', () => {
-    const shared = new ValidationError('Shared error');
+    const shared = new ValidationError('invalid', {}, 'Shared error');
     const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
     const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
 
@@ -210,7 +164,7 @@ describe('Shared ValidationError', () => {
   });
 
   it('lets both validators withdraw their error when the second field is cleared first', () => {
-    const shared = new ValidationError('Shared error');
+    const shared = new ValidationError('invalid', {}, 'Shared error');
     const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
     const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
 
@@ -225,7 +179,7 @@ describe('Shared ValidationError', () => {
   });
 
   it('does not repeat an unchanged error instance returned by the same validator twice', () => {
-    const shared = new ValidationError('Shared error');
+    const shared = new ValidationError('invalid', {}, 'Shared error');
     const field = new Field({ value: 'bad', validators: [failWith([shared])] });
 
     expect(field.errors.length).toBe(1);
@@ -234,58 +188,20 @@ describe('Shared ValidationError', () => {
     field.value = 'bad';
 
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0].componentBody).toBe('Shared error');
+    expect(field.errors[0].detail).toBe('Shared error');
   });
 
-  it('renders the error a second validator receives exactly like the shared instance', () => {
-    const options = { html: true };
-    const plugins = [{ name: 'plugin' }];
-    const text = new ValidationError('Shared text', 'text-class');
-    const content = new ValidationError(new MdString('**shared**', options, plugins), 'content-class');
-    const shared = [text, content];
+  it('hands a second validator an error equal to the shared instance', () => {
+    const shared = new ValidationError('shared', { limit: 3 }, 'Shared text', 'server');
 
-    const field1 = new Field({ value: 'bad', validators: [failWith(shared)] });
-    const field2 = new Field({ value: 'bad', validators: [failWith(shared)] });
+    const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
+    const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
 
-    expect(field1.errors.length).toBe(2);
-    expect(field2.errors.length).toBe(2);
+    expect(field1.errors.length).toBe(1);
     expect(field2.errors[0]).toBeInstanceOf(ValidationError);
-    expect(field2.errors[1]).toBeInstanceOf(ValidationError);
-
-    [text, content].forEach((original, idx) => {
-      expect(field2.errors[idx].componentName).toBe(original.componentName);
-      expect(field2.errors[idx].componentBody).toBe(original.componentBody);
-      expect(field2.errors[idx].componentBindings).toEqual(original.componentBindings);
-      expect(field2.errors[idx].extraClasses).toBe(original.extraClasses);
-    });
-  });
-});
-
-describe('Reference messages', () => {
-  it('resolves a Ref message on read, so a changed reference changes the message', () => {
-    const message = ref('Please enter a value');
-    const field = new Field({ value: '', validators: [new Required(message)] });
-
-    expect(field.errors.length).toBe(1);
-    expect(field.errors[0].componentBody).toBe('Please enter a value');
-
-    message.value = 'A value is required';
-
-    expect(field.errors[0].componentBody).toBe('A value is required');
-  });
-
-  it('keeps a Ref of MdString markdown, with its options and plugins', () => {
-    const plugins = [{ name: 'plugin' }];
-    const options = { html: true };
-    const message = ref(new MdString('**{newValue}** is not enough', options, plugins));
-    const field = new Field({ value: '', validators: [new Required(message)] });
-
-    expect(field.errors[0].componentName).toBe('vue-markdown');
-    expect(field.errors[0].componentBindings).toEqual({ source: '**** is not enough', options, plugins });
-
-    message.value = new MdString('_{newValue}_ is too short', options, plugins);
-
-    expect(field.errors[0].componentBindings).toEqual({ source: '__ is too short', options, plugins });
+    expect(toRaw(field2.errors[0])).not.toBe(shared);
+    expect(field2.errors[0].sameAs(shared)).toBe(true);
+    expect(field2.errors[0].origin).toBe('server');
   });
 });
 
@@ -296,7 +212,7 @@ describe('Async Validator', () => {
         setTimeout(resolve, 1);
       });
       if (newValue === 'test@taken.com') {
-        return [new ValidationError('Email already taken')];
+        return [new ValidationError('invalid', {}, 'Email already taken')];
       }
       return null;
     });
@@ -330,7 +246,7 @@ describe('Async Validator', () => {
 
     // Should now have error
     expect(field.errors.length).toBe(1);
-    expect(field.errors[0].componentBody).toBe('Email already taken');
+    expect(field.errors[0].detail).toBe('Email already taken');
     expect(field.valid).toBe(false);
 
     // Change to valid value
@@ -373,20 +289,14 @@ describe('Error codes', () => {
   it('carries the code a custom validator gives its error', () => {
     const field = new Field({
       value: 'bad',
-      validators: [failWith([new ValidationError('Not allowed here', '', 'not-in-this-country')])],
+      validators: [failWith([new ValidationError('not-in-this-country', {}, 'Not allowed here')])],
     });
 
     expect(field.errors[0].code).toBe('not-in-this-country');
   });
 
-  it('leaves the code undefined on an error built without one', () => {
-    expect(new ValidationError('Plain').code).toBeUndefined();
-    expect(new ValidationError('Plain').code).toBeUndefined();
-    expect(new ValidationError().code).toBeUndefined();
-  });
-
   it('keeps the code on the copy a second validator of the same error instance receives', () => {
-    const shared = new ValidationError('Shared error', '', 'shared-code');
+    const shared = new ValidationError('shared-code', {}, 'Shared error');
     const field1 = new Field({ value: 'bad', validators: [failWith([shared])] });
     const field2 = new Field({ value: 'bad', validators: [failWith([shared])] });
 
@@ -398,33 +308,25 @@ describe('Error codes', () => {
 });
 
 describe('the error instance a re-run leaves standing', () => {
-  it('keeps the instance where the message it produces is the one already there', () => {
-    const field = new Field({ value: '', validators: [new Required()] });
+  it('keeps the instance where the re-run produces an equal error', () => {
+    const shared = new ValidationError('invalid', {}, 'Invalid');
+    const field = new Field({ value: 'bad', validators: [new Validator(() => [shared])] });
     const first = field.errors[0];
-    expect(field.valid).toBe(false);
 
-    // still empty once trimmed, so the same rule fails again with the same message
-    field.value = '   ';
+    field.value = 'worse';
 
-    expect(field.valid).toBe(false);
     expect(field.errors).toHaveLength(1);
-    // the field holds the error it already held: an equal error is not a new error, and nothing re-renders
     expect(field.errors[0]).toBe(first);
   });
 
-  it('replaces it where the message changes', () => {
-    const min = 5;
-    const field = new Field({ value: 'ab', validators: [new Validators.MinLength(min)] });
+  it('replaces it where the params change, so the params state the value the field holds', () => {
+    const field = new Field({ value: 'ab', validators: [new Validators.MinLength(5)] });
     const first = field.errors[0];
 
     field.value = 'abc';
-    // the message names the length it wants rather than the value it got, so it does not move
-    expect(field.errors[0]).toBe(first);
 
-    field.value = 'abcde';
-    expect(field.valid).toBe(true);
-    field.value = 'a';
-    // the error was withdrawn in between, so what stands now is a fresh one
+    expect(field.errors).toHaveLength(1);
     expect(field.errors[0]).not.toBe(first);
+    expect(field.errors[0].params.newValue).toBe('abc');
   });
 });

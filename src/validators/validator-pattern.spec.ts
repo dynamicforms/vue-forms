@@ -84,12 +84,12 @@ describe('Pattern Validator', () => {
 
     const field = new Field({
       value: 'lowercase',
-      validators: [new Pattern(pattern, customMessage)],
+      validators: [new Pattern(pattern, { detail: customMessage })],
     });
 
     // Assert
     expect(field.errors.length).toBe(1);
-    const errorText = (field.errors[0] as ValidationError).resolvedText;
+    const errorText = (field.errors[0] as ValidationError).detail;
     expect(errorText).toBe(customMessage);
   });
 });

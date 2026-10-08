@@ -299,7 +299,7 @@ describe('Group reactivity', () => {
     const errorCount = track(() => group.errors.length);
 
     // validate() exists to fire ValidChangedAction; rendering does not depend on it
-    group.errors.push(new ValidationError('At least one contact is required'));
+    group.errors.push(new ValidationError('invalid', {}, 'At least one contact is required'));
     await nextTick();
 
     expect(valid).toEqual([true, false]);
@@ -311,7 +311,7 @@ describe('Group reactivity', () => {
     const group = new Group({ a: new Field({ value: 1 }) });
     const valid = track(() => group.valid);
 
-    group.errors = [new ValidationError('napaka')];
+    group.errors = [new ValidationError('invalid', {}, 'napaka')];
     await nextTick();
     expect(valid).toEqual([true, false]);
 
@@ -330,7 +330,7 @@ describe('Group reactivity', () => {
     await nextTick();
     expect(value).toEqual(['{"inner":{"x":1},"y":2}', '{"inner":{"x":9},"y":2}']);
 
-    inner.errors.push(new ValidationError('napaka'));
+    inner.errors.push(new ValidationError('invalid', {}, 'napaka'));
     await nextTick();
     expect(valid).toEqual([true, false]);
   });
