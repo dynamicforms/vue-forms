@@ -1,0 +1,4 @@
+/* member tables: the first cell holds name, type and access on separate lines */
+.vp-doc td {
+  vertical-align: top;
+}

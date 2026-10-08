@@ -63,22 +63,22 @@ different name. `actions`, `errors`, `validators` and `visibility` apply to the 
 [Constructor parameters](/api/field-base#constructor-parameters), which also describes the order in which the
 parameters are applied.
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
-| `params.access` | [`Access`](/api/field-base#access) | `'editable'` | What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts value assignment and every mutation regardless of its access. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `params.originalValue` | `ListValueInput<R>` | same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
-| `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
-| `params.value` | `ListValueInput<R>` (`ListValue<R> \| null`) | `[]` | Initial array of item values. When absent, `originalValue` is used; an explicit `null` is not replaced and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
+| Parameter | Description |
+|---|---|
+| **`itemTemplate`**<br>`R`<br>default `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
+| **`params.access`**<br>[`Access`](/api/field-base#access)<br>default `'editable'` | What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts value assignment and every mutation regardless of its access. See [What a container serializes](/api/container#what-a-container-serializes). |
+| **`params.originalValue`**<br>`ListValueInput<R>`<br>default same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
+| **`params.touched`**<br>`boolean`<br>default `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
+| **`params.value`**<br>`ListValueInput<R>` (`ListValue<R> \| null`)<br>default `[]` | Initial array of item values. When absent, `originalValue` is used; an explicit `null` is not replaced and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
 
 ## Properties
 
-| Property | Type | Writable | Description |
-|----------|------|----------|-------------|
-| <a id="prop-fullValue"></a>`fullValue` | `ListFullValue<R>` | no | Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): the `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it |
-| <a id="prop-items"></a>`items` | `readonly R[]` | no | The rows themselves; see [The rows](#the-rows) |
-| <a id="prop-length"></a>`length` | `number` | no | The number of rows the list holds. Reading it builds no array |
-| <a id="prop-value"></a>`value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Overrides [`FieldBase.value`](/api/field-base#prop-value): array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged; because the setter is typed, such a value can only come from JavaScript or through an `as any` |
+| Property | Description |
+|---|---|
+| <a id="prop-fullValue"></a>**`fullValue`**<br>`ListFullValue<R>`<br>read-only | Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): the `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it |
+| <a id="prop-items"></a>**`items`**<br>`readonly R[]`<br>read-only | The rows themselves; see [The rows](#the-rows) |
+| <a id="prop-length"></a>**`length`**<br>`number`<br>read-only | The number of rows the list holds. Reading it builds no array |
+| <a id="prop-value"></a>**`value`**<br>reads `ListValue<R>`, accepts `ListValueInput<R>`<br>writable | Overrides [`FieldBase.value`](/api/field-base#prop-value): array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged; because the setter is typed, such a value can only come from JavaScript or through an `as any` |
 
 `ListValue<R>` is exported as `(R['value'] | null)[]`, `ListValueInput<R>` as `ListValue<R> | null` and
 `ListFullValue<R>` as `R['fullValue'][]`, each with `R` defaulting to `Group`.

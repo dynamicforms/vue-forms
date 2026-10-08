@@ -18,11 +18,11 @@ access (`group.fields.name`, `list.get(0)`) is specific to each class and is des
 
 ## Properties
 
-| Property | Type | Writable | Description |
-|----------|------|----------|-------------|
-| <a id="prop-busy"></a>`busy` | `boolean` | no | Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending` covers both |
-| <a id="prop-touched"></a>`touched` | `boolean` | yes | Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child |
-| <a id="prop-valid"></a>`valid` | `boolean` | no | Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well |
+| Property | Description |
+|---|---|
+| <a id="prop-busy"></a>**`busy`**<br>`boolean`<br>read-only | Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending` covers both |
+| <a id="prop-touched"></a>**`touched`**<br>`boolean`<br>writable | Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child |
+| <a id="prop-valid"></a>**`valid`**<br>`boolean`<br>read-only | Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well |
 
 ## Methods
 
