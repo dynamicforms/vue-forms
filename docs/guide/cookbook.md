@@ -358,3 +358,104 @@ quantity changes, and `total` recomputes when prices and quantities change. Whil
 
 `createCart()` builds a new cart on each call, so the caller decides where the state lives (a module, a `provide()`
 in the owning component, or elsewhere), and a test builds its own cart.
+
+## Keeping state across a hot module replacement
+
+You want state a module builds to keep what it held when the module is replaced during development. Save the
+baseline and what the state holds when the old module is disposed, and put both into the new instance:
+
+```typescript
+export const cart = createCart();
+
+if (import.meta.hot) {
+  const saved = import.meta.hot.data.cart;
+  if (saved) {
+    cart.$.rebind(saved.original);   // the baseline: isChanged compares against it
+    cart.$.value = saved.full;       // what the old instance held, members that are not sent included
+  }
+  import.meta.hot.dispose((data) => {
+    data.cart = { original: cart.$.originalValue, full: cart.$.fullValue };
+  });
+}
+```
+
+`rebind(original)` makes the old baseline the new one, and the assignment writes every member, so the new instance
+holds what the old one held and reports the same `isChanged`. `access` and `visibility` are not data: the new
+instance has the ones its construction and its rules give it.
+
+## Carrying server-rendered state to the client
+
+You want state built during server-side rendering to start the client with the same data. Serialize `fullValue`
+into the page and rebind the client's instance to it:
+
+```typescript
+// server
+const state = createCart();
+await load(state);
+const payload = JSON.stringify(state.$.fullValue);   // written into the page
+
+// client
+const state = createCart();
+state.$.rebind(JSON.parse(payload));
+```
+
+`fullValue` contains every member, including the ones whose access sends nothing, so the client holds what the
+server held. `rebind` makes the payload the baseline, so the client starts with `isChanged` `false`. The rules
+(access, visibility, validators) run again on the client as part of building the state.
+
+## Free-form state
+
+You want state whose shape comes from data, such as settings read from the server. `Group.createFromFormData()`
+builds the element tree: a `Group` for every object, a `List` for every array and a `Field` for every other value.
+Read and write it through [`view()`](/api/view), and add a key with `$.addField()`:
+
+```typescript
+const settings = view(Group.createFromFormData(await api.settings()));
+
+settings.editor.tabSize = 4;
+settings.$.addField('fontSize', new Field({ value: 14 }));
+```
+
+A `Field` holds one value. An object or an array a `Field` holds is not frozen, and writing into it changes the
+field's value without a transaction or a `ValueChangedAction`, so assign a new object instead. Data built by
+`createFromFormData()` has no such field: every object and array in it is an element.
+
+## Reacting to every change below an element
+
+You want to save state whenever anything in it changes. Register on the container:
+
+```typescript
+state.registerAction(new ValueChangedAction((element, supr, newValue, oldValue) => {
+  saveDraft(newValue);   // the container's fullValue
+  return supr(element, newValue, oldValue);
+}));
+```
+
+`ValueChangedAction` on a `Group` or a `List` fires once per transaction for any change of what it holds, at any
+depth, with its `fullValue`. `ContributionChangedAction` fires when what the container sends changes, a change of a
+member's `access` included, with its `value`; use it where the payload is what you store. Both run at the commit, so
+a transaction that writes several fields saves once. A `watch(() => state.fullValue, …)` observes the same change
+after the transaction; see [Actions and `watch()`](/api/actions#actions-and-watch).
+
+## An optimistic update
+
+You want a change shown at once and put back when the server refuses it. Write the value, send it, and restore the
+previous value on failure:
+
+```typescript
+async function rename(field: Field<string>, name: string) {
+  const previous = field.value;
+  field.value = name;
+  try {
+    await api.rename(name);
+  } catch (error) {
+    // a newer write made while the request was out is kept
+    if (field.value === name) field.value = previous;
+    throw error;
+  }
+}
+```
+
+A [transaction](/api/transactions) cannot stay open across an `await`: `transaction()` with an asynchronous callback
+throws a `TypeError` and rolls back. The previous value is therefore held by the caller, and the check before
+restoring keeps a write the user made while the request was out.
