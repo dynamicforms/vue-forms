@@ -436,7 +436,8 @@ state, so a button bound to `executable` follows it.
 
 ### `ListItemAddedAction`
 
-Fires on a `List` when an item is inserted via `push()` or `insert()`.
+Fires on a `List` for every row that enters it: through `push()` or `insert()`, and through a `value` assignment for
+each row it builds (a row reused at its position does not enter the list).
 
 ```typescript
 new ListItemAddedAction((field, supr, item, index) => {
@@ -459,7 +460,9 @@ the end of the transaction, not the rows at the time its own item was added.
 
 ### `ListItemRemovedAction`
 
-Fires on a `List` when an item is removed via `pop()` or `remove()`.
+Fires on a `List` for every row that leaves it: through `pop()` or `remove()`, through a `value` assignment for each
+row it does not reuse, and through `clear()`. Several rows leave from the last one, so every announced index is the
+row's position at the moment it leaves.
 
 ```typescript
 new ListItemRemovedAction((field, supr, item, index) => {
@@ -484,6 +487,11 @@ Registered on a `List`'s item template, a conditional action applies to every ro
 result**. A statement built from the item template's fields reads the fields of the row it is evaluated for, so
 two rows with different values can have different results, and a change in one row affects only that row. A field
 outside the rows (one that belongs to the whole form) is read as is, and a change to it re-evaluates every row.
+
+A conditional action follows the fields its statement reads through a `ValueChangedAction` it registers on each of
+them. That listener runs outermost in the field's chain, so a `ValueChangedAction` the application registers on the
+same field runs after it and cannot keep it from running by not calling `supr`. The listener is removed when the
+conditional action is taken off the last element it is registered on.
 
 ```typescript
 const row = new Group({ kind: new Field({ value: 'standard' }), detail: new Field({ value: '' }) });
@@ -577,7 +585,8 @@ Enum of supported operators:
 | Membership | `IN`, `NOT_IN`: evaluate `operand2.includes(operand1)` (array or string) and coerce its result to a boolean. `NOT_IN` is the negation of `IN`, so an `operand2` without a callable `includes` gives `IN` `false` and `NOT_IN` `true` |
 | Substring | `INCLUDES`, `NOT_INCLUDES`: `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` and `NOT_INCLUDES` `true` |
 
-Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`.
+Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`. `Operator.isDefined(value)` returns whether a number or a string is an
+operator, and returns `false` for an unrecognised string.
 
 ### `ConditionalVisibilityAction(statement, whenTrue?, whenFalse?)`
 

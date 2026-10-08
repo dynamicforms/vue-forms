@@ -322,7 +322,6 @@ the members above, whether or not the action declares extended properties.
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
-| [`beginValidating() / endValidating()`](/api/field-base#beginvalidating-void-endvalidating-void) | Increment and decrement the asynchronous validation counter behind `validating` |
 | [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
@@ -348,7 +347,6 @@ the members above, whether or not the action declares extended properties.
 | [`valid`](/api/field-base#prop-valid) | `true` when `errors` is empty |
 | [`validate(revalidate?)`](/api/field-base#validate-revalidate-void) | Publishes the validity derived from `errors` |
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
-| [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
 :::
 

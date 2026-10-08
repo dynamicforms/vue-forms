@@ -702,25 +702,7 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` while an asynchronous validation is in flight on this element **or on any of its descendants**, so on a form it covers the whole tree. An element counts its own runs through `beginValidating()` / `endValidating()`, which validators call around a returned promise, and a container keeps a count of how many of its children are `validating`. Reading it is O(1) whatever the size of the tree; a run that starts or settles updates one count per nesting level
-
-</td></tr>
-<tr class="member-head"><td><a id="prop-validationEpoch"></a>
-
-**`validationEpoch`**
-
-</td><td>
-
-`number`
-
-</td><td>
-
-read-only
-
-</td></tr>
-<tr class="member-desc"><td colspan="3">
-
-Generation counter of the element's validators, incremented by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to check whether a result it is about to apply still belongs to the validators the element currently has
+`true` while an asynchronous validation is in flight on this element **or on any of its descendants**, so on a form it covers the whole tree. An element counts its own asynchronous validation runs, which a `Validator` starts and ends around a returned promise, and a container keeps a count of how many of its children are `validating`. Reading it is O(1) whatever the size of the tree; a run that starts or settles updates one count per nesting level
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-value"></a>
@@ -763,17 +745,6 @@ How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or 
 </table>
 
 ## Methods
-
-### `beginValidating(): void` / `endValidating(): void`
-
-Increment and decrement the async-validation counter behind `validating`. `Validator` calls them around a
-validation function that returns a promise; call them yourself only if you run asynchronous validation outside a
-`Validator`. A call that switches the element between running and idle updates the count the container above it
-keeps, and so on up the tree. An `endValidating()` without a matching `beginValidating()` is a no-op: the counter
-never goes below zero, and the containers above are not updated.
-
-A rolled-back [transaction](/api/transactions) does not restore these counters: a run in flight continues, and
-restored counts would not match the `endValidating()` calls still to come.
 
 ### `bind(data?, overrides?): FieldBase<T, X>`
 

@@ -94,7 +94,8 @@ try {
 ```
 
 `tx.rollback()` rolls back without an error. Execution stops at the call, so no code after it runs, and the
-`transaction()` call returns `undefined`.
+`transaction()` call returns `undefined`. The call stops execution by throwing a signal; a `try`/`catch` in the
+callback that catches it does not cancel the rollback: `transaction()` rolls back when the callback returns.
 
 ```typescript
 const answer = transaction((tx) => {

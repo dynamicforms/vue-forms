@@ -54,9 +54,14 @@ namespace Operator {
     throw new Error(`Unrecognised operator ${mode}`);
   }
 
+  /** Whether `operator` is an operator or the name of one; an unknown name is not, and does not throw. */
   export function isDefined(operator: number | string): boolean {
-    const check = typeof operator === 'number' ? operator : Operator.fromString(operator as string);
-    return Object.values(Operator).includes(check);
+    if (typeof operator === 'number') return Object.values(Operator).includes(operator);
+    try {
+      return Object.values(Operator).includes(Operator.fromString(operator));
+    } catch {
+      return false;
+    }
   }
 
   // c8 reports the next line as a branch with one uncovered path, whatever the line contains

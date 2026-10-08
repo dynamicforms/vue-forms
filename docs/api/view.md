@@ -40,7 +40,7 @@ setter accepts, `null` included. Writing a key that is not a member throws a `Ty
 The view of a list is an array: `Array.isArray()` is `true`, and `map`, `filter`, `find`, `includes`, `for…of` and
 the other reading methods read it through its length and its indices. The mutations are carried out as the list's own
 operations, so every row keeps its element, its errors and its `touched`, and `ListItemAddedAction` and
-`ListItemRemovedAction` fire for each row:
+`ListItemRemovedAction` fire for each row that enters or leaves:
 
 | Array method | Carried out as |
 |---|---|
@@ -48,7 +48,7 @@ operations, so every row keeps its element, its errors and its `touched`, and `L
 | writing an index past the end | `list.insert()` at that index; each row in the gap is built from the item template, or is an empty element of the written item's type where the list has no item template |
 | `pop()`, `shift()`, setting `length` lower | `list.remove()` of the rows that go |
 | `unshift(...)`, `splice(...)` | `list.remove()` and `list.insert()` at the positions |
-| `sort()`, `reverse()` | the rows themselves put in the new order |
+| `sort()`, `reverse()` | the rows put in the new order in place: the set of rows does not change, so no `ListItemAddedAction` or `ListItemRemovedAction` fires; `ValueChangedAction` does |
 | writing an index | the row's value |
 
 `fill()` and `copyWithin()` throw a `TypeError`, and so does setting `length` higher. An item may be the data a row

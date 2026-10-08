@@ -14,6 +14,7 @@ import {
 import FieldActionBase from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction } from './actions/value-changed-action';
+import { BeginValidating } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { AbortEventHandlingException } from './field.interface';
@@ -22,6 +23,14 @@ import { List } from './list';
 import { transaction } from './transaction';
 import { Validators } from './validators';
 import { ValidationError } from './validators/validation-error';
+
+/** starts and ends asynchronous validation runs on an element through the internal API, one run per call */
+const runs = new Map<object, (() => void)[]>();
+const beginValidating = (element: any) => {
+  if (!runs.has(element)) runs.set(element, []);
+  runs.get(element)!.push(element[BeginValidating]());
+};
+const endValidating = (element: any) => runs.get(element)?.pop()?.();
 
 it('triggers action with custom parameters', () => {
   // Create a field with a custom action
@@ -337,12 +346,12 @@ it('reports validating as a boolean that starts out false', () => {
   expect(field.validating).toBe(false);
   expect(typeof field.validating).toBe('boolean');
 
-  field.beginValidating();
+  beginValidating(field);
   expect(field.validating).toBe(true);
-  field.endValidating();
+  endValidating(field);
   expect(field.validating).toBe(false);
   // the counter never goes below zero, so a stray endValidating cannot latch the flag on
-  field.endValidating();
+  endValidating(field);
   expect(field.validating).toBe(false);
 });
 
@@ -355,18 +364,18 @@ describe('Runs in flight below an element', () => {
 
     expect(outer.validating).toBe(false);
 
-    a.beginValidating();
+    beginValidating(a);
     expect(inner.validating).toBe(true);
     expect(outer.validating).toBe(true);
     expect(b.validating).toBe(false);
 
     // a second run below the same container leaves the answer where it is, and holds it until it settles too
-    b.beginValidating();
-    a.endValidating();
+    beginValidating(b);
+    endValidating(a);
     expect(inner.validating).toBe(true);
     expect(outer.validating).toBe(true);
 
-    b.endValidating();
+    endValidating(b);
     expect(inner.validating).toBe(false);
     expect(outer.validating).toBe(false);
   });
@@ -377,11 +386,11 @@ describe('Runs in flight below an element', () => {
     list.push({ z: 1 });
     const cell = list.get(0)!.field('z')!;
 
-    cell.beginValidating();
+    beginValidating(cell);
     expect(list.validating).toBe(true);
     expect(form.validating).toBe(true);
 
-    cell.endValidating();
+    endValidating(cell);
     expect(list.validating).toBe(false);
     expect(form.validating).toBe(false);
   });
@@ -391,7 +400,7 @@ describe('Runs in flight below an element', () => {
     const form = new Group({ list });
     list.push({ z: 1 });
     const row = list.get(0)!;
-    row.field('z')!.beginValidating();
+    beginValidating(row.field('z')!);
 
     const removed = list.remove(0)!;
 
@@ -403,7 +412,7 @@ describe('Runs in flight below an element', () => {
   it('takes the runs of an element a container takes on, and gives them back on a rollback', () => {
     const field = new Field({ value: 'x' });
     const group = new Group({ a: new Field({ value: 'a' }) });
-    field.beginValidating();
+    beginValidating(field);
 
     transaction((tx) => {
       group.addField('b', field);
@@ -423,7 +432,7 @@ describe('Runs in flight below an element', () => {
       group.addField('b', field);
       // the run starts after the element was taken on, so what the rollback has to hand back is a run the
       // container was never told the start of at the moment it took the element
-      field.beginValidating();
+      beginValidating(field);
       expect(group.validating).toBe(true);
       tx.rollback();
     });
@@ -431,7 +440,7 @@ describe('Runs in flight below an element', () => {
     expect(group.validating).toBe(false);
     expect(field.validating).toBe(true);
 
-    field.endValidating();
+    endValidating(field);
     expect(group.validating).toBe(false);
   });
 
@@ -441,7 +450,7 @@ describe('Runs in flight below an element', () => {
 
     transaction((tx) => {
       group.removeField('a');
-      field.beginValidating();
+      beginValidating(field);
       expect(group.validating).toBe(false);
       tx.rollback();
     });
@@ -449,7 +458,7 @@ describe('Runs in flight below an element', () => {
     // the element is a member again, and the run it started while it was not is one the group now carries
     expect(group.validating).toBe(true);
 
-    field.endValidating();
+    endValidating(field);
     expect(group.validating).toBe(false);
   });
 
@@ -458,10 +467,10 @@ describe('Runs in flight below an element', () => {
 
     // an asynchronous validation is what validating states; busy states an execution, and a plain field has
     // nothing to execute
-    field.beginValidating();
+    beginValidating(field);
     expect(field.validating).toBe(true);
     expect(field.busy).toBe(false);
-    field.endValidating();
+    endValidating(field);
     expect(field.busy).toBe(false);
   });
 
@@ -492,11 +501,11 @@ describe('Runs in flight below an element', () => {
 
     // the two state different things: a validation is what validating answers for, an execution what busy does,
     // and a form that gates on the tree being idle reads both
-    cell.beginValidating();
+    beginValidating(cell);
     expect(form.validating).toBe(true);
     expect(form.busy).toBe(false);
 
-    cell.endValidating();
+    endValidating(cell);
     expect(form.validating).toBe(false);
     expect(form.busy).toBe(false);
   });
@@ -527,7 +536,7 @@ describe('settled', () => {
   it('waits for an asynchronous validation below it', async () => {
     const field = new Field({ value: 'x' });
     const group = new Group({ field });
-    field.beginValidating();
+    beginValidating(field);
 
     let done = false;
     const waiting = group.settled().then(() => {
@@ -537,7 +546,7 @@ describe('settled', () => {
     await Promise.resolve();
     expect(done).toBe(false);
 
-    field.endValidating();
+    endValidating(field);
     await waiting;
     expect(done).toBe(true);
   });
@@ -569,7 +578,7 @@ describe('settled', () => {
     const group = new Group({ action, field });
 
     const running = action.execute();
-    field.beginValidating();
+    beginValidating(field);
 
     let done = false;
     const waiting = group.settled().then(() => {
@@ -582,7 +591,7 @@ describe('settled', () => {
     // the execution is over, the validation is not
     expect(done).toBe(false);
 
-    field.endValidating();
+    endValidating(field);
     await waiting;
     expect(done).toBe(true);
   });
@@ -599,11 +608,11 @@ describe('pending', () => {
     const field = new Field({ value: 'x' });
     const group = new Group({ action, field });
 
-    field.beginValidating();
+    beginValidating(field);
     expect([group.pending, field.pending, action.pending]).toEqual([true, true, false]);
 
     const running = action.execute();
-    field.endValidating();
+    endValidating(field);
     expect([group.pending, field.pending, action.pending]).toEqual([true, false, true]);
 
     settle(null);
@@ -621,8 +630,8 @@ describe('pending', () => {
       { flush: 'sync' },
     );
 
-    field.beginValidating();
-    field.endValidating();
+    beginValidating(field);
+    endValidating(field);
 
     expect(seen).toEqual([true, false]);
   });

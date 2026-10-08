@@ -3,11 +3,20 @@ import { watch } from 'vue';
 
 import { Action } from './action';
 import { ExecuteAction, RejectAction, SubmitAction, SubmitFailedException, SubmitRefusedException } from './actions';
+import { BeginValidating } from './element-state';
 import { Field } from './field';
 import { type FieldBase } from './field-base';
 import { Group } from './group';
 import { List } from './list';
 import { Validators } from './validators';
+
+/** starts and ends asynchronous validation runs on an element through the internal API, one run per call */
+const runs = new Map<object, (() => void)[]>();
+const beginValidating = (element: any) => {
+  if (!runs.has(element)) runs.set(element, []);
+  runs.get(element)!.push(element[BeginValidating]());
+};
+const endValidating = (element: any) => runs.get(element)?.pop()?.();
 
 describe('an action sends nothing', () => {
   it('is left out of value and fullValue', () => {
@@ -320,9 +329,9 @@ describe('SubmitAction', () => {
     expect(form.fields.save.executable).toBe(false);
     form.fields.name.value = 'x';
     expect(form.fields.save.executable).toBe(true);
-    form.fields.name.beginValidating();
+    beginValidating(form.fields.name);
     expect(form.fields.save.executable).toBe(false);
-    form.fields.name.endValidating();
+    endValidating(form.fields.name);
     expect(form.fields.save.executable).toBe(true);
   });
 

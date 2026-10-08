@@ -1,4 +1,5 @@
 import { ValueChangedAction } from '../actions/value-changed-action';
+import { BeginValidating, ValidationEpoch } from '../element-state';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
 import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
@@ -65,7 +66,7 @@ export class Validator<T = any> extends ValueChangedAction {
       // the pending run over this field, which this run replaces
       const superseded = runs.abandon;
       const run = ++runs.run;
-      const epoch = field.validationEpoch;
+      const epoch = field[ValidationEpoch];
       // the transaction this run started in: if it is rolled back, the run's result is not applied, because the
       // value it examined was rolled back
       const startedIn = currentTransaction();
@@ -75,7 +76,7 @@ export class Validator<T = any> extends ValueChangedAction {
       // result is discarded
       let abandoned = false;
       const isCurrent = () =>
-        !abandoned && runs.run === run && field.validationEpoch === epoch && !startedIn?.rolledBack;
+        !abandoned && runs.run === run && field[ValidationEpoch] === epoch && !startedIn?.rolledBack;
 
       // the work a validation function starts is cancelled when isCurrent becomes false; a run for which isCurrent
       // is still true is not cancelled
@@ -117,7 +118,7 @@ export class Validator<T = any> extends ValueChangedAction {
         // so it cancels the run
         runs.abandon = abandon;
         startedIn?.whenRolledBack(abandon);
-        field.beginValidating();
+        const endValidating = field[BeginValidating]();
         errors
           .then(
             (err) => {
@@ -136,7 +137,7 @@ export class Validator<T = any> extends ValueChangedAction {
           )
           .finally(() => {
             if (runs.abandon === abandon) runs.abandon = undefined;
-            field.endValidating();
+            endValidating();
           })
           // applying a result fires ValidChangedAction; this catch logs an exception thrown by a handler, which
           // would otherwise be an unhandled rejection

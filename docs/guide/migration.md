@@ -164,6 +164,11 @@ app.use(forms, { useMarkdownInValidators: false });
 9. Add `Validators.Required()` to fields that relied on another validator to refuse an empty value.
 10. Check `AccessChangedAction`, `EnabledChangedAction` and `VisibilityChangedAction` handlers that relied on firing
     inside an explicit `transaction()`.
+11. Replace calls of `beginValidating()`, `endValidating()` and reads of `validationEpoch`: run asynchronous
+    validation through a `Validator`, which counts its runs.
+12. Check `ListItemAddedAction` and `ListItemRemovedAction` handlers: a `value` assignment and `clear()` fire them, and
+    a view's `sort()` and `reverse()` no longer do.
+13. Declare a list without an item template that holds rows other than groups as `new List<FieldBase>()`.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

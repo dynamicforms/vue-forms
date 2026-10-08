@@ -696,3 +696,35 @@ Enter means; running the first one found would run code the form did not choose.
 one resolved value; `execute()` rejects only where something other than the submit fails.
 
 **Rejected: `name` on `Action`.** An action in a container is named by its key (`fieldName`).
+
+## D-039 — `isChanged` measures what is sent; `rebind` restores data, not state
+
+**Version:** 3.0.0
+
+`originalValue` of a container is a snapshot of its `value`, and `isChanged` compares `value` with it. `rebind(data)`
+restores data: `access`, `visibility` and the extended properties stay as they are. A `Group` member whose key is
+missing from `data` takes the `originalValue` of the declaration's member, so `group.rebind(group.originalValue)`
+restores a `'disabled'` member, which `value` leaves out, to its own baseline.
+
+**Rejected: `originalValue` as a snapshot of `fullValue`.** It restores a `'disabled'` row of a `List` as well, but
+`isChanged` would then compare `fullValue`, and an edit of a field that is not sent would count as a change of the
+form, while a change of `access` alone would not. Keeping both snapshots doubles the data every element holds.
+
+## D-040 — An action registered on a binding is registered on its declaration
+
+**Version:** 3.0.0
+
+`registerAction()` on any binding registers the action in the map the declaration and all its bindings share, so a
+rule registered on one row of a list applies to every row. An element cannot take a rule of its own. A rule is part
+of a form's definition, and the rows of a list are instances of one definition; a rule for a single row is a rule
+that reads the row (a conditional action, or a validator that reads `field.parent`).
+
+## D-041 — Methods the library calls between its own classes are keyed by unexported symbols
+
+**Version:** 3.0.0
+
+A method one class of the library calls on another, where `protected` cannot reach (`Validator` on a field,
+`view()` on a list), is keyed by a symbol the package does not export: `BeginValidating`, `ValidationEpoch`,
+`ReorderRows`, `SentNowhere`, `ExecuteHandlers`, and `Outermost` on an action. `beginValidating()`,
+`endValidating()` and `validationEpoch` were public, and an extra `endValidating()` resolved `settled()` while a
+run was in flight; `[BeginValidating]()` returns a function that ends that run once.

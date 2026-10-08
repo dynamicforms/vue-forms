@@ -33,7 +33,7 @@ describe('Operator', () => {
   it('Check If Defined', () => {
     expect(Operator.isDefined(100)).toBe(false);
     expect(Operator.isDefined('AND')).toBe(true);
-    expect(() => Operator.isDefined('THIS WILL NEVER BE AN OPERATOR')).toThrow();
+    expect(Operator.isDefined('THIS WILL NEVER BE AN OPERATOR')).toBe(false);
   });
 
   it('Check If Operator Is Logic Operator', () => {

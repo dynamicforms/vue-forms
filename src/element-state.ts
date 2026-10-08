@@ -171,3 +171,15 @@ export interface ListSlots<R extends FieldBase = Group> extends ContainerSlots<L
 export function listSlots<R extends FieldBase = Group>(): ListSlots<R> {
   return { ...containerSlots<ListValue<R>>(), rows: null, rowsVersion: 0, cachedItems: null, cachedItemsVersion: -1 };
 }
+
+/** Key of the `List` method that reorders the rows in place; `view()` calls it, and the package does not export it. */
+export const ReorderRows = Symbol('List.reorderRows');
+
+/**
+ * Key of the `FieldBase` method that starts counting one asynchronous validation run and returns the function that
+ * ends it. A validator calls it; the package does not export it.
+ */
+export const BeginValidating = Symbol('FieldBase.beginValidating');
+
+/** Key of the `FieldBase` getter for the generation counter of its validators; the package does not export it. */
+export const ValidationEpoch = Symbol('FieldBase.validationEpoch');

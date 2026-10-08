@@ -145,7 +145,7 @@ that is a row of a `List` gets the `List` as its `parent`. Two groups compare by
 
 ## `Group.createFromFormData(data)`
 
-Creates a `Group` from a plain `Record<string, any>` by wrapping each value in a `Field`. Useful when building a form from raw API data. Passing `null` returns an empty group; passing an already built form structure throws (`data is already a Form structure, should be a simple object`).
+Creates a `Group` from a plain `Record<string, any>` so that its `fullValue` equals the data: a plain object becomes a `Group`, an array a `List` without an item template (whose rows are built by the same rule), and any other value a `Field`, at every level. Useful when building a form from raw API data. Passing `null` returns an empty group; passing an already built form structure throws (`data is already a Form structure, should be a simple object`).
 
 ```typescript
 const form = Group.createFromFormData({ name: 'Alice', score: 42 });
@@ -310,7 +310,6 @@ member set is restored.
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
-| [`beginValidating() / endValidating()`](/api/field-base#beginvalidating-void-endvalidating-void) | Increment and decrement the asynchronous validation counter behind `validating` |
 | [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
@@ -333,7 +332,6 @@ member set is restored.
 | [`triggerAction(actionClass, ...params)`](/api/field-base#triggeraction-actionclass-params-any) | Fires an action class on the element and returns what the chain returns |
 | [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
-| [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
 :::
 

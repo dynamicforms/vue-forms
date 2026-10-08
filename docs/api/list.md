@@ -347,6 +347,9 @@ Removes the last item and returns it (`undefined` if the list is empty). Trigger
 
 Appends an item to the end of the list. `item` is either the data a row is built from (bound to the item template, or built into an element by its type where the list has no item template) or an existing element, which becomes the row itself. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
 
+`item` is typed `ListItemInput<R>` (`R['value'] | R`). The row type `R` defaults to `Group`, so a list without an
+item template that holds rows of other kinds is declared with its row type: `new List<FieldBase>()`.
+
 ```typescript
 list.push({ name: 'Charlie', score: 70 });
 ```
@@ -378,7 +381,6 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
-| [`beginValidating() / endValidating()`](/api/field-base#beginvalidating-void-endvalidating-void) | Increment and decrement the asynchronous validation counter behind `validating` |
 | [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
@@ -402,7 +404,6 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | [`triggerAction(actionClass, ...params)`](/api/field-base#triggeraction-actionclass-params-any) | Fires an action class on the element and returns what the chain returns |
 | [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
-| [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
 :::
 

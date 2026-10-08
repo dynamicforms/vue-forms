@@ -2,7 +2,7 @@ import { type FieldBase } from '../field-base';
 import { AbortEventHandlingException } from '../field.interface';
 import { Validator } from '../validators/validator';
 
-import FieldActionBase from './field-action-base';
+import FieldActionBase, { Outermost } from './field-action-base';
 
 /**
  * The actions one declaration has registered, in registration order. A trigger walks them from the end backwards
@@ -34,8 +34,19 @@ export default class ActionsMap {
     if (before && (before.classIdentifier !== action.classIdentifier || at < 0)) {
       throw new Error('Action to register before is not registered under the same identifier');
     }
-    if (at < 0) this.actions.push(action);
-    else this.actions.splice(at, 0, action);
+    if (at >= 0) {
+      this.actions.splice(at, 0, action);
+      return;
+    }
+    // an action marked Outermost goes on top of the chain; any other goes directly below the outermost ones of its
+    // identifier, so it is the newest of the rest and cannot keep them from running
+    const pinned = (action as any)[Outermost]
+      ? -1
+      : this.actions.findIndex(
+          (registered) => (registered as any)[Outermost] && registered.classIdentifier === action.classIdentifier,
+        );
+    if (pinned < 0) this.actions.push(action);
+    else this.actions.splice(pinned, 0, action);
   }
 
   /** Unregisters `action` and returns whether it was registered here. */
