@@ -15,7 +15,38 @@ interface DevtoolsApi {
     getInspectorTree(handler: (payload: any) => void): void;
     getInspectorState(handler: (payload: any) => void): void;
     inspectComponent(handler: (payload: any) => void): void;
+    editInspectorState(handler: (payload: any) => void): void;
   };
+}
+
+/** A copy of `value` with the member at `path` replaced by `replacement`; the original is left as it is. */
+function replaced(value: unknown, path: string[], replacement: unknown): unknown {
+  if (path.length === 0) return replacement;
+  const copy: any = Array.isArray(value) ? [...value] : { ...(value as object) };
+  copy[path[0]] = replaced(copy[path[0]], path.slice(1), replacement);
+  return copy;
+}
+
+/**
+ * Writes an edit made in the inspector: the value of a leaf (a member of an object or array it holds is written as a
+ * new copy), `access`, `visibility` and `touched` of any element, and an extended property. The write goes through
+ * the element's setter, so it is a transaction like a write from the application. A value the setter refuses, such
+ * as an access that is none of the four, is reported in the console and changes nothing.
+ */
+export function applyEdit(element: FieldBase, section: string, path: string[], value: unknown): void {
+  const e = element as any;
+  const [key, ...below] = path;
+  try {
+    if (section === 'extra') {
+      element.setExtendedValues({ [key]: replaced(e.extra[key], below, value) } as any);
+    } else if (key === 'value' && isLeaf(element)) {
+      e.value = replaced(toRaw(e.value), below, value);
+    } else if (key === 'access' || key === 'visibility' || key === 'touched') {
+      e[key] = value;
+    }
+  } catch (error) {
+    console.warn('[vue-forms devtools] the edit was refused:', error);
+  }
 }
 
 /**
@@ -108,17 +139,22 @@ function plain(value: unknown): unknown {
   }
 }
 
+/** A `Field` or an `Action`: an element whose value is its own, not composed from members. */
+function isLeaf(element: FieldBase): boolean {
+  return kindOf(element) === 'Field' || kindOf(element) === 'Action';
+}
+
 function stateOf(element: FieldBase) {
   const e = element as any;
   return {
     element: [
-      { key: 'value', value: plain(e.value) },
+      { key: 'value', value: plain(e.value), editable: isLeaf(element) },
       { key: 'originalValue', value: plain(e.originalValue) },
       { key: 'isChanged', value: e.isChanged },
-      { key: 'access', value: e.access },
+      { key: 'access', value: e.access, editable: true },
       { key: 'effectiveAccess', value: e.effectiveAccess },
-      { key: 'visibility', value: e.visibility },
-      { key: 'touched', value: e.touched },
+      { key: 'visibility', value: e.visibility, editable: true },
+      { key: 'touched', value: e.touched, editable: true },
     ],
     validity: [
       { key: 'valid', value: e.valid },
@@ -134,7 +170,7 @@ function stateOf(element: FieldBase) {
         })),
       },
     ],
-    extra: Object.entries(e.extra ?? {}).map(([key, value]) => ({ key, value: plain(value) })),
+    extra: Object.entries(e.extra ?? {}).map(([key, value]) => ({ key, value: plain(value), editable: true })),
   };
 }
 
@@ -199,6 +235,14 @@ function setup(app: App): void {
             ...(instance ? [{ key: 'component', value: componentPath(instance) }] : []),
           ],
         };
+      });
+
+      api.on.editInspectorState((payload) => {
+        if (payload.inspectorId !== INSPECTOR) return;
+        const found = resolve(payload.nodeId);
+        if (!found || payload.state?.remove) return;
+        applyEdit(found.element, payload.type, payload.path, payload.state.value);
+        api.sendInspectorState(INSPECTOR);
       });
 
       api.on.inspectComponent((payload) => {

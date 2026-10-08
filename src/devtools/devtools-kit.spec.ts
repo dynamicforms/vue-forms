@@ -40,5 +40,21 @@ describe('the devtools plugin in the devtools kit', () => {
     expect(state.state.filter((item: any) => item.type === 'vue-forms')).toEqual([
       expect.objectContaining({ value: { a: 1 } }),
     ]);
+
+    // an edit as the devtools client sends it for the inspector's state
+    const field = components.children[0].children[0].children[0];
+    const before = await kit.devtools.api.getInspectorState({ inspectorId: 'dynamicforms-state', nodeId: field.id });
+    expect(before.element.find((item: any) => item.key === 'value')).toEqual(
+      expect.objectContaining({ value: 1, editable: true }),
+    );
+    kit.devtools.api.editInspectorState({
+      inspectorId: 'dynamicforms-state',
+      nodeId: field.id,
+      path: ['value'],
+      type: 'element',
+      state: { value: 5 },
+    });
+    const after = await kit.devtools.api.getInspectorState({ inspectorId: 'dynamicforms-state', nodeId: field.id });
+    expect(after.element.find((item: any) => item.key === 'value').value).toBe(5);
   });
 });

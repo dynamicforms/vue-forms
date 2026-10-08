@@ -132,7 +132,7 @@ describe('the devtools plugin', () => {
     expect(node.children.map((child: any) => child.label)).toEqual(['name']);
     const state = { inspectorId: 'dynamicforms-state', nodeId: `${node.id}/name`, state: {} as any };
     handlers.getInspectorState(state);
-    expect(state.state.element[0]).toEqual({ key: 'value', value: 'Ada' });
+    expect(state.state.element[0]).toEqual({ key: 'value', value: 'Ada', editable: true });
 
     const instanceData = { state: [] as any[] };
     handlers.inspectComponent({ componentInstance: (wrapper.vm as any).$, instanceData });
@@ -162,5 +162,39 @@ describe('state a component constructs', () => {
     describeState(built!, { name: 'Kept' });
     expect(isListed(built!)).toBe(true);
     expect(entryOf(built!)!.instance).toBeUndefined();
+  });
+});
+
+describe('editing in the inspector', () => {
+  it('writes the value of a leaf, a member of an object it holds, access, visibility, touched and extra', async () => {
+    const { applyEdit } = await import('./plugin');
+    const name = new Field({ value: 'Ada' });
+    const address = new Field({ value: { city: 'Kranj', zip: '4000' } });
+    const form = new Group({ name, address }, { hint: 'h' } as any);
+
+    applyEdit(name, 'element', ['value'], 'Grace');
+    applyEdit(address, 'element', ['value', 'city'], 'Bled');
+    applyEdit(form, 'element', ['access'], 'readonly');
+    applyEdit(form, 'element', ['visibility'], 'hidden');
+    applyEdit(name, 'element', ['touched'], true);
+    applyEdit(form, 'extra', ['hint'], 'new hint');
+
+    expect(form.value).toEqual({ name: 'Grace', address: { city: 'Bled', zip: '4000' } });
+    expect([form.access, form.visibility, name.touched]).toEqual(['readonly', 'hidden', true]);
+    expect((form.extra as any).hint).toBe('new hint');
+  });
+
+  it('leaves a container value and a refused value as they are', async () => {
+    const { applyEdit } = await import('./plugin');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const form = new Group({ name: new Field({ value: 'Ada' }) });
+
+    applyEdit(form, 'element', ['value'], { name: 'x' });
+    applyEdit(form, 'element', ['access'], 'nonsense');
+
+    expect(form.value).toEqual({ name: 'Ada' });
+    expect(form.access).toBe('editable');
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
   });
 });
