@@ -415,12 +415,98 @@ field.triggerAction(ExecuteAction, { reason: 'submit' });
 
 `triggerAction()` returns whatever the chain returns, the `AbortEventHandlingException` a handler threw to end the run (a promise resolving to it where the chain went through an asynchronous handler), or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and returns the same value, wrapped in a promise.
 
+`canExecute(action): boolean` returns whether the handler can run now on `action`. The base class returns `true`. A
+subclass overrides it with a condition, and [`Action.executable`](#the-action-class) is `false` while any
+`ExecuteAction` registered on the action returns `false`. The read is reactive where the condition reads reactive
+state, so a button bound to `executable` follows it.
+
 **With `watch()`:** no equivalent. `ExecuteAction` runs when `execute()` is called, not on a change of state.
+
+### `SubmitAction(target, handler, options?)`
+
+An `ExecuteAction` that sends the value of `target` to `handler`. Register it on the `Action` that submits a form.
+
+```typescript
+import { Action, Field, Group, SubmitAction } from '@dynamicforms/vue-forms';
+
+const form = new Group({
+  name: new Field({ value: '' }),
+  actions: new Group({
+    save: new Action({
+      value: { label: 'Save', defaultConfirm: true },
+      actions: [new SubmitAction((action) => action.parent?.parent, (value) => api.save(value))],
+    }),
+  }),
+});
+
+const { sent, received } = await form.confirm();
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `target` | `CommandTarget` (`FieldBase \| ((action: FieldBase) => FieldBase \| null \| undefined)`) | The element to submit, or a callback that returns it for the action the handler runs on. Required: an action in a bar of actions has the bar as its `parent`, not the form |
+| `handler` | `(value, target) => R \| Promise<R>` | Sends `value` (the target's `value`) and returns what was received |
+| `options.rebind` | `boolean` | Default `true`: a result other than `undefined` is written back with `target.rebind(result)`, which makes it the new baseline |
+
+On `execute()` it:
+
+1. waits until `target.validating` is `false`, so a validation started in the same event is finished. It does not
+   await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
+2. where `target.valid` is `false`, ends with a `SubmitRefusedException`, which `execute()` resolves with;
+3. calls `handler(target.value, target)` and awaits it;
+4. where the result is not `undefined` and `options.rebind` is not `false`, calls `target.rebind(result)`;
+5. calls the next handler in the chain and resolves with a `SubmitResult`:
+
+```typescript
+interface SubmitResult<R = any> {
+  action: FieldBase; // the action that ran the submit
+  sent: unknown;     // the target's value passed to handler
+  received: R;       // what handler returned
+}
+```
+
+A second `execute()` while a submit of the same action is running resolves with a `SubmitRefusedException` and does
+not call `handler`. A `handler` that throws or rejects makes `execute()` reject with that error, and the target is
+not changed. Writing a server's field errors to the fields is the handler's: it writes them to `field.errors`
+before it throws, as in [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned).
+
+`canExecute()` is `true` while the target is valid and not `pending`, so `Action.executable` is `false` while the
+form is invalid, a validation is running or the submit itself is running.
+
+`SubmitRefusedException` extends `AbortEventHandlingException`.
+
+### `RejectAction(target)`
+
+An `ExecuteAction` that puts `target` back to its baseline: on `execute()` it calls
+`target.rebind(target.originalValue)`, then the next handler in the chain, and returns that handler's result.
+`target` is a `CommandTarget`, as for `SubmitAction`. `canExecute()` is `true` while the target exists, whatever its
+validity.
+
+```typescript
+new Action({ value: { label: 'Cancel', defaultReject: true }, actions: [new RejectAction((a) => a.parent?.parent)] });
+```
+
+`SubmitAction` and `RejectAction` extend `TargetedExecuteAction`, whose `targetFor(action)` returns the element the
+handler works on for `action`. [`Container.confirm()` and `reject()`](/api/container#confirm-params-promise-any-undefined)
+find the action that submits or rejects a container by it.
 
 ### The `Action` class
 
-`Action` is a [`Field`](/api/field) whose value is an `ActionValue` (`{ label?: unknown; icon?: unknown }`). It
-represents a button or menu entry that runs an `ExecuteAction` chain. It extends `Field`, which extends
+`Action` is a [`Field`](/api/field) whose value is an `ActionValue`:
+
+```typescript
+interface ActionValue {
+  label?: unknown;
+  icon?: unknown;
+  defaultConfirm?: boolean; // the action a container's confirm() executes
+  defaultReject?: boolean;  // the action a container's reject() executes
+}
+```
+
+It represents a command, such as a button or a menu entry, that runs an `ExecuteAction` chain. An action sends
+nothing: it is not in its container's `value` or `fullValue`, it does not affect the container's `isChanged` or
+validity, its validators do not run, and assigning or rebinding the container does not change it. A container whose
+members are all actions sends nothing either. It extends `Field`, which extends
 [`FieldBase`](/api/field-base); the table below lists what `Action` adds or overrides.
 
 ::: tip Action is not UI-agnostic, deliberately
@@ -435,7 +521,7 @@ per-breakpoint object), and the accessors the base class declares return that ty
 value type.
 [Widening the value in a subclass](#widening-the-value-in-a-subclass) has the rules.
 `@dynamicforms/vuetify-inputs` widens the value with render options and per-breakpoint variants and adds
-`renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes; its
+`renderAs`, `showLabel`, `showIcon` and passthrough attributes; its
 [df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows how these
 render. `busy` is form state for the same reason: the library counts the runs, and how that is rendered is up to
 the application.
@@ -458,6 +544,10 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 |--------|-------------|
 | `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` (an `IFieldParams<T, X>`), applied in the same order: `validators` and `actions` are registered first, so an action guarding `access` or `visibility` applies to the assignment from the same object, and each eager action runs once over the final value. [Extended properties](/api/field-base#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore go to its value; `X` accordingly defaults to [`Extras`](/api/field-base#extras) without those two keys |
 | `busy` | Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action includes this in its own `busy`, so a form reports that a run is in progress below it. An asynchronous validation of the action itself is reported by `validating` |
+| `contribution` | Overrides [`FieldBase.contribution`](/api/field-base#prop-contribution): always `undefined`, because an action sends nothing |
+| `defaultConfirm` | `value.defaultConfirm`, `false` where it is not set: whether a container's [`confirm()`](/api/container#confirm-params-promise-any-undefined) executes this action |
+| `defaultReject` | `value.defaultReject`, `false` where it is not set: whether a container's [`reject()`](/api/container#reject-params-promise-any-undefined) executes this action |
+| `executable` | `true` while the action accepts input (`effectiveEnabled`), is shown (`visibility` is `'full'`), is not running (`busy` is `false`) and every `ExecuteAction` registered on it returns `true` from [`canExecute()`](#executeaction). Reactive, so a button binds `:disabled="!action.executable"`. `confirm()` and `reject()` execute only an executable action; `execute()` does not check it |
 | `execute(params?)` | Triggers `ExecuteAction` on this action and returns the chain's return value as a promise. A handler that throws rejects that promise instead of throwing out of the call, except for `AbortEventHandlingException`, which the promise resolves with; see [Handling a failed run](#handling-a-failed-run) |
 | `icon` | Reads `value.icon`, at the type `T` gives that member; writing it assigns a new value object with the new icon |
 | `label` | Reads `value.label`, at the type `T` gives that member (`unknown` on an `Action` without a value type argument); writing it assigns a new value object with the new label |
@@ -478,7 +568,6 @@ Inherited from `FieldBase`:
 | [`beginValidating() / endValidating()`](/api/field-base#beginvalidating-void-endvalidating-void) | Increment and decrement the asynchronous validation counter behind `validating` |
 | [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
-| [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
 | [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
 | [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
 | [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
@@ -504,9 +593,6 @@ Inherited from `FieldBase`:
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
-
-`Action` is a `Field`, so resetting one (rarely needed, since a label and an icon are not normally form data) is
-`action.rebind(action.originalValue)`; see [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form).
 
 #### Handling a failed run
 

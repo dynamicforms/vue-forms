@@ -92,7 +92,9 @@ personForm.fields.age.access = 'disabled';
 console.log(personForm.value);  // { firstName: 'Jane', lastName: 'Doe', active: true }
 ```
 
-An `Action` is a field whose value is a label / icon pair and which can be executed:
+An `Action` is a command: an element with a label and an icon that can be executed and sends nothing to its
+container's value. `SubmitAction` and `RejectAction` submit and reset a form, and `form.confirm()` / `form.reject()`
+execute them:
 
 ```typescript
 import { Action, ExecuteAction } from '@dynamicforms/vue-forms';

@@ -261,7 +261,7 @@ describe('Action construction', () => {
     expect(action.icon).toBeUndefined();
   });
 
-  it('runs a constructor-supplied validator exactly once, over the shaped value', () => {
+  it('does not run a validator: an action sends nothing', () => {
     const seen: ActionValue[] = [];
     const action = new Action({
       value: { label: 'Save' },
@@ -273,7 +273,7 @@ describe('Action construction', () => {
       ],
     });
 
-    expect(seen).toEqual([{ label: 'Save', icon: undefined }]);
+    expect(seen).toEqual([]);
     expect(action.label).toBe('Save');
     expect(action.valid).toBe(true);
   });
@@ -405,7 +405,7 @@ describe('Action construction', () => {
     expect(action.isChanged).toBe(false);
   });
 
-  it('runs a constructor-supplied validator once, over the completed value', () => {
+  it('does not run a validator in a subclass either', () => {
     const seen: Rendered[] = [];
 
     const action = new RenderedAction({
@@ -418,7 +418,7 @@ describe('Action construction', () => {
       ],
     });
 
-    expect(seen).toEqual([{ label: 'Save', renderAs: 'button' }]);
+    expect(seen).toEqual([]);
     expect(action.valid).toBe(true);
   });
 });

@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2026-10-08
 
 ### Changed
+- An `Action` sends nothing: it is left out of its container's `value` and `fullValue`, does not affect the
+  container's `isChanged` or validity, and its validators do not run. A container whose members are all actions
+  sends nothing either.
 - `ValidationError` is data: `new ValidationError(code, params, detail, origin?)`. It carries the `code` of what
   failed, the `params` it failed with, an English plain-text `detail` and an `origin`, and implements
   `ErrorDescription`, the shape of an error a `@dynamicforms/fastapi-viewsets` server returns. The library does not
@@ -23,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces the instance on the field.
 
 ### Added
+- `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
+  target, sends the target's value to `handler`, rebinds the target to the result and resolves with
+  `{ action, sent, received }`. `RejectAction(target)` rebinds the target to its `originalValue`.
+- `Container.confirm()` and `reject()`: execute the action whose `SubmitAction` or `RejectAction` targets the
+  container, else the only shown action with `defaultConfirm` or `defaultReject`.
+- `defaultConfirm` and `defaultReject` in `ActionValue`, with getters on `Action`.
+- `Action.executable`, and `ExecuteAction.canExecute()`, which it reads.
 - `pending` on every element: `validating || busy`, reactive. `settled()` resolves when it turns `false`.
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
 - `ValidationErrorOptions`.

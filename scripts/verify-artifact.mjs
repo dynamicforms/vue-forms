@@ -28,6 +28,8 @@ const expected = [
   'Group',
   'List',
   'ValidationError',
+  'RejectAction',
+  'SubmitAction',
   'Validators',
   'ValueChangedAction',
   'accessValues',

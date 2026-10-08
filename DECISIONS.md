@@ -669,3 +669,26 @@ earlier value.
 
 **Rejected: an opaque `message: unknown` passed through to the renderer.** It duplicates `detail` and keeps a
 render-specific value on a data object.
+
+## D-038 — An action is a command: it sends nothing, and a container finds its confirm and reject actions
+
+**Version:** 3.0.0
+
+An `Action` sends nothing to its container's `value` or `fullValue`; a container of actions only sends nothing
+either. `SubmitAction` and `RejectAction` are `ExecuteAction` handlers that work on a required target.
+`Container.confirm()` and `reject()` execute the action whose handler targets the container, else a
+`defaultConfirm` / `defaultReject` action among the direct members, else the only one below; two candidates in one
+step execute nothing. `Action.executable` combines `effectiveEnabled`, `visibility`, `busy` and the handlers'
+`canExecute()`.
+
+**What forced it.** An action in a group was sent with the form: `{ save: { label: 'Save' } }` reached the server.
+`defaultConfirm` and `defaultReject` were defined by `@dynamicforms/vuetify-inputs`, and every dialog searched for
+the action itself; which action a confirm gesture runs is a property of the form, not of its rendering.
+
+**Required target.** An action in a bar of actions has the bar as its `parent`; a default of `parent` would submit
+the bar.
+
+**Ambiguity executes nothing.** A form with sub-forms that each carry a confirm action does not know which of them
+Enter means; running the first one found would run code the form did not choose.
+
+**Rejected: `name` on `Action`.** An action in a container is named by its key (`fieldName`).

@@ -16,8 +16,23 @@ exists.
 
 3.0.0 removes rendering from the library. An error is data — `code`, `params` and an English `detail` — and the
 application, or a UI library such as `@dynamicforms/vuetify-inputs`, renders it. The library ships no components,
-no styles and no configuration, and no longer depends on `@dynamicforms/translatable`. One change is silent: the
-renamed error codes, which come first. There is a [checklist](#checklist-for-3-0-0) at the end of this section.
+no styles and no configuration, and no longer depends on `@dynamicforms/translatable`. An `Action` is a command and
+sends nothing. Two changes are silent: the renamed error codes and the actions left out of a container's value,
+which come first. There is a [checklist](#checklist-for-3-0-0) at the end of this section.
+
+### An action sends nothing
+
+An `Action` in a `Group` or a `List` is left out of the container's `value` and `fullValue`, and a container whose
+members are all actions is left out as well. Code that read an action's label from the form's value, or a server
+that expected it in the payload, keeps compiling and gets no key.
+
+```typescript
+const form = new Group({ name: new Field({ value: 'a' }), save: new Action({ value: { label: 'Save' } }) });
+form.value;   // 2.0: { name: 'a', save: { label: 'Save' } }   3.0: { name: 'a' }
+```
+
+An action's label change no longer makes its container `isChanged`, validators registered on an action do not
+run, and assigning or rebinding the container does not change its actions.
 
 ### Error codes are renamed
 
@@ -124,6 +139,7 @@ app.use(forms, { useMarkdownInValidators: false });
 5. Remove `app.use(forms, …)`, `getConfig`, `setConfig`, `buildErrorMessage` and the `style.css` import.
 6. Import `MessagesWidget`, `MdString`, `RenderableValue` and the render types from the UI library instead.
 7. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
+8. Read an action's label from the action, not from the form's value; remove validators registered on actions.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

@@ -10,7 +10,7 @@ A form is a tree of **elements**. There are four classes, and they share one bas
 | Class | What it holds |
 |-------|---------------|
 | `Field<T>` | one value |
-| `Action<T>` | one value of the shape `{ label?, icon? }`, plus `execute()` and `busy` |
+| `Action<T>` | one value of the shape `{ label?, icon?, defaultConfirm?, defaultReject? }`, plus `execute()`, `busy` and `executable`; it sends nothing to its container |
 | `Group<T>` | a named map of member elements; its value is an object |
 | `List<R>` | an ordered set of rows of type `R` (a `Group`, a `Field` or another `List`); its value is an array of the rows' values |
 
