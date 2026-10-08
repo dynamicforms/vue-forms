@@ -129,12 +129,15 @@ function treeOf(id: string, label: string, element: FieldBase): InspectorNode {
   if (shown.length < members.length) {
     children.push({ id: `${id}/…`, label: `… ${members.length - shown.length} more rows` });
   }
-  return {
+  const node: InspectorNode = {
     id,
     label,
-    children: children.length ? children : undefined,
     tags: [{ label: kindOf(element), textColor: 0xffffff, backgroundColor: element.valid ? 0x42b883 : 0xd32f2f }],
   };
+  // the key is left out for a leaf: the devtools serialise an undefined value as a marker, and the client shows a
+  // node with a `children` key as one that expands
+  if (children.length) node.children = children;
+  return node;
 }
 
 /** The element a node id names: a listed element, and the path of member keys below it. */

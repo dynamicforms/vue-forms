@@ -30,6 +30,7 @@ describe('the devtools plugin in the devtools kit', () => {
     const components = tree.find((node: any) => node.id === 'components');
     expect(components.children[0].label).toBe('RootApp > PersonDemo');
     expect(components.children[0].children[0].children.map((node: any) => node.label)).toEqual(['a']);
+    expect(Object.hasOwn(components.children[0].children[0].children[0], 'children')).toBe(false);
 
     await kit.devtools.api.getInspectorTree({ inspectorId: 'components', filter: '' });
     const demo = vm.$.subTree.component;
