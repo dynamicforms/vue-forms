@@ -270,8 +270,10 @@ arguments (`new Field<string, Presentation>(…)`); the parameter object then ac
 `Presentation` in addition to the ones every element accepts. When the second argument is omitted, `X` is
 [`Extras`](#extras).
 
-A parameter named after a member the class declares sets that member and is not an extended property: `access` sets
-`access`, and `valid` throws a `TypeError`, with or without extended properties.
+A parameter named after an accessor the class declares (a getter, a setter or both) sets that member and is not an
+extended property: `access` sets `access`, and `valid`, a getter without a setter, throws a `TypeError`. A parameter
+named after any other member, such as the method `validate`, is an extended property: it is stored in `extra` and
+leaves the member as it is.
 `Action` declares `label` and `icon`, so those two parameters set an action's value; give an action's *other*
 presentation properties other names. Where a subclass reads `label` or `icon` in a shape of its own, see
 [Widening the value in a subclass](/api/action#widening-the-value-in-a-subclass): that is an accessor pair (getter
@@ -840,8 +842,15 @@ No `ValueChangedAction` fires for the element itself, as for a newly built eleme
 (the fields of a rebound row fire `ValueChangedAction` for their new values), and a validity change is published as
 always, so a rebound row that is invalid notifies the list holding it.
 
-A disabled `Field` takes the value, as it does any write to `value`. A disabled `Group` or `List` writes through
-to its members, as an assignment to it does. On a `List`, existing rows are reused by position, as in a whole-value
+`rebind` restores data, not state: `access`, `visibility` and the extended properties stay as they are, so what
+the element sends after a rebind follows its current access. A disabled `Field` takes the value, as it does any
+write to `value`. A disabled `Group` or `List` writes through to its members, as an assignment to it does.
+
+A member of a `Group` whose key is missing from `data` takes the `originalValue` of the corresponding member of the
+group's declaration: for a group that is its own declaration, the member's own baseline. `group.originalValue` holds
+what the group sends, so it leaves a `'disabled'` member out, and `group.rebind(group.originalValue)` puts that
+member back to its own baseline as well. For a row of a `List` the declaration is the item template, so a key the
+new record leaves out takes the item template's baseline, not the value of the previous record. On a `List`, existing rows are reused by position, as in a whole-value
 assignment (see [Scale](/api/list#scale)).
 
 Inside an open `transaction()`, a change of the element that the commit has yet to announce is kept: the commit

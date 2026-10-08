@@ -41,7 +41,8 @@ asynchronous validator that settles later opens its own transaction and needs no
 | `ValueChangedAction` | at commit, over what the element ends the transaction holding |
 | `ValidChangedAction` | at commit, over the validity the element ends the transaction with |
 | `ListItemAddedAction` / `ListItemRemovedAction` | at commit, in the order the operations happened |
-| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed`, `EnabledChanging`/`Changed` | at the write; a *Changing* action may alter or refuse the value, so it cannot wait |
+| `VisibilityChangingAction`, `AccessChangingAction`, `EnabledChangingAction` | at the write: a *Changing* action may alter or refuse the value, so it cannot wait |
+| `AccessChangedAction`, `EnabledChangedAction`, `VisibilityChangedAction` | at commit, before `ValueChangedAction`, over the access and visibility the element ends the transaction with |
 | `ContributionChangedAction` | at commit, after `ValueChangedAction`, over what the element ends the transaction sending |
 
 Validators run during the transaction because the commit announces their result. Consequently, inside a
@@ -50,7 +51,7 @@ sibling's new value. Cross-field rules depend on this. Vue effects are scheduled
 render sees the committed state.
 
 The announcement runs **deepest first**: field, then row, then list, the order in which the change propagated.
-Values are announced before validity, because a container's own validators run with its value announcement and
+Access, enabled and visibility are announced first, then values, then validity, because a container's own validators run with its value announcement and
 their result is what the validity pass then announces.
 
 **Value transitions coalesce; structural ones do not.** A value that goes `A → B → A` within one transaction

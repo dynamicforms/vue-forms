@@ -206,7 +206,8 @@ transaction(() => {
 | What | When it runs |
 |---|---|
 | validators | while the transaction is open, at the write that triggers them |
-| `VisibilityChanging`/`Changed`, `AccessChanging`/`Changed`, `EnabledChanging`/`Changed` | at the write; a *Changing* action may alter or refuse the value, so it cannot be deferred |
+| `VisibilityChangingAction`, `AccessChangingAction`, `EnabledChangingAction` | at the write: a *Changing* action may alter or refuse the value, so it cannot be deferred |
+| `AccessChangedAction`, `EnabledChangedAction`, `VisibilityChangedAction` | at commit, before the value announcements, with the net change |
 | `ValueChangedAction` | at commit, with the value the element holds at the end of the transaction |
 | `ValidChangedAction` | at commit, after the value announcements, with the element's final validity |
 | `ListItemAddedAction` / `ListItemRemovedAction` | at commit, in the order the operations happened |

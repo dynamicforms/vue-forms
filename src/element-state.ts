@@ -74,6 +74,12 @@ export interface ElementSlots<T = any> {
   // the slots below are the element's internal bookkeeping: nothing reads them inside an effect, so they are
   // accessed through raw
 
+  /**
+   * The access and the visibility the last commit announced, recorded by the first write of either in a
+   * transaction and cleared once the commit announced the net change; undefined while no change is pending.
+   */
+  announcedAccess: Access | undefined;
+  announcedVisibility: Visibility | undefined;
   /** the validity the last commit announced; a change of validity is detected against it */
   valid: boolean;
   /** the number of direct children whose last announced validity was invalid */
@@ -88,6 +94,8 @@ export function elementSlots<T = any>(): ElementSlots<T> {
     originalValue: undefined!,
     announcedValue: undefined!,
     announcedContribution: undefined,
+    announcedAccess: undefined,
+    announcedVisibility: undefined,
     validatedValue: undefined,
     errors: [],
     visibility: defaultVisibility,

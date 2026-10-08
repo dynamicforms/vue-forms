@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2026-10-08
 
 ### Changed
+- Every built-in validator except `Required` and `CompareTo` passes an empty value (`null`, `undefined`, `''`, `[]`,
+  `{}`). `MinValue`, `MaxValue` and `ValueInRange` compare a number with a number, a bigint with a bigint, a string
+  with a string and a date with a date, and refuse any other value, `NaN` and an invalid date.
+- `AccessChangedAction`, `EnabledChangedAction` and `VisibilityChangedAction` fire at commit, once, with the net
+  change, before `ValueChangedAction`.
+- A construction parameter is assigned to the element only where it names an accessor; a parameter named like a
+  method (`validate`, `bind`) is an extended property.
+- `rebind()` gives a `Group` member whose key is missing from the data the `originalValue` of the declaration's
+  member, so `group.rebind(group.originalValue)` restores a `'disabled'` member.
 - An `Action` sends nothing: it is left out of its container's `value` and `fullValue`, does not affect the
   container's `isChanged` or validity, and its validators do not run. A container whose members are all actions
   sends nothing either.
@@ -24,6 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The English details of the built-in validators are plain text, without markdown.
 - `sameAs` compares the class, `code`, `params`, `detail` and the stated origin, so an error whose params changed
   replaces the instance on the field.
+
+### Fixed
+- A `Pattern` with the `g` or `y` flag passed and failed the same value in turn; it tests with a copy without them.
+- A `VisibilityChangingAction` that returned the current visibility did not refuse the write.
+- A conditional action registered on a second element of a record did not apply the current result to it.
+- Writing `NaN` over `NaN` announced a change.
+- `List.insert()` and `remove()` cost a proxied write per row after the position; the rows are held outside Vue's
+  reactivity and the cost no longer grows with the list beyond native array operations.
+- Reading an index or `length` of `view(list)` copied the row array on every read.
 
 ### Added
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid

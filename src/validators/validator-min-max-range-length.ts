@@ -1,18 +1,10 @@
-import { isArray, isObject, isString } from 'lodash-es';
-
 import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
-
-function toLength(a: any): number {
-  if (a == null) return 0;
-  if (isArray(a)) return a.length;
-  if (isString(a)) return a.length;
-  if (isObject(a) && Object.getPrototypeOf(a) === Object.prototype) return Object.keys(a).length;
-  return String(a).length;
-}
+import { isEmptyValue, toLength } from './value-checks';
 
 export class MinLength extends Validator {
   constructor(minLength: number, options?: ValidationErrorOptions) {
     const validationFn: ValidationFunction = (newValue, oldValue) => {
+      if (isEmptyValue(newValue)) return null;
       if (toLength(newValue) < minLength) {
         return [
           this.errorFor(options, 'min_length', 'Length must be larger or equal to {minLength}', {
@@ -32,6 +24,7 @@ export class MinLength extends Validator {
 export class MaxLength extends Validator {
   constructor(maxLength: number, options?: ValidationErrorOptions) {
     const validationFn: ValidationFunction = (newValue, oldValue) => {
+      if (isEmptyValue(newValue)) return null;
       if (toLength(newValue) > maxLength) {
         return [
           this.errorFor(options, 'max_length', 'Length must be less than or equal to {maxLength}', {
@@ -51,6 +44,7 @@ export class MaxLength extends Validator {
 export class LengthInRange extends Validator {
   constructor(minLength: number, maxLength: number, options?: ValidationErrorOptions) {
     const validationFn: ValidationFunction = (newValue, oldValue) => {
+      if (isEmptyValue(newValue)) return null;
       const len = toLength(newValue);
       if (len < minLength || len > maxLength) {
         return [

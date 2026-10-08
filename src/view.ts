@@ -114,12 +114,11 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
 
 function listView(list: List<any, any>): unknown[] {
   // the rows a view shows, in order: every row the list holds, whatever it sends
-  const shown = (): FieldBase[] => [...list.items];
-  // the list position of a view index; an index past the last shown row appends
-  const positionOf = (index: number): number => {
-    const rows = shown();
-    return index < rows.length ? list.items.indexOf(rows[index]) : list.length;
-  };
+  // the rows the view shows: every row, in the frozen array `items` keeps until the set of rows changes, so a read
+  // of an index or of `length` costs no copy
+  const shown = (): readonly FieldBase[] => list.items;
+  // the list position of a view index; an index past the last row appends
+  const positionOf = (index: number): number => Math.min(index, list.length);
   const clamp = (index: number, length: number) => (index < 0 ? Math.max(length + index, 0) : Math.min(index, length));
 
   /** replaces the shown rows with `rows`, keeping every row element and its state */

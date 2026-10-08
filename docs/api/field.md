@@ -108,7 +108,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.value`](/api/field-base#prop-value): the single value the field holds. A write is accepted whatever the access; the value the field ends up holding depends on [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and does not fire when the field is assigned the object it already holds. Assign a modified copy instead of mutating in place. `isChanged` is separate and uses deep equality.
+Overrides [`FieldBase.value`](/api/field-base#prop-value): the single value the field holds. A write is accepted whatever the access; the value the field ends up holding depends on [what is registered on the field](#writing-the-value). Values are compared by identity, with `NaN` equal to `NaN`, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and does not fire when the field is assigned the object it already holds. Assign a modified copy instead of mutating in place. `isChanged` is separate and uses deep equality.
 
 </td></tr>
 </tbody>

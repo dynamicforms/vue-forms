@@ -277,9 +277,14 @@ length of the list:
 | reading `length`, or `items` again with the set of rows unchanged | constant |
 | reading `value` or `valid` again with nothing changed in between | constant (both are cached) |
 | writing one field of one row | that row, plus the depth of the nesting it sits in |
-| `push()`, `insert()`, `remove()`, `pop()` | one row |
+| `push()`, `insert()`, `remove()`, `pop()` | one row, plus native array operations over the row references: the shift of `splice()` and the copy a transaction keeps for a rollback |
+| reading an index or `length` of [`view(list)`](/api/view) | constant |
 | reading `value` after a change | one array of the current length, plus a rebuild of the rows that changed |
 | assigning `value`, or `validate(true)` | the whole list (both apply to every row) |
+
+The rows are held outside Vue's reactivity: a reactive array would route every row a `splice()` shifts through its
+proxy. Every change of the set of rows increments a tracked counter, so `length`, `get()`, `items` and a template
+that reads them re-run as before.
 
 The caches are invalidated by the write itself, so no manual refresh is needed. `value` is rebuilt on the first
 read after a change and reused until the next change, so two consecutive reads return the same object. That object
@@ -289,7 +294,7 @@ instead. `originalValue` is a separate copy and is not frozen. The freeze covers
 An assignment reuses the existing row objects, position by position, so `list.get(0)` returns the same instance
 after `list.value = rows` when the new array has the same length. A keyed `v-for` over the rows therefore does not
 remount them on every assignment. A reused row is reset to the state of a new row built for that position: a member
-whose key is absent from the new item gets the item template's value, and `originalValue`, `isChanged`, `touched`
+whose key is absent from the new item gets the item template member's `originalValue`, and `originalValue`, `isChanged`, `touched`
 and `errors` are reset. The new set is built separately and installed as a whole, so a validator that reads
 `list.value` during the assignment never sees an unfilled position.
 

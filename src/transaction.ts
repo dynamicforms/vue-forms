@@ -36,6 +36,7 @@ export const SentNowhere = Symbol('FieldBase.sentNowhere');
 export const TxRestore = Symbol('Transaction.restore');
 export const TxAnnounceValue = Symbol('Transaction.announceValue');
 export const TxSettleValidity = Symbol('Transaction.settleValidity');
+export const TxAnnounceFlags = Symbol('Transaction.announceFlags');
 
 interface TxParticipantElement {
   readonly parent: FieldBase | undefined;
@@ -43,6 +44,7 @@ interface TxParticipantElement {
   [TxRestore](snapshot: TxSnapshot): void;
   [TxAnnounceValue](tx: Transaction, dirty: boolean, force: boolean, structural?: TxStructuralEvent[]): void;
   [TxSettleValidity](tx: Transaction): void;
+  [TxAnnounceFlags](): void;
 }
 
 /** FieldBase declares the four members above as protected, which keeps them out of the documented API */
@@ -60,6 +62,8 @@ interface Participant {
   forceValue: boolean;
   /** the commit recomputes this element's validity and announces a change of it */
   validityDirty: boolean;
+  /** the commit announces the net change of this element's access, enabled and visibility */
+  flagsDirty: boolean;
   structural?: TxStructuralEvent[];
 }
 
@@ -100,7 +104,7 @@ export class Transaction {
   private participant(element: FieldBase): Participant {
     let entry = this.participants.get(element);
     if (!entry) {
-      entry = { element, valueDirty: false, forceValue: false, validityDirty: false };
+      entry = { element, valueDirty: false, forceValue: false, validityDirty: false, flagsDirty: false };
       this.participants.set(element, entry);
     }
     return entry;
@@ -121,6 +125,12 @@ export class Transaction {
     const entry = this.participant(element);
     entry.valueDirty = true;
     if (force) entry.forceValue = true;
+    this.noteDepth(element);
+  }
+
+  /** Enrols an element whose access or visibility changed; the commit announces the net change. */
+  markFlagsDirty(element: FieldBase): void {
+    this.participant(element).flagsDirty = true;
     this.noteDepth(element);
   }
 
@@ -194,15 +204,16 @@ export class Transaction {
   }
 
   /**
-   * Announces the transaction's changes. Values first and validity after, because a container's validators run
-   * with its value announcement and the validity pass reports their result. Both passes run deepest first (field,
-   * then row, then list), the order in which the change propagates.
+   * Announces the transaction's changes: access, enabled and visibility first, then values, then validity, because
+   * a container's validators run with its value announcement and the validity pass reports their result. Every pass
+   * runs deepest first (field, then row, then list), the order in which the change propagates.
    *
-   * A handler may write while the commit runs; its writes join this transaction, so both passes repeat until
-   * nothing is dirty.
+   * A handler may write while the commit runs; its writes join this transaction, so the passes repeat until nothing
+   * is dirty.
    */
   commit(): void {
     for (;;) {
+      if (this.announceFlags()) continue;
       if (this.announceValues()) continue;
       if (this.settleValidity()) continue;
       break;
@@ -267,6 +278,16 @@ export class Transaction {
         entry.valueDirty = false;
         entry.forceValue = false;
         hooks(entry.element)[TxAnnounceValue](this, dirty, force, structural);
+      },
+    );
+  }
+
+  private announceFlags(): boolean {
+    return this.pass(
+      (entry) => entry.flagsDirty,
+      (entry) => {
+        entry.flagsDirty = false;
+        hooks(entry.element)[TxAnnounceFlags]();
       },
     );
   }
