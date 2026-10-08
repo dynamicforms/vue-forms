@@ -232,15 +232,18 @@ function setup(app: App): void {
           if (!group.has(location)) group.set(location, []);
           group.get(location)!.push(treeOf(entry.id, name, element));
         });
-        const section = (id: string, label: string, groups: Map<string, InspectorNode[]>): InspectorNode => ({
-          id,
-          label,
-          children: [...groups].map(([location, nodes]) => ({
-            id: `${id}:${location}`,
-            label: location,
-            children: nodes,
-          })),
-        });
+        const section = (id: string, label: string, groups: Map<string, InspectorNode[]>): InspectorNode => {
+          const node: InspectorNode = { id, label };
+          // an empty section has no children key, so the client does not show it as one that expands
+          if (groups.size) {
+            node.children = [...groups].map(([location, nodes]) => ({
+              id: `${id}:${location}`,
+              label: location,
+              children: nodes,
+            }));
+          }
+          return node;
+        };
         payload.rootNodes = [
           section('global', 'Global state', globals),
           section('components', 'Component state', components),
