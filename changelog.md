@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces the instance on the field.
 
 ### Added
+- `pending` on every element: `validating || busy`, reactive. `settled()` resolves when it turns `false`.
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
 - `ValidationErrorOptions`.
 - `params` on every error.

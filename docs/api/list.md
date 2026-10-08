@@ -61,14 +61,14 @@ different name.
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
-| `params.value` | `ListValueInput<R>` (`ListValue<R> \| null`) | `[]` | Initial array of item values. When absent, `originalValue` is used; an explicit `null` is not replaced and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
-| `params.originalValue` | `ListValueInput<R>` | same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
 | `params.access` | [`Access`](/api/field#access) | `'editable'` | What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts value assignment and every mutation regardless of its access. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `params.visibility` | [`Visibility`](/api/field#visibility) | `'full'` | How a rendering layer shows the list. |
-| `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
-| `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
-| `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
 | `params.actions` | `FieldActionBase[]` | `[]` | List-level actions |
+| `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
+| `params.originalValue` | `ListValueInput<R>` | same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
+| `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
+| `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
+| `params.value` | `ListValueInput<R>` (`ListValue<R> \| null`) | `[]` | Initial array of item values. When absent, `originalValue` is used; an explicit `null` is not replaced and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
+| `params.visibility` | [`Visibility`](/api/field#visibility) | `'full'` | How a rendering layer shows the list. |
 
 `validators` and `actions` are registered before the remaining parameters are applied, and registration fires no
 action. An `AccessChangingAction` or `VisibilityChangingAction` passed here therefore already applies to the
@@ -79,22 +79,22 @@ finished list. `Field`, `Action` and `Group` behave the same way; see [Field](/a
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged; because the setter is typed, such a value can only come from JavaScript or through an `as any` |
-| `originalValue` | `ListValue<R>` | yes | Value at creation time. Writable; assigning it resets the baseline of `isChanged` |
+| `access` | [`Access`](/api/field#access) | yes | What the list sends to its container and whether it is validated (`'disabled'` leaves it out and `'disabled-null'` sends `null` regardless of what it holds), and, through `effectiveAccess`, what every element inside it sends: below a `'disabled'` or `'disabled-null'` list nothing is sent or validated, and below a `'readonly'` one nothing accepts input. Each row keeps the access it was given. See [What a container serializes](/api/container#what-a-container-serializes). |
+| `busy` | `boolean` | no | `true` while an `Action.execute()` in a row is pending. Pending validation in a row is reported by `validating`, not `busy`; `pending` covers both |
+| `effectiveAccess` | [`Access`](/api/field#access) | no | The access that applies after the containers above are taken into account; see [`effectiveAccess`](/api/field#properties) |
+| `effectiveEnabled` | `boolean` | no | `true` where `effectiveAccess` is `'editable'`. A rendering layer reads it to draw the inputs of a whole section as not accepting input |
+| `enabled` | `boolean` | no | `true` where `access` is `'editable'` |
+| `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
+| `fullValue` | `ListFullValue<R>` | no | The `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it |
 | `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
+| `items` | `readonly R[]` | no | The rows themselves; see [The rows](#the-rows) |
+| `length` | `number` | no | The number of rows the list holds. Reading it builds no array |
+| `originalValue` | `ListValue<R>` | yes | Value at creation time. Writable; assigning it resets the baseline of `isChanged` |
+| `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
 | `valid` | `boolean` | no | `true` when the list itself and every row it counts are valid. A `'disabled'` row sends nothing and is not counted, whatever errors it carries |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is pending on the list itself or in any row. The list keeps a count of the rows whose `validating` is `true`, so the read is constant-time regardless of the number of rows |
-| `busy` | `boolean` | no | `true` while an `Action.execute()` in a row is pending. Pending validation in a row is reported by `validating`, not `busy`, so a submit gate reads both, or awaits [`settled()`](/api/field#settled-promise-void) |
-| `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
-| `access` | [`Access`](/api/field#access) | yes | What the list sends to its container and whether it is validated (`'disabled'` leaves it out and `'disabled-null'` sends `null` regardless of what it holds), and, through `effectiveAccess`, what every element inside it sends: below a `'disabled'` or `'disabled-null'` list nothing is sent or validated, and below a `'readonly'` one nothing accepts input. Each row keeps the access it was given. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `effectiveAccess` | [`Access`](/api/field#access) | no | The access that applies after the containers above are taken into account; see [`effectiveAccess`](/api/field#properties) |
-| `enabled` | `boolean` | no | `true` where `access` is `'editable'` |
-| `effectiveEnabled` | `boolean` | no | `true` where `effectiveAccess` is `'editable'`. A rendering layer reads it to draw the inputs of a whole section as not accepting input |
+| `value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged; because the setter is typed, such a value can only come from JavaScript or through an `as any` |
 | `visibility` | [`Visibility`](/api/field#visibility) | yes | How a rendering layer shows the list. It does not affect what the list sends or whether it is validated |
-| `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
-| `length` | `number` | no | The number of rows the list holds. Reading it builds no array |
-| `items` | `readonly R[]` | no | The rows themselves; see [The rows](#the-rows) |
-| `fullValue` | `ListFullValue<R>` | no | The `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it |
 
 `ListValue<R>` is exported as `(R['value'] | null)[]`, `ListValueInput<R>` as `ListValue<R> | null` and
 `ListFullValue<R>` as `R['fullValue'][]`, each with `R` defaulting to `Group`.
@@ -152,68 +152,8 @@ and `errors` are reset. The new set is built separately and installed as a whole
 
 ## Methods
 
-### `get(index): R | undefined`
-
-Returns the row at `index`, or `undefined` if out of range.
-
-### `push(item): number`
-
-Appends an item to the end of the list. `item` is either the data a row is built from (bound to the item template, or built into an element by its type where the list has no item template) or an existing element, which becomes the row itself. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
-
-```typescript
-list.push({ name: 'Charlie', score: 70 });
-```
-
-### `pop(): R | undefined`
-
-Removes the last item and returns it (`undefined` if the list is empty). Triggers `ListItemRemovedAction`.
-
-### `insert(item, index): number`
-
-Inserts `item` at `index` and returns its resulting position. A negative `index` counts back from the end and is
-clamped at the front, as in `Array.prototype.splice`: on a three-item list `-1` inserts before the
-last item and returns `2`, and `-100` inserts at the front and returns `0`. A non-negative `index` is the position
-itself, so the return value equals the argument. If `index` is beyond the current length, the gap is filled with
-bindings of the item template, which hold the item template's own values, not empty ones. Without an item template
-the padding items are empty elements of the kind `item` is built into: empty groups for a plain object, empty lists
-for an array, fields holding `undefined` for anything else.
-
-`ListItemAddedAction` fires once per item added to the list: once for each padding item, with that item's index,
-and finally for `item` at its position. That position is the value `insert()` returns, so a negative `index` is
-reported resolved.
-
-### `remove(index): R | undefined`
-
-Removes the item at `index` and returns it: the row instance itself, which `list.get(index)` returned before the
-call and which is passed to `ListItemRemovedAction`. Triggers `ListItemRemovedAction`.
-
-The removed row is released: its `parent` is cleared, it no longer counts towards the list's validity, and it can
-be pushed into another list or back into this one. It keeps its state: a row edited before removal has `isChanged`
-`true`, keeps the errors its validators produced, and its `originalValue` is the data it was bound to.
-
-### `clear()`
-
-Removes all items and triggers a value-changed notification. Every row is released, exactly as `remove()` releases
-the row it removes. It does not change the list's own `touched`, `errors` or `originalValue`; for a reset that
-revalidates, see [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) and use `rebind(null)` instead.
-
-### `registerAction(action): this`
-
-Registers an action on the list. Returns `this`. `registerActionBefore(action, before)` registers
-one before another and `unregisterAction(action)` removes one; see
-[`Field`](/api/field#registeractionbefore-action-before-this).
-
-### `validate(revalidate?): void`
-
-Validates the list. Pass `revalidate: true` to revalidate all items as well. The items are revalidated first and
-the list then computes its own validity over the result, so it announces at most one net transition of its own
-validity. An item that becomes valid while a later item is still unchecked produces no notification on the list.
-
-### `notifyValueChanged(): void`
-
-Records that a row changed its value, so that the open [transaction](/api/transactions) computes at commit this
-list's new value, fires `ValueChangedAction` where it differs from the value last announced, and recomputes
-validity. The mutation methods call it, so a direct call is rarely needed.
+A `List` also has every method listed under [Field → Methods](/api/field#methods), such as `settled()`,
+`clearValidators()` and `setExtendedValues()`. The methods below are the ones a `List` adds or changes.
 
 ### `bind(data?, overrides?): List<R>`
 
@@ -232,6 +172,48 @@ On `List`, `Group` and `Field` alike, `originalValue` counts as supplied when it
 it is anything other than `undefined`: an explicit `null` is supplied data, so `bind(null)` returns an empty list,
 while an `undefined` `data` counts as not supplied and the new list gets the current items.
 
+### `clear()`
+
+Removes all items and triggers a value-changed notification. Every row is released, exactly as `remove()` releases
+the row it removes. It does not change the list's own `touched`, `errors` or `originalValue`; for a reset that
+revalidates, see [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) and use `rebind(null)` instead.
+
+### `get(index): R | undefined`
+
+Returns the row at `index`, or `undefined` if out of range.
+
+### `insert(item, index): number`
+
+Inserts `item` at `index` and returns its resulting position. A negative `index` counts back from the end and is
+clamped at the front, as in `Array.prototype.splice`: on a three-item list `-1` inserts before the
+last item and returns `2`, and `-100` inserts at the front and returns `0`. A non-negative `index` is the position
+itself, so the return value equals the argument. If `index` is beyond the current length, the gap is filled with
+bindings of the item template, which hold the item template's own values, not empty ones. Without an item template
+the padding items are empty elements of the kind `item` is built into: empty groups for a plain object, empty lists
+for an array, fields holding `undefined` for anything else.
+
+`ListItemAddedAction` fires once per item added to the list: once for each padding item, with that item's index,
+and finally for `item` at its position. That position is the value `insert()` returns, so a negative `index` is
+reported resolved.
+
+### `notifyValueChanged(): void`
+
+Records that a row changed its value, so that the open [transaction](/api/transactions) computes at commit this
+list's new value, fires `ValueChangedAction` where it differs from the value last announced, and recomputes
+validity. The mutation methods call it, so a direct call is rarely needed.
+
+### `pop(): R | undefined`
+
+Removes the last item and returns it (`undefined` if the list is empty). Triggers `ListItemRemovedAction`.
+
+### `push(item): number`
+
+Appends an item to the end of the list. `item` is either the data a row is built from (bound to the item template, or built into an element by its type where the list has no item template) or an existing element, which becomes the row itself. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
+
+```typescript
+list.push({ name: 'Charlie', score: 70 });
+```
+
 ### `rebind(data): this`
 
 Replaces the rows this list holds with `data`, in place: the same list instance, existing rows reused by position
@@ -239,6 +221,27 @@ as in a whole-value assignment, and the baseline of `isChanged` reset. No `Value
 itself. See [`rebind()`](/api/field#rebind-data-this) for the full description, and
 [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `rebind(list.originalValue)` (reset) and
 `rebind(null)` (empty).
+
+### `registerAction(action): this`
+
+Registers an action on the list. Returns `this`. `registerActionBefore(action, before)` registers
+one before another and `unregisterAction(action)` removes one; see
+[`Field`](/api/field#registeractionbefore-action-before-this).
+
+### `remove(index): R | undefined`
+
+Removes the item at `index` and returns it: the row instance itself, which `list.get(index)` returned before the
+call and which is passed to `ListItemRemovedAction`. Triggers `ListItemRemovedAction`.
+
+The removed row is released: its `parent` is cleared, it no longer counts towards the list's validity, and it can
+be pushed into another list or back into this one. It keeps its state: a row edited before removal has `isChanged`
+`true`, keeps the errors its validators produced, and its `originalValue` is the data it was bound to.
+
+### `validate(revalidate?): void`
+
+Validates the list. Pass `revalidate: true` to revalidate all items as well. The items are revalidated first and
+the list then computes its own validity over the result, so it announces at most one net transition of its own
+validity. An item that becomes valid while a later item is still unchecked produces no notification on the list.
 
 ## `NullableList`
 

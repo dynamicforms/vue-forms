@@ -141,10 +141,10 @@ const validatedForm = new Group({
   })
 });
 
-// A group's validity is computed over its members. validating is true while an asynchronous validation runs
-// anywhere below the group, busy while an Action.execute() does. Both reads are reactive.
+// A group's validity is computed over its members. pending is true while an asynchronous validation or an
+// Action.execute() runs anywhere below the group. Both reads are reactive.
 const formValid = computed(() => validatedForm.valid);
-const formBusy = computed(() => validatedForm.validating || validatedForm.busy);
+const formBusy = computed(() => validatedForm.pending);
 
 // Function to reset the form
 function resetForm() {
@@ -323,9 +323,9 @@ newest run for the field: results for intermediate values are discarded, the fie
 for its current text, and `field.validating` (bound to the input's `loading` prop) is `false` again once the last
 run has settled.
 
-The submit button reads `validatedForm.valid`, `validatedForm.validating` and `validatedForm.busy`. `validating` is
-`true` while a validation run is pending anywhere below the group, so the button is disabled for the duration of the
-check. `busy` covers `Action.execute()` runs and does not include validation.
+The submit button reads `validatedForm.valid` and `validatedForm.pending`. `pending` is `true` while a validation run
+or an `Action.execute()` is pending anywhere below the group, so the button is disabled for the duration of the
+check.
 
 The validation function receives an `AbortSignal` as its fourth argument. The signal aborts when the run's result
 is no longer used (a newer keystroke, the validator removed from the field, a transaction rolled back). A real
@@ -376,7 +376,7 @@ the Persian message for `in_allowed_values` isolates the list with U+2068 and U+
 - **InAllowedValues Validator**: Restricts input to a predefined set of values
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
-  run determining the validation result, and `form.validating` disabling submit while validation is pending
+  run determining the validation result, and `form.pending` disabling submit while validation is pending
 - **Translated Messages**: Errors rendered by the application from their code and params, in eight languages,
   numbers in the language's digits, following a language switch on screen
 - **Markdown**: The application rendering its messages as markdown

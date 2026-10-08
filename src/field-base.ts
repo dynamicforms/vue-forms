@@ -326,27 +326,35 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * True while an `Action.execute()` at or below this element has not settled. On an `Action` it covers its own
    * runs, on a container the actions below it; on any other element it is false.
    *
-   * It does not include validation, so a form that enables a submit button only on an idle tree reads both `busy`
-   * and `validating`.
+   * It does not include validation; `pending` covers both.
    */
   get busy(): boolean {
     return false;
   }
 
   /**
+   * True while an asynchronous validation or an `Action.execute()` at or below this element has not settled:
+   * `validating || busy`. It is reactive, so a template binds a submit button to it. `settled()` resolves when it
+   * turns false.
+   */
+  get pending(): boolean {
+    return this.validating || this.busy;
+  }
+
+  /**
    * Resolves when nothing at or below this element is running: no asynchronous validation and no unsettled
-   * `Action.execute()`. A submit path awaits it instead of polling `validating` and `busy`. If nothing is running,
-   * the returned promise is already resolved.
+   * `Action.execute()`, which is when `pending` is false. A submit path awaits it instead of polling `pending`. If
+   * nothing is running, the returned promise is already resolved.
    *
    * It covers only the moment it resolves: work started later makes the element run again, so a caller that needs
    * a settled tree reads what it needs immediately after the await.
    */
   settled(): Promise<void> {
-    if (!this.validating && !this.busy) return Promise.resolve();
+    if (!this.pending) return Promise.resolve();
     return new Promise((resolve) => {
       // sync flush, so the promise resolves in the write that ended the last run, not a tick later
       const stop = watch(
-        () => this.validating || this.busy,
+        () => this.pending,
         (running) => {
           if (running) return;
           stop();
@@ -363,8 +371,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * the errors.
    *
    * The array and its members are Vue proxies, not the raw instances a validator returned: `field.errors[0] ===
-   * myError` is `false` even for the same error. The proxies keep the read tracked, so a template re-renders when a
-   * message behind a `Ref` changes; compare identity with `toRaw()`.
+   * myError` is `false` even for the same error. Compare identity with `toRaw()`.
    */
   get errors(): ValidationError[] {
     this.touchState();

@@ -20,11 +20,12 @@ access (`group.fields.name`, `list.get(0)`) is specific to each class and is des
 
 | Member | Type | Description |
 |--------|------|-------------|
-| `valid` | `boolean` | `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well |
 | `busy` | `boolean` | `true` while an `Action.execute()` in any child is pending |
-| `touched` | `boolean`, writable | `true` where any child is touched. Assigning it assigns every child |
-| `validate(revalidate?)` | `void` | With `revalidate: true`, every child is revalidated first and the container then computes its own validity over the result, so it announces at most one net transition of its validity |
 | `notifyValueChanged()` | `void` | Records that a child changed what it holds or sends, so that the open [transaction](/api/transactions) computes at commit what the container holds and sends and announces each once. The mutation methods call it, so a direct call is rarely needed |
+| `pending` | `boolean` | `validating \|\| busy`: `true` while a validation or an `Action.execute()` in any child is pending |
+| `touched` | `boolean`, writable | `true` where any child is touched. Assigning it assigns every child |
+| `valid` | `boolean` | `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well |
+| `validate(revalidate?)` | `void` | With `revalidate: true`, every child is revalidated first and the container then computes its own validity over the result, so it announces at most one net transition of its validity |
 
 All other members (`value`, `fullValue`, `errors`, `access`, `bind()`, `rebind()` and the rest) are inherited from
 [`FieldBase`](/api/field#fieldbase-t), typed with the container's value shape.

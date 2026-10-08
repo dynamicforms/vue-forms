@@ -89,8 +89,8 @@ When the validation function returns a `Promise`, `field.validating` becomes `tr
 its pending asynchronous runs) and `field.errors` / `field.valid` are updated when the promise settles. Every
 container above the field reads `validating` as `true` while the run is pending, so a form reads its own
 `validating` without iterating its fields. `busy` covers the pending `Action.execute()` runs below the form and does
-not include validation. The UI blocks submit while either is `true`; `settled()` is the promise that resolves when
-both are `false`.
+not include validation. `pending` is `true` while either is: the UI blocks submit on it, and `settled()` is the
+promise that resolves when it turns `false`.
 
 Only the newest run of a validator determines that validator's result on a field. Every run takes the next
 sequence number for that field, and a result is applied only while its run is the newest one. A slow run therefore
@@ -426,9 +426,9 @@ interface ErrorDescription {
 | Member | Description |
 |--------|-------------|
 | `code` | Machine-readable identifier of what failed, in snake_case |
-| `params` | The values that describe the failure |
 | `detail` | The failure in English, plain text. The constructor stores it as given; the built-in validators substitute the params before they construct the error |
 | `origin` | Where the error comes from; see below |
+| `params` | The values that describe the failure |
 
 The shape is that of an error a `@dynamicforms/fastapi-viewsets` server returns (`detail_code`, `detail_params`,
 `detail`), so one function renders the errors of validators and of the server:
