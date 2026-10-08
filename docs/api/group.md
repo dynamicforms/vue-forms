@@ -292,18 +292,21 @@ The group's value and validity are recomputed over the remaining members and ann
 `addField()`. The baseline of `isChanged` is not changed. When the transaction it ran in is rolled back, the
 member set is restored.
 
-## Inherited from Container
+## Inherited members
 
+::: details Inherited from Container
 | Member | Description |
 |--------|-------------|
 | [`busy`](/api/container#prop-busy) | `true` while an `Action.execute()` in any child has not settled |
+| [`confirm(params?)`](/api/container#confirm-params-promise-any-undefined) | Executes the action that confirms the container: its `SubmitAction`, or the only shown `defaultConfirm` action |
 | [`notifyValueChanged()`](/api/container#notifyvaluechanged-void) | Records that a child changed its value, for the open transaction to announce |
+| [`reject(params?)`](/api/container#reject-params-promise-any-undefined) | Executes the action that rejects the container: its `RejectAction`, or the only shown `defaultReject` action |
 | [`touched`](/api/container#prop-touched) | `true` where any child is touched; assigning it assigns every child |
 | [`valid`](/api/container#prop-valid) | `true` where the container's own errors are empty and every child it counts is valid |
 | [`validate(revalidate?)`](/api/container#validate-revalidate-void) | Revalidates every child first with `revalidate: true`, then computes the container's validity |
+:::
 
-## Inherited from FieldBase
-
+::: details Inherited from FieldBase
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -332,6 +335,7 @@ member set is restored.
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+:::
 
 ## `NullableGroup`
 

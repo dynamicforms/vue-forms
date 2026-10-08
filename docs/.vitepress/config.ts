@@ -46,6 +46,7 @@ export default defineConfig({
           items: [
             { text: 'FieldBase', link: '/api/field-base' },
             { text: 'Field', link: '/api/field' },
+            { text: 'Action', link: '/api/action' },
             { text: 'Group', link: '/api/group' },
             { text: 'List', link: '/api/list' },
             { text: 'Container', link: '/api/container' },

@@ -1,5 +1,8 @@
 import { computed, type ComputedRef } from 'vue';
 
+import { Action, ExecuteHandlers } from './action';
+import { RejectAction } from './actions/reject-action';
+import { SubmitAction } from './actions/submit-action';
 import { FieldBase } from './field-base';
 import { type Extras } from './field.interface';
 import { transactional } from './transaction';
@@ -71,6 +74,77 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
    */
   notifyValueChanged() {
     this.propagateValueChanged();
+  }
+
+  /**
+   * Executes the action that confirms this container, with `params`, and returns what its `execute()` returns.
+   * The action is looked up in three steps; the first step that finds a candidate decides:
+   *
+   * 1. an action at or below this container with a `SubmitAction` whose target is this container;
+   * 2. an action with `defaultConfirm` among the direct members;
+   * 3. an action with `defaultConfirm` at a lower level.
+   *
+   * Only actions whose `visibility` is `'full'` are candidates. One candidate is executed if it is `executable`;
+   * where it is not, nothing is executed. Two or more candidates in one step are ambiguous: nothing is executed and
+   * a warning is logged. Returns undefined where nothing is executed. A rendering layer calls it for a confirm
+   * gesture, such as Enter in a dialog.
+   */
+  confirm(params?: any): Promise<any> | undefined {
+    return this.command('confirm')?.execute(params);
+  }
+
+  /**
+   * Executes the action that rejects this container, looked up as in `confirm()` with `RejectAction` and
+   * `defaultReject`. A rendering layer calls it for a reject gesture, such as Escape in a dialog.
+   */
+  reject(params?: any): Promise<any> | undefined {
+    return this.command('reject')?.execute(params);
+  }
+
+  /**
+   * A container whose members are all actions, such as a bar of buttons, holds no data and sends nothing, like an
+   * action. A container without members, or with at least one member that is not an action, sends as its access
+   * determines.
+   */
+  protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
+    const children = this.children;
+    if (children.length > 0 && children.every((child) => this.childSerializesAs(child, 'fullValue') === 'omit')) {
+      return 'omit';
+    }
+    return super.serializesAs(purpose);
+  }
+
+  /** The action `confirm()` or `reject()` executes, or undefined. */
+  private command(kind: 'confirm' | 'reject'): Action | undefined {
+    const Handler = kind === 'confirm' ? SubmitAction : RejectAction;
+    const flag = kind === 'confirm' ? 'defaultConfirm' : 'defaultReject';
+    const shown = this.actionsBelow().filter((entry) => entry.action.visibility === 'full');
+    const steps = [
+      shown.filter(({ action }) =>
+        action[ExecuteHandlers]().some((h) => h instanceof Handler && h.targetFor(action) === this),
+      ),
+      shown.filter(({ action, depth }) => depth === 0 && action[flag]),
+      shown.filter(({ action, depth }) => depth > 0 && action[flag]),
+    ];
+    for (const candidates of steps) {
+      if (candidates.length === 0) continue;
+      if (candidates.length > 1) {
+        console.warn(`${kind}(): ${candidates.length} actions qualify, so none is executed`);
+        return undefined;
+      }
+      const { action } = candidates[0];
+      return action.executable ? action : undefined;
+    }
+    return undefined;
+  }
+
+  /** Every action at or below this container, depth-first in member order, with its depth below this container. */
+  private actionsBelow(depth = 0): { action: Action; depth: number }[] {
+    return this.children.flatMap((child) => {
+      if (child instanceof Action) return [{ action: child, depth }];
+      if (child instanceof Container) return child.actionsBelow(depth + 1);
+      return [];
+    });
   }
 
   protected get composesValue(): boolean {

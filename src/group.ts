@@ -1,5 +1,6 @@
 import { isEmpty } from 'lodash-es';
 
+import type { Action } from './action';
 import { Container } from './container';
 import { type GroupSlots, groupSlots } from './element-state';
 import { Field } from './field';
@@ -8,23 +9,30 @@ import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
+
+/** The keys of the members that send something: every member except an `Action`. */
+type DataKeys<T extends GenericFieldsInterface> = {
+  [K in keyof T]: T[K] extends Action<any, any> ? never : K;
+}[keyof T];
+
 /**
  * Converts a field structure into the matching value structure. The indexed access reads each element's value
  * getter, so a nested Group sends its own value structure and a List sends its row array; inferring from
  * FieldBase<infer U> would use the value setter, which on Group accepts a wider type than the getter returns.
  * Every member may be `null`, because a member whose access is `'disabled-null'` sends `null` in place of its
- * value.
+ * value. An `Action` member sends nothing and has no key.
  */
 export type FieldsToValues<T extends GenericFieldsInterface> = {
-  [K in keyof T]: T[K]['value'] | null;
+  [K in DataKeys<T>]: T[K]['value'] | null;
 };
 
 /**
  * The type of Group.fullValue. The indexed access reads each element's fullValue getter, so a nested group has its
- * full structure, not the partial one its `value` builds. Every member is present whatever its access.
+ * full structure, not the partial one its `value` builds. Every member is present whatever its access, except an
+ * `Action`, which holds no data.
  */
 export type FieldsToFullValues<T extends GenericFieldsInterface> = {
-  [K in keyof T]: T[K]['fullValue'];
+  [K in DataKeys<T>]: T[K]['fullValue'];
 };
 
 /**
@@ -342,8 +350,10 @@ export class Group<
   private assignMembers(newValue: GroupValueInput<T>) {
     transactional(() => {
       Object.entries(this._fields).forEach(([name, field]) => {
+        // an action holds no data, so a value assigned to the group does not reach it, null included
+        if (this.childSerializesAs(field, 'fullValue') === 'omit') return;
         if (newValue == null || Object.hasOwn(newValue, name)) {
-          field.value = newValue == null ? null : newValue[name];
+          field.value = newValue == null ? null : (newValue as Record<string, any>)[name];
         }
       });
     });
@@ -369,8 +379,10 @@ export class Group<
       Object.entries(this._fields).forEach(([name, field]) => {
         // a member whose key is missing from the value takes its value from the template; a null value clears
         // every member, as assigning null does
+        // an action holds no data and takes its value from the template, whatever the value contains
         let memberValue: any;
-        if (value === null) memberValue = null;
+        if (this.childSerializesAs(field, 'fullValue') === 'omit') memberValue = undefined;
+        else if (value === null) memberValue = null;
         else if (value !== undefined && Object.hasOwn(value, name)) memberValue = value[name];
         this.resetChild(field, template.field(name) ?? field, memberValue);
       });
@@ -388,7 +400,7 @@ export class Group<
   get fullValue(): FieldsToFullValues<T> {
     const value = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
-      value[name] = field.fullValue;
+      if (this.childSerializesAs(field, 'fullValue') !== 'omit') value[name] = field.fullValue;
     });
     return { ...value } as FieldsToFullValues<T>;
   }

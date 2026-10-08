@@ -155,7 +155,9 @@ describe('an Action subclass with a widened value', () => {
       close: new RenderedAction({ value: { ...moved }, originalValue: { ...moved, renderAs: 'button' } }),
     });
 
-    expect(group.value).toEqual({ save: named, close: moved });
+    // actions send nothing, so the group's value holds neither
+    expect(group.value).toEqual({});
+    expect(group.fields.close.value).toEqual(moved);
     expect(group.fields.save.isChanged).toBe(false);
     expect(group.fields.close.isChanged).toBe(true);
     // a group baselines the record its members were constructed with, so a member's verdict is not the group's

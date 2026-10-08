@@ -10,7 +10,7 @@ A form is a tree of **elements**. There are four classes, and they share one bas
 | Class | What it holds |
 |-------|---------------|
 | `Field<T>` | one value |
-| `Action<T>` | one value of the shape `{ label?, icon? }`, plus `execute()` and `busy` |
+| `Action<T>` | one value of the shape `{ label?, icon?, defaultConfirm?, defaultReject? }`, plus `execute()`, `busy` and `executable`; it sends nothing to its container |
 | `Group<T>` | a named map of member elements; its value is an object |
 | `List<R>` | an ordered set of rows of type `R` (a `Group`, a `Field` or another `List`); its value is an array of the rows' values |
 
@@ -340,7 +340,8 @@ arrays has the same limitation as comparing two fields directly. The package's o
 | loading, submitting, resetting, optional sections, type-dependent fields | [Cookbook](/guide/cookbook) |
 | a group or a list read as plain data | [view()](/api/view) |
 | rows, mutations, cost | [List](/api/list) |
-| every event, the action chain, `Action`, conditionals | [Actions](/api/actions) |
+| a command: execute, submit, reset, confirm and reject | [Action](/api/action) |
+| every event, the action chain, conditionals | [Actions](/api/actions) |
 | built-in rules, custom and asynchronous validators | [Validators](/api/validators) |
 | `transaction()`, rollback, announcement order | [Transactions](/api/transactions) |
 | upgrading an existing project | [Migration guide](/guide/migration) |

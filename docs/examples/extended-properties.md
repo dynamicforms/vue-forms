@@ -117,7 +117,7 @@ new List(template, { length: 3 });        // TypeError: length is read-only
 `Action` declares its own `label` and `icon`. These parameters set the action's value, not `extra`, so give an
 action's other presentation properties different names. A subclass that reads `label` or `icon` in its own shape
 declares an accessor pair (getter and setter) for it:
-[Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass).
+[Widening the value in a subclass](/api/action#widening-the-value-in-a-subclass).
 
 ## Carried by a binding
 

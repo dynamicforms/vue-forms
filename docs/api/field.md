@@ -193,8 +193,9 @@ the copied actions and extended properties, the construction through `this.const
 The new field holds `data`, or this field's value where `data` is `undefined`, and is typed as the class `bind()`
 is called on.
 
-## Inherited from FieldBase
+## Inherited members
 
+::: details Inherited from FieldBase
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -228,6 +229,7 @@ is called on.
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+:::
 
 ## `NullableField<T>`
 

@@ -53,6 +53,34 @@ or below the form. The handler awaits it although the button is disabled on `pen
 validation in the same event, when the blur of an input commits its value. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
 `null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again.
 
+The same submit as an action of the form, with a cancel beside it in a bar of actions:
+
+```typescript
+const form = new Group({
+  name: new Field({ value: '', validators: [new Validators.Required()] }),
+  actions: new Group({
+    save: new Action({
+      value: { label: 'Save', defaultConfirm: true },
+      actions: [new SubmitAction((action) => action.parent?.parent, (value) => api.save(value))],
+    }),
+    cancel: new Action({
+      value: { label: 'Cancel', defaultReject: true },
+      actions: [new RejectAction((action) => action.parent?.parent)],
+    }),
+  }),
+});
+```
+
+```vue
+<button :disabled="!form.fields.actions.fields.save.executable" @click="form.confirm()">Save</button>
+```
+
+[`SubmitAction`](/api/action#submitaction-target-handler-options) does what `submit()` above does and resolves with
+`{ action, sent, received }`, or with a `SubmitRefusedException` or a `SubmitFailedException` where nothing was
+saved. `executable` is `false` while the form is invalid, a validation is running or the
+submit is running. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
+Enter and Escape to them. The bar of actions sends nothing, so `form.value` is `{ name: … }`.
+
 ## Showing errors the server returned
 
 You want a field to show an error the server reported for it, and the error to go away on the next submit.

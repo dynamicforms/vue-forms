@@ -80,12 +80,38 @@ Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where the cont
 
 ## Methods
 
+### `confirm(params?): Promise<any> | undefined`
+
+Executes the action that confirms this container, with `params`, and returns what its `execute()` returns. A
+rendering layer calls it for a confirm gesture, such as Enter in a dialog. The action is looked up in three steps;
+the first step that finds a candidate decides:
+
+1. an action at or below the container with a [`SubmitAction`](/api/action#submitaction-target-handler-options)
+   whose target is this container;
+2. an action with [`defaultConfirm`](/api/action) among the container's direct members;
+3. an action with `defaultConfirm` at a lower level, such as in a bar of actions.
+
+Only actions whose `visibility` is `'full'` are candidates, so a form can hold a "Create" and a "Save" action and
+show one of them. One candidate is executed if it is [`executable`](/api/action); where it is
+not, nothing is executed and the later steps are not searched. Two or more candidates in one step are ambiguous:
+nothing is executed and a warning is logged. Returns `undefined` where nothing is executed.
+
+```typescript
+onKeydown('Enter', () => form.confirm());
+```
+
 ### `notifyValueChanged(): void`
 
 Records that a child changed what it holds or sends, so that the open [transaction](/api/transactions) computes at
 commit what the container holds and sends, announces each once, fires `ValueChangedAction` where the value differs
 from the value last announced, and recomputes validity. The mutation methods call it when a child's value changes,
 so a direct call is rarely needed.
+
+### `reject(params?): Promise<any> | undefined`
+
+Executes the action that rejects this container, looked up as in [`confirm()`](#confirm-params-promise-any-undefined)
+with [`RejectAction`](/api/action#rejectaction-target) and `defaultReject`. A rendering layer calls it for a reject
+gesture, such as Escape in a dialog.
 
 ### `validate(revalidate?): void`
 
@@ -94,11 +120,12 @@ is revalidated first and the container then computes its own validity over the r
 net transition of its validity. A child that becomes valid while a later child is still unchecked produces no
 notification on the container.
 
-## Inherited from FieldBase
+## Inherited members
 
 `value`, `fullValue`, `bind()` and the other inherited members are typed with the container's value shape.
 `value` and `bind()` are abstract here and implemented by `Group` and `List`.
 
+::: details Inherited from FieldBase
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -131,6 +158,7 @@ notification on the container.
 | [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
 | [`value`](/api/field-base#prop-value) | Current value; writable |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+:::
 
 ## What a container serializes
 
@@ -151,6 +179,10 @@ sends to `value` and whether it is validated.
 | `'disabled-null'` | no | `null` in its place | over `null` |
 
 The values follow HTML: a `readonly` input is submitted with its value and a `disabled` one is left out.
+
+An [`Action`](/api/action) sends nothing to `value` or `fullValue`, whatever its access, and is
+not validated. A container whose children are all actions, such as a bar of buttons, sends nothing either. A
+container without children sends `{}` or `[]`.
 
 A container's access applies to everything inside it, and `effectiveAccess` holds the result on each element. A
 container that is `'disabled'` or `'disabled-null'` sends none of its children, regardless of what they hold, so

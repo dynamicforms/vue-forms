@@ -3,7 +3,7 @@ import { ref, type Ref } from 'vue';
 import { ExecuteAction } from './actions';
 import { Field } from './field';
 import { type Extras, IFieldParams } from './field.interface';
-import { transactional } from './transaction';
+import { SentNowhere, transactional } from './transaction';
 
 /**
  * The value an `Action` holds. Both members are `unknown` because `Action` defines the concept and a UI library
@@ -17,6 +17,10 @@ import { transactional } from './transaction';
 export interface ActionValue {
   label?: unknown;
   icon?: unknown;
+  /** The action a container's `confirm()` executes: the one a confirm gesture, such as Enter, triggers. */
+  defaultConfirm?: boolean;
+  /** The action a container's `reject()` executes: the one a reject gesture, such as Escape, triggers. */
+  defaultReject?: boolean;
 }
 
 /**
@@ -25,6 +29,10 @@ export interface ActionValue {
  * that reads `busy` re-renders when the count leaves zero and when it returns to zero.
  */
 const busyCounters = new WeakMap<object, Ref<number>>();
+
+/** Key of the method that lists an action's `ExecuteAction` handlers. `Container` reads it; the package does not
+ * export it. */
+export const ExecuteHandlers = Symbol('Action.executeHandlers');
 
 /**
  * Returns the value object if any of its members is set, and undefined otherwise. A member holding `null` or
@@ -83,7 +91,7 @@ export class Action<
    * from the copy: an own key holding undefined is invisible to a reader and to JSON, but lodash isEqual compares
    * own-key sets, so the action would remain changed against a baseline without that key.
    */
-  private valueWith(member: keyof ActionValue, newValue: T[keyof ActionValue]): T {
+  private valueWith<K extends 'label' | 'icon'>(member: K, newValue: T[K]): T {
     const res: ActionValue = { ...this.value };
     if (newValue === undefined) delete res[member];
     else res[member] = newValue;
@@ -113,6 +121,46 @@ export class Action<
   set label(newValue: T['label']) {
     if (this.value.label === newValue) return;
     this.value = this.valueWith('label', newValue);
+  }
+
+  /** `value.defaultConfirm`: whether a container's `confirm()` executes this action. */
+  get defaultConfirm(): boolean {
+    return this.value.defaultConfirm ?? false;
+  }
+
+  /** `value.defaultReject`: whether a container's `reject()` executes this action. */
+  get defaultReject(): boolean {
+    return this.value.defaultReject ?? false;
+  }
+
+  /**
+   * An action is a command, not data: it sends nothing to its container's `value` or `fullValue`, so it is not in
+   * the payload, does not affect the container's `isChanged`, and is not counted in its validity. Its validators do
+   * not run, as on any element that sends nothing.
+   */
+  protected serializesAs(): 'value' | 'null' | 'omit' {
+    return 'omit';
+  }
+
+  /** An action is sent nowhere, so a validator registered on it reaches no result and adds no error. */
+  [SentNowhere](): boolean {
+    return true;
+  }
+
+  /**
+   * Whether the action can run now: it accepts input (`effectiveEnabled`), is shown (`visibility` is `'full'`), is
+   * not running (`busy` is false), and every `ExecuteAction` handler registered on it returns true from
+   * `canExecute()`. Reactive, so a button binds `:disabled="!action.executable"`. A container's `confirm()` and
+   * `reject()` execute only an executable action. `execute()` does not check it.
+   */
+  get executable(): boolean {
+    if (!this.effectiveEnabled || this.visibility !== 'full' || this.busy) return false;
+    return this[ExecuteHandlers]().every((handler) => handler.canExecute(this));
+  }
+
+  /** The `ExecuteAction` handlers registered on this action, in registration order. */
+  [ExecuteHandlers](): ExecuteAction[] {
+    return (this.boundActions?.ofClass(ExecuteAction.classIdentifier) ?? []) as ExecuteAction[];
   }
 
   /** the counter behind `busy`, created on first access */

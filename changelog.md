@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2026-10-08
 
 ### Changed
+- An `Action` sends nothing: it is left out of its container's `value` and `fullValue`, does not affect the
+  container's `isChanged` or validity, and its validators do not run. A container whose members are all actions
+  sends nothing either.
 - `ValidationError` is data: `new ValidationError(code, params, detail, origin?)`. It carries the `code` of what
   failed, the `params` it failed with, an English plain-text `detail` and an `origin`, and implements
   `ErrorDescription`, the shape of an error a `@dynamicforms/fastapi-viewsets` server returns. The library does not
@@ -23,6 +26,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces the instance on the field.
 
 ### Added
+- `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
+  target or a concurrent run with a `SubmitRefusedException` whose `reason` says which, sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the handler fails, rebinds the target to the result and resolves with
+  `{ action, sent, received }`. `RejectAction(target)` rebinds the target to its `originalValue`.
+- `Container.confirm()` and `reject()`: execute the action whose `SubmitAction` or `RejectAction` targets the
+  container, else the only shown action with `defaultConfirm` or `defaultReject`.
+- `defaultConfirm` and `defaultReject` in `ActionValue`, with getters on `Action`.
+- `Action.executable`, and `ExecuteAction.canExecute()`, which it reads.
 - `pending` on every element: `validating || busy`, reactive. `settled()` resolves when it turns `false`.
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
 - `ValidationErrorOptions`.
@@ -239,7 +249,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   serializer reading `value` and `fullValue` back and writing a record into a form.
 
 ### Documentation
-- **[Widening the value in a subclass](https://docs.velis.si/dynamicforms/vue-forms/api/actions#widening-the-value-in-a-subclass)**
+- **[Widening the value in a subclass](https://docs.velis.si/dynamicforms/vue-forms/api/action#widening-the-value-in-a-subclass)**
   on the `Action` reference: what a subclass adds and what it keeps, and that a subclass reading `label` or `icon`
   in a shape of its own declares the getter and the setter together, the setter delegating to the base with
   `super.label = newValue`. A getter declared alone defines the whole property, which then has no setter at all, so

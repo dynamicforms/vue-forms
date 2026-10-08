@@ -92,17 +92,28 @@ personForm.fields.age.access = 'disabled';
 console.log(personForm.value);  // { firstName: 'Jane', lastName: 'Doe', active: true }
 ```
 
-An `Action` is a field whose value is a label / icon pair and which can be executed:
+An `Action` is a command: an element with a label and an icon that can be executed and sends nothing to its
+container's value. `SubmitAction` and `RejectAction` submit and reset a form, and `form.confirm()` / `form.reject()`
+execute them:
 
 ```typescript
-import { Action, ExecuteAction } from '@dynamicforms/vue-forms';
+import { Action, Field, Group, RejectAction, SubmitAction } from '@dynamicforms/vue-forms';
 
-const saveAction = new Action({
-  value: { label: 'Save' },
-  actions: [new ExecuteAction((field, supr, params) => { console.log('saving', params); })]
+const form = new Group({
+  name: new Field({ value: 'John' }),
+  save: new Action({
+    value: { label: 'Save', defaultConfirm: true },
+    actions: [new SubmitAction((action) => action.parent, (value) => api.save(value))],
+  }),
+  cancel: new Action({
+    value: { label: 'Cancel', defaultReject: true },
+    actions: [new RejectAction((action) => action.parent)],
+  }),
 });
 
-await saveAction.execute({ form: personForm });  // 'saving { form: ... }'; saveAction.busy until it settles
+form.value;                                  // { name: 'John' }: actions send nothing
+const { sent, received } = await form.confirm();  // waits for validation, sends a valid form, rebinds to the result
+form.fields.save.executable;                 // false while the form is invalid or a submit is running
 ```
 
 `Action` is one of the few members that relate to the interface, listed with their reasons in

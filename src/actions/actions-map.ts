@@ -96,6 +96,11 @@ export default class ActionsMap {
   }
 
   /** the validators registered here, in registration order */
+  /** The registered actions with `identifier`, in registration order. */
+  ofClass(identifier: symbol): FieldActionBase[] {
+    return this.actions.filter((action) => action.classIdentifier === identifier);
+  }
+
   get validators(): Validator[] {
     return this.actions.filter((action): action is Validator => action instanceof Validator);
   }
