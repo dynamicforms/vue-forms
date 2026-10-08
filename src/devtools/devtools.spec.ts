@@ -198,3 +198,16 @@ describe('editing in the inspector', () => {
     warn.mockRestore();
   });
 });
+
+describe('an access or a visibility typed in the inspector', () => {
+  it('is matched exactly or by its only prefix, ignoring case', async () => {
+    const { optionNamed } = await import('./plugin');
+    const access = ['editable', 'readonly', 'disabled', 'disabled-null'];
+
+    expect(optionNamed('R', access)).toBe('readonly');
+    expect(optionNamed('disabled', access)).toBe('disabled');
+    expect(optionNamed('disabled-', access)).toBe('disabled-null');
+    expect(optionNamed('d', access)).toBe('d');
+    expect(optionNamed('', access)).toBe('');
+  });
+});

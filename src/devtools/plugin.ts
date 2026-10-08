@@ -1,6 +1,8 @@
 import { type App, toRaw } from 'vue';
 
+import { accessValues } from '../access';
 import type { FieldBase } from '../field-base';
+import { visibilityValues } from '../visibility';
 
 import { callerFile, componentPath, type Entry, entryById, entryOf, listed, onRegistryChanged } from './registry';
 
@@ -17,6 +19,19 @@ interface DevtoolsApi {
     inspectComponent(handler: (payload: any) => void): void;
     editInspectorState(handler: (payload: any) => void): void;
   };
+}
+
+/**
+ * The value of `options` that `input` names: an exact match, or the only option that starts with it, ignoring case.
+ * `input` itself where it names none or several, so the setter refuses it.
+ */
+export function optionNamed(input: unknown, options: readonly string[]): unknown {
+  if (typeof input !== 'string') return input;
+  const typed = input.trim().toLowerCase();
+  const exact = options.find((option) => option === typed);
+  if (exact) return exact;
+  const started = options.filter((option) => option.startsWith(typed));
+  return typed && started.length === 1 ? started[0] : input;
 }
 
 /** A copy of `value` with the member at `path` replaced by `replacement`; the original is left as it is. */
@@ -41,8 +56,12 @@ export function applyEdit(element: FieldBase, section: string, path: string[], v
       element.setExtendedValues({ [key]: replaced(e.extra[key], below, value) } as any);
     } else if (key === 'value' && isLeaf(element)) {
       e.value = replaced(toRaw(e.value), below, value);
-    } else if (key === 'access' || key === 'visibility' || key === 'touched') {
-      e[key] = value;
+    } else if (key === 'access') {
+      e.access = optionNamed(value, accessValues);
+    } else if (key === 'visibility') {
+      e.visibility = optionNamed(value, visibilityValues);
+    } else if (key === 'touched') {
+      e.touched = value;
     }
   } catch (error) {
     console.warn('[vue-forms devtools] the edit was refused:', error);
@@ -152,8 +171,10 @@ function stateOf(element: FieldBase) {
       { key: 'originalValue', value: plain(e.originalValue) },
       { key: 'isChanged', value: e.isChanged },
       { key: 'access', value: e.access, editable: true },
+      { key: 'access options', value: accessValues.join(' | ') },
       { key: 'effectiveAccess', value: e.effectiveAccess },
       { key: 'visibility', value: e.visibility, editable: true },
+      { key: 'visibility options', value: visibilityValues.join(' | ') },
       { key: 'touched', value: e.touched, editable: true },
     ],
     validity: [
