@@ -1,8 +1,6 @@
 import { type App, toRaw } from 'vue';
 
-import { accessValues } from '../access';
 import type { FieldBase } from '../field-base';
-import { visibilityValues } from '../visibility';
 
 import { callerFile, componentPath, type Entry, entryById, entryOf, listed, onRegistryChanged } from './registry';
 
@@ -21,17 +19,29 @@ interface DevtoolsApi {
   };
 }
 
+/** The letter that stands for each access and each visibility when it is typed in the inspector. */
+const accessShortcuts: Record<string, string> = { e: 'editable', r: 'readonly', d: 'disabled', n: 'disabled-null' };
+const visibilityShortcuts: Record<string, string> = { f: 'full', i: 'invisible', h: 'hidden', s: 'suppress' };
+
+/** The options with their letter in parentheses: `(e)ditable | … | disabled-(n)ull`. */
+function hint(shortcuts: Record<string, string>): string {
+  return Object.entries(shortcuts)
+    .map(([letter, value]) => {
+      const at = value.indexOf(letter);
+      return `${value.slice(0, at)}(${letter})${value.slice(at + 1)}`;
+    })
+    .join(' | ');
+}
+
 /**
- * The value of `options` that `input` names: an exact match, or the only option that starts with it, ignoring case.
- * `input` itself where it names none or several, so the setter refuses it.
+ * The value `input` names: the value itself or its letter, ignoring case. `input` itself where it names none, so
+ * the setter refuses it.
  */
-export function optionNamed(input: unknown, options: readonly string[]): unknown {
+export function optionNamed(input: unknown, shortcuts: Record<string, string>): unknown {
   if (typeof input !== 'string') return input;
   const typed = input.trim().toLowerCase();
-  const exact = options.find((option) => option === typed);
-  if (exact) return exact;
-  const started = options.filter((option) => option.startsWith(typed));
-  return typed && started.length === 1 ? started[0] : input;
+  if (Object.values(shortcuts).includes(typed)) return typed;
+  return shortcuts[typed] ?? input;
 }
 
 /** A copy of `value` with the member at `path` replaced by `replacement`; the original is left as it is. */
@@ -57,9 +67,9 @@ export function applyEdit(element: FieldBase, section: string, path: string[], v
     } else if (key === 'value' && isLeaf(element)) {
       e.value = replaced(toRaw(e.value), below, value);
     } else if (key === 'access') {
-      e.access = optionNamed(value, accessValues);
+      e.access = optionNamed(value, accessShortcuts);
     } else if (key === 'visibility') {
-      e.visibility = optionNamed(value, visibilityValues);
+      e.visibility = optionNamed(value, visibilityShortcuts);
     } else if (key === 'touched') {
       e.touched = value;
     }
@@ -174,10 +184,10 @@ function stateOf(element: FieldBase) {
       { key: 'originalValue', value: plain(e.originalValue) },
       { key: 'isChanged', value: e.isChanged },
       { key: 'access', value: e.access, editable: true },
-      { key: 'access options', value: accessValues.join(' | ') },
+      { key: 'access options', value: hint(accessShortcuts) },
       { key: 'effectiveAccess', value: e.effectiveAccess },
       { key: 'visibility', value: e.visibility, editable: true },
-      { key: 'visibility options', value: visibilityValues.join(' | ') },
+      { key: 'visibility options', value: hint(visibilityShortcuts) },
       { key: 'touched', value: e.touched, editable: true },
     ],
     validity: [

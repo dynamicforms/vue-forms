@@ -41,10 +41,15 @@ In the vue-forms inspector these members are editable:
 | `access`, `visibility`, `touched` | every element |
 | extended properties | every element, through `setExtendedValues()` |
 
-The devtools edit a value as text and offer no list of choices, so the state shows the values `access` and
-`visibility` take in the rows `access options` and `visibility options`. A typed access or visibility is matched
-ignoring case, exactly or by the only value it starts: `r` is `readonly`, `h` is `hidden`, `disabled` is `disabled`
-and `disabled-` is `disabled-null`.
+The devtools edit a value as text and offer no list of choices. The rows `access options` and `visibility options`
+show the values with the letter that stands for each in parentheses:
+
+| Member | Options |
+|---|---|
+| `access` | `(e)ditable`, `(r)eadonly`, `(d)isabled`, `disabled-(n)ull` |
+| `visibility` | `(f)ull`, `(i)nvisible`, `(h)idden`, `(s)uppress` |
+
+An access or a visibility is typed as the value or as its letter, ignoring case: `n` sets `disabled-null`.
 
 An edit is a write through the element's setter, as a write from the application: it is a transaction, the
 validators run, and the actions registered on the element fire. Editing a member of an object a field holds assigns a

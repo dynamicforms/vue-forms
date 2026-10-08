@@ -200,14 +200,19 @@ describe('editing in the inspector', () => {
 });
 
 describe('an access or a visibility typed in the inspector', () => {
-  it('is matched exactly or by its only prefix, ignoring case', async () => {
+  it('is matched as a value or by its letter, ignoring case', async () => {
     const { optionNamed } = await import('./plugin');
-    const access = ['editable', 'readonly', 'disabled', 'disabled-null'];
+    const access = { e: 'editable', r: 'readonly', d: 'disabled', n: 'disabled-null' };
 
     expect(optionNamed('R', access)).toBe('readonly');
-    expect(optionNamed('disabled', access)).toBe('disabled');
-    expect(optionNamed('disabled-', access)).toBe('disabled-null');
-    expect(optionNamed('d', access)).toBe('d');
-    expect(optionNamed('', access)).toBe('');
+    expect(optionNamed('d', access)).toBe('disabled');
+    expect(optionNamed('n', access)).toBe('disabled-null');
+    expect(optionNamed('Disabled-Null', access)).toBe('disabled-null');
+    expect(optionNamed('read', access)).toBe('read');
+
+    const field = new Field({ value: 1 });
+    const { applyEdit } = await import('./plugin');
+    applyEdit(field, 'element', ['visibility'], 'H');
+    expect(field.visibility).toBe('hidden');
   });
 });

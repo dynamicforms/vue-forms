@@ -45,6 +45,12 @@ describe('the devtools plugin in the devtools kit', () => {
     // an edit as the devtools client sends it for the inspector's state
     const field = components.children[0].children[0].children[0];
     const before = await kit.devtools.api.getInspectorState({ inspectorId: 'dynamicforms-state', nodeId: field.id });
+    expect(before.element.find((item: any) => item.key === 'access options').value).toBe(
+      '(e)ditable | (r)eadonly | (d)isabled | disabled-(n)ull',
+    );
+    expect(before.element.find((item: any) => item.key === 'visibility options').value).toBe(
+      '(f)ull | (i)nvisible | (h)idden | (s)uppress',
+    );
     expect(before.element.find((item: any) => item.key === 'value')).toEqual(
       expect.objectContaining({ value: 1, editable: true }),
     );
