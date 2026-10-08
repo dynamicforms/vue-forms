@@ -426,9 +426,9 @@ interface ErrorDescription {
 | Member | Description |
 |--------|-------------|
 | `code` | Machine-readable identifier of what failed, in snake_case |
-| `params` | The values that describe the failure |
 | `detail` | The failure in English, plain text. The constructor stores it as given; the built-in validators substitute the params before they construct the error |
 | `origin` | Where the error comes from; see below |
+| `params` | The values that describe the failure |
 
 The shape is that of an error a `@dynamicforms/fastapi-viewsets` server returns (`detail_code`, `detail_params`,
 `detail`), so one function renders the errors of validators and of the server:

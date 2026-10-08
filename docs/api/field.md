@@ -21,14 +21,14 @@ const age  = new Field<number>({ value: 30 });
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `params.value` | `T` | `undefined` | Initial value. Leaving it out, or passing `undefined`, falls back to `originalValue`; an explicit `null` is kept as the value |
-| `params.originalValue` | `T` | same as `value` | Baseline for `isChanged`, and the initial value when no `value` is given |
 | `params.access` | [`Access`](#access) | `'editable'` | Whether the field accepts input, what it sends to its container, and whether it is validated. A write to `value` is accepted whatever the access. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `params.visibility` | [`Visibility`](#visibility) | `'full'` | How a rendering layer shows the field. It does not affect what the field sends or whether it is validated. |
-| `params.touched` | `boolean` | `false` | Initial interaction flag |
-| `params.errors` | `ValidationError[]` | `[]` | Initial validation errors |
-| `params.validators` | `FieldActionBase[]` | `[]` | Validator actions; each runs once over the constructed value |
 | `params.actions` | `FieldActionBase[]` | `[]` | Additional actions to register |
+| `params.errors` | `ValidationError[]` | `[]` | Initial validation errors |
+| `params.originalValue` | `T` | same as `value` | Baseline for `isChanged`, and the initial value when no `value` is given |
+| `params.touched` | `boolean` | `false` | Initial interaction flag |
+| `params.validators` | `FieldActionBase[]` | `[]` | Validator actions; each runs once over the constructed value |
+| `params.value` | `T` | `undefined` | Initial value. Leaving it out, or passing `undefined`, falls back to `originalValue`; an explicit `null` is kept as the value |
+| `params.visibility` | [`Visibility`](#visibility) | `'full'` | How a rendering layer shows the field. It does not affect what the field sends or whether it is validated. |
 
 `validators` and `actions` are registered before the remaining parameters are applied, and registration itself
 fires no action. An action that guards a property set in the same parameter object (an `AccessChangingAction` with
@@ -213,27 +213,27 @@ apply them: `validators` and `actions` are copied from the declaration, and the 
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `value` | `T` | yes | Current value. A write is accepted whatever the access; the value the field ends up holding depends on [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and does not fire when the field is assigned the object it already holds. Assign a modified copy instead of mutating in place. `isChanged` is separate and uses deep equality. |
-| `originalValue` | `T` | yes | Value as provided at creation. Assigning it resets the baseline for `isChanged` |
-| `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
 | `access` | [`Access`](#access) | yes | Whether the element accepts input, what it sends to its container, and whether its validators run: `'editable'` and `'readonly'` send its value, `'disabled'` sends nothing and `'disabled-null'` sends `null`. A write to `value` is accepted whatever the access, so a record loaded into the form is written to the element. Changing `access` changes what every container above sends (each fires a [`ContributionChangedAction`](/api/actions#contributionchangedaction)) and runs the validators again on the element and its descendants. Writing the access the element already has is not a change: no `AccessChangingAction` runs, nothing is enrolled in an open transaction, and no `AccessChangedAction` fires. Writing a value that is not one of the four throws `Error("'x' is not an access: …")`. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `effectiveAccess` | [`Access`](#access) | no | The access that applies once the containers above are taken into account: `'disabled'` below a container that is `'disabled'` or `'disabled-null'`, `'readonly'` for an `'editable'` element below a `'readonly'` one, and the element's own access otherwise. An element whose `effectiveAccess` is `'disabled'` sends nothing, so its validators produce no result and it has none of their errors |
+| `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` covers its own runs, a `Group` or `List` the actions below it, and any other element is always `false`. `busy` covers executions and `validating` covers validations; `pending` covers both |
 | `contribution` | `unknown` | no | What the element sends to its container's `value`: its value, `null` for `'disabled-null'`, `undefined` for `'disabled'`. The element's validators run over this value |
-| `enabled` | `boolean` | no | `true` where `access` is `'editable'`: the element accepts input. It describes input only: a `'readonly'` element is not enabled and still sends its value |
+| `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding, transitively, so a binding of a binding has the same `declaration`. Every row a `List` builds from its item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. An action shared by every row uses it to tell one row's field from another's |
+| `effectiveAccess` | [`Access`](#access) | no | The access that applies once the containers above are taken into account: `'disabled'` below a container that is `'disabled'` or `'disabled-null'`, `'readonly'` for an `'editable'` element below a `'readonly'` one, and the element's own access otherwise. An element whose `effectiveAccess` is `'disabled'` sends nothing, so its validators produce no result and it has none of their errors |
 | `effectiveEnabled` | `boolean` | no | `true` where `effectiveAccess` is `'editable'`: this element and every container above it accept input. A rendering layer binds this instead of walking the parent chain |
-| `visibility` | [`Visibility`](#visibility) | yes | How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or `'suppress'`. It is presentation only and does not affect what the element sends or whether it is validated. Writing the visibility the element already has is not a change, as for `access`. Writing a value that is not one of the four throws `Error("'x' is not a visibility: …")`. |
+| `enabled` | `boolean` | no | `true` where `access` is `'editable'`: the element accepts input. It describes input only: a `'readonly'` element is not enabled and still sends its value |
+| `errors` | `ValidationError[]` | yes | Current validation errors. Writable. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this field and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()` |
+| `extra` | `Readonly<Partial<X>>` | no | The [extended properties](#extended-properties) the field holds, `{}` where none were declared. The object is frozen; write through `setExtendedValues()` |
+| `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
+| `fullValue` | `T` | no | Identical to `value` on a plain `Field`. On a `Group` and a `List` it is what the element holds, while `value` is what it sends; see [`Group`](/api/group#properties) and [`List`](/api/list#properties) |
+| `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` (deep equality) |
+| `originalValue` | `T` | yes | Value as provided at creation. Assigning it resets the baseline for `isChanged` |
+| `parent` | `Container \| undefined` | no | Container the element belongs to. The container sets it and clears it when it releases the element: a `List` row removed by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be added to another list. A container rejects an element that still has a `parent`, so pass the released instance or a `bind()` of it. The container is a `Group` or a `List`, and [`Container`](/api/container) declares no children, so accessing `fields` through it is a compile error until it is narrowed: with `field.parent instanceof Group` or `(field.parent as Group)?.fields.other`. Naming the sibling and letting [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message) resolve it needs neither; see [`parent`](/api/container#parent). The read is tracked, so a template rendering from `field.parent` updates when the element moves to another container |
+| `pending` | `boolean` | no | `validating \|\| busy`: `true` while an asynchronous validation or an `Action.execute()` at or below the element has not settled. Reactive, so a submit button binds to it. [`settled()`](#settled-promise-void) resolves when it turns `false` |
+| `touched` | `boolean` | yes | Interaction flag. The library does not set it in response to input; your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is computed from the live array, so it reflects an error pushed in by hand without any call. `ValidChangedAction` fires only when `validate()` is called |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on any of its descendants**, so on a form it covers the whole tree. An element counts its own runs through `beginValidating()` / `endValidating()`, which validators call around a returned promise, and a container keeps a count of how many of its children are `validating`. Reading it is O(1) whatever the size of the tree; a run that starts or settles updates one count per nesting level |
-| `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` covers its own runs, a `Group` or `List` the actions below it, and any other element is always `false`. `busy` covers executions and `validating` covers validations; `pending` covers both |
-| `pending` | `boolean` | no | `validating \|\| busy`: `true` while an asynchronous validation or an `Action.execute()` at or below the element has not settled. Reactive, so a submit button binds to it. [`settled()`](#settled-promise-void) resolves when it turns `false` |
 | `validationEpoch` | `number` | no | Generation counter of the field's validators, incremented by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to check whether a result it is about to apply still belongs to the validators the field currently has |
-| `errors` | `ValidationError[]` | yes | Current validation errors. Writable. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this field and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()` |
-| `touched` | `boolean` | yes | Interaction flag. The library does not set it in response to input; your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
-| `parent` | `Container \| undefined` | no | Container the element belongs to. The container sets it and clears it when it releases the element: a `List` row removed by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be added to another list. A container rejects an element that still has a `parent`, so pass the released instance or a `bind()` of it. The container is a `Group` or a `List`, and [`Container`](/api/container) declares no children, so accessing `fields` through it is a compile error until it is narrowed: with `field.parent instanceof Group` or `(field.parent as Group)?.fields.other`. Naming the sibling and letting [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message) resolve it needs neither; see [`parent`](/api/container#parent). The read is tracked, so a template rendering from `field.parent` updates when the element moves to another container |
-| `fieldName` | `string \| undefined` | no | Key name within the parent `Group` |
-| `declaration` | `FieldBase` | no | The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding, transitively, so a binding of a binding has the same `declaration`. Every row a `List` builds from its item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. An action shared by every row uses it to tell one row's field from another's |
-| `fullValue` | `T` | no | Identical to `value` on a plain `Field`. On a `Group` and a `List` it is what the element holds, while `value` is what it sends; see [`Group`](/api/group#properties) and [`List`](/api/list#properties) |
-| `extra` | `Readonly<Partial<X>>` | no | The [extended properties](#extended-properties) the field holds, `{}` where none were declared. The object is frozen; write through `setExtendedValues()` |
+| `value` | `T` | yes | Current value. A write is accepted whatever the access; the value the field ends up holding depends on [what is registered on the field](#writing-the-value). Values are compared by identity, so `ValueChangedAction` fires for a new object even when it is deeply equal to the old one, and does not fire when the field is assigned the object it already holds. Assign a modified copy instead of mutating in place. `isChanged` is separate and uses deep equality. |
+| `visibility` | [`Visibility`](#visibility) | yes | How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or `'suppress'`. It is presentation only and does not affect what the element sends or whether it is validated. Writing the visibility the element already has is not a change, as for `access`. Writing a value that is not one of the four throws `Error("'x' is not a visibility: …")`. |
 
 ## Writing the value
 
@@ -307,6 +307,101 @@ input in that library uses.
 
 ## Methods
 
+### `beginValidating(): void` / `endValidating(): void`
+
+Increment and decrement the async-validation counter behind `validating`. `Validator` calls them around a
+validation function that returns a promise; call them yourself only if you run asynchronous validation outside a
+`Validator`. A call that switches the element between running and idle updates the count the container above it
+keeps, and so on up the tree. An `endValidating()` without a matching `beginValidating()` is a no-op: the counter
+never goes below zero, and the containers above are not updated.
+
+A rolled-back [transaction](/api/transactions) does not restore these counters: a run in flight continues, and
+restored counts would not match the `endValidating()` calls still to come.
+
+### `bind(data?, overrides?): this`
+
+Returns a new reactive field over `data`, with the same registered actions and the same extended properties. It
+applies a declared field to a record. The new field's `declaration` is the field `bind()` was called on.
+
+With `data` `undefined`, the new field holds the current value; an explicit `null` is data, so `bind(null)` returns
+a field holding `null`. `overrides` is an [`IBindParams<T, X>`](#ibindparams-t-x): `originalValue`, `access`,
+`visibility` and the extended properties only. Any other key is a type error. Extended properties it names are
+merged over the ones copied from the bound field, and are set before the new field's eager actions run.
+`originalValue` is applied when the key is present.
+
+The new field is constructed through `this.constructor`, so a subclass of `Field` binds into its own class. It is
+detached: it has no `parent` and no `fieldName`. `originalValue` is taken from `overrides` only when passed
+explicitly; otherwise it is the bound data, so `isChanged` starts out `false`.
+
+```typescript
+const row = template.bind({ name: 'John' });   // a group over one record
+const copy = field.bind(field.value);          // another field holding what this one holds
+```
+
+### `bindingsOf(declaration): FieldBase[]`
+
+Returns every element in this element's subtree, this element included, whose `declaration` is the one given:
+`list.bindingsOf(template.fields.a)` returns the `a` field of every row.
+
+### `clearValidators(): void`
+
+Removes the validators registered on this element, empties `errors` and recalculates `valid`. All errors are
+removed, including ones no validator added, such as server-side errors pushed in from outside. The validity change is
+published as any other: a field that was invalid fires `ValidChangedAction` and its container re-evaluates its own
+validity. A validation still in flight is cancelled, so it cannot add an error to a field that no longer has the
+validator that produced it. A validator that installed a listener elsewhere (`CompareTo`, on the field it compares
+against) has that listener released with the registration. An operation that rolls back restores both, including
+the cancelled run: it continues and its result is applied.
+
+Validators belong to the element's **declaration**, so the call applies to the declaration: clearing the validators
+of one row of a `List` clears them for every row, because they are registered on the item template. On the other
+rows only the errors those validators added are removed; errors from other sources stay. On the element the call is
+made on, all errors are removed. `unregisterAction()` removes a single validator instead of all of
+them, and removes the errors that validator added, on every element.
+
+It does not descend into members. A `Group` or a `List` also derives `valid` from its members, so
+`group.clearValidators()` leaves `group.valid` at `false` while any member is still invalid; call
+`clearValidators()` on the members whose validators you also want gone.
+
+### `markRecordIncomplete(): void`
+
+Marks that an eager action running over this element looked for a second element of the record and did not find
+it because the record was not assembled yet (a `List` row's members are bound before the row exists as their parent).
+The container that completes the record runs this element's eager actions again, and so does a container that the
+record is added to later. Only action implementations call it; see
+[Reading a second element of the record](/api/actions#reading-a-second-element-of-the-record).
+
+### `rebind(data): this`
+
+Replaces the data the field holds with `data`, in place. The element remains the same instance, with its actions,
+its extended properties and its position in its container unchanged, and ends up in the state `bind(data)` would
+have produced: the values are written, `originalValue` is set to them so `isChanged` is `false`, `touched` is reset to
+`false` and the validators run over the new data. It reuses one element across records, as a virtualised renderer
+does with the rows it keeps.
+
+No `ValueChangedAction` fires for the element itself, as for a newly built element. Its members do fire theirs
+(the fields of a rebound row fire `ValueChangedAction` for their new values), and a validity change is published as
+always, so a rebound row that is invalid notifies the list holding it.
+
+A disabled `Field` takes the value, as it does any write to `value`. A disabled `Group` or `List` writes through
+to its members, as an assignment to it does.
+
+Inside an open `transaction()`, a change of the element that the commit has yet to announce is kept: the commit
+announces the old and new values measured from the element's state when the transaction opened.
+
+On a `Group` the record need not name every member: a missing key is taken from the element's `declaration`, so a
+reused row ends up as a fresh binding of the item template would, not with the previous record's value.
+
+```typescript
+const row = list.get(0)!;
+row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
+```
+
+`Field` has no `clear()`: an empty value depends on `T`, which the library cannot determine. Reset a field with
+`rebind(field.originalValue)` or an explicit `rebind('')` (or `rebind(null)` where `T` allows it). See
+[Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `Group` and `List`, which do have a
+structural "empty".
+
 ### `registerAction(action): this`
 
 Registers an action (validator or event handler). Returns `this` for chaining.
@@ -352,6 +447,35 @@ field.registerActionBefore(
 `before` must be registered on this element under the same `classIdentifier` as `action`; otherwise the call
 throws `Error('Action to register before is not registered under the same identifier')`.
 
+### `setExtendedValues(values): void`
+
+Writes [extended properties](#extended-properties). `values` is a `Partial<X>` and is merged over the field's
+current ones, so a call naming one property leaves the others unchanged, and no property is ever removed. The merged
+set replaces the frozen object `extra` returns; this makes the write reactive and lets a rolled-back transaction
+restore the previous set.
+
+```typescript
+field.setExtendedValues({ label: 'Given name' });
+```
+
+### `settled(): Promise<void>`
+
+Resolves once nothing at or below the element is running: no asynchronous validation and no unsettled
+`Action.execute()`, which is when `pending` turns `false`. It resolves immediately where `pending` is `false`. A
+submit handler awaits it, because the click that runs the handler can start a validation in the same event (a
+blur that commits a value), before the button's `:disabled` is re-rendered. [Submitting](/guide/cookbook#submitting) shows it in a submit handler.
+
+It reflects the state at the moment it resolves only: work started later makes the element run again. A caller
+that acts on a settled tree reads what it needs immediately after awaiting.
+
+### `triggerAction(actionClass, ...params): any`
+
+Manually fires a specific action class on this field. `actionClass` is the class itself, not an instance; it is
+looked up by its static `classIdentifier`, so abstract classes work too. Returns what the chain returns, `null`
+when no action of that type is registered, and the [`AbortEventHandlingException`](/api/actions#aborteventhandlingexception)
+instance where a handler threw one to end the run (a promise resolving to it where the chain went through an
+asynchronous handler).
+
 ### `unregisterAction(action): boolean`
 
 Removes `action` from this element and returns whether the element had it. The instance stays registered on every
@@ -373,27 +497,6 @@ discarded. Called inside a [transaction](/api/transactions), the unregistration 
 back, and so is the cancellation: the run continues and its result is applied, so the field is never valid over a
 value no validator checked.
 
-### `bindingsOf(declaration): FieldBase[]`
-
-Returns every element in this element's subtree, this element included, whose `declaration` is the one given:
-`list.bindingsOf(template.fields.a)` returns the `a` field of every row.
-
-### `markRecordIncomplete(): void`
-
-Marks that an eager action running over this element looked for a second element of the record and did not find
-it because the record was not assembled yet (a `List` row's members are bound before the row exists as their parent).
-The container that completes the record runs this element's eager actions again, and so does a container that the
-record is added to later. Only action implementations call it; see
-[Reading a second element of the record](/api/actions#reading-a-second-element-of-the-record).
-
-### `triggerAction(actionClass, ...params): any`
-
-Manually fires a specific action class on this field. `actionClass` is the class itself, not an instance; it is
-looked up by its static `classIdentifier`, so abstract classes work too. Returns what the chain returns, `null`
-when no action of that type is registered, and the [`AbortEventHandlingException`](/api/actions#aborteventhandlingexception)
-instance where a handler threw one to end the run (a promise resolving to it where the chain went through an
-asynchronous handler).
-
 ### `validate(revalidate?): void`
 
 Publishes the validity derived from the element's `errors`. Pass `revalidate: true` to first re-run every eager
@@ -401,109 +504,6 @@ action, validators included, over the element's current value. When the validity
 one, it fires `ValidChangedAction` and notifies the parent container, so a field that becomes invalid is reflected in
 the `Group` or `List` holding it. Called inside a [transaction](/api/transactions), it fires at the end of the
 transaction, together with the transaction's other changes.
-
-### `clearValidators(): void`
-
-Removes the validators registered on this element, empties `errors` and recalculates `valid`. All errors are
-removed, including ones no validator added, such as server-side errors pushed in from outside. The validity change is
-published as any other: a field that was invalid fires `ValidChangedAction` and its container re-evaluates its own
-validity. A validation still in flight is cancelled, so it cannot add an error to a field that no longer has the
-validator that produced it. A validator that installed a listener elsewhere (`CompareTo`, on the field it compares
-against) has that listener released with the registration. An operation that rolls back restores both, including
-the cancelled run: it continues and its result is applied.
-
-Validators belong to the element's **declaration**, so the call applies to the declaration: clearing the validators
-of one row of a `List` clears them for every row, because they are registered on the item template. On the other
-rows only the errors those validators added are removed; errors from other sources stay. On the element the call is
-made on, all errors are removed. `unregisterAction()` removes a single validator instead of all of
-them, and removes the errors that validator added, on every element.
-
-It does not descend into members. A `Group` or a `List` also derives `valid` from its members, so
-`group.clearValidators()` leaves `group.valid` at `false` while any member is still invalid; call
-`clearValidators()` on the members whose validators you also want gone.
-
-### `settled(): Promise<void>`
-
-Resolves once nothing at or below the element is running: no asynchronous validation and no unsettled
-`Action.execute()`, which is when `pending` turns `false`. It resolves immediately where `pending` is `false`. A
-submit handler awaits it, because the click that runs the handler can start a validation in the same event (a
-blur that commits a value), before the button's `:disabled` is re-rendered. [Submitting](/guide/cookbook#submitting) shows it in a submit handler.
-
-It reflects the state at the moment it resolves only: work started later makes the element run again. A caller
-that acts on a settled tree reads what it needs immediately after awaiting.
-
-### `beginValidating(): void` / `endValidating(): void`
-
-Increment and decrement the async-validation counter behind `validating`. `Validator` calls them around a
-validation function that returns a promise; call them yourself only if you run asynchronous validation outside a
-`Validator`. A call that switches the element between running and idle updates the count the container above it
-keeps, and so on up the tree. An `endValidating()` without a matching `beginValidating()` is a no-op: the counter
-never goes below zero, and the containers above are not updated.
-
-A rolled-back [transaction](/api/transactions) does not restore these counters: a run in flight continues, and
-restored counts would not match the `endValidating()` calls still to come.
-
-### `setExtendedValues(values): void`
-
-Writes [extended properties](#extended-properties). `values` is a `Partial<X>` and is merged over the field's
-current ones, so a call naming one property leaves the others unchanged, and no property is ever removed. The merged
-set replaces the frozen object `extra` returns; this makes the write reactive and lets a rolled-back transaction
-restore the previous set.
-
-```typescript
-field.setExtendedValues({ label: 'Given name' });
-```
-
-### `bind(data?, overrides?): this`
-
-Returns a new reactive field over `data`, with the same registered actions and the same extended properties. It
-applies a declared field to a record. The new field's `declaration` is the field `bind()` was called on.
-
-With `data` `undefined`, the new field holds the current value; an explicit `null` is data, so `bind(null)` returns
-a field holding `null`. `overrides` is an [`IBindParams<T, X>`](#ibindparams-t-x): `originalValue`, `access`,
-`visibility` and the extended properties only. Any other key is a type error. Extended properties it names are
-merged over the ones copied from the bound field, and are set before the new field's eager actions run.
-`originalValue` is applied when the key is present.
-
-The new field is constructed through `this.constructor`, so a subclass of `Field` binds into its own class. It is
-detached: it has no `parent` and no `fieldName`. `originalValue` is taken from `overrides` only when passed
-explicitly; otherwise it is the bound data, so `isChanged` starts out `false`.
-
-```typescript
-const row = template.bind({ name: 'John' });   // a group over one record
-const copy = field.bind(field.value);          // another field holding what this one holds
-```
-
-### `rebind(data): this`
-
-Replaces the data the field holds with `data`, in place. The element remains the same instance, with its actions,
-its extended properties and its position in its container unchanged, and ends up in the state `bind(data)` would
-have produced: the values are written, `originalValue` is set to them so `isChanged` is `false`, `touched` is reset to
-`false` and the validators run over the new data. It reuses one element across records, as a virtualised renderer
-does with the rows it keeps.
-
-No `ValueChangedAction` fires for the element itself, as for a newly built element. Its members do fire theirs
-(the fields of a rebound row fire `ValueChangedAction` for their new values), and a validity change is published as
-always, so a rebound row that is invalid notifies the list holding it.
-
-A disabled `Field` takes the value, as it does any write to `value`. A disabled `Group` or `List` writes through
-to its members, as an assignment to it does.
-
-Inside an open `transaction()`, a change of the element that the commit has yet to announce is kept: the commit
-announces the old and new values measured from the element's state when the transaction opened.
-
-On a `Group` the record need not name every member: a missing key is taken from the element's `declaration`, so a
-reused row ends up as a fresh binding of the item template would, not with the previous record's value.
-
-```typescript
-const row = list.get(0)!;
-row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
-```
-
-`Field` has no `clear()`: an empty value depends on `T`, which the library cannot determine. Reset a field with
-`rebind(field.originalValue)` or an explicit `rebind('')` (or `rebind(null)` where `T` allows it). See
-[Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `Group` and `List`, which do have a
-structural "empty".
 
 ## Subclassing
 
@@ -617,12 +617,8 @@ is the second type argument of each of them, the [extended properties](#extended
 holds. It defaults to [`Extras`](#extras), so `FieldBase` without type arguments is the type of any form element, and
 a validator or an action handler reads the augmented properties from the element it receives.
 
-It provides `originalValue`, `access`, `effectiveAccess`, `contribution`, `enabled`, `effectiveEnabled`, `visibility`,
-`valid`, `errors`, `validating`, `busy`, `pending`,
-`validationEpoch`, `isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `registerActionBefore()`,
-`unregisterAction()`, `triggerAction()`, `validate()`, `clearValidators()`, `setExtendedValues()`, `rebind()`,
-`beginValidating()` and `endValidating()`, so these work the same way on every form
-element. `value`, `touched` and `bind()` are abstract and implemented by each subclass.
+It provides every member listed under [Properties](#properties) and [Methods](#methods), so these work the same
+way on every element. `value`, `touched` and `bind()` are abstract and implemented by each subclass.
 
 It holds every mutable member of an element in a separate reactive state object, so every form element is reactive
 without a wrapper: reading `field.value` in a template or a `computed` subscribes to that one slot, and assigning it
