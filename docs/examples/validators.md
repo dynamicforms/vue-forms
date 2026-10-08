@@ -65,9 +65,9 @@ const translate = formatParams(t, (value) => {
 });
 
 // The text of an error: the demo's message for its code in the current language, with the params substituted. The
-// only list of allowed values in the demo is the roles, named by the demo rather than by their codes. A code the demo
-// has no message for shows the error's English detail. The function is called on every render, so the errors already
-// on the fields follow the language and the checkbox without revalidating.
+// only list of allowed values in the demo is the roles, shown by their translated names. A code the demo has no
+// message for shows the error's English detail. The function is called on every render, so the errors already on
+// the fields follow the language and the checkbox without revalidating.
 function errorText(error) {
   const params =
     error.code === 'in_allowed_values'
@@ -141,10 +141,10 @@ const validatedForm = new Group({
   })
 });
 
-// A group forms its verdict over its members, and busy answers for the whole tree: true while an asynchronous
-// validation is in flight anywhere below the group. Both reads are tracked, so these recompute on their own.
+// A group's validity is computed over its members. validating is true while an asynchronous validation runs
+// anywhere below the group, busy while an Action.execute() does. Both reads are reactive.
 const formValid = computed(() => validatedForm.valid);
-const formBusy = computed(() => validatedForm.busy);
+const formBusy = computed(() => validatedForm.validating || validatedForm.busy);
 
 // Function to reset the form
 function resetForm() {
@@ -317,32 +317,32 @@ validators and the demo's own codes, `invalid_email` and `email_taken`. An excer
 
 ## Asynchronous Validation in This Demo
 
-The email field carries an asynchronous validator with a one-second delay, which is longer than the interval between
-two keystrokes, so several runs are usually in flight at once. A run is applied only while it is the newest one for the
-field: the results belonging to the intermediate values are discarded as they arrive, the field ends with the verdict
-for the text actually in it, and `field.validating` — bound to the input's `loading` prop — is back to `false` once the
-last run has settled.
+The email field has an asynchronous validator with a one-second delay, which is longer than the interval between
+two keystrokes, so several runs are usually pending at the same time. A run's result is applied only while it is the
+newest run for the field: results for intermediate values are discarded, the field ends with the validation result
+for its current text, and `field.validating` (bound to the input's `loading` prop) is `false` again once the last
+run has settled.
 
-The submit button reads `validatedForm.valid` and `validatedForm.busy`: the group forms its verdict over its
-members, and `busy` is `true` while a run is in flight anywhere below it, so the button is disabled for the length
-of the check without anything walking the fields.
+The submit button reads `validatedForm.valid`, `validatedForm.validating` and `validatedForm.busy`. `validating` is
+`true` while a validation run is pending anywhere below the group, so the button is disabled for the duration of the
+check. `busy` covers `Action.execute()` runs and does not include validation.
 
-The validation function receives an `AbortSignal` as its fourth argument. It aborts the moment the run's verdict
-stops counting — a newer keystroke, a validator taken off the field, a transaction rolled back — and a real
-availability check hands it to `fetch` so the request is dropped there. The timer this demo awaits has nothing to
-cancel and ignores it.
+The validation function receives an `AbortSignal` as its fourth argument. The signal aborts when the run's result
+is no longer used (a newer keystroke, the validator removed from the field, a transaction rolled back). A real
+availability check passes it to `fetch` so the request is cancelled. The timer this demo awaits has nothing to
+cancel and ignores the signal.
 
-The validator here resolves in both outcomes and never rejects, because the delay it awaits cannot fail. A real
-availability check talks to a server and can: an unreachable server is not read as an address that is free — the
-rejected run puts a single `Validation could not be completed` error on the field, which leaves it invalid and the
-submit button disabled, and the reason is logged with `console.error('Validation failed', reason)`. Catch the network
-error inside the validation function only when the user should read something more specific than that message.
+The validator in this demo always resolves, because the delay it awaits cannot fail. A real availability check
+calls a server and can reject. A rejected run puts a single `Validation could not be completed` error on the field,
+so the field is invalid and the submit button disabled, and the reason is logged with
+`console.error('Validation failed', reason)`. Catch the network error inside the validation function only when the
+user should see a more specific message.
 
 ## Translated Messages in This Demo
 
 The language selector switches the demo between English, Slovenian, German, Spanish, Japanese, Chinese, Persian and
-Bengali. The library does not render errors: every error is a `code`, `params` and an English `detail`, and the
-demo's `errorText` function turns it into the text Vuetify's `error-messages` prop shows.
+Bengali. The library does not render errors: every error has a `code`, `params` and an English `detail`, and the
+demo's `errorText` function converts it into the text Vuetify's `error-messages` prop shows.
 
 - **Messages.** `errorText` looks the error's code up under `errors` in the current language and substitutes the
   params with `interpolate` from `@dynamicforms/translatable`. A code the language has no message for shows the
@@ -364,9 +364,9 @@ the Persian message for `in_allowed_values` isolates the list with U+2068 and U+
 
 ## API Reference
 
-- [Validators](/api/validators) — all built-in validators with signatures and placeholder list
-- [Field → errors](/api/field#properties) — `errors`, `valid`, `validating` and `busy` properties
-- [Errors](/api/validators#validationerror) — `code`, `params`, `detail` and `origin` of an error
+- [Validators](/api/validators): all built-in validators with signatures and placeholder list
+- [Field → errors](/api/field#properties): `errors`, `valid`, `validating` and `busy` properties
+- [Errors](/api/validators#validationerror): `code`, `params`, `detail` and `origin` of an error
 
 ## Key Features Demonstrated
 
@@ -376,7 +376,7 @@ the Persian message for `in_allowed_values` isolates the list with U+2068 and U+
 - **InAllowedValues Validator**: Restricts input to a predefined set of values
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
-  run deciding the verdict, and `form.busy` disabling submit while the tree is still deciding
+  run determining the validation result, and `form.validating` disabling submit while validation is pending
 - **Translated Messages**: Errors rendered by the application from their code and params, in eight languages,
   numbers in the language's digits, following a language switch on screen
 - **Markdown**: The application rendering its messages as markdown

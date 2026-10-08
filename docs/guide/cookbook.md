@@ -1,7 +1,7 @@
 # Cookbook
 
-Short, standalone recipes for things a form needs once it goes past a handful of fields. Each one assumes you know
-[the model](/guide/model); the rules behind the recipes about what a form sends are stated in
+Short, standalone recipes for forms with more than a few fields. Each one assumes you know
+[the model](/guide/model). The rules for what a form sends are in
 [What a container serializes](/api/container#what-a-container-serializes).
 
 ## Loading a record
@@ -12,28 +12,28 @@ You want the form to show a record the server sent.
 form.value = record;
 ```
 
-Every member takes its value, whatever its access or visibility at that moment — a disabled field takes a write
-like any other, so the order in which the form's own rules switch fields does not matter. A key the record leaves out keeps
+Every member is written, whatever its access or visibility at that moment. A disabled field is written like any
+other, so the order in which the form's rules switch fields does not matter. A key missing from the record keeps
 what the member held; `null` for a container empties it.
 
-Where the record should also become the baseline `isChanged` compares against — the form is freshly loaded, not
-edited — use `rebind()` instead:
+Where the record should also become the baseline for `isChanged` (the form is freshly loaded, not edited), use
+`rebind()`:
 
 ```typescript
 form.rebind(record);
 ```
 
-It writes the record, starts the change history over and re-runs validation, and it takes a key the record leaves
-out from the form's declaration rather than from whatever the form held a moment ago.
+It writes the record, starts the change history over and re-runs validation. A key missing from the record takes
+its value from the form's declaration.
 
-Loading does not decide what is sent or shown. `{ billing: null }` empties the billing address and leaves its access
-as the form's own rule has it; where the form should follow the data, state it in the rule — see
+Loading does not change what is sent or shown. `{ billing: null }` empties the billing address and leaves its access
+as the form's rule sets it. Where access should follow the data, the rule must read the data; see
 [An optional section](#an-optional-section).
 
 ## Submitting
 
-You want a submit that waits for asynchronous validation, sends only a valid form, and leaves the form unchanged
-once the server has taken it.
+You want a submit that waits for asynchronous validation, sends only a valid form, and marks the form unchanged
+once the server has saved it.
 
 ```typescript
 async function submit() {
@@ -72,11 +72,11 @@ function clearServerErrors(form: Group) {
 }
 ```
 
-An error written into `errors` makes the field and the form invalid at once, and it stays: a validator withdraws only
-the errors it produced itself, so neither a new value nor `validate(true)` removes it. Its
-[origin](/api/validators#origin), `'server'`, is what lets `clearServerErrors()` withdraw exactly those errors and
-leave the validators' own and any the application wrote. Call `clearServerErrors(form)` before sending again. Both
-take the form as a `Group`, so they serve every form of the application.
+An error written into `errors` makes the field and the form invalid immediately, and it stays: a validator removes
+only the errors it produced, so neither a new value nor `validate(true)` removes it. `clearServerErrors()` filters
+on the [origin](/api/validators#origin) `'server'`, so it removes exactly those errors and keeps the validators'
+errors and any other errors the application wrote. Call `clearServerErrors(form)` before sending again. Both
+functions take the form as a `Group`, so they work for every form of the application.
 
 ## Warning before leaving a changed form
 
@@ -88,34 +88,33 @@ window.addEventListener('beforeunload', (event) => {
 });
 ```
 
-`isChanged` compares what the form holds against `originalValue`, the baseline `rebind()` sets. A form loaded with
-`rebind(record)` and saved with `rebind(saved)`, as above, reports `false` exactly while nothing has been edited
-since.
+`isChanged` compares the form's value with `originalValue`, the baseline `rebind()` sets. For a form loaded with
+`rebind(record)` and saved with `rebind(saved)`, as above, `isChanged` is `false` exactly while nothing has been
+edited since.
 
 ## Clearing and resetting a form
 
-You want to put a form back to what it was declared with, or empty it. No element has a `clear()` method: a `Group`
-and a `List` have an empty state of their own, and a `Field`'s empty value — an empty string, a zero, `false` —
-depends on its `T`. [`rebind()`](/api/field#rebind-data-this) covers both:
+You want to put a form back to its declared values, or empty it. `Group` and `Field` have no `clear()` method: a
+`Group` and a `List` have their own empty state, and a `Field`'s empty value (an empty string, a zero, `false`)
+depends on its `T`. [`rebind()`](/api/field#rebind-data-this) does both:
 
 ```typescript
 group.rebind(group.originalValue);   // back to what the group was declared with
-group.rebind(null);                  // empty — every member set to null
+group.rebind(null);                  // empty: every member set to null
 field.rebind(field.originalValue);   // back to what the field was declared with
 field.rebind('');                    // an explicit empty value of the field's own type
 list.rebind(list.originalValue);     // back to the rows the list was declared with
-list.rebind(null);                   // empty — every row released
+list.rebind(null);                   // empty: every row released
 ```
 
-Each call re-baselines `originalValue`, resets `touched` to `false`, clears the element's own errors and re-runs
-validation over the result, so a form reset this way reports what the data it landed on calls for. `List.clear()`
-releases the rows but touches none of that state; `list.rebind(null)` is the one to use where a fresh verdict
-matters. `group.value = {}` is not a reset: the setter patches by key, and a key the object does not carry is left
-as it was.
+Each call sets `originalValue` to the new data, resets `touched` to `false`, clears the element's own errors and
+re-runs validation, so the validation result matches the new data. `List.clear()` releases the rows and changes none
+of that state; use `list.rebind(null)` where a new validation result is needed. `group.value = {}` is not a reset:
+the setter patches by key, and a key missing from the object keeps its value.
 
-Emptying a `Group` writes `null` into every member underneath it, whatever the member's own `T` allows: a
-`Field<string>` inside a cleared group holds `null` at runtime while its type says `string`. A form meant to be
-cleared this way declares the fields it reaches as `T | null`; one that keeps a stricter type resets field by field.
+Emptying a `Group` writes `null` into every member below it, whatever the member's `T` allows: a `Field<string>`
+inside a cleared group holds `null` at runtime while its type is `string`. A form that is cleared this way declares
+its fields as `T | null`; a form with stricter types resets field by field.
 A field can carry its own empty value as an [extended property](/api/field#extended-properties):
 
 ```typescript
@@ -125,14 +124,14 @@ const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 }
 amount.rebind(amount.extra.emptyValue!);   // 0, with the usual reset
 ```
 
-`extra` reads back `Readonly<Partial<X>>`, so `emptyValue` is `number | undefined` to the type checker and the `!`
-states what the field's parameters guarantee. Clearing a whole group this way is a walk over `group.fields` that
-reaches for each member's `extra.emptyValue` where one is declared.
+`extra` is typed `Readonly<Partial<X>>`, so `emptyValue` is `number | undefined` to the type checker; the `!`
+asserts what the field's parameters guarantee. To clear a whole group this way, iterate over `group.fields` and
+rebind each member that declares `extra.emptyValue`.
 
 ## Fields that depend on a type
 
-You want a form whose fields depend on a kind — a label element that is text or an image, a payment by card or by
-transfer — to show and send only the fields that apply.
+You want a form whose fields depend on a kind (a label element that is text or an image, a payment by card or by
+transfer) to show and send only the fields that apply.
 
 ```typescript
 watchEffect(() => {
@@ -144,15 +143,15 @@ watchEffect(() => {
 });
 ```
 
-`access` decides what is sent and `visibility` what is drawn, so the rule states both. A `'disabled'` field is not
-sent and its validators do not run, so a required field that does not apply blocks nothing. It keeps what it holds,
-so switching the kind back brings it back as it was. Where the server should instead clear what it holds for a
-field that does not apply, use `'disabled-null'`: the field is sent as `null`.
+`access` controls what is sent and `visibility` what is rendered, so the rule sets both. A `'disabled'` field is not
+sent and its validators do not run, so a required field that does not apply does not block the submit. It keeps its
+value, so switching the kind back restores it. Where the server should clear the value of a field that does not
+apply, use `'disabled-null'`: the field is sent as `null`.
 
 ## An optional section
 
-You want a section the user switches on and off — an invoice address that may be the same as the delivery one, a
-company that may or may not be named on the order — to be sent as `null` while it is off, and to keep what was
+You want a section the user switches on and off (an invoice address that may be the same as the delivery address,
+a company that may or may not be named on the order) to be sent as `null` while it is off, and to keep what was
 entered.
 
 ```typescript
@@ -172,16 +171,16 @@ form.value;   // { customer: 'Ada', billing: null } while separateBilling is fal
 ```
 
 A section sent as `null` sends none of its fields, so their validators do not run: the required street does not
-block the submit while the section is off, and it is checked again the moment the section is on. Where the section
-should follow a loaded record, the rule states it:
+block the submit while the section is off, and it is validated again when the section is switched on. Where the
+section should follow a loaded record, set the switch from the record:
 
 ```typescript
 form.value = record;
 separateBilling.value = record.billing != null;
 ```
 
-Where there is no switch and the section is optional as a whole — nothing entered sends `null`, but a section the
-user started filling in has to be complete — the rule reads the section itself:
+Where there is no switch and the section is optional as a whole (an empty section is sent as `null`, a partly
+filled section must be complete), the rule reads the section's fields:
 
 ```typescript
 watchEffect(() => {
@@ -192,28 +191,27 @@ watchEffect(() => {
 
 ## A field or a section that is shown but not editable
 
-You want something the user sees but cannot change. Two accesses do that, and they differ in what is sent: a
-`'readonly'` field is sent with its value, the way an `<input readonly>` is submitted, and a `'disabled'` one is left
-out, the way an `<input disabled>` is. Both still take a write from code, so loading a record fills them.
+You want something the user sees but cannot change. Two access values do that, and they differ in what is sent: a
+`'readonly'` field is sent with its value, like a submitted `<input readonly>`, and a `'disabled'` field is left out,
+like an `<input disabled>`. Code can still write to both, so loading a record fills them.
 
 A container's access applies to everything inside it. Below a `'readonly'` group an `'editable'` field is
-`'readonly'`, and below a `'disabled'` or `'disabled-null'` one nothing is sent and nothing is validated. The member
-keeps the access it was given; what applies is its `effectiveAccess`, and what a rendering layer binds to draw every
-input of such a section without input is `effectiveEnabled`, which is `true` where `effectiveAccess` is
-`'editable'`:
+`'readonly'`, and below a `'disabled'` or `'disabled-null'` group nothing is sent and nothing is validated. The
+member keeps its own `access`; the access that applies is `effectiveAccess`. A rendering layer binds
+`effectiveEnabled` to disable every input of such a section; it is `true` where `effectiveAccess` is `'editable'`:
 
 ```vue
 <df-input :disabled="!field.effectiveEnabled" :control="field" />
 ```
 
-The read is tracked like every other read through an element, so switching a group re-renders the inputs of every
-member below it without anything walking the tree.
+The read is reactive like every other read through an element, so switching a group re-renders the inputs of every
+member below it without walking the tree.
 
 ## A section that follows its members
 
 You want a section to drop out of the payload, or to be sent as `null`, while none of its fields is enabled. A
-container is not switched off when every child is, so one effect states it — which access depends on what the
-payload should say:
+container is not disabled automatically when all its children are, so an effect sets its access. The access value
+depends on what the payload should contain:
 
 ```typescript
 // the key is left out while no member is enabled
@@ -229,8 +227,8 @@ watchEffect(() => {
 
 ## A rule that reads another field of the record
 
-You want a validator on one field that reads a second field of the same record — the unit price that is required
-while the quantity next to it in a `List` row is above zero.
+You want a validator on one field that reads a second field of the same record: the unit price is required while
+the quantity in the same `List` row is above zero.
 
 ```typescript
 lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, oldValue, field) => {
@@ -253,21 +251,21 @@ lineItem.fields.quantity.registerAction(new ValueChangedAction((field, supr, new
 ```
 
 The field's `parent` is typed [`Container`](/api/container#parent), so the check narrows it to a `Group` before
-reading `fields`. The check also answers whether the row exists yet: a row is built member by member, and a
-member's first run happens before it has a row. Reaching nothing there is no verdict, not a pass —
-[`markRecordIncomplete()`](/api/field#markrecordincomplete-void) says so, and the row runs the validator again once
-it holds its members and the data it was built with.
+reading `fields`. The check also tests whether the row exists yet: a row is built member by member, and a member's
+first validation runs before it has a row. In that case the validator has no result;
+[`markRecordIncomplete()`](/api/field#markrecordincomplete-void) records this, and the row runs the validator again
+once it holds its members and the data it was built with.
 
-A validator runs when its own field changes, so the second action is what keeps the verdict right when the other
-half of the rule changes: a quantity edited after the row exists.
+A validator runs when its own field changes. The second action re-validates the unit price when the quantity is
+edited after the row exists.
 
 A rule comparing two fields by name needs none of this: [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message)
-resolves the other field in the record it runs in and follows it. The
+resolves the other field in its record and re-validates when that field changes. The
 [List example](/examples/list#reaching-a-sibling-field) runs these two actions in a form.
 
 ## A list of plain values
 
-You want a list of strings or numbers rather than a list of records.
+You want a list of strings or numbers instead of a list of records.
 
 ```typescript
 const tags = new List(new Field<string>({ validators: [new Validators.Required()] }));
@@ -275,15 +273,15 @@ tags.push('urgent');
 tags.value;   // ['urgent'], and [] while the list holds no rows
 ```
 
-Every row is a `Field` bound from the template, so every tag carries the `Required` validator, and a row binds to an
-input through `tag.value`. A list of lists is `new List(new List(...))`. The
+Every row is a `Field` bound from the item template, so every tag has the `Required` validator, and a row binds to
+an input through `tag.value`. A list of lists is `new List(new List(...))`. The
 [List example](/examples/list) shows both in a running form.
 
 ## Application state
 
-You want state that is not a form on screen — a shopping cart, say, with its items, a coupon and a delivery address
-— kept with the same reactivity, transactions and validation a form has. Build it once as a group, and read it
-through [`view()`](/api/view):
+You want state that is not a form on screen (for example a shopping cart with its items, a coupon and a delivery
+address) with the same reactivity, transactions and validation a form has. Build it as a group and read it through
+[`view()`](/api/view):
 
 ```typescript
 import { computed, watchEffect } from 'vue';
@@ -320,11 +318,11 @@ cart.items!.sort((a, b) => a!.name!.localeCompare(b!.name!));
 cart.coupon = 'SPRING';
 ```
 
-The list's view is an array whose mutations are the list's own, so a sort moves the rows themselves. Every read is
-tracked on the field it reaches: `watch(() => cart.coupon, …)` runs when the coupon changes and not when a quantity
-does, and `total` follows the prices and quantities. While the cart is collected in the shop, `cart.$.value` sends
-`delivery: null` and the address is not validated, so it does not hold `cart.$.valid` back; switching back to
-delivery brings the address back as it was typed, and checks it.
+The list's view is an array whose mutating methods are the list's own, so a sort moves the rows themselves. Every
+read is tracked on the field it reaches: `watch(() => cart.coupon, …)` runs when the coupon changes and not when a
+quantity changes, and `total` recomputes when prices and quantities change. While the cart is collected in the shop,
+`cart.$.value` contains `delivery: null` and the address is not validated, so it does not make `cart.$.valid`
+`false`. Switching back to delivery restores the address as it was typed and validates it.
 
-`createCart()` builds a cart wherever it is called, so where the state lives is the caller's choice — a module, a
-`provide()` in the component that owns it, or anywhere else — and a test builds a cart of its own.
+`createCart()` builds a new cart on each call, so the caller decides where the state lives (a module, a `provide()`
+in the owning component, or elsewhere), and a test builds its own cart.

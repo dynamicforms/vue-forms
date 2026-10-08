@@ -10,16 +10,16 @@ import { Group } from './group';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 /**
- * What a List of R reads back: the value of each row it sends, `null` for a row whose access is `'disabled-null'`,
- * and `[]` while it sends none
+ * The value of a List of R: the value of each row it sends, `null` for a row whose access is `'disabled-null'`,
+ * and `[]` if it sends no rows
  */
 export type ListValue<R extends FieldBase = Group> = (R['value'] | null)[];
 /** what List.value and the List constructor accept: an array of rows, or null, which empties the list */
 export type ListValueInput<R extends FieldBase = Group> = ListValue<R> | null;
-/** what List.fullValue reads back: the full value of every row, whatever its access */
+/** the value of List.fullValue: the full value of every row, whatever its access */
 export type ListFullValue<R extends FieldBase = Group> = R['fullValue'][];
 
-/** the value a list without rows reads back; it is frozen like every value a list builds */
+/** the value of a list without rows; it is frozen like every value a list builds */
 const emptyListValue: readonly any[] = Object.freeze([]);
 
 export class List<R extends FieldBase = Group, X extends object = Extras> extends Container<ListValue<R>, X> {
@@ -44,19 +44,18 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
     this._itemTemplate = itemTemplate;
 
-    // construction is one transaction, so the rows are all in place before anything is announced
+    // construction is one transaction, so all rows are in place before anything is announced
     transactional(() => {
       if (params) {
         const { value: paramValue, validators, actions, ...otherParams } = params;
-        // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
-        // guards them too
+        // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
+        // also applies to those assignments
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
         this.assignParams(otherParams);
 
-        // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
-        // an optional property yields an undefined value, so a list declared with an originalValue alone takes
-        // its rows from that. An explicit null is a supplied value and leaves the list empty, which is the state
-        // it starts in.
+        // the value is assigned only if supplied, and undefined counts as not supplied (spreading an optional
+        // property yields undefined), so a list declared with only an originalValue takes its rows from it. An
+        // explicit null is a supplied value and leaves the list empty, its initial state.
         if (paramValue !== undefined) this.setValueInternal(paramValue);
         else if (this.originalValue !== undefined) this.setValueInternal(this.originalValue);
       }
@@ -64,15 +63,15 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       this.constructed(params);
 
       if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
-      // the set a construction ends on is the list's first statement about itself rather than a change of one, so
-      // the commit that closes the construction says nothing about it
+      // the rows a construction ends with are the list's initial state, not a change, so the commit that closes
+      // the construction announces nothing for them
       this.recordAnnounced();
       this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
       this.validate();
     });
   }
 
-  /** The row array is copied as well: a rollback puts back the set the list held, not the array it went on to hold. */
+  /** The row array is copied as well, so a rollback restores the rows the list held before the transaction. */
   protected [TxCapture](): TxSnapshot {
     const captured = super[TxCapture]();
     captured.rows = this.raw.rows ? [...this.raw.rows] : this.raw.rows;
@@ -80,8 +79,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   /**
-   * The copy of a built value that serves as a baseline. The value getter hands out one array per version, and a
-   * baseline holding that same array would report every value as its own original.
+   * A copy of a built value, used as a baseline. The value getter returns one array per version, and a baseline
+   * holding that same array would make every value equal to its original.
    */
   private static baseline<V extends any[] | null>(value: V): V {
     return (value == null ? value : [...value]) as V;
@@ -89,16 +88,16 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
   private processSetValueItem(item: any): R {
     let res: R;
-    // an item that is already an element is taken as it is, and data is bound to the item template
+    // an item that is already an element is used as is, and data is bound to the item template
     if (item instanceof FieldBase) res = item as R;
     else if (this._itemTemplate) res = this._itemTemplate.bind(item) as R;
     else res = List.elementFor(item) as R;
 
-    // an item that already belongs to a container is refused here; one this list released earlier carries no
-    // link any more and is taken like any other
+    // an item that already belongs to a container throws here; one this list released earlier has no parent link
+    // and is taken like any other
     this.takeChild(res);
-    // the row now reaches the form this list stands in, so a rule of its own that names a field up there - one no
-    // record below could answer - is run over it here
+    // the row is now connected to the form above this list, so a rule of the row that refers to an element there
+    // (one no record below can resolve) runs over it here
     this.completeRecords(res);
 
     return res;
@@ -115,8 +114,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   /**
-   * Builds the item that fills a gap left by an insert beyond the end of the list: the item template bound to its
-   * own values, or, where the list has no template, an empty element of the kind `item` is built into.
+   * Builds an item that fills a gap left by an insert beyond the end of the list: the item template bound to its
+   * own values, or, if the list has no item template, an empty element of the kind `item` is built into.
    */
   private createPaddingItem(item: unknown): R {
     if (this._itemTemplate) return this.processSetValueItem(this._itemTemplate.bind());
@@ -125,12 +124,12 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return this.processSetValueItem(undefined);
   }
 
-  /** Records that the set of rows changed, so `items` rebuilds the frozen array it hands out at the next read. */
+  /** Records that the set of rows changed, so `items` rebuilds its frozen array at the next read. */
   private rowsChanged(): void {
     this.state.rowsVersion++;
   }
 
-  /** True where `next` is a different set of rows than `previous`: another count, or another row at a position. */
+  /** True if `next` is a different set of rows than `previous`: a different count, or a different row at a position. */
   private static rowsDiffer(previous: FieldBase[] | null, next: FieldBase[] | null): boolean {
     const before = previous ?? [];
     const after = next ?? [];
@@ -138,34 +137,34 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   private setValueInternal(newValue: readonly unknown[] | null) {
-    // a list holds rows, and nothing but an array states a set of them. The check stands before the transaction
-    // opens, so a refused value leaves the rows the list holds exactly as they were.
+    // only an array (or null) is a valid list value. The check runs before the transaction opens, so a rejected
+    // value leaves the rows unchanged.
     if (newValue != null && !Array.isArray(newValue)) {
       throw new TypeError('Invalid value provided: a list takes an array of rows, or null to empty it');
     }
     transactional((tx) => {
       tx.touch(this);
-      // the set standing before the write, so that only an assignment that actually changes it makes `items` build
-      // a new array: an assignment every row survives leaves the array a reader took as it is
+      // the rows before the write, so `items` builds a new array only if the assignment changes the set of rows; an
+      // assignment that keeps every row keeps the array a reader already has
       const held = this.raw.rows;
-      // null is the value that clears, the same one Group.value = null writes into every member; without this a
-      // list nested in a group would keep its rows while every sibling field was emptied
+      // null clears the list, as Group.value = null writes null into every member; otherwise a list nested in a
+      // group would keep its rows while every sibling field was cleared
       if (newValue == null) {
         this.releaseRows();
         this.state.rows = null;
       } else {
         const previous = this.state.rows ?? [];
-        // the new set is built beside the one in place and installed whole: writing a row runs its validators, and
-        // one reading this list in the middle of the walk must not be shown a position that has yet to be filled
+        // the new rows are built in a separate array and installed together: writing a row runs its validators, and
+        // a validator that reads this list during the loop must not see an unfilled position
         const rows: R[] = new Array(newValue.length);
         for (let index = 0; index < newValue.length; index++) {
           const item = newValue[index];
           const row = previous[index];
-          // a row already standing at this index takes the new item, so its identity survives the assignment and
-          // a keyed v-for keeps the component rendering it. It needs an item template: a list without one builds
-          // every row from its own data, so two rows need not carry the same members and writing one row's data
-          // into another's members would drop whatever they do not have in common. The row is reset rather than
-          // assigned, so it ends up as the row built for this position would have been.
+          // an existing row at this index takes the new item, so its identity is kept and a keyed v-for keeps the
+          // component rendering it. This requires an item template: a list without one builds each row from its
+          // own data, so two rows can have different members, and writing one row's data into another's members
+          // would drop the members they do not share. The row is reset, not assigned, so it ends in the state of a
+          // row built for this position.
           if (row && this._itemTemplate && !(item instanceof FieldBase)) {
             this.resetChild(row, this._itemTemplate, item);
             rows[index] = row;
@@ -183,8 +182,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   get value(): ListValue<R> {
-    // the version is a tracked read and the cache is not, so a reader that is answered from the cache still
-    // depends on every write below this list without the walk over its rows being repeated for it
+    // the version read is tracked and the cache read is not, so a reader served from the cache still depends on
+    // every write below this list, without repeating the walk over its rows
     const version = this.valueVersion;
     if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
 
@@ -201,9 +200,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
           break;
       }
     });
-    // the array outlives the read that built it - the next reader is answered with the very same one - so it is
-    // frozen, as is every row object in it; a caller writing into either would change what the list reports
-    // without any row holding that value. A list without rows reads [].
+    // the array is shared with later readers, so it is frozen, as is every row object in it; a write into either
+    // would change the list's value without any row holding that value. A list without rows returns [].
     const built = (value.length ? Object.freeze(value) : emptyListValue) as ListValue<R>;
     this.raw.cachedValue = built;
     this.raw.cachedValueVersion = version;
@@ -213,22 +211,21 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   set value(newValue: ListValueInput<R>) {
     transactional(() => {
       this.setValueInternal(newValue);
-      // an assignment is a statement about the whole list, and it is announced as one without being compared away
+      // an assignment replaces the whole list and is always announced, without a comparison
       this.propagateValueChanged(true);
     });
   }
 
   /**
-   * The rows are taken from `source` where the caller supplied no value of its own, so a list nested in a row that
-   * a whole-list assignment reuses ends up holding what the template gives it rather than what it held before.
+   * If no value is supplied, the rows are taken from `source`, so a list nested in a row reused by a whole-list
+   * assignment ends up with the item template's rows, not its previous ones.
    */
   protected resetTo(source: FieldBase, value: any): void {
     transactional((tx) => {
       tx.touch(this);
       if (this.errors.length) this.errors = [];
       this.setValueInternal(value === undefined ? (source as List<R>).fullValue : value);
-      // a list brought to the state a fresh one would be in makes no statement of its own: the container that
-      // reset it announces the whole of it
+      // a reset list announces nothing itself: the container that reset it announces the change
       this.recordAnnounced();
       this.originalValue = List.baseline(this.value);
       super.validate(true);
@@ -240,16 +237,15 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValueInput<R>, X>) => List<R, X>;
     const res = new Ctor(template, {
-      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears. What the
-      // list holds is carried rather than what it sends, so a row that sends nothing keeps its data
+      // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
+      // the list holds (fullValue), not what it sends, so a row that sends nothing keeps its data
       value: [...((data !== undefined ? data : this.fullValue) ?? [])],
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       access: overrides?.access ?? this.access,
       visibility: overrides?.visibility ?? this.visibility,
     } as IFieldParams<ListValueInput<R>, X>);
-    // a subclass whose constructor does not take (itemTemplate, params) never sees either, so it would answer
-    // with a list built from its own declaration rather than from this record. That is a difference no reader
-    // would find, so it is refused here rather than returned.
+    // a subclass whose constructor does not take (itemTemplate, params) ignores both and would return a list built
+    // from its own declaration instead of this record. The difference would not be visible, so it throws here.
     if (res._itemTemplate !== template) {
       throw new TypeError(
         `${this.constructor.name}.bind() built a list that did not take the item template it was given, so the ` +
@@ -270,33 +266,32 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   /**
-   * The full value of every row. Where `value` states what the list sends, this states what the list holds: every
-   * row whatever its access, and a group row carrying every field of its own. It is what a binding or a reset
-   * carries.
+   * The full value of every row. `value` is what the list sends; `fullValue` is what the list holds: every row
+   * whatever its access, and every field of a group row. A binding or a reset copies it.
    */
   get fullValue(): ListFullValue<R> {
     return (this.state.rows ?? []).map((row) => row.fullValue);
   }
 
   /**
-   * How many rows this list holds. The read is tracked, so a template rendering off it re-renders as rows come and
-   * go.
+   * The number of rows this list holds. The read is tracked, so a template that reads it re-renders when rows are
+   * added or removed.
    */
   get length(): number {
     return this.state.rows?.length ?? 0;
   }
 
   /**
-   * The rows this list holds, oldest position first. The array is a frozen copy: it states what the list held at
-   * the read and nothing writes back through it - `push`, `insert`, `remove` and `clear` are what change the set -
-   * so a caller may hold on to it. The rows in it are the live elements, so reading one reports what it holds now.
+   * The rows this list holds, in position order. The array is a frozen copy of the rows at the time of the read and
+   * cannot be written through (`push`, `insert`, `remove` and `clear` change the rows), so a caller may keep it. The
+   * rows in it are the live elements, so a row read from it returns its current state.
    *
-   * The copy is built once per change of the set and handed to every reader until the next one: a write inside a
-   * row changes what the list serializes without changing which rows it holds, and the array a reader took stays
-   * the same one across such a write.
+   * The copy is built once per change of the set of rows and returned to every reader until the next change: a
+   * write inside a row changes what the list sends without changing which rows it holds, and the array stays the
+   * same across such a write.
    */
   get items(): readonly R[] {
-    // the version is a tracked read and the cache is not, so a reader answered from the cache still re-runs when
+    // the version read is tracked and the cache read is not, so a reader served from the cache still re-runs when
     // the set of rows changes
     const version = this.state.rowsVersion;
     if (this.raw.cachedItemsVersion !== version) {
@@ -323,23 +318,22 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     transactional((tx) => {
       if (this.state.rows == null || index < 0 || this.state.rows.length <= index) return;
 
-      // the row array is recorded before the splice, so a rollback puts back the set the list held
+      // the row array is recorded before the splice, so a rollback restores the rows
       tx.touch(this);
       const row = this.state.rows.splice(index, 1)?.[0];
       if (!row) return;
 
-      // the row itself is what leaves the list: releaseChild has taken the back-reference away, so it carries
-      // nothing of the list it stood in and is free to be taken by another container, and what it holds - the
-      // values it ended up with, its errors, the change history behind isChanged - is the row's to report
+      // the removed row is returned as is: releaseChild clears its back-reference, so another container can take
+      // it, and it keeps its values, its errors and the change history behind isChanged
       this.releaseChild(row);
       this.rowsChanged();
       this.bumpValueVersion();
       removedItem = row;
 
-      // an item removed is a fact about an operation and has no net over a transaction, so it is queued in order
-      // rather than compared away, and the commit emits it before the value the removal left behind
+      // a removal is an operation with no net result over a transaction, so it is queued in order without a
+      // comparison, and the commit emits it before the resulting value change
       tx.recordStructural(this, { actionClass: ListItemRemovedAction, item: removedItem, index });
-      // one item fewer is a different set, so no comparison is needed to establish that the value changed
+      // one item fewer is a different set, so the value change is announced without a comparison
       this.propagateValueChanged(true);
     });
 
@@ -351,11 +345,11 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     transactional((tx) => {
       tx.touch(this);
       if (this.state.rows == null) this.state.rows = [];
-      // a negative index counts back from the end and stops at the start, the way splice reads it, so the
-      // position announced and returned is the one the item actually occupies
+      // a negative index counts back from the end and is clamped at the start, as in splice, so the announced and
+      // returned position is the one the item occupies
       position = index < 0 ? Math.max(this.state.rows.length + index, 0) : index;
       while (this.state.rows.length < position) {
-        // if the index is too large for current array size, we add as many as necessary
+        // an index beyond the end is reached by adding padding items
         const itm = this.createPaddingItem(item);
         // push returns the new length, while the event carries the index of the item that was added
         const idx = this.state.rows.push(itm) - 1;
@@ -366,7 +360,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       this.state.rows.splice(position, 0, itm);
 
       tx.recordStructural(this, { actionClass: ListItemAddedAction, item: itm, index: position });
-      // one item more is a different set, so no comparison is needed to establish that the value changed
+      // one item more is a different set, so the value change is announced without a comparison
       this.rowsChanged();
       this.bumpValueVersion();
       this.propagateValueChanged(true);
@@ -375,7 +369,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return position;
   }
 
-  /** Drops every row this list holds out of its tally, so a row that changes its verdict later is not counted. */
+  /** Releases every row from this list, so a later validity change of a row does not affect its invalid count. */
   private releaseRows(): void {
     this.state.rows?.forEach((row) => this.releaseChild(row));
   }
@@ -386,7 +380,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       tx.touch(this);
       this.releaseRows();
       this.state.rows = null;
-      // a list that held nothing holds the same nothing afterwards, so the array `items` hands out stands
+      // clearing a list without rows does not change its rows, so the array `items` returns is kept
       if (hadItems) this.rowsChanged();
       this.bumpValueVersion();
       this.propagateValueChanged(hadItems);

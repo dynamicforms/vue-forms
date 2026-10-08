@@ -69,7 +69,7 @@
 import { Field, List, Validators } from '../../src'; // from '@dynamicforms/vue-forms'
 
 // A round is a list of scores, and the sheet is a list of rounds: every row of the outer list is a List bound from
-// this template, and every row of that one a Field bound from its own template
+// this item template, and every row of a round is a Field bound from the round's item template
 const roundTemplate = new List(new Field({ value: 0, validators: [new Validators.MinValue(0)] }));
 
 const rounds = new List(roundTemplate, { value: [[3, 5], [4]] });

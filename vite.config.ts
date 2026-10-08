@@ -30,11 +30,10 @@ export default defineConfig({
     ],
   },
   build: {
-    // The target is the syntax a consumer's toolchain has to parse, not the runtime the package ends up on - a
-    // consuming bundler re-transpiles the chunk to its own target. es2022 is the floor `engines.node >= 22` and
-    // ESM-only already admit; field-base.ts's private class fields are the one construct a lower target would
-    // change, lowering them to a WeakMap behind an access check and costing real bytes for compatibility with a
-    // consumer these declarations already exclude.
+    // The target is the syntax a consumer's toolchain must parse, not the runtime: a consuming bundler transpiles
+    // the chunk to its own target. es2022 is the minimum that `engines.node >= 22` and ESM-only already require.
+    // field-base.ts's private class fields are the only construct a lower target would change: it would lower them
+    // to a WeakMap with an access check, adding bytes for consumers these settings already exclude.
     target: 'es2022',
     sourcemap: true,
     lib: {
@@ -46,10 +45,9 @@ export default defineConfig({
         'lodash-es',
         'vue',
       ],
-      // No plugin strips the published file's whitespace: Vite's format:'es' library build always keeps it
+      // The published file keeps its whitespace: Vite's format:'es' library build always keeps it
       // (resolveEsbuildTranspileOptions forces minifyWhitespace: false regardless of esbuild options), and a
-      // consumer's own bundler minifies the chunk it produces anyway, so what this file weighs on disk is not
-      // what an application ships.
+      // consumer's bundler minifies its own output, so the file size on disk is not the size an application ships.
       output: [
         {
           format: 'es',

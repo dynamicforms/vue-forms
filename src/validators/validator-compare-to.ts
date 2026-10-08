@@ -7,14 +7,13 @@ import type { FieldBase } from '../field-base';
 import { ValidationErrorOptions, ValidationFunction, Validator, ValidatorBindingState } from './validator';
 
 /**
- * How the field to compare against is named. A field names it directly, a string names it by the name its
- * container holds it under, and a callback works it out from the field being validated. All three answer for the
- * record the validation is running over: handed the field of a `List`'s item template, a row compares against that
- * row's field.
+ * The element to compare against: the element itself, its name in its container, or a callback that returns it
+ * for the field being validated. All three are resolved within the record the validation runs over: given an
+ * element of a `List`'s item template, a row compares against that row's element.
  */
 export type CompareToTarget = FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined);
 
-/** What the validator remembers about one field it validates. */
+/** The validator's state for one field it validates. */
 interface CompareToBindingState<T> extends ValidatorBindingState {
   oldValue: T;
 }
@@ -23,24 +22,22 @@ export default class CompareTo<T = any> extends Validator {
   private readonly otherField: CompareToTarget;
 
   /**
-   * The fields this validator is registered on. Registration reaches one element at a time - the rows of a list
-   * take the validator on one by one, as they are built from the item template that carries it - so this is what
-   * says which of the fields a declaration stands for actually carry the rule, and a field that never took it on
-   * is left alone by a change of the compared field.
+   * The fields this validator is registered on. Registration happens one element at a time (the rows of a list
+   * receive the validator one by one, as they are built from the item template), so this set determines which
+   * elements of a declaration have the rule; a change of the compared element does not revalidate the others.
    */
   private readonly registrations = new WeakSet<FieldBase>();
 
   /**
-   * The fields this validator has installed its listener on. A binding of such a field carries the listener too -
-   * a binding takes on the actions of the field it was bound from - so the field it was bound from is what is
-   * asked about as well, and a list of a thousand rows installs one listener rather than a thousand.
+   * The elements this validator has installed its listener on. A binding of such an element has the listener too
+   * (a binding uses the actions of its declaration), so the declaration is checked as well, and a list of N rows
+   * installs one listener, not N.
    */
   private readonly listening = new WeakSet<FieldBase>();
 
   /**
-   * What the fields this validator was registered on were declared as. One entry stands for every binding of such a
-   * field, so a change of a compared field finds the fields of the record that change happened in without a list
-   * of a thousand rows being held here.
+   * The declarations of the fields this validator was registered on. One entry covers every binding of such a
+   * field, so a change of a compared element finds the fields of its record without this set holding every row.
    */
   private readonly declarations = new Set<FieldBase>();
 
@@ -53,8 +50,8 @@ export default class CompareTo<T = any> extends Validator {
       this.comparisonState(field).oldValue = oldValue;
 
       const other = this.resolve(field);
-      // a record that does not hold the compared field yet - a row still being built - reaches no verdict, and
-      // the container that finishes the record runs this pass again over the field it then holds
+      // a record that does not hold the compared element yet (a row still being built) produces no result, and the
+      // container that completes the record runs this pass again
       if (!other) {
         field.markRecordIncomplete();
         return null;
@@ -78,7 +75,7 @@ export default class CompareTo<T = any> extends Validator {
     this.otherField = otherField;
   }
 
-  /** The field `field` is compared against, within the record `field` belongs to. */
+  /** The element `field` is compared against, within the record `field` belongs to. */
   private resolve(field: FieldBase): FieldBase | undefined {
     const other = this.otherField;
     if (typeof other === 'function') return other(field) ?? undefined;
@@ -87,9 +84,9 @@ export default class CompareTo<T = any> extends Validator {
   }
 
   /**
-   * Makes a change of `other` re-run this comparison. The listener re-runs it over the fields of the record the
-   * change happened in rather than over the field that installed it, so the listener a row inherits with the field
-   * it was bound from serves that row; and it re-runs this one validator, not the chain around it.
+   * Registers a listener so a change of `other` re-runs this comparison. The listener re-runs it over the fields of
+   * the record the change happened in, not over the field that installed it, so a listener a row inherits from its
+   * declaration applies to that row; it re-runs only this validator, not the whole chain.
    */
   private listenOn(other: FieldBase): void {
     if (this.listening.has(other) || this.listening.has(other.declaration)) return;
@@ -100,8 +97,8 @@ export default class CompareTo<T = any> extends Validator {
         const scope = scopeOf(oField);
         this.declarations.forEach((declaration) =>
           bindingsIn(declaration, scope).forEach((mine) => {
-            // the fields a declaration stands for are the candidates; the ones that took the validator on are the
-            // ones re-validated, so a rule written for one row of a list stays that row's rule
+            // of the declaration's elements, only those the validator is registered on are revalidated, so a rule
+            // registered on one row of a list applies only to that row
             if (!this.registrations.has(mine)) return;
             this.execute(mine, () => null, mine.contribution, this.comparisonState(mine).oldValue);
           }),
@@ -124,9 +121,9 @@ export default class CompareTo<T = any> extends Validator {
   }
 
   unregisterFrom(binding: FieldBase) {
-    // the errors this validator put on the binding go with the registration: the base method withdraws them, forms
-    // the verdict over what is left and cancels the run in flight, and a binding that no longer carries the rule is
-    // dropped from the set the compared field re-validates
+    // the errors this validator put on the binding are removed with the registration: the base method removes
+    // them, recomputes validity and cancels the run in flight, and the binding is removed from the set the
+    // compared element revalidates
     super.unregisterFrom(binding);
     this.registrations.delete(binding);
   }

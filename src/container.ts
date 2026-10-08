@@ -5,24 +5,24 @@ import { type Extras } from './field.interface';
 import { transactional } from './transaction';
 
 /**
- * The computed behind a container's `valid`, held outside the element it belongs to. A computed refers back to
- * itself through its dependency record, and JSON.stringify and lodash isEqual both walk own enumerable
- * properties, so an element carrying one as a property would be a cycle to either of them.
+ * The computed behind a container's `valid`, held outside the element. A computed references itself through its
+ * dependency record, and JSON.stringify and lodash isEqual both walk own enumerable properties, so an element with
+ * a computed as a property would be a cycle for both.
  */
 const validReads = new WeakMap<object, ComputedRef<boolean>>();
 
-/** The computed behind a container's `busy`, held outside the element for the same reason `validReads` is. */
+/** The computed behind a container's `busy`, held outside the element for the same reason as `validReads`. */
 const busyReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
- * A form element that holds other elements and composes its state out of theirs: `Group`, which holds named
+ * A form element that holds other elements and composes its state from theirs: `Group`, which holds named
  * members, and `List`, which holds rows. Every element's `parent` is a `Container`.
  *
- * What a container answers for over its children is the same whatever holds them: `valid` and `busy` are composed
- * of theirs, `touched` is true where any child is touched and propagates an assignment down, `validate(true)`
- * revalidates every child before the container forms its own verdict, and a child's change of value or verdict
- * reaches the container through `notifyValueChanged()` and the tallies below. How the children are reached - by
- * name or by position - is the subclass's.
+ * The behaviour over children is the same in both subclasses: `valid` and `busy` are composed from the children's,
+ * `touched` is true if any child is touched and an assignment propagates down to every child, `validate(true)`
+ * revalidates every child before the container computes its own validity, and a child's change of value or
+ * validity reaches the container through `notifyValueChanged()` and the counters below. The subclass defines how
+ * children are addressed: by name or by position.
  */
 export abstract class Container<T = any, X extends object = Extras> extends FieldBase<T, X> {
   get [Symbol.toStringTag](): string {
@@ -30,8 +30,8 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   }
 
   /**
-   * The children this container holds, read through the tracked view of its state: a verdict or a flag composed
-   * over them is formed again when a child is added or removed.
+   * The children this container holds, read through the tracked view of its state, so a validity or flag composed
+   * over them is recomputed when a child is added or removed.
    */
   protected abstract get children(): readonly FieldBase[];
 
@@ -57,18 +57,17 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
 
   validate(revalidate: boolean = false) {
     transactional(() => {
-      // the children are revalidated first and the container forms its own verdict afterwards, over the finished
-      // set: a child that turns valid while a later one is still to be checked announces nothing until the
-      // transaction closes, so the container never reports a verdict over a half-revalidated set
+      // the children are revalidated first and the container computes its own validity afterwards, over all of
+      // them: a child that becomes valid announces nothing until the transaction closes, so the container does not
+      // report a validity computed over a partially revalidated set
       if (revalidate) this.members.forEach((child) => child.validate(true));
       super.validate(revalidate);
     });
   }
 
   /**
-   * Records that a child changed its value, so that the transaction in progress works out at commit what this
-   * container's own value became and announces it once. The mutation methods call it themselves; you rarely need
-   * to.
+   * Records that a child changed its value, so that at commit the open transaction computes this container's new
+   * value and announces it once. The mutation methods call it; a direct call is rarely needed.
    */
   notifyValueChanged() {
     this.propagateValueChanged();
@@ -79,9 +78,9 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   }
 
   /**
-   * A container with nothing listening for what it holds does not compose it at all, so the copy it keeps is from
-   * before the changes nobody received. A registration that adds a listener brings it up to date here, and what
-   * the listener is then told about is the change that follows it.
+   * A container with no listener for what it holds does not compose it, so its stored copy predates the
+   * unannounced changes. A registration that adds a listener updates the copy here, so the listener receives the
+   * changes made after the registration.
    */
   protected refreshPreviousValue(): void {
     super.refreshPreviousValue();
@@ -94,9 +93,9 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   }
 
   /**
-   * The composed verdict `valid` answers with, memoised by Vue. The walk over the children is what makes an error
-   * pushed into one of them visible without a validate() call, and the computed keeps that walk from repeating
-   * while nothing it read has moved.
+   * The composed validity `valid` returns, memoised by Vue. The walk over the children makes an error written into
+   * one of them visible without a validate() call, and the computed skips the walk while nothing it read has
+   * changed.
    */
   private get validRead(): boolean {
     let read = validReads.get(this);
@@ -104,7 +103,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
       read = computed(
         () =>
           this.state.errors.length === 0 &&
-          // a child that sends nothing is not the container's to answer for
+          // a child that sends nothing does not affect the container's validity
           this.children.every((child) => child.valid || this.childSerializesAs(child, 'value') === 'omit'),
       );
       validReads.set(this, read);
@@ -113,10 +112,9 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   }
 
   /**
-   * The composed answer `busy` gives, memoised by Vue. An `Action` counts its executions in a counter of its own,
-   * which no container is told about, so the answer is composed over the children instead of tallied; the computed
-   * keeps the walk from repeating while nothing it read has moved, and a child that is itself a container answers
-   * from its own computed.
+   * The composed value of `busy`, memoised by Vue. An `Action` counts its executions in its own counter, which does
+   * not notify containers, so the value is composed over the children; the computed skips the walk while nothing
+   * it read has changed, and a child that is a container reads its own computed.
    */
   private get busyRead(): boolean {
     let read = busyReads.get(this);
@@ -128,8 +126,8 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   }
 
   /**
-   * Records that a child started or stopped answering `validating` with true, and carries the transition further
-   * up where it changes this container's own answer.
+   * Records that a child's `validating` became true or false, and passes the transition up if it changes this
+   * container's own `validating`.
    */
   protected childValidatingChanged(started: boolean): void {
     const wasValidating = this.validating;
@@ -138,10 +136,10 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   }
 
   /**
-   * Records a child's new verdict in this container's tally. The child reports it as it settles, and the commit
-   * settles the deepest element first, so the tally a container reads when its own turn comes is finished. The
-   * delta is applied here rather than recomputed by walking the children at commit, which would cost
-   * `O(children)` per container and turn a list fill back into the quadratic walk this tally exists to avoid.
+   * Records a child's new validity in this container's invalid count. The child calls it as it settles, and the
+   * commit settles the deepest element first, so the count is complete when the container settles. The delta is
+   * applied here; recomputing by walking the children at commit would cost `O(children)` per container and make
+   * filling a list quadratic.
    */
   protected childValidityChanged(nowValid: boolean): void {
     this.raw.invalidChildren += nowValid ? -1 : 1;

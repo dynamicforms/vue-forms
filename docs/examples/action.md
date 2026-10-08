@@ -1,6 +1,6 @@
 # Action Example
 
-This example demonstrates [`Action`](/api/actions#the-action-class) end to end: declared with a label and an icon,
+This example shows a complete [`Action`](/api/actions#the-action-class): declared with a label and an icon,
 enabled by the form's validity through a conditional action, executed, and reporting `busy` while an asynchronous
 submit runs.
 
@@ -10,32 +10,30 @@ submit runs.
 
 ## Why `Action` is not UI-agnostic
 
-`@dynamicforms/vue-forms` describes data and behaviour, and the few members that speak about the interface are
+`@dynamicforms/vue-forms` describes data and behaviour; the few members that concern the user interface are
 listed in [Rationale](/guide/rationale#what-the-library-carries-for-the-interface). `Action` is one of them: its value
 is an `ActionValue`, the pair `{ label?, icon? }`.
 
-It exists as a *concept* — the element a form's submit, cancel and delete hang on — and the minimal `{ label, icon }`
-shape is the affordance that makes that concept legible. Without it `Action` would be indistinguishable from
-`Field`, and there would be nothing for a toolbar to bind to.
+`Action` represents a *concept*: the element a form's submit, cancel and delete are attached to. The minimal
+`{ label, icon }` shape identifies that concept. Without it `Action` would be indistinguishable from `Field`, and a
+toolbar would have nothing to bind to.
 
-The shape is deliberately minimal because **a UI library is expected to extend it**. `Action<T extends ActionValue>`
-takes a wider value type, so a subclass adds accessors that read `this.value.X` and keeps everything the base class
-does — the `ExecuteAction` chain, `busy`, `access`, `visibility`, the conditional actions, the transaction
-semantics. `label` and `icon` are members `Action` declares, and both reach its value, so a subclass reading either
-in a shape of its own narrows the getter and declares the setter beside it, delegating to the base — a getter
-declared alone leaves the property without a setter and the documented write throws a `TypeError`. The rules are in
+The shape is minimal because **a UI library is expected to extend it**. `Action<T extends ActionValue>` takes a
+wider value type, so a subclass adds accessors that read `this.value.X` and keeps everything the base class does:
+the `ExecuteAction` chain, `busy`, `access`, `visibility`, the conditional actions, the transaction semantics.
+`label` and `icon` are members `Action` declares, and both are stored in its value, so a subclass that reads either
+in its own shape narrows the getter and declares the setter beside it, delegating to the base. A getter declared
+alone leaves the property without a setter, and the documented write throws a `TypeError`. The rules are in
 [Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass).
-`@dynamicforms/vuetify-inputs` does exactly that: its `Action` widens the value with render options and
-per-breakpoint variants, and adds `renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough
-attributes on top. Its
-[df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows what an
-action declared here renders as there; its
+`@dynamicforms/vuetify-inputs` does this: its `Action` widens the value with render options and per-breakpoint
+variants, and adds `renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes. Its
+[df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows how an action
+declared with this library renders there; its
 [responsive render options](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/responsive-render-options.html)
-are the per-breakpoint half of the widened value.
+are the per-breakpoint part of the widened value.
 
-`busy` is the other half of the same line: it is form state, not presentation. The library counts the executions
-that have yet to settle; deciding whether that renders as a spinner, a disabled button or nothing at all stays
-yours.
+`busy` is form state, not presentation. The library counts the executions that have not settled yet; whether that
+renders as a spinner, a disabled button or nothing is up to the application.
 
 ## Source Code
 
@@ -70,8 +68,8 @@ const form = new Group({
   }),
 });
 
-// Validity is a verdict rather than a value, and a Statement reads values, so the form's verdict is mirrored
-// into a field the statement can read.
+// A Statement reads field values, and validity is not a field value, so the form's validity is copied into a
+// field the statement reads.
 const formValid = new Field({ value: false });
 form.registerAction(
   new ValidChangedAction((field, supr, newValid, oldValid) => {
@@ -121,62 +119,62 @@ async function submit() {
 ## Declaring the action
 
 `new Action({ value: { label, icon } })` is the whole declaration. `label` and `icon` are accessors over the value,
-so writing either is an ordinary value change: `ValueChangedAction` fires, `isChanged` answers over it, and a
-disabled action refuses the write. `save.label = 'Saving…'` therefore repaints every template reading it.
+so writing either is an ordinary value change: `ValueChangedAction` fires, `isChanged` reflects it, and a disabled
+action takes the write like any other field. `save.label = 'Saving…'` therefore re-renders every template that reads it.
 
-The action is a `Field`, so it carries `access` and `visibility` like any other element, and a toolbar renders
+The action is a `Field`, so it has `access` and `visibility` like any other element, and a toolbar renders
 `visibility` and `enabled` without knowing what the action does.
 
 ## Enabling it from the form's validity
 
-`access`, and with it `enabled`, is driven by a `ConditionalAccessAction`, which re-evaluates its `Statement` whenever a field the
-statement reads changes. Validity is a verdict rather than a value, and a statement reads values — so a
-`ValidChangedAction` on the form writes the verdict into a field, and the statement reads that field. The two
-mechanisms compose without either knowing about the other.
+`access`, and with it `enabled`, is set by a `ConditionalAccessAction`, which re-evaluates its `Statement` whenever a field the
+statement reads changes. A statement reads field values, and validity is not a field value, so a
+`ValidChangedAction` on the form writes the validity into a field, and the statement reads that field. The two
+mechanisms are independent of each other.
 
-Writing the button's `:disabled` as `!form.valid` would work just as well for one button. Declaring it on the
-action is what makes the rule part of the form definition rather than of one template: anything else that renders
-the action — a toolbar, a menu, a keyboard shortcut — reads `save.enabled` and needs no copy of the condition.
+For a single button, `:disabled="!form.valid"` works as well. Declaring the condition on the action makes it part
+of the form definition instead of one template: anything else that renders the action (a toolbar, a menu, a
+keyboard shortcut) reads `save.enabled` and does not repeat the condition.
 
 ## Executing it
 
-`execute(params?)` runs the `ExecuteAction` chain and answers what the chain returned, as a promise. The chain is
-entered synchronously, so a handler has already run by the time the call returns; the promise settles with what the
-handler produced, awaiting it where the handler returned a promise of its own.
+`execute(params?)` runs the `ExecuteAction` chain and returns the chain's return value as a promise. The chain is
+entered synchronously, so a handler has already run when the call returns; the promise settles with the handler's
+result, awaiting it where the handler returned a promise.
 
-`busy` is `true` from the call until the run settles, however it settles. Overlapping runs are counted, so it
-stands until the last of them is done — which is what makes `:loading="save.busy"` and `:disabled="save.busy"`
-enough to keep a user from submitting twice.
+`busy` is `true` from the call until the run settles, whether it resolves or rejects. Overlapping runs are counted,
+so it stays `true` until the last of them settles; `:loading="save.busy"` and `:disabled="save.busy"` are
+therefore sufficient to prevent a double submit.
 
 ::: warning
-A handler that throws rejects the promise instead of throwing out of the `execute()` call — except an
-`AbortEventHandlingException`, which the promise resolves with. Await it or attach a `.catch()`, as `submit()`
-above does; a call that does neither leaves the rejection unhandled, which under node's default settings ends the
-process. A template handler such as `@click="save.execute()"` is safe — Vue attaches its own catch to the promise
-an event handler returns and routes the error to `app.config.errorHandler`.
+A handler that throws rejects the promise instead of throwing out of the `execute()` call, except for an
+`AbortEventHandlingException`, which the promise resolves with. Await the promise or attach a `.catch()`, as
+`submit()` above does; a call that does neither leaves the rejection unhandled, which under Node's default settings
+ends the process. A template handler such as `@click="save.execute()"` is safe: Vue attaches its own catch to the
+promise an event handler returns and passes the error to `app.config.errorHandler`.
 :::
 
 ## API Reference
 
-- [Actions → The `Action` class](/api/actions#the-action-class) — `label`, `icon`, `execute()`, `busy`
-- [Actions → `ExecuteAction`](/api/actions#executeaction) — the chain `execute()` runs
-- [Actions → Conditional actions](/api/actions#conditional-actions) — `Statement`, `Operator`, `ConditionalAccessAction`
-- [Actions → `ValidChangedAction`](/api/actions#validchangedaction) — the verdict the condition is fed from
+- [Actions → The `Action` class](/api/actions#the-action-class): `label`, `icon`, `execute()`, `busy`
+- [Actions → `ExecuteAction`](/api/actions#executeaction): the chain `execute()` runs
+- [Actions → Conditional actions](/api/actions#conditional-actions): `Statement`, `Operator`, `ConditionalAccessAction`
+- [Actions → `ValidChangedAction`](/api/actions#validchangedaction): the validity the condition reads
 
 ## Key Features Demonstrated
 
 - **Declared once**: label, icon, condition and handler all live on the action
-- **Conditional enablement**: the form's verdict drives `enabled` through a `Statement`
-- **Asynchronous execution**: `execute()` answers a promise and awaits the handler
+- **Conditional enablement**: the form's validity sets `enabled` through a `Statement`
+- **Asynchronous execution**: `execute()` returns a promise and awaits the handler
 - **`busy`**: form state a button binds to, cleared whether the run resolves or rejects
-- **Failure**: a throwing handler rejects the promise the caller holds — an `AbortEventHandlingException` resolves it
+- **Failure**: a throwing handler rejects the promise the caller receives; an `AbortEventHandlingException` resolves it
 
 ## Try It Yourself
 
-1. Leave the name empty and watch the button stay disabled
-2. Fill both fields and watch it enable itself
-3. Submit and watch `busy` hold for the length of the run
-4. Submit an `@example.com` address and read the rejection the handler produced
+1. Leave the name empty: the button stays disabled
+2. Fill both fields: the button becomes enabled
+3. Submit: `busy` is `true` for the duration of the run
+4. Submit an `@example.com` address: the log shows the error the handler threw
 
 <script setup>
 import ActionDemo from '../components/action-demo.vue';

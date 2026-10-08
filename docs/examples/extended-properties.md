@@ -1,8 +1,8 @@
 # Extended Properties Example
 
-The library models form state and leaves rendering to you — but a UI layer needs somewhere to keep what it renders
-*with*: a label, a hint, a column width, a permission flag. Extended properties are that place. They are declared
-per element as a second type argument, checked by the compiler, and read through `extra`.
+The library models form state and does not render. A UI layer needs to store the data it renders with: a label, a
+hint, a column width, a permission flag. Extended properties hold that data. They are declared per element as a
+second type argument, checked by the compiler, and read through `extra`.
 
 ## Declaring them
 
@@ -25,15 +25,16 @@ firstName.extra.label;  // 'First name'
 firstName.extra.hint;   // 'as it appears in your passport'
 ```
 
-The second argument is what makes them legal. Without it the parameter object takes only what every field takes:
+The second type argument allows them. Without it the parameter object accepts only the parameters every field
+accepts:
 
 ```typescript
 new Field({ value: 'Ada', label: 'First name' });
 //                        ^^^^^ rejected as an excess property
 ```
 
-`extra` is frozen, so it is read rather than written into. `setExtendedValues()` writes, and leaves the members it
-does not name as they stand:
+`extra` is frozen and cannot be written. `setExtendedValues()` writes the properties it names and leaves the others
+unchanged:
 
 ```typescript
 firstName.setExtendedValues({ label: 'Given name' });
@@ -43,8 +44,8 @@ firstName.extra.hint;   // unchanged
 
 ## Rendering off them
 
-This is the shape a UI component takes: it accepts the element, reads state from the members and presentation from
-`extra`, and stays ignorant of what the form is for.
+A UI component accepts the element, reads state from its members and presentation data from `extra`, and does not
+depend on the form it is used in.
 
 ```vue
 <script setup lang="ts">
@@ -68,13 +69,13 @@ const props = defineProps<{ field: Field<string, Presentation> }>();
 </template>
 ```
 
-Every read in that template is tracked, `extra` included: `setExtendedValues({ label: 'Given name' })` re-renders
-the label without anything else being told about it.
+Every read in that template is reactive, including `extra`: `setExtendedValues({ label: 'Given name' })`
+re-renders the label without any further call.
 
 ## A form whose shape arrives from a server
 
-The reason the properties are open rather than a fixed set: a form built at runtime carries whatever its
-description carries, and the renderer reads it back.
+Extended properties are an open set, not a fixed one: a form built at runtime holds whatever properties its
+description contains, and the renderer reads them.
 
 ```typescript
 interface FieldSpec {
@@ -94,35 +95,35 @@ function buildForm(spec: FieldSpec[]) {
 }
 
 const form = buildForm(await fetch('/api/form-spec').then((r) => r.json()));
-form.fields.firstName.extra.label;   // whatever the server said
+form.fields.firstName.extra.label;   // the label from the server's description
 ```
 
 ## What a name may not be
 
-A parameter naming a member the class itself declares reaches **that member**, not `extra`:
+A parameter named like a member the class declares sets **that member**, not `extra`:
 
 ```typescript
 new Field<string, Presentation>({ value: 'Ada', label: 'Name', access: 'readonly' });
 // access sets access; only label lands in extra
 ```
 
-Read-only members refuse the parameter outright, which is what keeps a typo from becoming a silent property:
+A parameter named like a read-only member throws, so such a name never becomes an unnoticed extended property:
 
 ```typescript
 new Field({ value: 1, valid: true });     // TypeError: valid is read-only
 new List(template, { length: 3 });        // TypeError: length is read-only
 ```
 
-`Action` declares `label` and `icon` of its own — those reach the action's value rather than `extra`, so name an
-action's other presentation properties something else. A subclass reading `label` or `icon` in a shape of its own
-declares an accessor pair for it instead, getter and setter together:
+`Action` declares its own `label` and `icon`. These parameters set the action's value, not `extra`, so give an
+action's other presentation properties different names. A subclass that reads `label` or `icon` in its own shape
+declares an accessor pair (getter and setter) for it:
 [Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass).
 
 ## Carried by a binding
 
-A binding takes over the extended properties of the element it was bound from, and `bind()`'s second argument
-writes over them for that binding alone. This is what lets one item template give every row its labels while a
-single row overrides one:
+A binding copies the extended properties of the element it was bound from, and `bind()`'s second argument
+overrides them for that binding only. One item template thus gives every row its labels, and a single row can
+override one:
 
 ```typescript
 const rowTemplate = new Group({
@@ -132,10 +133,10 @@ const rowTemplate = new Group({
 const list = new List(rowTemplate);
 list.push({ amount: 100 });
 
-list.get(0)!.fields.amount.extra.label;   // 'Amount' — carried from the template
+list.get(0)!.fields.amount.extra.label;   // 'Amount', copied from the item template
 ```
 
 ## See also
 
-- [`Field` API reference](/api/field#extended-properties) — the full rules, including subclasses
-- [The model](/guide/model) — where extended properties sit among the other pieces
+- [`Field` API reference](/api/field#extended-properties): the full rules, including subclasses
+- [The model](/guide/model): where extended properties sit among the other pieces

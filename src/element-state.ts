@@ -7,82 +7,80 @@ import { ValidationError } from './validators/validation-error';
 import { defaultVisibility, type Visibility } from './visibility';
 
 /**
- * The mutable state of one element, held in an object of its own beside the element rather than in the element's
- * own properties.
+ * The mutable state of one element, held in a separate object, not in the element's own properties.
  *
- * An element reaches it through two views of that one object, both in private class fields of `FieldBase`:
+ * An element accesses it through two views of that object, both in private class fields of `FieldBase`:
  * `this.state` is `reactive(slots)` and `this.raw` is the object itself. A slot read through `state` inside a
- * render effect or a computed subscribes that effect to the slot, and a write to the slot re-runs it. The
- * bookkeeping an element does for itself goes through `raw`, which neither records a read nor announces a write.
- * The value cache of a container goes through `raw` in particular: its getter writes the cache while it runs, and
- * a tracked write there costs the reading effect one extra evaluation, and one extra render on mount, for a value
- * it has already built.
+ * render effect or a computed subscribes that effect to the slot, and a write to the slot re-runs it. The element's
+ * internal bookkeeping goes through `raw`, which neither tracks a read nor triggers on a write. This includes a
+ * container's value cache: its getter writes the cache while it runs, and a tracked write there would cost the
+ * reading effect one extra evaluation, and one extra render on mount, for a value already built.
  *
- * Being private class fields is what puts the two views out of reach of everything outside `FieldBase`: a private
- * field is absent from `Object.keys`, `JSON.stringify`, `Object.getOwnPropertySymbols` and lodash `getAllKeys` by
- * construction, and needs no per-instance property definition to be. Both `JSON.stringify` and lodash `isEqual`
- * walk their way down a structure over own keys, enumerable symbols included, and the `parent` slot is in the
- * state: reachable, it would take either walker back into the container the element came from.
+ * As private class fields, the two views are not accessible outside `FieldBase`: a private field is absent from
+ * `Object.keys`, `JSON.stringify`, `Object.getOwnPropertySymbols` and lodash `getAllKeys` without any per-instance
+ * property definition. `JSON.stringify` and lodash `isEqual` both walk a structure over own keys, enumerable
+ * symbols included, and the `parent` slot is in the state: if reachable, it would lead either walk back into the
+ * element's container.
  *
- * What they do reach on an element is `_actions` once something is registered, `_fields` and the guarded view
- * over it on a `Group`, and `_itemTemplate` on a `List`. All of them lead downwards only.
+ * The own properties those walks do reach on an element are `_actions` once something is registered, `_fields` on
+ * a `Group`, and `_itemTemplate` on a `List`. All of them lead downwards only.
  */
 export interface ElementSlots<T = any> {
   /** the value the element was given at construction; isChanged compares against it */
   originalValue: T;
   /**
-   * What the last ValueChangedAction reported the element as holding - its value, and a container's fullValue; the
-   * next transaction measures its net change against it
+   * The value the last ValueChangedAction reported for the element (its value; a container's fullValue); the next
+   * transaction compares its net change against it
    */
   announcedValue: T;
   /**
-   * What the last ContributionChangedAction reported the element as contributing to its container: its value,
-   * `null`, or `undefined` for nothing
+   * What the last ContributionChangedAction reported the element as sending to its container: its value, `null`,
+   * or `undefined` for nothing
    */
   announcedContribution: unknown;
   /**
-   * What a container's own validators last ran over - what it sends; the next transaction runs them where that
-   * moved. A leaf's validators run at the write and the access switch, and leave it untouched.
+   * What a container's own validators last ran over (what it sends); the next transaction runs them again if that
+   * changed. A leaf's validators run at the write and at an access change, and do not use this slot.
    */
   validatedValue: unknown;
   errors: ValidationError[];
   visibility: Visibility;
   access: Access;
-  /** counts the writes that changed the value of the element or of anything below it */
+  /** counts the writes that changed the value of the element or of any element below it */
   valueVersion: number;
-  /** how many asynchronous validation runs are in flight on this element */
+  /** the number of asynchronous validation runs in flight on this element */
   validatingCount: number;
-  /** how many direct children answer `validating` with true; a child that starts or stops running moves it */
+  /** the number of direct children whose `validating` is true; updated when a child starts or stops validating */
   validatingChildren: number;
-  /** the container that holds this element, absent while none does; takeChild writes it, releaseChild clears it */
+  /** the container that holds this element, or undefined; takeChild writes it, releaseChild clears it */
   parent: Container | undefined;
-  /** the name the containing Group holds this element under; a List row carries none */
+  /** the name the containing Group holds this element under; undefined for a List row */
   fieldName: string | undefined;
   /** generation of the validators attached to the element; clearValidators() raises it */
   validationEpoch: number;
   /**
-   * The extended properties the element carries, typed by the element's own X parameter. A write replaces the
-   * object rather than writing into it, so an effect that read the slot re-runs on the write, and the object a
-   * transaction captured is the one a rollback puts back.
+   * The element's extended properties, typed by the element's X parameter. A write replaces the object instead of
+   * modifying it, so an effect that read the slot re-runs on the write, and a rollback restores the object the
+   * transaction captured.
    */
   extra: object;
   /**
-   * The element this one was bound from, absent on an element that was declared rather than bound. It is what lets
-   * an action shared by every binding work out which binding of a second element it means: `declaration` is the
-   * canonical one, so a binding of a binding names the element the whole family was declared as.
+   * The declaration this element was bound from; undefined on an element that was not bound. An action shared by
+   * every binding uses it to determine which binding of a second element applies: the slot holds the canonical
+   * declaration, so a binding of a binding refers to the original declaration.
    */
   declaration: FieldBase | undefined;
 
-  // the slots below are the element's own bookkeeping - nothing reads them inside an effect, and they are
-  // therefore reached through raw
+  // the slots below are the element's internal bookkeeping: nothing reads them inside an effect, so they are
+  // accessed through raw
 
-  /** the verdict the last commit announced, which is what a change of validity is measured against */
+  /** the validity the last commit announced; a change of validity is detected against it */
   valid: boolean;
-  /** number of direct children whose last announced verdict was invalid */
+  /** the number of direct children whose last announced validity was invalid */
   invalidChildren: number;
 }
 
-/** what an element's extended properties start as: one frozen object for all of them, since a write replaces it */
+/** the initial extended properties: one frozen object shared by all elements, since a write replaces it */
 const noExtra = Object.freeze({});
 
 export function elementSlots<T = any>(): ElementSlots<T> {
@@ -118,8 +116,8 @@ export function fieldSlots<T = any>(): FieldSlots<T> {
 }
 
 /**
- * What a container holds beyond the common slots: the object the value getter last built, together with the
- * version of the tree it was built from.
+ * What a container holds beyond the common slots: the object the value getter last built, and the version of the
+ * tree it was built from.
  */
 export interface ContainerSlots<T = any> extends ElementSlots<T> {
   cachedValue: T;
@@ -135,12 +133,12 @@ export function containerSlots<T = any>(): ContainerSlots<T> {
   } as ContainerSlots<T>;
 }
 
-/** what a Group holds beyond the container slots: the names of its members, in the order it took them */
+/** what a Group holds beyond the container slots: the names of its members, in the order they were added */
 export interface GroupSlots<T = any> extends ContainerSlots<T> {
   /**
-   * The names the group holds its members under. The member map itself is a plain object beside the state, so
-   * this array is what a reader inside an effect depends on: a member added or removed re-runs the effect, and a
-   * rolled-back transaction puts the set back with the rest of the slots.
+   * The names the group holds its members under. The member map is a plain object outside the reactive state, so
+   * a reader inside an effect depends on this array: adding or removing a member re-runs the effect, and a rollback
+   * restores the names with the other slots.
    */
   fieldNames: string[];
 }
@@ -153,11 +151,11 @@ export function groupSlots<T = any>(): GroupSlots<T> {
 export interface ListSlots<R extends FieldBase = Group> extends ContainerSlots<ListValue<R>> {
   rows: R[] | null;
   /**
-   * Counts the changes to the set of rows. `items` rebuilds the frozen array it hands out when it moves, and
-   * only then: a write inside a row changes what the list serializes without changing which rows it holds.
+   * Counts the changes to the set of rows. `items` rebuilds its frozen array only when this changes: a write
+   * inside a row changes what the list sends without changing which rows it holds.
    */
   rowsVersion: number;
-  /** the frozen array `items` last handed out, together with the rows version it was built from */
+  /** the frozen array `items` last returned, and the rows version it was built from */
   cachedItems: readonly R[] | null;
   cachedItemsVersion: number;
 }

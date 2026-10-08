@@ -8,14 +8,14 @@ All built-in validators are available on the `Validators` namespace:
 import { Validators } from '@dynamicforms/vue-forms';
 ```
 
-The namespace contains the validators and the types that belong to writing one — `Validator`,
-`ValidationFunction`, `ValidationFunctionResult`, `ValidatorBindingState`, `ValidationErrorOptions`,
-`RequiredOptions`, `Required`, `Pattern`, `MinValue`,
-`MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. The
-namespace is the only way to them: a validator is written `Validators.Required`, never `Required`.
+The namespace contains the validators and the types used to write one: `Validator`, `ValidationFunction`,
+`ValidationFunctionResult`, `ValidatorBindingState`, `ValidationErrorOptions`, `RequiredOptions`, `AllowedValues`,
+`CompareToTarget`, `Required`, `Pattern`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`,
+`LengthInRange`, `InAllowedValues` and `CompareTo`. They are exported only through the namespace: a validator is
+written `Validators.Required`, never `Required`.
 
-`ValidationError` and the error types are what a field hands back rather than what validates it, so they are
-exported from the package root:
+`ValidationError` and the error types describe a field's errors, not its validation, and are exported from the
+package root:
 
 ```typescript
 import { ValidationError } from '@dynamicforms/vue-forms';
@@ -24,19 +24,19 @@ import { Validators } from '@dynamicforms/vue-forms';
 class Even extends Validators.Validator<number> { /* … */ }
 ```
 
-Pass validators when creating a field — `new Field({ validators: [...] })`, `new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })` — or register them later with `registerAction()`.
+Pass validators when creating an element (`new Field({ validators: [...] })`, `new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })`) or register them later with `registerAction()`.
 
-Each validator only ever replaces its own errors when it re-runs; errors contributed by other validators or added from the outside (e.g. server-side errors) are left untouched.
+When a validator re-runs, it replaces only its own errors; errors added by other validators or from outside (e.g. server-side errors) are left unchanged.
 
-The same `ValidationError` instance may be returned by more than one validator, whether they sit on one field or on
-several. A validator reporting an instance another validator already owns contributes a copy of it, which keeps the
-prototype and every own property, so `sameAs` is true between the two. Each validator withdraws only what it
-contributed, so two rules of one field reporting the same instance leave two entries in `field.errors` — report the
-message from a single rule if you want it to appear once.
+The same `ValidationError` instance may be returned by more than one validator, on one field or on several. A
+validator that returns an instance owned by another validator adds a copy of it, which keeps the prototype and
+every own property, so `sameAs` is true between the two. Each validator removes only the errors it added, so two
+validators of one field returning the same instance leave two entries in `field.errors`. Return the error from a
+single validator for it to appear once.
 
-`field.errors` is a reactive array, so what it reads back is a Vue proxy of the error a validator produced rather
-than that object itself. Every property reads through the proxy, but `field.errors[0] === myError` is `false`.
-Compare with `sameAs`, or unwrap with `toRaw()`.
+`field.errors` is a reactive array, so its entries are Vue proxies of the errors a validator produced. Every
+property reads through the proxy, but `field.errors[0] === myError` is `false`. Compare with `sameAs`, or unwrap
+with `toRaw()`.
 
 ## `new Validators.Validator(validationFn)`
 
@@ -53,7 +53,7 @@ const myValidator = new Validators.Validator(async (newValue, oldValue, field) =
 });
 ```
 
-**`validationFn` signature** — exported as `ValidationFunction<T>`:
+**`validationFn` signature**, exported as `ValidationFunction<T>`:
 ```typescript
 type ValidationFunctionResult = ValidationError[] | null;
 type ValidationFunction<T = any> = (
@@ -67,78 +67,77 @@ type ValidationFunction<T = any> = (
 Return `null` or `[]` to indicate no errors. Import `ValidationFunction` when you write a reusable validation
 function separately from the `Validator` that wraps it.
 
-`signal` aborts when the verdict the run would reach stops counting — see [Cancelling a run](#cancelling-a-run).
-Hand it to the work the function commissions; a function with nothing to cancel ignores it.
+`signal` aborts when the run's result would no longer be applied; see [Cancelling a run](#cancelling-a-run).
+Pass it to the work the function starts; a function with nothing to cancel ignores it.
 
 Validators are eager: they run once at field creation, over the value the constructor produced, immediately when
 passed to `registerAction()` on an existing field, on every value change, on `field.validate(true)`, and once more
-where a run reached no verdict because the record it reads was not assembled yet (see
+where a run produced no result because the record it reads was not assembled yet (see
 [`markRecordIncomplete()`](/api/field#markrecordincomplete-void), and
 [A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record)). A field can therefore be `valid === false` before the user has
-interacted with it at all — use `touched` to decide when to actually display the errors.
+interacted with it. Use `touched` to decide when to display the errors.
 
-One validator instance validates every field it is registered on, the bindings of that field included, so a validator
-on a `List`'s item template validates every row. What it remembers about a field it validated — its run sequence,
-and whatever a subclass adds — is held against that field: `protected bindingState(field)` answers with it, and
-`protected newBindingState()` is what a subclass overrides to widen it, returning `{ ...super.newBindingState(), … }`.
-The exported type of the record `Validator` itself keeps is `ValidatorBindingState`.
+One validator instance validates every element it is registered on, including that element's bindings, so a
+validator on a `List`'s item template validates every row. Its per-element state (the run sequence, and whatever a
+subclass adds) is stored per element: `protected bindingState(field)` returns it, and a subclass overrides
+`protected newBindingState()` to extend it, returning `{ ...super.newBindingState(), … }`. The exported type of the
+state `Validator` itself stores is `ValidatorBindingState`.
 
 ### Asynchronous validation
 
-When the validation function returns a `Promise`, `field.validating` becomes `true` right away (the field counts the
-asynchronous runs it has in flight) and `field.errors` / `field.valid` are updated when the promise settles. Every
-container above the field answers `validating` with `true` for as long as the run is in flight, so a form asks
-itself rather than walking its fields, and `busy` on the form is the same answer with the `Action.execute()` runs
-below it included. UI should block submit while either is `true` as well.
+When the validation function returns a `Promise`, `field.validating` becomes `true` immediately (the field counts
+its pending asynchronous runs) and `field.errors` / `field.valid` are updated when the promise settles. Every
+container above the field reads `validating` as `true` while the run is pending, so a form reads its own
+`validating` without iterating its fields. `busy` covers the pending `Action.execute()` runs below the form and does
+not include validation. The UI blocks submit while either is `true`; `settled()` is the promise that resolves when
+both are `false`.
 
-Only the newest run of a validator decides that validator's verdict on a field. Every execution takes the next
-sequence number for that field, and a result is applied only while its run is still the newest one. A slow run
-therefore never overwrites the verdict of a faster run that started after it — the superseded result is
-discarded — so a user typing faster than the round trip ends with the verdict for the value that is actually in the
-field, and `validating` is back to `false` once every run has settled. Synchronous runs take a number from the same
-sequence, so a verdict reached without waiting also supersedes an asynchronous run that is still in flight.
+Only the newest run of a validator determines that validator's result on a field. Every run takes the next
+sequence number for that field, and a result is applied only while its run is the newest one. A slow run therefore
+never overwrites the result of a faster run that started after it; the superseded result is discarded. When the
+user types faster than the round trip, the final result is the one for the value currently in the field, and
+`validating` returns to `false` once every run has settled. Synchronous runs take a number from the same sequence,
+so a synchronous result also supersedes a pending asynchronous run.
 
-A rejected promise reaches no verdict, and no verdict does not count as a pass:
+A rejected promise produces no result, and the field is not treated as valid:
 
-- if the rejected run is still the current one, this validator's errors on the field are replaced by a single error
-  reading `Validation could not be completed`, so the field is invalid while its value is unchecked and a form
-  cannot be submitted over it. The error has the code `validation_failed` and no params. The error belongs to this validator like any other it contributes: the next
-  successful run of the same validator withdraws it. The rejection reason never reaches the user; it is reported
-  once as `console.error('Validation failed', reason)`;
-- a rejection from a superseded run is discarded silently — no error is placed and nothing is logged.
+- if the rejected run is the current one, this validator's errors on the field are replaced by one error with the
+  detail `Validation could not be completed`, the code `validation_failed` and no params. The field is invalid
+  until a later run of the validator succeeds, so the form cannot be submitted. The error belongs to this validator like any
+  other error it adds: the next successful run of the same validator removes it. The rejection reason is not shown
+  to the user; it is logged once as `console.error('Validation failed', reason)`;
+- a rejection from a superseded run is discarded: no error is added and nothing is logged.
 
-In both cases the run still counts as finished, so `validating` returns to `false` and the rejection never surfaces as
-an unhandled rejection.
+In both cases the run counts as finished, so `validating` returns to `false`, and the rejection is not reported as an
+unhandled rejection.
 
-Nothing re-runs a validator on its own once the value has settled: assigning the value it already holds is a no-op,
-so a failure error survives until something starts a new run. Call `field.validate(true)` — on the field or on the
-`Group` above it — to retry after the service is back. The failure message names no cause, because the validator has none to name. When the user
-should read something more specific, catch inside the validation function and return an error of your own, e.g.
+A validator does not re-run by itself once the value is unchanged: assigning the value the field already holds is
+a no-op, so the `validation_failed` error remains until a new run starts. Call `field.validate(true)` (on the field
+or on the `Group` above it) to retry once the service is available. The failure message names no cause. For a more
+specific message, catch inside the validation function and return a custom error, e.g.
 `[new ValidationError('unverified', {}, 'Could not verify this value')]`.
 
-[`clearValidators()`](/api/field#methods) also cancels validation that is still in flight: it drops the validators,
-empties `field.errors` and recalculates the verdict over the emptied list, and a run that settles afterwards — with a
-verdict or with a rejection — can no longer push errors onto the field. A field that was invalid therefore fires
-`ValidChangedAction` and the `Group` or `List` holding it re-evaluates its own validity. `field.validationEpoch` is
-the read-only counter behind the cancellation — `clearValidators()` increments it, a run captures it when it starts,
-and a result whose epoch no longer matches is discarded. The signal the cancelled run was handed aborts with it,
-so a check that honours it stops there, and the run still ends its own bookkeeping: `validating` returns to `false`
-when its promise settles. Inside a transaction the epoch and the cancellation are both taken back by a rollback,
-and the run reaches the verdict the field is then owed.
+[`clearValidators()`](/api/field#methods) also cancels pending validation: it removes the validators, empties
+`field.errors` and recomputes validity over the empty list, and a run that settles afterwards (resolved or rejected)
+does not add errors to the field. A field that was invalid therefore fires `ValidChangedAction`, and the `Group` or
+`List` holding it recomputes its own validity. `field.validationEpoch` is the read-only counter that implements the
+cancellation: `clearValidators()` increments it, a run reads it when it starts, and a result whose epoch no longer
+matches is discarded. The cancelled run's signal aborts, so work that checks it stops; the run still completes its
+own bookkeeping, and `validating` returns to `false` when its promise settles. Inside a transaction, a rollback
+restores both the epoch and the cancelled run, and the run's result is applied to the field.
 
 ### Cancelling a run
 
-The fourth argument a validation function receives is an `AbortSignal`. It aborts the moment the verdict the run
-would reach stops counting:
+The fourth argument of a validation function is an `AbortSignal`. It aborts as soon as the run's result would no
+longer be applied:
 
 - a newer run of the same validator over the same field has started, so this one is superseded;
-- the field no longer carries this validator — `unregisterAction()` or `clearValidators()` took it off, and that
-  removal stands: inside a [transaction](/api/transactions) the cancellation waits for the commit, so a rollback
-  that puts the validator back leaves the run going and the verdict it reaches counts;
-- the transaction the run started in was rolled back, so the value it is examining is one the form never went on
-  to hold.
+- the field no longer has this validator: `unregisterAction()` or `clearValidators()` removed it and the removal
+  is committed. Inside a [transaction](/api/transactions) the cancellation runs at commit, so a rollback that
+  restores the validator leaves the run going and its result applies;
+- the transaction the run started in was rolled back, so the value it examines was never committed.
 
-Hand it to the work the function commissions and that work stops as soon as its answer is worth nothing:
+Pass it to the work the function starts, so that work stops when its result is no longer needed:
 
 ```typescript
 new Validators.Validator(async (newValue, oldValue, field, signal) => {
@@ -147,15 +146,15 @@ new Validators.Validator(async (newValue, oldValue, field, signal) => {
 });
 ```
 
-A cancelled run reaches no verdict at all: neither errors it returns nor a rejection it ends with is applied, so a
-`fetch` rejecting with `AbortError` places nothing on the field and logs nothing. A validation function that
-ignores the signal runs to the end and its result is discarded when it arrives. Either way the run ends its own
-bookkeeping, so `validating` returns to `false` once its promise settles.
+A cancelled run produces no result: neither the errors it returns nor its rejection is applied, so a `fetch`
+rejecting with `AbortError` adds no error to the field and logs nothing. A validation function that ignores the
+signal runs to completion and its result is discarded. In both cases the run completes its own bookkeeping, so
+`validating` returns to `false` once its promise settles.
 
 ## Built-in validators
 
-A built-in validator reports a [`ValidationError`](#validationerror) with its [code](#error-codes), its params and an
-English detail, the default shown for each validator below with the params substituted. The last constructor
+A built-in validator returns a [`ValidationError`](#validationerror) with its [code](#error-codes), its params and an
+English detail, whose default is shown for each validator below, with the params substituted. The last constructor
 argument of every built-in validator is `ValidationErrorOptions`:
 
 ```typescript
@@ -165,19 +164,19 @@ interface ValidationErrorOptions {
 }
 ```
 
-The params stay the validator's own. A `{name}` placeholder that names no param stays in the detail as written. The
+The options do not change the params. A `{name}` placeholder that names no param stays in the detail unchanged. The
 application renders the error; see [Error messages and translation](/guide/getting-started#error-messages-and-translation).
 
 `InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` take a type argument, which types a
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
-`new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure whatever
+`new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure any value
 the field holds.
 
 ### `new Validators.Required(options?)`
 
 Fails when the value is empty (zero-length string, empty array, empty plain object, or `null`/`undefined`). A
-string is trimmed before it is measured, so a value of spaces alone is no value and the field is invalid. Only
-strings are trimmed; an array, an object or any other value is measured as it stands.
+string is trimmed before it is measured, so a value of only spaces is empty and the field is invalid. Only strings
+are trimmed; an array, an object or any other value is measured unchanged.
 
 ```typescript
 new Field({ value: '', validators: [new Validators.Required({ code: 'name_required', detail: 'Enter a name' })] })
@@ -204,7 +203,7 @@ interface RequiredOptions extends ValidationErrorOptions {
 
 ### `new Validators.Pattern(pattern, options?)`
 
-Fails when the string representation of the value does not match `pattern`. The value is converted with `String(value)` before testing, so `undefined` is tested as the string `"undefined"`. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes and flags (`/^\d{4}$/`). Avoid the `g` flag — `RegExp.test` keeps `lastIndex` between calls with it.
+Fails when the string representation of the value does not match `pattern`. The value is converted with `String(value)` before testing, so `undefined` is tested as the string `"undefined"`. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes and flags (`/^\d{4}$/`). Avoid the `g` flag: with it, `RegExp.test` keeps `lastIndex` between calls.
 
 ```typescript
 new Validators.Pattern(/^\d{4}$/, { detail: 'Must be a 4-digit number' })
@@ -313,14 +312,17 @@ new Validators.InAllowedValues(() => rolesFor(department.value))
 | `allowedValues` | `AllowedValues<T>` (`T[] \| Ref<T[]> \| (() => T[])`) | required |
 | `options` | `ValidationErrorOptions` | code `in_allowed_values`, detail `'Must be one of [{allowedAsText}]'` |
 
-`AllowedValues<T>` is exported. The list is read at each validation rather than at construction, so a reference or
-a callback answers with the list in force then, and that list is both the one the value is measured against and
-the one the error names. The read happens inside the validation run, which is no reactive effect, so a
-list that changes does not revalidate the fields on its own — call `field.validate(true)` where they are to be
-measured against the new list at once.
+`AllowedValues<T>` is exported. The list is read at each validation, not at construction, so a ref or a callback
+provides the current list, and that list is used both for the check and in the error. The read happens inside the
+validation run, which is not a reactive effect, so a change to the list does not revalidate the fields. Call
+`field.validate(true)` to check them against the new list immediately.
 
-The params carry the list as `allowedValues`, so an application names the values in its own language. `allowedAsText`
-is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so that the whole substitution — the `... (N items total)` suffix included — is at most 40 characters, cutting at the last `, ` that still fits. The suffix takes about twenty of those characters, so what survives is roughly the first twenty characters of the joined list: twenty values named `value-0` … `value-19` give `value-0, value-1... (20 items total)`. The full list is in `allowedValues`.
+The params contain the list as `allowedValues`, so an application can name the values in its own language.
+`allowedAsText` is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so
+that the whole substitution, including the `... (N items total)` suffix, is at most 40 characters, cut at the last
+`, ` that fits. The suffix takes about twenty of those characters, so roughly the first twenty characters of the
+joined list remain: twenty values named `value-0` … `value-19` give `value-0, value-1... (20 items total)`. The full
+list is in `allowedValues`.
 
 ---
 
@@ -346,13 +348,13 @@ new Validators.CompareTo(
 type CompareToTarget = FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined);
 ```
 
-All three forms answer for the record the validation is running over, which is what makes one validator serve every
-row of a `List`: handed the item template's field, a row compares against **that row's** field, and a name is
-looked up in the row before the form the list sits in. A field belonging to no record of the validated field's —
-one the whole form holds — is compared against as it stands, by every row. Handed a field of an *enclosing* item
-template, that is the field itself as well: the rows of a nested list compare against the enclosing template's
-field rather than against the field of the enclosing row they sit in. Name it by name to reach that one — the
-lookup walks the containers the validated field has, so it finds the enclosing row.
+All three forms resolve against the record being validated, so one validator serves every row of a `List`: given
+the item template's field, a row compares against **that row's** field, and a name is looked up in the row before
+the form that holds the list. A field outside every record of the validated field (one held by the form itself) is
+compared against directly, by every row. A field of an *enclosing* item template is also compared against
+directly: the rows of a nested list compare against the enclosing item template's field, not against the field of
+the enclosing row. To reach the enclosing row's field, pass its name: the lookup walks the validated field's
+containers, so it finds the enclosing row.
 
 ```typescript
 const row = new Group({ password: new Field(), confirmation: new Field() });
@@ -365,26 +367,25 @@ row.fields.confirmation.registerAction(
 new Validators.CompareTo<string>('password', (mine, other) => mine === other, { detail: 'Passwords must match' });
 ```
 
-A record that does not hold the compared field yet — a row is validated as it is assembled, before it holds either
-of its own fields — makes the validator reach no verdict rather than report a pass. It says so, and the container
-that completes the record validates the field again over the record it then has: a row carries the verdict its own
-fields support from the moment the row exists, and a name that only the form holding the list answers to is
-resolved when the list takes the row into that form. A name nothing ever answers to leaves the field with no
-verdict from this validator at all.
+When the record does not yet hold the compared field (a row is validated while it is assembled, before it holds
+its own fields), the validator produces no result and calls `markRecordIncomplete()`. The container that completes
+the record validates the field again over the completed record: a row has the validity its own fields determine
+as soon as the row exists, and a name that resolves only in the form holding the list is resolved when the
+list adds the row to that form. A name that never resolves leaves the field with no result from this validator.
 
 ## Error types
 
 ### Error codes
 
-`error.code` is a snake_case identifier of what failed. A program matches on it to react to one particular failure,
-and a renderer looks the text of the error up by it.
+`error.code` is a snake_case identifier of what failed. Code matches on it to handle a particular failure, and a
+renderer uses it to look up the error text.
 
 ```typescript
 const missing = field.errors.filter((error) => error.code === 'required');
 ```
 
-`error.params` holds the values the failure is stated with; it is an empty object where the error states none. The
-codes the library states, with their params and the English detail:
+`error.params` holds the values that describe the failure; it is an empty object where there are none. The codes
+the library uses, with their params and the English detail:
 
 | Code | Raised by | Params | English detail |
 |------|-----------|--------|----------------|
@@ -425,7 +426,7 @@ interface ErrorDescription {
 | Member | Description |
 |--------|-------------|
 | `code` | Machine-readable identifier of what failed, in snake_case |
-| `params` | The values the failure is stated with |
+| `params` | The values that describe the failure |
 | `detail` | The failure in English, plain text. The constructor stores it as given; the built-in validators substitute the params before they construct the error |
 | `origin` | Where the error comes from; see below |
 
@@ -439,9 +440,9 @@ field.errors.push(new ValidationError(body.detail_code ?? 'server_error', body.d
 
 #### `sameAs(other): boolean`
 
-True where `other` has the same class, `code`, `params` (deep equality), `detail` and stated origin. When a validator
-re-runs and produces an error for which `sameAs` is true against one it already contributed, the field keeps the
-instance it has. A changed param, such as `newValue`, gives a new instance.
+True where `other` has the same class, `code`, `params` (deep equality), `detail` and explicit origin. When a
+validator re-runs and produces an error for which `sameAs` is true against one it already added, the field keeps
+the existing instance. A changed param, such as `newValue`, gives a new instance.
 
 #### `origin`
 
@@ -450,9 +451,9 @@ type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
 ```
 
 `'validator'` for an error a validator produced, `'server'` for one the server returned, and `'application'` for one
-the application's own code computed and wrote into `errors`. An origin given as the last constructor argument
-stands; where none is given, an error a validator hands the field is `'validator'` and any other is `'application'`.
-Any other string is an origin of the application's own.
+the application's own code computed and wrote into `errors`. An origin passed as the last constructor argument
+is used as is; where none is passed, an error returned by a validator is `'validator'` and any other is
+`'application'`. Any other string is an application-defined origin.
 
 The library does not read the origin. A rendering layer reads it to decide when to show an error, and code reads it
 to withdraw the errors of one origin and leave the others, as

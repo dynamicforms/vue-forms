@@ -16,7 +16,7 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
     return super.raw as FieldSlots<T>;
   }
 
-  /** the value slot itself, without the notifications the value setter carries around a write */
+  /** the value slot itself, without the notifications the value setter sends on a write */
   protected get _value(): T {
     return this.state.value;
   }
@@ -31,31 +31,30 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
   }
 
   /**
-   * Applies the constructor parameters. It is a hook so that a subclass needing different parameter handling
-   * overrides one method instead of redeclaring the constructor - Action does exactly that.
+   * Applies the constructor parameters. A subclass that needs different parameter handling overrides this method
+   * instead of redeclaring the constructor, as Action does.
    *
-   * It is called from this constructor, so it runs before a subclass's own class field initializers, which
-   * only run once super() returns. An override must therefore work off its parameters alone: members the
-   * subclass initializes read as undefined inside it, and anything it writes to such a member is overwritten
-   * the moment the initializer runs.
+   * It is called from this constructor, so it runs before a subclass's class field initializers, which run after
+   * super() returns. An override can therefore use only its parameters: members the subclass initializes are
+   * undefined inside it, and a value it writes to such a member is overwritten when the initializer runs.
    */
   protected init(params?: IFieldParams<T, X>) {
     transactional(() => {
       if (params) {
         const { value: paramValue, validators, actions, ...otherParams } = params;
-        // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
-        // guards them too
+        // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
+        // also applies to those assignments
         this.registerInitialActions([...(validators || []), ...(actions || [])]);
         this.assignParams(otherParams);
-        // an absent value falls back to originalValue, an explicit null does not: null is a value a caller means
+        // a missing value defaults to originalValue; an explicit null is a value and is kept
         this._value = paramValue !== undefined ? paramValue : this.originalValue;
       }
       this.constructed(params);
-      // a field the caller gave no baseline is baselined on the value its construction ends on, which is what the
+      // without a supplied baseline, the baseline is the value the construction ends with, which is the value the
       // hook above leaves
       if (this.originalValue === undefined) this.originalValue = this._value;
-      // the value a construction ends on is the field's first statement about itself rather than a change of one,
-      // so it is recorded as announced and the commit that follows says nothing about it
+      // the value a construction ends with is the field's initial state, not a change, so it is recorded as
+      // announced and the following commit announces nothing for it
       this.recordAnnounced();
       this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
       this.validate();
@@ -68,18 +67,18 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
 
   set value(newValue: T) {
     const oldValue = this._value;
-    // a field takes the write whatever its access: access decides what the field sends and whether an input
+    // the write is applied whatever the access: access determines what the field sends and whether an input
     // accepts typing, and a record loaded into the form reaches every member
     if (oldValue === newValue) return;
     transactional((tx) => {
       tx.touch(this);
       this._value = newValue;
       this.bumpValueVersion();
-      // the validators run here rather than at the announcement, because the verdict they reach is what the
-      // commit announces. They read what the field sends, which a write changes only where the field sends its
-      // value: one that sends nothing or null sends the same after the write
+      // the validators run here, not at the announcement, because the commit announces their result. They read
+      // what the field sends, which a write changes only if the field sends its value: a field that sends nothing
+      // or null sends the same after the write
       if (this.serializesAs('value') === 'value') this.boundActions?.triggerEager(this, newValue, oldValue);
-      // the handlers hear about the change once the transaction closes, over the value the field ends up holding
+      // the handlers receive the change when the transaction closes, with the field's final value
       this.propagateValueChanged();
     });
   }
@@ -97,7 +96,7 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (params?: IFieldParams<T, X>) => this;
     const res = new Ctor({
-      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears
+      // undefined data counts as not supplied; an explicit null is supplied and clears
       value: data !== undefined ? data : this.value,
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       access: overrides?.access ?? this.access,

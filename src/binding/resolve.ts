@@ -4,17 +4,17 @@ import type { Group } from '../group';
 /**
  * Resolution of one element against another element's record.
  *
- * An action instance is shared: every row a `List` builds from an item template carries the instances the template
- * carries, and what differs per row is the data. An action that reads a second element - a statement comparing two
- * fields, a validator comparing a password with its confirmation - therefore has to be told which second element it
- * means for the row it is running over, and the structure is what tells it: the element the action was declared
- * against, and the record it is running in, name it between them.
+ * An action instance is shared: every row a `List` builds from an item template has the same action instances as
+ * the item template, and only the data differs per row. An action that reads a second element (a statement
+ * comparing two fields, a validator comparing a password with its confirmation) must find the second element that
+ * belongs to the row it runs over. The structure determines it: the element the action was declared against and the
+ * record it runs in identify the second element together.
  */
 
 /**
- * The record an element belongs to: the `List` row that holds it, or the top of its container chain where no row
- * does. A container holds a row without a name and a `Group` names every member, so the element whose container
- * gave it no name is where a record begins.
+ * Returns the record an element belongs to: the `List` row that holds it, or the top of its container chain if no
+ * row does. A List holds a row without a name and a `Group` names every member, so a record begins at the first
+ * element without a `fieldName`.
  */
 export function scopeOf(element: FieldBase): FieldBase {
   let current = element;
@@ -23,9 +23,9 @@ export function scopeOf(element: FieldBase): FieldBase {
 }
 
 /**
- * The member of `record` that was declared as `declaration`, and `undefined` where the record holds none. The path
- * of names is what locates it: the record is walked down the same names that lead from the declaration's own record
- * to the declaration itself.
+ * Returns the member of `record` whose declaration is `declaration`, or `undefined` if the record holds none. It is
+ * located by path: the record is walked down the names that lead from the declaration's own record to the
+ * declaration.
  */
 function memberOf(record: FieldBase, declaration: FieldBase): FieldBase | undefined {
   let resolved: FieldBase | undefined = record;
@@ -36,7 +36,7 @@ function memberOf(record: FieldBase, declaration: FieldBase): FieldBase | undefi
   return resolved?.declaration === declaration ? resolved : undefined;
 }
 
-/** The names leading from an element's record down to the element itself. */
+/** The names leading from an element's record down to the element. */
 function pathOf(element: FieldBase): string[] {
   const path: string[] = [];
   let current = element;
@@ -48,19 +48,20 @@ function pathOf(element: FieldBase): string[] {
 }
 
 /**
- * The element `declaration` stands for within `scope`. It is the member `scope` holds at the same position, where
- * that member was declared as `declaration`; `declaration` itself, where it belongs to a record other than
- * `scope`'s and is therefore the one element every record reads - a form field above a list, or a field of another
- * row named on purpose; and `undefined`, where `scope` is a record of the same kind that has yet to be built,
- * which says that the question has to be asked again once it is.
+ * Returns the element that corresponds to `declaration` within `scope`:
+ * - the member `scope` holds at the same position, if that member's declaration is `declaration`;
+ * - `declaration` itself, if it belongs to a record other than `scope`'s and is therefore the one element every
+ *   record reads (a form field above a list, or a field of another row referenced explicitly);
+ * - `undefined`, if `scope` is a record of the same kind that is not built yet; the caller resolves again once it
+ *   is.
  */
 export function resolveInScope(declaration: FieldBase, scope: FieldBase): FieldBase | undefined {
   const withinRecord = memberOf(scope, declaration);
   if (withinRecord) return withinRecord;
 
-  // the record holds no member declared as this element, so it belongs to a record further out. A list nested in a
-  // row makes that record one per row - an order's total, read by the lines of that order - so the containers are
-  // asked in turn before the element is taken for one every record reads alike
+  // the record holds no member with this declaration, so it belongs to an enclosing record. A list nested in a row
+  // makes that record one per row (an order's total, read by the lines of that order), so each enclosing container
+  // is searched before the element is treated as one that every record reads
   let enclosing = scope.parent;
   while (enclosing) {
     const bound = memberOf(scopeOf(enclosing), declaration);
@@ -68,19 +69,19 @@ export function resolveInScope(declaration: FieldBase, scope: FieldBase): FieldB
     enclosing = enclosing.parent;
   }
 
-  // nothing above holds a binding of it either. Either it is the one element every record reads - a form field
-  // above a list - or the record is one of the same family and is still being assembled
+  // no enclosing container holds a binding of it either. Either it is the one element every record reads (a form
+  // field above a list), or the record has the same declaration and is still being assembled
   return scopeOf(declaration) === scopeOf(scope.declaration) ? undefined : declaration;
 }
 
 /**
- * Every element `declaration` stands for when something changes in `scope`. It is the one member of that record
- * where the record holds one; where the element belongs to a record above - a form field the rows of a list read -
- * it is each of its bindings inside `scope`, because a change there speaks for every one of them; and where
- * `scope` reaches no binding at all, it is the element itself, which is the answer for a form that has no records
- * below it.
- * A record still being assembled reaches none of these and answers with nothing, so the assignment that finishes
- * it asks again.
+ * Returns every element that corresponds to `declaration` when something changes in `scope`:
+ * - the one member of that record, if the record holds one;
+ * - if the element belongs to a record above (a form field the rows of a list read), each of its bindings inside
+ *   `scope`, because a change there applies to all of them;
+ * - if `scope` contains no binding, the element itself, which is the case for a form without records below it.
+ * For a record still being assembled it returns an empty array, and the assignment that completes the record
+ * resolves again.
  */
 export function bindingsIn(declaration: FieldBase, scope: FieldBase): FieldBase[] {
   const resolved = resolveInScope(declaration, scope);
@@ -91,9 +92,9 @@ export function bindingsIn(declaration: FieldBase, scope: FieldBase): FieldBase[
 }
 
 /**
- * The element named `name` in the nearest container above `element` that holds one, and `undefined` where no
- * container does. A row is searched before the form the list sits in, so a rule written against a name reads the
- * row it is running over.
+ * Returns the element named `name` in the nearest container above `element` that holds one, or `undefined` if no
+ * container does. A row is searched before the form containing the list, so a rule that refers to a name reads
+ * the row it runs over.
  */
 export function resolveByName(name: string, element: FieldBase): FieldBase | undefined {
   let container = element.parent;

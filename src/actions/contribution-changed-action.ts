@@ -6,15 +6,15 @@ import { FieldActionExecute } from '@/field.interface';
 export const ContributionChangedActionClassIdentifier = Symbol('ContributionChangedAction');
 
 /**
- * Told what an element contributes to its container's `value` once that changed over a transaction: the element's
- * value where its access sends it, `null` for `'disabled-null'`, and `undefined` for `'disabled'`, whose key or row
- * is left out. The pair carried is (contribution now, contribution at the last announcement).
+ * Fires when what an element sends to its container's `value` changed over a transaction: the element's value if
+ * its access sends it, `null` for `'disabled-null'`, and `undefined` for `'disabled'`, whose key or row is omitted.
+ * The parameters are (contribution now, contribution at the last announcement).
  *
- * It answers a different question from `ValueChangedAction`, which reports what the element holds. A write into a
- * `'disabled'` field changes what the field holds and not what it sends, so it fires `ValueChangedAction` alone;
- * switching a field's access changes what it sends and not what it holds, so it fires this action alone. On a
- * container, what it holds is its `fullValue` and what it sends is its `value`, so a change of a member's access
- * reaches the containers above as a change of their contribution, never of their value.
+ * `ValueChangedAction` reports what the element holds; this action reports what it sends. A write into a
+ * `'disabled'` field changes what the field holds and not what it sends, so it fires only `ValueChangedAction`;
+ * changing a field's access changes what it sends and not what it holds, so it fires only this action. A container
+ * holds its `fullValue` and sends its `value`, so a change of a member's access fires this action on the
+ * containers above, and not `ValueChangedAction`.
  */
 export class ContributionChangedAction<T = any> extends FieldActionBase {
   constructor(

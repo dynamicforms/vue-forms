@@ -87,7 +87,7 @@ import {
   Validators,
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
-// The item template: a declaration of what a single row is, bound to the data of every row the list holds.
+// The item template: the declaration of a single row, bound to the data of every row the list holds.
 // The Required validator is declared once here and applies to the description of every row.
 const lineItem = new Group({
   description: new Field({ value: '', validators: [new Validators.Required()] }),
@@ -95,10 +95,10 @@ const lineItem = new Group({
   unitPrice: new Field({ value: null })
 });
 
-// A validator on a template field also runs in every row. Inside a row, field.parent is that row's Group, so the
-// lookup below reads the quantity of the same row. A row is built member by member, so the first run happens
-// before the member has a row at all: reaching nothing is no verdict, and markRecordIncomplete() is what asks for
-// the run to be repeated once the row exists.
+// A validator on a field of the item template runs in every row. Inside a row, field.parent is that row's Group, so
+// the lookup below reads the quantity of the same row. A row is built member by member, so the first run happens
+// before the member has a row: the validator has no result, and markRecordIncomplete() makes the row run it again
+// once the row exists.
 lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, oldValue, field) => {
   const row = field.parent;
   if (!(row instanceof Group)) {
@@ -111,7 +111,7 @@ lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, old
   return null;
 }));
 
-// The rule spans two fields, so a new quantity sends the unit price of the same row through its validators again
+// The rule spans two fields, so a new quantity re-validates the unit price of the same row
 lineItem.fields.quantity.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   const result = supr(field, newValue, oldValue);
   if (field.parent instanceof Group) field.parent.fields.unitPrice.validate(true);
@@ -125,7 +125,7 @@ function logEvent(message) {
   events.value = [...events.value, message].slice(-6);
 }
 
-// The list, built from the template and populated with two rows
+// The list, built from the item template and populated with two rows
 const lineItems = new List(lineItem, {
   value: [
     { description: 'Consulting hours', quantity: 8, unitPrice: 120 },
@@ -143,8 +143,8 @@ const lineItems = new List(lineItem, {
   ]
 });
 
-// list.items hands out the Group behind every row, which is what the inputs bind to. The array is frozen and is
-// rebuilt as rows come and go, and the read is tracked, so this recomputes on every mutation.
+// list.items returns the Group of every row; the inputs bind to these. The array is frozen and is rebuilt when
+// rows are added or removed, and the read is reactive, so this recomputes on every mutation.
 const rows = computed(() => lineItems.items);
 
 function addLine() {

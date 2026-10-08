@@ -7,8 +7,8 @@ import { FieldActionExecute } from '@/field.interface';
 const AccessChangingActionClassIdentifier = Symbol('AccessChangingAction');
 
 /**
- * Asked before an element's `access` is written. A handler answers with the access to write instead, or throws
- * `AbortEventHandlingException` to refuse the write.
+ * Fires before an element's `access` is written. A handler returns the access to write instead, or throws
+ * `AbortEventHandlingException` to cancel the write.
  */
 export class AccessChangingAction extends FieldActionBase {
   constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: Access, oldValue: Access) => Access) {
@@ -26,7 +26,7 @@ export class AccessChangingAction extends FieldActionBase {
 
 const AccessChangedActionClassIdentifier = Symbol('AccessChangedAction');
 
-/** Told once an element's `access` has been written. */
+/** Fires after an element's `access` has been written. */
 export class AccessChangedAction extends FieldActionBase {
   constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: Access, oldValue: Access) => void) {
     super(executorFn);

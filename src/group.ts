@@ -9,59 +9,57 @@ import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
 /**
- * Converts a field structure into the matching value structure. The indexed access reads each field's value
- * getter, so a nested Group contributes its own value structure and a List contributes its row array; inferring
- * from FieldBase<infer U> instead would pick up the value setter, which is deliberately wider than the getter on
- * Group. Every member may be `null`, because a member whose access is `'disabled-null'` contributes `null` in place
- * of its value.
+ * Converts a field structure into the matching value structure. The indexed access reads each element's value
+ * getter, so a nested Group sends its own value structure and a List sends its row array; inferring from
+ * FieldBase<infer U> would use the value setter, which on Group accepts a wider type than the getter returns.
+ * Every member may be `null`, because a member whose access is `'disabled-null'` sends `null` in place of its
+ * value.
  */
 export type FieldsToValues<T extends GenericFieldsInterface> = {
   [K in keyof T]: T[K]['value'] | null;
 };
 
 /**
- * What Group.fullValue reads back. The indexed access reads each field's fullValue getter, so a nested group
- * contributes its own full structure rather than the partial one its `value` builds. Every member is present
- * whatever its access.
+ * The type of Group.fullValue. The indexed access reads each element's fullValue getter, so a nested group has its
+ * full structure, not the partial one its `value` builds. Every member is present whatever its access.
  */
 export type FieldsToFullValues<T extends GenericFieldsInterface> = {
   [K in keyof T]: T[K]['fullValue'];
 };
 
 /**
- * What Group.value reads back: the values of the members that serialize, and `{}` where none does. Every key is
- * optional, because a member whose access is `'disabled'` is left out of the object the group builds.
+ * The type of Group.value: the values of the members that send something, and `{}` if none does. Every key is
+ * optional, because a member whose access is `'disabled'` is omitted from the object the group builds.
  */
 export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>>;
-/** what Group.value and the Group constructor accept: keys left out are simply not assigned, and null clears */
+/** what Group.value and the Group constructor accept: missing keys are not assigned, and null clears */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
 
 /**
- * The groups whose constructor is still taking and writing their members. A member's record is completed once the
- * constructor has written the data it was given, so a rule that reads a sibling runs over that data rather than
- * over the values the members were bound with.
+ * The groups whose constructor is still adding and writing their members. A member's record is completed after the
+ * constructor has written the given data, so a rule that reads a sibling runs over that data, not over the values
+ * the members were bound with.
  */
 const assembling = new WeakSet<object>();
 
-/** the value a group none of whose members serializes reads back; it is frozen like every value a group builds */
+/** the value of a group in which no member sends anything; it is frozen like every value a group builds */
 const emptyGroupValue = Object.freeze({});
 
 /**
- * The guarded view of a group's member map, held outside the group it belongs to. It is a proxy over the very map
- * the group writes into, so an element carrying it as a property would be walked twice by JSON.stringify and by
- * lodash isEqual, both of which go down a structure over own keys.
+ * The read-only view of a group's member map, held outside the group. It is a proxy over the map the group writes
+ * into, so as a property of the group it would be walked twice by JSON.stringify and by lodash isEqual, which both
+ * walk own keys.
  */
 const fieldsViews = new WeakMap<object, GenericFieldsInterface>();
 
 /**
- * The handler behind that view. Every read goes through `track` first, which reads the group's name array - the
- * part of the state that says which members the group holds - so a reader inside an effect re-runs when
- * addField() or removeField() changes the set; the map itself is beside the state, and a write to it would
- * otherwise reach nobody.
+ * The handler of that view. Every read calls `track` first, which reads the group's name array (the part of the
+ * state that lists the members), so a reader inside an effect re-runs when addField() or removeField() changes the
+ * set of members; the map itself is outside the reactive state, and a write to it alone triggers no effect.
  *
- * Every write is refused: a field assigned into the map, or one deleted out of it, would never receive parent,
- * fieldName or change notifications, and the group would go on counting the verdict of a member it no longer
- * holds. addField() and removeField() are the way the set of members changes.
+ * Every write throws a TypeError: an element assigned into the map or deleted from it would not get its parent,
+ * fieldName or change notifications updated, and the group would keep counting the validity of a member it no
+ * longer holds. Use addField() and removeField() to change the set of members.
  */
 const fieldsAreReadOnly = (track: () => number): ProxyHandler<GenericFieldsInterface> => ({
   get(target, key, receiver) {
@@ -113,12 +111,12 @@ export class Group<
     super(groupSlots<GroupValue<T>>());
 
     if (!Group.isValidFields(fields)) throw new Error('Invalid fields object provided');
-    // the backing map has no prototype: a field may be named after an Object.prototype member, and on an
-    // ordinary object a `__proto__` key would go to the inherited setter instead of becoming a field
+    // the backing map has no prototype: a field may be named after an Object.prototype member, and on a regular
+    // object a `__proto__` key would call the inherited setter instead of becoming a field
     this._fields = Object.create(null) as T;
 
-    // construction is one transaction: the members are taken and written before anything is announced, and a
-    // member that refuses to be taken - one another container already holds - leaves behind no half-built group
+    // construction is one transaction: the members are added and written before anything is announced, and a
+    // member that cannot be added (another container already holds it) leaves no partially built group
     transactional(() => {
       assembling.add(this);
       try {
@@ -126,14 +124,14 @@ export class Group<
 
         if (params) {
           const { value: paramValue, validators, actions, ...otherParams } = params;
-          // registration precedes the assignment of the remaining parameters, so a *Changing* action supplied here
-          // guards them too
+          // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied
+          // here also applies to those assignments
           this.registerInitialActions([...(validators || []), ...(actions || [])]);
           this.assignParams(otherParams);
-          // an assignment is made only for a value the caller actually supplied, and undefined is not one: spreading
-          // an optional property yields an undefined value, and assigning it would push null into every member and
-          // then baseline that emptied state as the original, so the group would report itself unchanged over values
-          // its members never held. An explicit null is a supplied value and does clear the members.
+          // the value is assigned only if supplied, and undefined counts as not supplied (spreading an optional
+          // property yields undefined): assigning it would write null into every member and record that cleared
+          // state as the original, so the group would report itself unchanged over values its members never held.
+          // An explicit null is a supplied value and clears the members.
           if (paramValue !== undefined) this.assignMembers(paramValue as GroupValueInput<T>);
           else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
         }
@@ -141,20 +139,19 @@ export class Group<
         assembling.delete(this);
       }
 
-      // the members are in place and hold their values, so this is the record they were promised: a member whose
-      // eager pass ran before the group existed - every member of a bound group - gets it here
+      // the members are in place and hold their values, so their record is complete: a member whose eager pass ran
+      // before the group existed (every member of a bound group) runs it again here
       this.completeRecords();
 
       this.constructed(params);
 
-      // reading value walks every member and builds an object, so it is read once here and the result serves
-      // every reader below
+      // reading value walks every member and builds an object, so it is read once here and reused below
       const constructedValue = this.value;
       if (this.originalValue === undefined) this.originalValue = Group.baseline(constructedValue);
 
-      // the state a construction ends on is the group's first statement about itself rather than a change of one:
-      // recording it as announced is what keeps the commit from reporting the members' assignment as a change of
-      // the group, and it is what the first later change of a member is reported against
+      // the state a construction ends with is the group's initial state, not a change: recording it as announced
+      // keeps the commit from announcing the members' assignment as a change of the group, and the first later
+      // change of a member is compared against it
       this.recordAnnounced();
 
       this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
@@ -163,8 +160,8 @@ export class Group<
   }
 
   /**
-   * The name array is copied as well: a rollback puts back the set of members the group held, not the array it
-   * went on to hold.
+   * The name array is copied as well, so a rollback restores the set of members the group held before the
+   * transaction.
    */
   protected [TxCapture](): TxSnapshot {
     const captured = super[TxCapture]();
@@ -173,43 +170,43 @@ export class Group<
   }
 
   /**
-   * The copy of a built value that serves as a baseline. The value getter hands out one object per version, and
-   * a baseline holding that same object would report every value as its own original.
+   * A copy of a built value, used as a baseline. The value getter returns one object per version, and a baseline
+   * holding that same object would make every value equal to its original.
    */
   private static baseline<V extends GenericFieldsInterface>(value: GroupValue<V>): GroupValue<V> {
     return value == null ? value : { ...value };
   }
 
   /**
-   * Takes `field` into this group under `fieldName`. The group ends up holding it exactly as it holds a field the
-   * constructor was given: the field carries the back-reference and the name, its verdict counts towards the
-   * group's, and a rule of the field's that names another member of the form reaches it here.
+   * Adds `field` to this group under `fieldName`, in the same state as an element passed to the constructor: the
+   * element has the back-reference and the name, its validity counts towards the group's, and a rule of the element
+   * that refers to another element of the form is resolved here.
    *
-   * The change is announced through the ordinary path, so a group whose value the new field adds to says so once
-   * the transaction closes, and its verdict is re-formed over the members it now holds. The baseline behind
-   * `isChanged` is not rewritten: a group that gains a field holds something its original value does not carry,
-   * and reports itself changed until `originalValue` is written.
+   * The change is announced through the regular path: the group announces its new value when the transaction
+   * closes, and its validity is recomputed over its current members. The baseline behind `isChanged` is not
+   * rewritten: a group that gains an element holds a value its original value does not contain, and reports itself
+   * changed until `originalValue` is written.
    *
-   * @throws Error where this group already holds a field under `fieldName`.
-   * @throws TypeError where `field` already belongs to a container - pass a `bind()` of it instead.
+   * @throws Error if this group already holds an element under `fieldName`.
+   * @throws TypeError if `field` already belongs to a container; pass a `bind()` of it instead.
    */
   addField(fieldName: string, field: FieldBase): this {
     transactional((tx) => {
       if (Object.hasOwn(this._fields, fieldName)) {
         throw new Error(`Field ${fieldName} is already in this form`);
       }
-      // takeChild refuses a field that another group or list already holds, and installs the back-reference and
-      // the name together
+      // takeChild throws for an element another group or list already holds, and sets the back-reference and the
+      // name together
       this.takeChild(field, fieldName);
       tx.touch(this);
       Group.setEntry(this._fields, fieldName, field);
-      // the map is not part of the state a snapshot covers, so the removal is handed to the transaction as its own
-      // undo; the name array is in the state and a rollback puts it back with everything else
+      // the map is not in the state a snapshot covers, so the removal is registered as a separate undo; the name
+      // array is in the state and a rollback restores it with the rest
       tx.whenRolledBack(() => Group.dropEntry(this._fields, fieldName));
       this.state.fieldNames.push(fieldName);
-      // the field now reaches the form this group stands in, so a rule of its own that names a field up there -
-      // one no record below could answer - is run over it here. A group still being constructed completes its
-      // members once it has written the data it was given.
+      // the element is now connected to the form above this group, so a rule of the element that refers to an
+      // element there (one no record below can resolve) runs over it here. A group still being constructed
+      // completes its members after it has written the given data.
       if (!assembling.has(this)) this.completeRecords(field);
       this.bumpValueVersion();
       this.notifyValueChanged();
@@ -218,13 +215,13 @@ export class Group<
   }
 
   /**
-   * Takes the field held under `fieldName` out of this group and hands it back, answering undefined where the
-   * group holds no field of that name. The field is released whole: the back-reference and the name are gone, its
-   * verdict and its runs in flight no longer count towards the group's, and it is free to be taken by another
-   * container. What it holds - its value, its errors, the change history behind `isChanged` - is its own to report.
+   * Removes the element held under `fieldName` from this group and returns it, or returns undefined if the group
+   * holds no element of that name. The back-reference and the name are cleared, its validity and its runs in
+   * flight no longer count towards the group's, and another container can take it. It keeps its value, its errors
+   * and the change history behind `isChanged`.
    *
-   * The change is announced through the ordinary path, so the group's value and verdict settle over the members it
-   * has left. The baseline behind `isChanged` is not rewritten, the same way it is not on `addField`.
+   * The change is announced through the regular path, so the group's value and validity are recomputed over the
+   * remaining members. The baseline behind `isChanged` is not rewritten, as with `addField`.
    */
   removeField(fieldName: string): FieldBase | undefined {
     let removed: FieldBase | undefined;
@@ -244,14 +241,14 @@ export class Group<
   }
 
   /**
-   * Writes one entry of the member map. The map is typed by the fields interface, which names the members a group
-   * of that type holds and no others, so both here and in dropEntry it is reached as the plain record it is.
+   * Writes one entry of the member map. The map is typed by the fields interface, which lists only the members of
+   * that group type, so here and in dropEntry it is cast to a plain record.
    */
   private static setEntry(fields: GenericFieldsInterface, fieldName: string, field: FieldBase): void {
     (fields as Record<string, FieldBase>)[fieldName] = field;
   }
 
-  /** Drops one entry out of the member map. */
+  /** Removes one entry from the member map. */
   private static dropEntry(fields: GenericFieldsInterface, fieldName: string): void {
     delete (fields as Record<string, FieldBase | undefined>)[fieldName];
   }
@@ -278,12 +275,12 @@ export class Group<
   }
 
   /**
-   * The typed map of this group's members. What it hands out is a view over the map the group holds: reading it
-   * reaches the members themselves, and every write to it is refused - addField() and removeField() are what
-   * change the set. The view is built the first time something asks for it.
+   * The typed map of this group's members. It is a view over the map the group holds: a read returns the members
+   * themselves, and every write throws a TypeError (use addField() and removeField()). The view is created on the
+   * first read.
    *
-   * Reading through it is a tracked read of the set of members, so a template rendering off `group.fields`
-   * re-renders when a field is added or removed; what a member itself holds is tracked by that member.
+   * A read through it is a tracked read of the set of members, so a template that reads `group.fields` re-renders
+   * when an element is added or removed; each member tracks its own state.
    */
   get fields(): T {
     let view = fieldsViews.get(this);
@@ -302,19 +299,19 @@ export class Group<
   }
 
   protected get children(): readonly FieldBase[] {
-    // the names are read through the tracked view, so a member added or removed re-forms what is composed over
-    // them; the members themselves are reached through the map, which is beside the state
+    // the names are read through the tracked view, so adding or removing a member recomputes what is composed
+    // over them; the members are read from the map, which is outside the reactive state
     return this.state.fieldNames.map((name) => this._fields[name]);
   }
 
   get value(): GroupValue<T> {
-    // the version is a tracked read and the cache is not, so a reader that is answered from the cache still
-    // depends on every write below this group without the walk being repeated for it
+    // the version read is tracked and the cache read is not, so a reader served from the cache still depends on
+    // every write below this group, without repeating the walk
     const version = this.valueVersion;
     if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
 
     // accumulate without a prototype so a field named `__proto__` is stored instead of reassigning the
-    // accumulator's prototype; the spread on return hands back an ordinary object
+    // accumulator's prototype; the spread on return produces a regular object
     const val = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
       switch (this.childSerializesAs(field, 'value')) {
@@ -328,9 +325,9 @@ export class Group<
           break;
       }
     });
-    // the object outlives the read that built it - the next reader is answered with the very same one - so it is
-    // frozen: a caller writing into it would change what the group reports without any member holding that value.
-    // A group that serializes at all serializes as an object, so one none of whose members contributes reads {}.
+    // the object is shared with later readers, so it is frozen: a write into it would change the group's value
+    // without any member holding that value. A group that sends a value sends an object, so a group in which no
+    // member sends anything returns {}.
     const built = (isEmpty(val) ? emptyGroupValue : Object.freeze({ ...val })) as GroupValue<T>;
     this.raw.cachedValue = built;
     this.raw.cachedValueVersion = version;
@@ -338,9 +335,9 @@ export class Group<
   }
 
   /**
-   * Writes the members that the given value carries. The members are written one by one and the group says
-   * nothing in between: the transaction the assignment runs in measures the group's own value and its own verdict
-   * once, over the finished set, and announces each at most once.
+   * Writes the members whose keys the given value contains. The members are written one by one and the group
+   * announces nothing in between: the transaction compares the group's value and validity once, after all members
+   * are written, and announces each at most once.
    */
   private assignMembers(newValue: GroupValueInput<T>) {
     transactional(() => {
@@ -360,9 +357,9 @@ export class Group<
   }
 
   /**
-   * Members are reset one by one rather than assigned as a whole value: the value setter writes only the keys the
-   * value carries, while a member the value leaves out has to end up holding what the template gives it. `source`
-   * supplies that per member, so a group reset from the template it was bound from matches a fresh binding of it.
+   * Members are reset one by one, not assigned as a whole value: the value setter writes only the keys the value
+   * contains, while a member missing from the value must take its value from `source`. `source` supplies it per
+   * member, so a group reset from the declaration it was bound from matches a new binding of it.
    */
   protected resetTo(source: FieldBase, value: any): void {
     const template = source as Group<T>;
@@ -370,15 +367,14 @@ export class Group<
       tx.touch(this);
       if (this.errors.length) this.errors = [];
       Object.entries(this._fields).forEach(([name, field]) => {
-        // a key the value does not carry leaves the member to the template; a null value clears every member,
-        // the same way assigning null does
+        // a member whose key is missing from the value takes its value from the template; a null value clears
+        // every member, as assigning null does
         let memberValue: any;
         if (value === null) memberValue = null;
         else if (value !== undefined && Object.hasOwn(value, name)) memberValue = value[name];
         this.resetChild(field, template.field(name) ?? field, memberValue);
       });
-      // a group brought to the state a fresh one would be in makes no statement of its own about the change: the
-      // container that reset it announces the whole of it
+      // a reset group announces nothing itself: the container that reset it announces the change
       this.recordAnnounced();
       this.originalValue = Group.baseline(this.value);
       super.validate(true);
@@ -386,8 +382,8 @@ export class Group<
   }
 
   /**
-   * Everything the group holds: every member's `fullValue`, whatever the member's access. Where `value` states what
-   * the group sends, this states what it holds, and it is what a binding of the group carries.
+   * Everything the group holds: every member's `fullValue`, whatever the member's access. `value` is what the group
+   * sends; `fullValue` is what it holds, and a binding of the group copies it.
    */
   get fullValue(): FieldsToFullValues<T> {
     const value = Object.create(null) as Record<string, any>;
@@ -398,14 +394,14 @@ export class Group<
   }
 
   /**
-   * States that `res` was built from the members handed to it. A subclass whose constructor takes something other
-   * than `(fields, params)` - one that composes its own members and passes them to super - never sees them, and
-   * would answer with a binding carrying the declaration's data instead of the record's. That is a difference no
-   * reader would find, so it is refused here rather than returned.
+   * Throws a TypeError if `res` was not built from the members passed to it. A subclass whose constructor does not
+   * take `(fields, params)` (one that composes its own members and passes them to super) ignores them and would
+   * return a binding with the declaration's data instead of the record's. The difference would not be visible, so
+   * it throws here.
    */
   private static assertTookFields(res: Group<any, any>, fields: object, name: string): void {
-    // the members are compared by identity rather than by name: a subclass that composes its own set arrives at
-    // the same names, and it is the instances carrying the record's data that have to be the ones it took on
+    // the members are compared by identity, not by name: a subclass that composes its own members has the same
+    // names, and the check requires the instances that hold the record's data
     const asked = Object.entries(fields) as [string, FieldBase][];
     const got = res.raw.fieldNames;
     if (asked.length === got.length && asked.every(([key, field]) => res._fields[key] === field)) return;
@@ -424,8 +420,8 @@ export class Group<
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
     const res = new Ctor(newFields, {
-      // data is what the caller supplied, and undefined is not supplied; an explicit null is, and clears. What the
-      // group holds is carried rather than what it sends, so a member that sends nothing keeps its data
+      // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
+      // the group holds (fullValue), not what it sends, so a member that sends nothing keeps its data
       value: data !== undefined ? data : (this.fullValue as GroupValueInput<T>),
       ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
       access: overrides?.access ?? this.access,
@@ -437,8 +433,8 @@ export class Group<
   }
 
   /**
-   * A record need not name every member: a key it leaves out is taken from the declaration, the same way a member
-   * the constructor is given no value for takes the one it was declared with.
+   * A record need not contain every member: a missing key is taken from the declaration, as a member without a
+   * value in the constructor keeps the value it was declared with.
    */
   rebind(data: GroupValueInput<T>): this {
     return super.rebind(data as GroupValue<T>);

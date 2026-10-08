@@ -2,21 +2,20 @@ import type FieldActionBase from './actions/field-action-base';
 import type { FieldBase } from './field-base';
 
 /**
- * A transaction is the unit an observer sees a change in. Every mutating operation runs inside one: where the
- * caller opens none, the operation is the transaction, so a single write is atomic without anything having to be
- * remembered at the call site.
+ * A transaction is the unit in which an observer sees a change. Every mutating operation runs inside one: if the
+ * caller has not opened one, the operation is its own transaction, so a single write is atomic without any action
+ * at the call site.
  *
- * Writes land in the element straight away and only the announcement waits. At commit the net transitions are
- * measured against the state the elements last announced and each is announced once, so a value that goes A -> B
- * -> A within one transaction says nothing. Validators run while the transaction is open, because the verdict
- * they reach is what the commit announces; every other action fires at commit.
+ * Writes are applied to the element immediately; only the announcement is deferred. At commit the net changes are
+ * compared against the state the elements last announced and each is announced once, so a value that goes
+ * A -> B -> A within one transaction is not announced. Validators run while the transaction is open, because the
+ * commit announces their result; every other action fires at commit.
  *
- * A transaction may not cross an await: transaction() throws when the callback returns a thenable. Two
- * overlapping transactions therefore cannot exist, and an asynchronous validator settling later opens one of its
- * own at that moment.
+ * A transaction cannot span an await: transaction() throws when the callback returns a thenable. Two overlapping
+ * transactions therefore cannot exist, and an asynchronous validator that settles later opens its own transaction.
  */
 
-/** the slots of one element as they stood when the transaction first modified it */
+/** the slots of one element as they were when the transaction first modified it */
 export type TxSnapshot = Record<string, any>;
 
 /** a ListItemAddedAction or ListItemRemovedAction waiting for the commit that will emit it */
@@ -27,12 +26,12 @@ export interface TxStructuralEvent {
 }
 
 /**
- * The protocol a transaction drives its participants through. The four members are symbol-keyed so that they
- * carry no name a consumer could reach or collide with, and they live on the prototype, so no walker over an
- * element's own keys sees them either.
+ * The protocol a transaction uses to call its participants. The members are symbol-keyed, so a consumer cannot
+ * reach them by name or collide with them, and they are on the prototype, so a walk over an element's own keys
+ * does not find them.
  */
 export const TxCapture = Symbol('Transaction.capture');
-/** asked by a validator before it runs: whether the element is sent nowhere, read without tracking */
+/** read by a validator before it runs: whether the element is not sent at all, read without tracking */
 export const SentNowhere = Symbol('FieldBase.sentNowhere');
 export const TxRestore = Symbol('Transaction.restore');
 export const TxAnnounceValue = Symbol('Transaction.announceValue');
@@ -46,25 +45,25 @@ interface TxParticipantElement {
   [TxSettleValidity](tx: Transaction): void;
 }
 
-/** FieldBase declares the four members above as protected, which is what keeps them off the documented surface */
+/** FieldBase declares the four members above as protected, which keeps them out of the documented API */
 function hooks(element: FieldBase): TxParticipantElement {
   return element as unknown as TxParticipantElement;
 }
 
 interface Participant {
   element: FieldBase;
-  /** the element's state as the transaction found it, taken the first time the transaction modified the element */
+  /** the element's state before the transaction, captured the first time the transaction modified the element */
   snapshot?: TxSnapshot;
-  /** the commit has to work out whether this element's value changed and announce it where it did */
+  /** the commit determines whether this element's value changed and announces it if it did */
   valueDirty: boolean;
-  /** the caller already knows the value changed, so the commit announces it without comparing */
+  /** the caller has established that the value changed, so the commit announces it without comparing */
   forceValue: boolean;
-  /** the commit has to re-form this element's verdict and announce a transition of it */
+  /** the commit recomputes this element's validity and announces a change of it */
   validityDirty: boolean;
   structural?: TxStructuralEvent[];
 }
 
-/** how many containers stand above an element; the commit announces the deepest first */
+/** the number of containers above an element; the commit announces the deepest first */
 function depthOf(element: FieldBase): number {
   let depth = 0;
   let ancestor = element.parent;
@@ -78,22 +77,22 @@ function depthOf(element: FieldBase): number {
 export class Transaction {
   private readonly participants = new Map<FieldBase, Participant>();
 
-  /** what a rollback has to put back beyond the state slots, newest last */
+  /** what a rollback restores beyond the state slots, newest last */
   private readonly undo: (() => void)[] = [];
 
-  /** what the commit has to do once the change stands, in the order it was handed in */
+  /** work the commit runs after the change is complete, in registration order */
   private readonly settled: (() => void)[] = [];
 
-  /** true once the transaction has been unwound, which is what tells a run started inside it to say nothing */
+  /** true once the transaction has been rolled back; a run started inside it then announces nothing */
   private unwound = false;
 
-  /** the depth the announcement in progress is working at, -1 while none is */
+  /** the depth the current announcement pass is processing, -1 while no pass runs */
   private passDepth = -1;
 
-  /** set while a pass is running and an element it has already passed the depth of gets enrolled */
+  /** set when, during a pass, an element is enrolled at or below the depth being processed */
   private restartPass = false;
 
-  /** true for a transaction that was rolled back rather than committed */
+  /** true for a transaction that was rolled back */
   get rolledBack(): boolean {
     return this.unwound;
   }
@@ -108,16 +107,16 @@ export class Transaction {
   }
 
   /**
-   * Records the state of an element the first time the transaction modifies it. The whole of the mutable state
-   * goes into the snapshot rather than the part being written: a rollback that restored some of it would leave
-   * the element in a state the form never held.
+   * Records the state of an element the first time the transaction modifies it. The snapshot contains all of the
+   * mutable state, not only the part being written: a partial restore would leave the element in a state the form
+   * never had.
    */
   touch(element: FieldBase): void {
     const entry = this.participant(element);
     if (!entry.snapshot) entry.snapshot = hooks(element)[TxCapture]();
   }
 
-  /** Enrols an element as one whose value the commit has to announce. `force` skips the comparison. */
+  /** Enrols an element whose value the commit announces. `force` skips the comparison. */
   markValueChanged(element: FieldBase, force: boolean): void {
     const entry = this.participant(element);
     entry.valueDirty = true;
@@ -125,15 +124,15 @@ export class Transaction {
     this.noteDepth(element);
   }
 
-  /** Enrols an element as one whose verdict the commit has to re-form. */
+  /** Enrols an element whose validity the commit recomputes. */
   markValidityDirty(element: FieldBase): void {
     this.participant(element).validityDirty = true;
     this.noteDepth(element);
   }
 
   /**
-   * Queues an event that states an operation rather than a state. Added and removed items have no net over a
-   * transaction, so they are neither compared nor coalesced: the commit emits them in the order they happened.
+   * Queues an event that describes an operation, not a state. Added and removed items have no net result over a
+   * transaction, so they are neither compared nor merged: the commit emits them in the order they happened.
    */
   recordStructural(element: FieldBase, event: TxStructuralEvent): void {
     const entry = this.participant(element);
@@ -141,35 +140,34 @@ export class Transaction {
     this.noteDepth(element);
   }
 
-  /** True where the commit still owes this element a value announcement. */
+  /** True if the commit has a pending value announcement for this element. */
   willAnnounceValue(element: FieldBase): boolean {
     return this.participants.get(element)?.valueDirty ?? false;
   }
 
   /**
-   * Registers what a rollback has to put back beyond the element's state slots. The snapshot covers the slots,
-   * which is everything an ordinary write touches; an operation that replaces something else the element carries
-   * hands its own undo in here rather than making every snapshot carry the thing.
+   * Registers an undo step for state outside the element's state slots. The snapshot covers the slots, which is
+   * everything a regular write modifies; an operation that replaces anything else registers its own undo here, so
+   * the snapshot does not have to include it.
    */
   whenRolledBack(work: () => void): void {
     this.undo.push(work);
   }
 
   /**
-   * Registers work that runs once the transaction has committed, and not at all where it is rolled back. It is
-   * how an operation defers a step that cannot be taken back - cancelling work in flight, for one - until the
-   * change it belongs to actually stands.
+   * Registers work that runs after the transaction commits, and not at all if it is rolled back. An operation uses
+   * it to defer a step that cannot be undone (for example, cancelling work in flight) until its change is
+   * committed.
    */
   whenCommitted(work: () => void): void {
     this.settled.push(work);
   }
 
   /**
-   * Notes that an element at or below the depth the pass in progress is working at has been enrolled. The pass
-   * then gives up the rest of its batch and is started again over what is now owed, so the newcomer is reached
-   * before the containers above it: an element a handler writes must still be announced before the container
-   * whose composed value carries that write. The depth is only measured while a pass is running - outside one
-   * there is nothing the answer would change.
+   * Records that an element at or below the depth of the running pass has been enrolled. The pass then stops and
+   * restarts over the pending entries, so the new element is processed before the containers above it: an element
+   * a handler writes is announced before the container whose composed value includes that write. The depth is
+   * computed only while a pass runs; outside a pass it has no effect.
    */
   private noteDepth(element: FieldBase): void {
     if (this.passDepth < 0) return;
@@ -177,9 +175,9 @@ export class Transaction {
   }
 
   /**
-   * Puts every element the transaction modified back as it found it. Nothing is announced: from an observer's
-   * point of view the transaction never happened. What a rollback cannot take back are side effects - a handler
-   * that called a server during the transaction already did.
+   * Restores every element the transaction modified to its state before the transaction. Nothing is announced, so
+   * an observer sees no change. A rollback does not undo side effects, such as a server call a handler made during
+   * the transaction.
    */
   rollback(): void {
     this.unwound = true;
@@ -188,20 +186,20 @@ export class Transaction {
       if (entry.snapshot) hooks(entry.element)[TxRestore](entry.snapshot);
     });
     this.participants.clear();
-    // newest first, so an element written twice ends up as the earlier of the two writes found it
+    // newest first, so an element written twice ends in the state before the earlier write
     for (let index = this.undo.length - 1; index >= 0; index--) this.undo[index]();
     this.undo.length = 0;
-    // the change never stood, so what was waiting for it never runs
+    // the change was not committed, so the work registered with whenCommitted does not run
     this.settled.length = 0;
   }
 
   /**
-   * Announces what the transaction did. Values first and verdicts after, because a container's validators run
-   * with its value announcement and the verdict they reach is what the validity pass then reports. Both passes
-   * run deepest first - field, then row, then list - which is the order the change travelled in.
+   * Announces the transaction's changes. Values first and validity after, because a container's validators run
+   * with its value announcement and the validity pass reports their result. Both passes run deepest first (field,
+   * then row, then list), the order in which the change propagates.
    *
    * A handler may write while the commit runs; its writes join this transaction, so both passes repeat until
-   * nothing is left dirty.
+   * nothing is dirty.
    */
   commit(): void {
     for (;;) {
@@ -209,16 +207,15 @@ export class Transaction {
       if (this.settleValidity()) continue;
       break;
     }
-    // everything is announced and the change stands, so the steps that were waiting for it run here
+    // everything is announced and the change is committed, so the work registered with whenCommitted runs here
     for (let index = 0; index < this.settled.length; index++) this.settled[index]();
     this.settled.length = 0;
   }
 
   /**
-   * The dirty participants a pass has to visit, one bucket per nesting depth; ties keep the order they were
-   * enrolled in. A nesting depth is a small integer, so the elements go into buckets rather than through a
-   * comparison sort: a whole-list assignment enrols one participant per field, and ordering those by comparison
-   * would cost more than the announcement it orders.
+   * The dirty participants a pass visits, one bucket per nesting depth; within a depth they keep enrolment order.
+   * A nesting depth is a small integer, so bucketing replaces a comparison sort: a whole-list assignment enrols one
+   * participant per field, and a comparison sort of those would cost more than the announcement itself.
    */
   private buckets(pick: (entry: Participant) => boolean): (Participant[] | undefined)[] {
     const buckets: (Participant[] | undefined)[] = [];
@@ -231,10 +228,10 @@ export class Transaction {
   }
 
   /**
-   * Runs one pass over the dirty participants, deepest bucket first; the caller repeats it until it answers
-   * false. The buckets are taken once, and the pass gives up as soon as a handler enrols an element at or below
-   * the depth being drained: that element is not in the bucket being walked, and going on would reach the
-   * containers above it first. The caller's next pass takes fresh buckets and finds it at its own depth.
+   * Runs one pass over the dirty participants, deepest bucket first; the caller repeats it until it returns false.
+   * The buckets are built once, and the pass stops as soon as a handler enrols an element at or below the depth
+   * being processed: that element is not in the current bucket, and continuing would process the containers above
+   * it first. The caller's next pass builds new buckets that include it at its depth.
    */
   private pass(pick: (entry: Participant) => boolean, visit: (entry: Participant) => void): boolean {
     const buckets = this.buckets(pick);
@@ -248,7 +245,7 @@ export class Transaction {
         for (let index = 0; index < bucket.length; index++) {
           if (this.restartPass) return true;
           const entry = bucket[index];
-          // a handler that ran earlier in this pass may have taken the entry off the list of what is owed
+          // a handler that ran earlier in this pass may have cleared the entry's pending flags
           if (pick(entry)) visit(entry);
         }
       } finally {
@@ -285,38 +282,38 @@ export class Transaction {
   }
 }
 
-/** the transaction every mutating operation currently joins, absent while none is open */
+/** the transaction every mutating operation currently joins; undefined while none is open */
 let current: Transaction | undefined;
 
-/** the handle of the open transaction, which a nested call joining it receives too */
+/** the handle of the open transaction, which a nested call that joins it also receives */
 let currentHandle: TransactionHandle | undefined;
 
-/** The open transaction, for the bookkeeping an element does only where one is running. */
+/** The open transaction, for the bookkeeping an element does only while one is open. */
 export function currentTransaction(): Transaction | undefined {
   return current;
 }
 
 /**
- * Unwinds the transaction from wherever it is called. It is a signal rather than an error: transaction()
- * catches it, rolls back and returns undefined, and nothing is reported as a failure.
+ * Thrown to unwind the transaction from the point of the call. It is a signal, not an error: transaction() catches
+ * it, rolls back and returns undefined, and no failure is reported.
  */
 class RollbackSignal {}
 
 export interface TransactionControl {
   /**
-   * Undoes everything the transaction has done and ends it, announcing nothing. It unwinds from the point of
-   * the call, so nothing after it runs. There are no savepoints: a nested call rolls back the whole transaction
-   * it joined, not its own part of it.
+   * Undoes everything the transaction has done and ends it, announcing nothing. It unwinds from the point of the
+   * call, so no code after it runs. There are no savepoints: a nested call rolls back the whole transaction it
+   * joined, not only its own part.
    *
-   * @throws TypeError where the transaction the handle belongs to has already closed.
+   * @throws TypeError if the transaction the handle belongs to has already closed.
    */
   rollback(): never;
 }
 
 /**
- * The handle one transaction hands the callbacks that take part in it. It is spent the moment the transaction
- * closes: a handle kept beyond that call names a transaction that no longer exists, and letting it unwind
- * whatever transaction happened to be open instead would roll back an unrelated operation.
+ * The handle a transaction passes to the callbacks that take part in it. It becomes invalid when the transaction
+ * closes: a handle kept after that refers to a transaction that no longer exists, and using it to roll back the
+ * transaction open at that time would roll back an unrelated operation.
  */
 class TransactionHandle implements TransactionControl {
   private open = true;
@@ -346,16 +343,16 @@ function rejectThenable(result: unknown): void {
 }
 
 /**
- * Runs `fn` as one atomic change. The writes it makes land in the elements as they are made and the events they
- * produce are announced once, at the end, over the net result.
+ * Runs `fn` as one atomic change. Its writes are applied to the elements immediately, and the resulting events are
+ * announced once, at the end, for the net result.
  *
- * A call made while a transaction is already open joins it: nothing is committed until the outermost call
- * returns. A throw out of `fn` rolls the whole transaction back and rethrows, and `tx.rollback()` rolls it back
- * without an error, in which case the call answers undefined.
+ * A call made while a transaction is open joins it: nothing is committed until the outermost call returns. An
+ * exception thrown from `fn` rolls back the whole transaction and is rethrown; `tx.rollback()` rolls it back
+ * without an error, and the call returns undefined.
  *
  * The handle `fn` receives is usable only for the duration of that call; calling it afterwards throws a TypeError.
  *
- * @throws TypeError immediately if `fn` returns a thenable - a transaction cannot cross an await.
+ * @throws TypeError immediately if `fn` returns a thenable: a transaction cannot span an await.
  */
 export function transaction<R>(fn: (tx: TransactionControl) => R): R | undefined {
   if (current) {
@@ -374,8 +371,8 @@ export function transaction<R>(fn: (tx: TransactionControl) => R): R | undefined
     tx.commit();
     return result;
   } catch (error) {
-    // the commit may have announced part of the change before the throw; the state goes back all the same, and
-    // what a handler did with the events it already received is a side effect no snapshot reaches
+    // the commit may have announced part of the change before the throw; the state is restored regardless, and
+    // what a handler did with the events it already received is a side effect no snapshot covers
     tx.rollback();
     if (error instanceof RollbackSignal) return undefined;
     throw error;
@@ -387,8 +384,8 @@ export function transaction<R>(fn: (tx: TransactionControl) => R): R | undefined
 }
 
 /**
- * Runs a mutating operation inside the open transaction, opening one for the operation where none is. It is how
- * an element reaches the transaction it takes part in: everything the library mutates goes through here.
+ * Runs a mutating operation inside the open transaction, or opens one for the operation if none is open. Every
+ * mutation in the library goes through this function.
  */
 export function transactional<R>(fn: (tx: Transaction) => R): R {
   if (current) return fn(current);
