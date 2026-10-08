@@ -246,6 +246,7 @@ describe('SubmitAction', () => {
     const result = await form.fields.save.execute();
 
     expect(result).toBeInstanceOf(SubmitRefusedException);
+    expect((result as SubmitRefusedException).reason).toBe('invalid');
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -293,6 +294,7 @@ describe('SubmitAction', () => {
     await first;
 
     expect(second).toBeInstanceOf(SubmitRefusedException);
+    expect(second.reason).toBe('running');
     expect(handler).toHaveBeenCalledTimes(1);
   });
 

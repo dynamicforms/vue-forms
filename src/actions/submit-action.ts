@@ -1,9 +1,9 @@
 import { watch } from 'vue';
 
-import { ExecuteAction } from './execute-action';
+import type { FieldBase } from '../field-base';
+import { AbortEventHandlingException } from '../field.interface';
 
-import type { FieldBase } from '@/field-base';
-import { AbortEventHandlingException } from '@/field.interface';
+import { ExecuteAction } from './execute-action';
 
 /**
  * The element a `SubmitAction` or a `RejectAction` works on: an element, or a callback that returns it for the
@@ -57,24 +57,33 @@ function validated(element: FieldBase): Promise<void> {
   });
 }
 
+/** Why a `SubmitAction` refused to submit: the target is invalid, or a submit of the same action is running. */
+export type SubmitRefusalReason = 'invalid' | 'running';
+
 /**
- * The exception a `SubmitAction` ends with when its target is invalid or a submit of the same action is running.
- * `execute()` resolves with it.
+ * The exception a `SubmitAction` ends with when it refuses to submit. `execute()` resolves with it; `reason` states
+ * why.
  */
-export class SubmitRefusedException extends AbortEventHandlingException {}
+export class SubmitRefusedException extends AbortEventHandlingException {
+  constructor(public readonly reason: SubmitRefusalReason) {
+    super(reason === 'invalid' ? 'the submitted element is invalid' : 'a submit of this action is already running');
+  }
+}
 
 /**
  * Sends the value of `target` to `handler`. On `execute()` it:
  *
  * 1. waits until `target.validating` is false, so a validation started in the same event is finished. It does not
  *    await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
- * 2. where `target.valid` is false, ends with a `SubmitRefusedException`, which `execute()` resolves with;
+ * 2. where `target.valid` is false, ends with a `SubmitRefusedException` with `reason` `'invalid'`, which
+ *    `execute()` resolves with;
  * 3. calls `handler(target.value, target)` and awaits it;
  * 4. where the result is not `undefined` and `rebind` is not false, calls `target.rebind(result)`;
  * 5. calls the next handler in the chain and returns a `SubmitResult`: the action, the value sent and the value
  *    `handler` returned.
  *
- * A second `execute()` while a submit of the same action is running is refused with a `SubmitRefusedException`.
+ * A second `execute()` while a submit of the same action is running is refused with a `SubmitRefusedException`
+ * with `reason` `'running'`.
  *
  * A `handler` that throws or rejects makes `execute()` reject with that error; the target is not changed. Mapping
  * a server's field errors to the fields is the handler's: it writes them to `field.errors` before it throws.
@@ -92,13 +101,13 @@ export class SubmitAction<R = any> extends TargetedExecuteAction {
   ) {
     super(async (action, supr, params): Promise<SubmitResult<R>> => {
       const run = this.state(action, () => ({ running: false }));
-      if (run.running) throw new SubmitRefusedException('a submit of this action is already running');
+      if (run.running) throw new SubmitRefusedException('running');
       run.running = true;
       try {
         const element = this.targetFor(action);
         if (!element) throw new Error('SubmitAction: the target callback returned no element');
         await validated(element);
-        if (!element.valid) throw new SubmitRefusedException('the submitted element is invalid');
+        if (!element.valid) throw new SubmitRefusedException('invalid');
         const sent = element.value;
         const received = await handler(sent, element);
         if (received !== undefined && options.rebind !== false) element.rebind(received);

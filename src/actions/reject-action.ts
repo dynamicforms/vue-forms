@@ -1,6 +1,6 @@
-import { type CommandTarget, TargetedExecuteAction } from './submit-action';
+import type { FieldBase } from '../field-base';
 
-import type { FieldBase } from '@/field-base';
+import { type CommandTarget, TargetedExecuteAction } from './submit-action';
 
 /**
  * Puts `target` back to its baseline: on `execute()` it calls `target.rebind(target.originalValue)`, which sets the
