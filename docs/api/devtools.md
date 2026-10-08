@@ -29,7 +29,32 @@ Selecting a node shows its state:
 The inspector of a component lists, under **vue-forms**, the value of every element the component's `setup()`
 constructed. The tree and the state are sent again after every committed transaction, at most once per 100 ms.
 
-The inspector shows state; it does not edit it, and there is no timeline.
+There is no timeline.
+
+## Editing
+
+In the vue-forms inspector these members are editable:
+
+| Member | Where |
+|---|---|
+| `value` | a `Field` or an `Action`, including a member of an object or an array it holds. A `Group` or a `List` is edited through its members |
+| `access`, `visibility`, `touched` | every element |
+| extended properties | every element, through `setExtendedValues()` |
+
+The devtools edit a value as text and offer no list of choices. The rows `access options` and `visibility options`
+show the values with the letter that stands for each in parentheses:
+
+| Member | Options |
+|---|---|
+| `access` | `(e)ditable`, `(r)eadonly`, `(d)isabled`, `disabled-(n)ull` |
+| `visibility` | `(f)ull`, `(i)nvisible`, `(h)idden`, `(s)uppress` |
+
+An access or a visibility is typed as the value or as its letter, ignoring case: `n` sets `disabled-null`.
+
+An edit is a write through the element's setter, as a write from the application: it is a transaction, the
+validators run, and the actions registered on the element fire. Editing a member of an object a field holds assigns a
+new copy of the object with that member replaced. A value the setter refuses, such as an access that is none of the
+four, changes nothing and is reported in the console.
 
 ## What is listed
 

@@ -30,6 +30,7 @@ describe('the devtools plugin in the devtools kit', () => {
     const components = tree.find((node: any) => node.id === 'components');
     expect(components.children[0].label).toBe('RootApp > PersonDemo');
     expect(components.children[0].children[0].children.map((node: any) => node.label)).toEqual(['a']);
+    expect(Object.hasOwn(components.children[0].children[0].children[0], 'children')).toBe(false);
 
     await kit.devtools.api.getInspectorTree({ inspectorId: 'components', filter: '' });
     const demo = vm.$.subTree.component;
@@ -40,5 +41,27 @@ describe('the devtools plugin in the devtools kit', () => {
     expect(state.state.filter((item: any) => item.type === 'vue-forms')).toEqual([
       expect.objectContaining({ value: { a: 1 } }),
     ]);
+
+    // an edit as the devtools client sends it for the inspector's state
+    const field = components.children[0].children[0].children[0];
+    const before = await kit.devtools.api.getInspectorState({ inspectorId: 'dynamicforms-state', nodeId: field.id });
+    expect(before.element.find((item: any) => item.key === 'access options').value).toBe(
+      '(e)ditable | (r)eadonly | (d)isabled | disabled-(n)ull',
+    );
+    expect(before.element.find((item: any) => item.key === 'visibility options').value).toBe(
+      '(f)ull | (i)nvisible | (h)idden | (s)uppress',
+    );
+    expect(before.element.find((item: any) => item.key === 'value')).toEqual(
+      expect.objectContaining({ value: 1, editable: true }),
+    );
+    kit.devtools.api.editInspectorState({
+      inspectorId: 'dynamicforms-state',
+      nodeId: field.id,
+      path: ['value'],
+      type: 'element',
+      state: { value: 5 },
+    });
+    const after = await kit.devtools.api.getInspectorState({ inspectorId: 'dynamicforms-state', nodeId: field.id });
+    expect(after.element.find((item: any) => item.key === 'value').value).toBe(5);
   });
 });

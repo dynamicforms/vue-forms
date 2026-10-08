@@ -23,10 +23,9 @@ may rely on are not settled. Each needs to be looked at and decided — implemen
 documented pattern, or declined — not necessarily built. Many of them, 5 onwards in particular, read as something a
 plugin could add, so the plugin system (2) is decided first and may settle several of the others:
 
-1. **Vue devtools: editing and a timeline.** The inspector lists the state and shows it (`src/devtools/`); a value
-   cannot be edited from the devtools yet, and there is no timeline of transactions, actions and validation runs.
-   Editing writes through the element's setter, so it goes through a transaction. The timeline needs the hook on
-   committed transactions that plugins (2) need as well.
+1. **Vue devtools: a timeline.** The inspector lists, shows and edits the state (`src/devtools/`); there is no
+   timeline of transactions, actions and validation runs. It needs the hook on committed transactions that plugins
+   (2) need as well.
 2. **Plugins.** No extension point for cross-cutting behaviour such as persisting state between page loads.
 3. **Derived values and functions next to the state.** They live outside the element, as `computed` and plain
    functions; undecided whether an element can carry them, and whether there is a subscription to every action that
