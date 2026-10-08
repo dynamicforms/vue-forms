@@ -462,7 +462,7 @@ what lets it say so. `interface RichValue extends ActionValue { label?: string |
 `string` in the base refused it, and a subclass cannot widen an accessor the base class typed — that is `TS2416`,
 and no cast on the subclass's side reaches it. A subclass now restates the two members in its value type and the
 inherited accessors answer at that type; an accessor override is needed only where the read is to be filtered. See
-[Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass).
+[Widening the value in a subclass](/api/action#widening-the-value-in-a-subclass).
 
 
 ## Upgrading to v0.16.0 (from v0.15.x)

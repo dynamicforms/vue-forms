@@ -86,13 +86,13 @@ Executes the action that confirms this container, with `params`, and returns wha
 rendering layer calls it for a confirm gesture, such as Enter in a dialog. The action is looked up in three steps;
 the first step that finds a candidate decides:
 
-1. an action at or below the container with a [`SubmitAction`](/api/actions#submitaction-target-handler-options)
+1. an action at or below the container with a [`SubmitAction`](/api/action#submitaction-target-handler-options)
    whose target is this container;
-2. an action with [`defaultConfirm`](/api/actions#the-action-class) among the container's direct members;
+2. an action with [`defaultConfirm`](/api/action) among the container's direct members;
 3. an action with `defaultConfirm` at a lower level, such as in a bar of actions.
 
 Only actions whose `visibility` is `'full'` are candidates, so a form can hold a "Create" and a "Save" action and
-show one of them. One candidate is executed if it is [`executable`](/api/actions#the-action-class); where it is
+show one of them. One candidate is executed if it is [`executable`](/api/action); where it is
 not, nothing is executed and the later steps are not searched. Two or more candidates in one step are ambiguous:
 nothing is executed and a warning is logged. Returns `undefined` where nothing is executed.
 
@@ -110,7 +110,7 @@ so a direct call is rarely needed.
 ### `reject(params?): Promise<any> | undefined`
 
 Executes the action that rejects this container, looked up as in [`confirm()`](#confirm-params-promise-any-undefined)
-with [`RejectAction`](/api/actions#rejectaction-target) and `defaultReject`. A rendering layer calls it for a reject
+with [`RejectAction`](/api/action#rejectaction-target) and `defaultReject`. A rendering layer calls it for a reject
 gesture, such as Escape in a dialog.
 
 ### `validate(revalidate?): void`
@@ -178,7 +178,7 @@ sends to `value` and whether it is validated.
 
 The values follow HTML: a `readonly` input is submitted with its value and a `disabled` one is left out.
 
-An [`Action`](/api/actions#the-action-class) sends nothing to `value` or `fullValue`, whatever its access, and is
+An [`Action`](/api/action) sends nothing to `value` or `fullValue`, whatever its access, and is
 not validated. A container whose children are all actions, such as a bar of buttons, sends nothing either. A
 container without children sends `{}` or `[]`.
 

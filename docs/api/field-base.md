@@ -1,7 +1,7 @@
 # FieldBase
 
 `FieldBase` (element) is the abstract base class of every element: [`Field`](/api/field),
-[`Action`](/api/actions#the-action-class), [`Group`](/api/group) and [`List`](/api/list). It is the type to use
+[`Action`](/api/action), [`Group`](/api/group) and [`List`](/api/list). It is the type to use
 wherever you accept any form element: every library signature that takes an element (action executors,
 `ValidationFunction`, `Group`'s `fields` map, `CompareTo`'s `otherField`) is typed `FieldBase`.
 
@@ -122,7 +122,7 @@ default same as `value`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Baseline for `isChanged`; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/actions#the-action-class), [`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
+Baseline for `isChanged`; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/action), [`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
 
 </td></tr>
 <tr class="member-head"><td>
@@ -176,7 +176,7 @@ default per class
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Initial value; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/actions#the-action-class), [`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
+Initial value; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/action), [`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
 
 </td></tr>
 <tr class="member-head"><td>
@@ -274,7 +274,7 @@ A parameter named after a member the class declares sets that member and is not 
 `access`, and `valid` throws a `TypeError`, with or without extended properties.
 `Action` declares `label` and `icon`, so those two parameters set an action's value; give an action's *other*
 presentation properties other names. Where a subclass reads `label` or `icon` in a shape of its own, see
-[Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass): that is an accessor pair (getter
+[Widening the value in a subclass](/api/action#widening-the-value-in-a-subclass): that is an accessor pair (getter
 and setter) on the subclass, not an extended property. `List` declares `length` and `items`, both read-only, so a
 parameter of either name throws the same `TypeError` as `valid`. In your own subclass, an accessor counts as a
 declared member and a class field does not: class fields are defined on the instance after the base constructor has
@@ -339,7 +339,7 @@ new Field<string, Extras & { badge: string }>({ value: 'a', label: 'Name', badge
 ```
 
 `Action` has a different default: `Extras` without the keys of
-[`ActionValue`](/api/actions#the-action-class), because `label` and `icon` are members an action declares itself and a
+[`ActionValue`](/api/action), because `label` and `icon` are members an action declares itself and a
 parameter of either name sets its value. An augmented `label` is therefore `action.label`, never
 `action.extra.label`.
 
@@ -412,7 +412,7 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` while an `Action.execute()` at or below the element has yet to settle. On `FieldBase` it is always `false`; [`Action.busy`](/api/actions#the-action-class) covers the action's own runs and [`Container.busy`](/api/container#prop-busy) the actions below a `Group` or `List`. `busy` covers executions and `validating` covers validations; `pending` covers both
+`true` while an `Action.execute()` at or below the element has yet to settle. On `FieldBase` it is always `false`; [`Action.busy`](/api/action) covers the action's own runs and [`Container.busy`](/api/container#prop-busy) the actions below a `Group` or `List`. `busy` covers executions and `validating` covers validations; `pending` covers both
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-contribution"></a>

@@ -1,6 +1,6 @@
 # Action Example
 
-This example shows a complete [`Action`](/api/actions#the-action-class): declared with a label and an icon,
+This example shows a complete [`Action`](/api/action): declared with a label and an icon,
 enabled by the form's validity through a conditional action, executed, and reporting `busy` while an asynchronous
 submit runs.
 
@@ -25,7 +25,7 @@ the `ExecuteAction` chain, `busy`, `access`, `visibility`, the conditional actio
 `label` and `icon` are members `Action` declares, and both are stored in its value, so a subclass that reads either
 in its own shape narrows the getter and declares the setter beside it, delegating to the base. A getter declared
 alone leaves the property without a setter, and the documented write throws a `TypeError`. The rules are in
-[Widening the value in a subclass](/api/actions#widening-the-value-in-a-subclass).
+[Widening the value in a subclass](/api/action#widening-the-value-in-a-subclass).
 `@dynamicforms/vuetify-inputs` does this: its `Action` widens the value with render options and per-breakpoint
 variants, and adds `renderAs`, `showLabel`, `showIcon`, confirmation defaults and passthrough attributes. Its
 [df-actions page](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html) shows how an action
@@ -157,7 +157,7 @@ promise an event handler returns and passes the error to `app.config.errorHandle
 
 ## API Reference
 
-- [Actions → The `Action` class](/api/actions#the-action-class): `label`, `icon`, `execute()`, `busy`
+- [Actions → The `Action` class](/api/action): `label`, `icon`, `execute()`, `busy`
 - [Actions → `ExecuteAction`](/api/actions#executeaction): the chain `execute()` runs
 - [Actions → Conditional actions](/api/actions#conditional-actions): `Statement`, `Operator`, `ConditionalAccessAction`
 - [Actions → `ValidChangedAction`](/api/actions#validchangedaction): the validity the condition reads

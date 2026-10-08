@@ -249,7 +249,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   serializer reading `value` and `fullValue` back and writing a record into a form.
 
 ### Documentation
-- **[Widening the value in a subclass](https://docs.velis.si/dynamicforms/vue-forms/api/actions#widening-the-value-in-a-subclass)**
+- **[Widening the value in a subclass](https://docs.velis.si/dynamicforms/vue-forms/api/action#widening-the-value-in-a-subclass)**
   on the `Action` reference: what a subclass adds and what it keeps, and that a subclass reading `label` or `icon`
   in a shape of its own declares the getter and the setter together, the setter delegating to the base with
   `super.label = newValue`. A getter declared alone defines the whole property, which then has no setter at all, so

@@ -340,7 +340,8 @@ arrays has the same limitation as comparing two fields directly. The package's o
 | loading, submitting, resetting, optional sections, type-dependent fields | [Cookbook](/guide/cookbook) |
 | a group or a list read as plain data | [view()](/api/view) |
 | rows, mutations, cost | [List](/api/list) |
-| every event, the action chain, `Action`, conditionals | [Actions](/api/actions) |
+| a command: execute, submit, reset, confirm and reject | [Action](/api/action) |
+| every event, the action chain, conditionals | [Actions](/api/actions) |
 | built-in rules, custom and asynchronous validators | [Validators](/api/validators) |
 | `transaction()`, rollback, announcement order | [Transactions](/api/transactions) |
 | upgrading an existing project | [Migration guide](/guide/migration) |
