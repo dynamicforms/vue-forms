@@ -9,7 +9,7 @@ npm install @dynamicforms/vue-forms
 ```
 
 The package is ESM-only and requires Node 22 or newer. A CommonJS consumer reaches it through `require()` of an
-ES module, which Node supports.
+ES module, which Node supports without a flag from 22.12; on 22.0–22.11 it needs `--experimental-require-module`.
 
 The library ships no components and no styles. The few members that relate to the interface, such as
 `visibility` and `enabled`, are listed with the reason for each in
@@ -139,7 +139,7 @@ The package follows Semantic Versioning: breaking changes are released only in a
 | | Supported |
 |---|---|
 | Vue | `^3.5.2` |
-| Node | 22 or newer |
+| Node | 22 or newer; 22.12 or newer for `require()` from CommonJS |
 | Module formats | ESM, with type definitions |
 | Browsers | whatever your bundler targets; the build is `es2022` and uses no browser API of its own |
 

@@ -1,11 +1,19 @@
 import { isArray, isObject, isString } from 'lodash-es';
 
-/** The length of a value as the length and the `Required` validators measure it. */
+/**
+ * The length of a value as the length and the `Required` validators measure it: the length of a string or an array,
+ * the size of a `Map` or a `Set`, the number of own keys of a plain object (one without a prototype included), and
+ * the length of the string any other value converts to.
+ */
 export function toLength(a: any): number {
   if (a == null) return 0;
   if (isArray(a)) return a.length;
   if (isString(a)) return a.length;
-  if (isObject(a) && Object.getPrototypeOf(a) === Object.prototype) return Object.keys(a).length;
+  if (a instanceof Map || a instanceof Set) return a.size;
+  if (isObject(a)) {
+    const proto = Object.getPrototypeOf(a);
+    if (proto === Object.prototype || proto === null) return Object.keys(a).length;
+  }
   return String(a).length;
 }
 

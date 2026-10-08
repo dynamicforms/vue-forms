@@ -5,43 +5,26 @@
  * Run after `npm run build`.
  */
 import { strict as assert } from 'node:assert';
+import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 
 const artifact = pathToFileURL(resolve('dist/dynamicforms-vue-forms.js')).href;
 const m = await import(artifact);
 
-// the export list, stated here so that dropping one is a failed build rather than a consumer's report
-const expected = [
-  'AbortEventHandlingException',
-  'AccessChangedAction',
-  'AccessChangingAction',
-  'Action',
-  'ConditionalAccessAction',
-  'ContributionChangedAction',
-  'EnabledChangedAction',
-  'EnabledChangingAction',
-  'ExecuteAction',
-  'Field',
-  'FieldActionBase',
-  'FieldBase',
-  'Group',
-  'List',
-  'ValidationError',
-  'RejectAction',
-  'SubmitAction',
-  'Validators',
-  'ValueChangedAction',
-  'accessValues',
-  'defaultAccess',
-  'defaultVisibility',
-  'isAccess',
-  'isVisibility',
-  'transaction',
-  'visibilityValues',
-];
+// every value the declarations export (classes, functions, constants, enums, namespaces) is read from the built
+// index.d.ts, so a value that is declared but missing at runtime, or present at runtime but not declared, fails the
+// build; types and interfaces have no runtime counterpart and are not checked
+const declarations = readFileSync(resolve('dist/index.d.ts'), 'utf8');
+const declared = [
+  ...declarations.matchAll(/^export declare (?:abstract )?(?:class|const|function|enum|namespace) (\w+)/gm),
+].map((match) => match[1]);
+const expected = [...new Set(declared), 'default'];
+assert.ok(declared.length > 40, `only ${declared.length} value exports declared - the declarations rolled up empty?`);
 const missing = expected.filter((name) => !(name in m));
 assert.equal(missing.length, 0, `the artifact is missing exports: ${missing.join(', ')}`);
+const undeclared = Object.keys(m).filter((name) => !expected.includes(name));
+assert.equal(undeclared.length, 0, `the artifact exports values the declarations do not: ${undeclared.join(', ')}`);
 
 // a form end to end: composition, validation, serialization
 const template = new m.Group({

@@ -59,25 +59,6 @@ plugin could add, so the plugin system (5) is decided first and may settle sever
 16. **Asynchronous derived state with Suspense** (Jotai and Recoil async atoms). A derived value that is a promise, and
     a component that waits for it.
 
-## Known defects
-
-Each item was reproduced against 3.0.0.
-
-1. **`Required` and the length validators mis-measure non-plain objects.** An empty `Map` or `Set` passes `Required`;
-    a null-prototype object throws during construction.
-2. **A value can inject a placeholder into a message.** `interpolate` replaces one param after another, so a value
-    `'{minLength}'` is replaced again by a later param.
-3. **A list row whose shape differs from the item template ignores a value assignment.** `push()` accepts any
-    element; a later `list.value = [...]` resets the row through the template and drops the data.
-4. **`Action.execute()` resolves on abort.** The documented `try { await save.execute() } catch` reports success.
-5. **A missing `classIdentifier` throws on the next trigger, not on registration**, and then breaks every later
-    trigger on that element.
-6. **The `CountingAction` example in `docs/api/actions.md` never fires**: it overrides `classIdentifier`.
-7. **View error messages name `$addField()`, `$removeField()` and `$value`**, which do not exist; the members are on
-    `$`.
-8. **`engines.node` admits 22.0–22.11**, which cannot `require()` the package without a flag.
-9. **`scripts/verify-artifact.mjs` checks 25 of the 48 runtime exports.**
-
 ## Design questions
 
 1. **What "changed" measures.** `isChanged` and `originalValue` follow what an element sends; `ValueChangedAction`,

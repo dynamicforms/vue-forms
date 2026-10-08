@@ -93,12 +93,15 @@ and reporting `busy` during an asynchronous submit.
 
 `execute()` returns a promise, so a handler that throws rejects it instead of throwing out of the call, with every
 exception except [`AbortEventHandlingException`](/api/actions#aborteventhandlingexception), which the promise
-resolves with. `busy` is cleared on rejection and on success.
+resolves with. `busy` is cleared on rejection and on success. A run therefore ends in one of three ways: it resolves
+with the chain's result, it resolves with the `AbortEventHandlingException` a handler threw to stop it, or it
+rejects with an error.
 
 ```typescript
 try {
-  await form.fields.save.execute();
-  showSaved();
+  const result = await form.fields.save.execute();
+  if (result instanceof AbortEventHandlingException) showStopped(result.message);
+  else showSaved();
 } catch (error) {
   showFailed(error);
 }
@@ -112,7 +115,8 @@ an event handler returns. A handler that reports the failure itself awaits the c
 ```typescript
 async function onSave() {
   try {
-    await save.execute();
+    const result = await save.execute();
+    if (!(result instanceof AbortEventHandlingException)) showSaved();
   } catch (error) {
     showFailed(error);
   }

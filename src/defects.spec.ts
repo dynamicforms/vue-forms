@@ -4,6 +4,7 @@ import {
   AccessChangedAction,
   ConditionalVisibilityAction,
   EnabledChangedAction,
+  FieldActionBase,
   Field,
   Group,
   List,
@@ -220,5 +221,52 @@ describe('value validators on an empty or a non-comparable value', () => {
     expect(valid('b', new Validators.MinValue('a'))).toBe(true);
     expect(valid(new Date(2020, 0, 1), new Validators.MaxValue(new Date(2021, 0, 1)))).toBe(true);
     expect(valid(new Date(2022, 0, 1), new Validators.MaxValue(new Date(2021, 0, 1)))).toBe(false);
+  });
+});
+
+describe('Required and the length validators on a Map, a Set and an object without a prototype', () => {
+  it('measure a Map and a Set by size, and a null-prototype object by its keys', () => {
+    const required = (value: unknown) => new Field({ value, validators: [new Validators.Required()] }).valid;
+
+    expect(required(new Map())).toBe(false);
+    expect(required(new Set([1]))).toBe(true);
+    expect(required(Object.create(null))).toBe(false);
+    expect(new Field({ value: new Set([1, 2]), validators: [new Validators.MaxLength(1)] }).valid).toBe(false);
+  });
+});
+
+describe('a value that contains a placeholder', () => {
+  it('is substituted once, not substituted again by a later param', () => {
+    const field = new Field({
+      value: '{minLength}',
+      validators: [new Validators.MinLength(20, { detail: 'Got {newValue}, need {minLength}' })],
+    });
+
+    expect(field.errors[0].detail).toBe('Got {minLength}, need 20');
+  });
+});
+
+describe('a list row that was not built from the item template', () => {
+  it('is replaced by a value assignment, not reset through the template', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }));
+    const own = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+    list.push(own);
+
+    list.value = [{ a: 5 }];
+
+    expect(list.get(0)).not.toBe(own);
+    expect(list.value).toEqual([{ a: 5 }]);
+    expect(own.fields.b.value).toBe(2);
+  });
+});
+
+describe('an action class without a classIdentifier', () => {
+  it('is refused at registration and leaves the element working', () => {
+    class Unnamed extends FieldActionBase {}
+    const field = new Field({ value: 1 });
+
+    expect(() => field.registerAction(new Unnamed(() => null))).toThrow('classIdentifier must be declared');
+    field.value = 2;
+    expect(field.value).toBe(2);
   });
 });

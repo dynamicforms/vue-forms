@@ -183,7 +183,8 @@ the field holds.
 
 ### `new Validators.Required(options?)`
 
-Fails when the value is empty (zero-length string, empty array, empty plain object, or `null`/`undefined`). A
+Fails when the value is empty (zero-length string, empty array, empty `Map` or `Set`, a plain object or an object
+without a prototype with no own keys, or `null`/`undefined`). A
 string is trimmed before it is measured, so a value of only spaces is empty and the field is invalid. Only strings
 are trimmed; an array, an object or any other value is measured unchanged.
 
@@ -410,7 +411,8 @@ the library uses, with their params and the English detail:
 | `compare_to` | `CompareTo` | `newValue`, `oldValue`, `otherValue` | `Value does not match the comparison with {otherValue}` |
 | `validation_failed` | a rejected validation promise | none | `Validation could not be completed` |
 
-`{name}` substitution is textual (`String.replaceAll`): a value that is an object, such as `newValue` of a group,
+`{name}` substitution is textual and runs in one pass, so a substituted value that contains a placeholder is not
+substituted again: a value that is an object, such as `newValue` of a group,
 is substituted as `[object Object]`, and `allowedValues` as `admin,user`. A renderer that needs the value reads it
 from `params`.
 
