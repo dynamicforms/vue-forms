@@ -14,7 +14,7 @@ import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import { type Container } from './container';
-import { type ElementSlots } from './element-state';
+import { BeginValidating, type ElementSlots, ValidationEpoch } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
 import {
   currentTransaction,
@@ -314,20 +314,22 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return this.#state.validatingCount > 0 || this.#state.validatingChildren > 0;
   }
 
-  /** announces the start of one asynchronous validation run; validators pair it with endValidating */
-  beginValidating(): void {
+  /**
+   * Counts one asynchronous validation run as started and returns the function that counts it as ended. The
+   * function ends that run only: a second call does nothing, so `validating` and `settled()` cannot report the end
+   * of a run that is still in flight.
+   */
+  [BeginValidating](): () => void {
     const wasIdle = !this.validating;
     this.#state.validatingCount++;
     if (wasIdle) this.container?.childValidatingChanged(true);
-  }
-
-  /** announces the end of one asynchronous validation run */
-  endValidating(): void {
-    // an unpaired call is a no-op: the count does not go below zero, and the container is not notified of a stop
-    // without a matching start
-    if (this.#raw.validatingCount === 0) return;
-    this.#state.validatingCount--;
-    if (!this.validating) this.container?.childValidatingChanged(false);
+    let ended = false;
+    return () => {
+      if (ended) return;
+      ended = true;
+      this.#state.validatingCount--;
+      if (!this.validating) this.container?.childValidatingChanged(false);
+    };
   }
 
   /**
@@ -1264,7 +1266,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * a result whose epoch no longer matches, so a validation still in flight when clearValidators() is called
    * cannot push an error onto a field that no longer has the validator that produced it.
    */
-  get validationEpoch(): number {
+  get [ValidationEpoch](): number {
     return this.#state.validationEpoch;
   }
 

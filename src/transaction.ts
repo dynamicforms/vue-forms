@@ -339,6 +339,12 @@ export interface TransactionControl {
 class TransactionHandle implements TransactionControl {
   private open = true;
 
+  /**
+   * Set by `rollback()`. The signal it throws can be caught by a `try`/`catch` in the application's code; the
+   * transaction reads this flag when the callback returns and rolls back all the same.
+   */
+  rollbackRequested = false;
+
   rollback(): never {
     if (!this.open) {
       throw new TypeError(
@@ -346,6 +352,7 @@ class TransactionHandle implements TransactionControl {
           'usable inside the call that received it.',
       );
     }
+    this.rollbackRequested = true;
     throw new RollbackSignal();
   }
 
@@ -389,6 +396,7 @@ export function transaction<R>(fn: (tx: TransactionControl) => R): R | undefined
   try {
     const result = fn(handle);
     rejectThenable(result);
+    if (handle.rollbackRequested) throw new RollbackSignal();
     tx.commit();
     return result;
   } catch (error) {

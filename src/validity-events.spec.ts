@@ -588,12 +588,12 @@ describe('What one transaction announces', () => {
     expect(seen).toEqual(['list.removed@1', 'list.value', 'root.value', 'list.valid=true', 'root.valid=true']);
   });
 
-  it('announces clear as one value change per level and says nothing on a list that is already empty', () => {
+  it('announces clear as a removal per row and one value change per level, and nothing on an empty list', () => {
     const { list, root } = peopleList();
     const seen = log({ list, root });
 
     list.clear();
-    expect(seen).toEqual(['list.value', 'root.value']);
+    expect(seen).toEqual(['list.removed@0', 'list.value', 'root.value']);
 
     seen.length = 0;
     list.clear();

@@ -120,11 +120,11 @@ specific message, catch inside the validation function and return a custom error
 [`clearValidators()`](/api/field-base#clearvalidators-void) also cancels pending validation: it removes the validators, empties
 `field.errors` and recomputes validity over the empty list, and a run that settles afterwards (resolved or rejected)
 does not add errors to the field. A field that was invalid therefore fires `ValidChangedAction`, and the `Group` or
-`List` holding it recomputes its own validity. `field.validationEpoch` is the read-only counter that implements the
-cancellation: `clearValidators()` increments it, a run reads it when it starts, and a result whose epoch no longer
-matches is discarded. The cancelled run's signal aborts, so work that checks it stops; the run still completes its
+`List` holding it recomputes its own validity. An internal counter of the field's validators implements the
+cancellation: `clearValidators()` increments it, a run reads it when it starts, and a result whose counter value no
+longer matches is discarded. The cancelled run's signal aborts, so work that checks it stops; the run still completes its
 own bookkeeping, and `validating` returns to `false` when its promise settles. Inside a transaction, a rollback
-restores both the epoch and the cancelled run, and the run's result is applied to the field.
+restores both the counter and the cancelled run, and the run's result is applied to the field.
 
 ### Cancelling a run
 

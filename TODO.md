@@ -58,26 +58,3 @@ plugin could add, so the plugin system (5) is decided first and may settle sever
     one JSON Schema or Zod schema that also checks the shape.
 16. **Asynchronous derived state with Suspense** (Jotai and Recoil async atoms). A derived value that is a promise, and
     a component that waits for it.
-
-## Design questions
-
-1. **What "changed" measures.** `isChanged` and `originalValue` follow what an element sends; `ValueChangedAction`,
-   `bind`, `rebind` and `view` follow what it holds (`fullValue`).
-2. **Registration on a binding.** `registerAction` on any binding registers on the declaration, so on the template and
-   every row. An element cannot take a rule of its own.
-3. **`touched` of an empty container** cannot be set, so an error such as "add at least one row" is never shown by a
-   layer that shows errors once touched. `List` ignores `params.touched`; `Group` applies it.
-4. **List row events** fire for `push`, `insert` and `remove`, not for a `value` assignment or `clear()`; the view's
-   `sort()` and `reverse()` fire a removal and an addition per row.
-5. **Typing.** `List.push` and `List.insert` take `any`. `Group.field(key)` returns `T[K] | null` for a declared key.
-6. **Public internals.** `beginValidating`, `endValidating`, `validationEpoch`, `markRecordIncomplete` and
-   `triggerAction` are public; an extra `endValidating()` resolves `settled()` before validation ends.
-7. **`tx.rollback()` throws a signal** that an application `try/catch` inside the transaction swallows; the
-    transaction then commits.
-8. **Operators.** `EQUALS` is `==`; `INCLUDES` works on strings only while `IN` is a substring test; ordering
-    operators compare `null` as JavaScript does; `OperandType` is `any`; `Operator.isDefined` throws on an unknown
-    value.
-9. **`isEqual`** shares lodash's name and treats an element as equal to its raw value.
-10. **Conditional actions** register a relay on their source fields in the constructor, which is never removed and is
-    cut off by a later `ValueChangedAction` on the source that does not call `supr`.
-11. **`Group.createFromFormData()`** is described as the inverse of `value`, but wraps each top-level key in a `Field`.

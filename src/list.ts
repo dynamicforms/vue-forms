@@ -2,7 +2,7 @@ import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
-import { type ListSlots, listSlots } from './element-state';
+import { type ListSlots, listSlots, ReorderRows } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
@@ -21,6 +21,9 @@ export type ListFullValue<R extends FieldBase = Group> = R['fullValue'][];
 
 /** the value of a list without rows; it is frozen like every value a list builds */
 const emptyListValue: readonly any[] = Object.freeze([]);
+
+/** What `push()` and `insert()` take: the data a row is built from, or an element. */
+export type ListItemInput<R extends FieldBase> = R['value'] | R;
 
 export class List<R extends FieldBase = Group, X extends object = Extras> extends Container<ListValue<R>, X> {
   get [Symbol.toStringTag](): string {
@@ -136,7 +139,12 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return before.length !== after.length || before.some((row, index) => row !== after[index]);
   }
 
-  private setValueInternal(newValue: readonly unknown[] | null) {
+  /**
+   * Installs the rows `newValue` describes. With `announce`, a row that leaves the list is announced with a
+   * `ListItemRemovedAction` and a row that enters it with a `ListItemAddedAction`; a row reused at its position is
+   * neither. The construction installs its rows without announcing them.
+   */
+  private setValueInternal(newValue: readonly unknown[] | null, announce = false) {
     // only an array (or null) is a valid list value. The check runs before the transaction opens, so a rejected
     // value leaves the rows unchanged.
     if (newValue != null && !Array.isArray(newValue)) {
@@ -149,11 +157,22 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       const held = this.raw.rows;
       // null clears the list, as Group.value = null writes null into every member; otherwise a list nested in a
       // group would keep its rows while every sibling field was cleared
+      const removed = (item: R, index: number) => {
+        if (announce) tx.recordStructural(this, { actionClass: ListItemRemovedAction, item, index });
+      };
+      const added = (item: R, index: number) => {
+        if (announce) tx.recordStructural(this, { actionClass: ListItemAddedAction, item, index });
+      };
       if (newValue == null) {
+        const previous = this.raw.rows ?? [];
+        for (let index = previous.length - 1; index >= 0; index--) removed(previous[index], index);
         this.releaseRows();
         this.raw.rows = null;
       } else {
         const previous = this.raw.rows ?? [];
+        // rows past the new length leave first, from the last one, so every announced index is the row's position
+        // at the moment it leaves
+        for (let index = previous.length - 1; index >= newValue.length; index--) removed(previous[index], index);
         // the new rows are built in a separate array and installed together: writing a row runs its validators, and
         // a validator that reads this list during the loop must not see an unfilled position
         const rows: R[] = new Array(newValue.length);
@@ -172,8 +191,12 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
             this.resetChild(row, template, item);
             rows[index] = row;
           } else {
-            if (row) this.releaseChild(row);
+            if (row) {
+              this.releaseChild(row);
+              removed(row, index);
+            }
             rows[index] = this.processSetValueItem(item);
+            added(rows[index], index);
           }
         }
         for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
@@ -213,7 +236,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
   set value(newValue: ListValueInput<R>) {
     transactional(() => {
-      this.setValueInternal(newValue);
+      this.setValueInternal(newValue, true);
       // an assignment replaces the whole list and is always announced, without a comparison
       this.propagateValueChanged(true);
     });
@@ -321,7 +344,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return this.rows?.[index];
   }
 
-  push(item: any): number {
+  push(item: ListItemInput<R>): number {
     return this.insert(item, this.raw.rows?.length ?? 0) + 1;
   }
 
@@ -357,7 +380,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return removedItem;
   }
 
-  insert(item: any, index: number): number {
+  insert(item: ListItemInput<R>, index: number): number {
     let position = 0;
     transactional((tx) => {
       tx.touch(this);
@@ -391,10 +414,30 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     this.raw.rows?.forEach((row) => this.releaseChild(row));
   }
 
+  /**
+   * Puts the rows in the order `rows` gives, in place: `rows` holds the same rows as the list, in a new order. The
+   * set of rows does not change, so no `ListItemAddedAction` or `ListItemRemovedAction` fires; the value changes and
+   * is announced. The view of a list calls it for `sort()` and `reverse()`; the package does not export the key.
+   */
+  [ReorderRows](rows: readonly R[]): void {
+    transactional((tx) => {
+      tx.touch(this);
+      this.raw.rows = [...rows];
+      this.rowsChanged();
+      this.bumpValueVersion();
+      this.propagateValueChanged(true);
+    });
+  }
+
   clear() {
     transactional((tx) => {
-      const hadItems = (this.raw.rows?.length ?? 0) > 0;
+      const rows = this.raw.rows ?? [];
+      const hadItems = rows.length > 0;
       tx.touch(this);
+      // every row leaves, from the last one, so every announced index is the row's position at the moment it leaves
+      for (let index = rows.length - 1; index >= 0; index--) {
+        tx.recordStructural(this, { actionClass: ListItemRemovedAction, item: rows[index], index });
+      }
       this.releaseRows();
       this.raw.rows = null;
       // clearing a list without rows does not change its rows, so the array `items` returns is kept

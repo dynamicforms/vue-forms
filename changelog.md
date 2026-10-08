@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0] - 2026-10-08
 
 ### Changed
+- A `value` assignment fires `ListItemRemovedAction` and `ListItemAddedAction` for the rows it removes and builds,
+  and `clear()` fires `ListItemRemovedAction` for every row. `sort()` and `reverse()` of a list view reorder the rows
+  in place and fire neither.
+- `List.push()` and `insert()` take `ListItemInput<R>` (`R['value'] | R`) instead of `any`; a list without an item
+  template that holds rows other than groups is declared `new List<FieldBase>()`.
+- `Group.createFromFormData()` builds a `Group` for a nested object and a `List` for an array, at every level.
+- `Operator.isDefined()` returns `false` for an unrecognised string instead of throwing.
+- The listener a conditional action installs on the fields its statement reads runs outermost in their chains and
+  is removed when the action is taken off its last element.
 - Every built-in validator except `Required` and `CompareTo` passes an empty value (`null`, `undefined`, `''`, `[]`,
   `{}`). `MinValue`, `MaxValue` and `ValueInRange` compare a number with a number, a bigint with a bigint, a string
   with a string and a date with a date, and refuse any other value, `NaN` and an invalid date.
@@ -35,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces the instance on the field.
 
 ### Fixed
+- A `tx.rollback()` whose signal a `try`/`catch` in the callback caught let the transaction commit; it rolls back.
 - `Required` and the length validators measure a `Map` and a `Set` by size and an object without a prototype by its
   keys; such an object threw.
 - A substituted value that contains a placeholder is not substituted again.
@@ -65,6 +75,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `params` on every error.
 
 ### Removed
+- `beginValidating()`, `endValidating()` and `validationEpoch` from the public API; validators reach them through
+  keys the package does not export.
 - `MessagesWidget`, `RenderableValue`, `MdString`, `SimpleComponentDef`, the `RenderContent` types, `ClassType`,
   `ClassTypes`, `isSimpleComponentDef`, `isCallableFunction` and the stylesheet `style.css`.
 - The plugin `forms`, `getConfig`, `setConfig`, `FormsConfig` and `useMarkdownInValidators`.

@@ -1,6 +1,12 @@
 import type { FieldBase } from '@/field-base';
 import { FieldActionExecute } from '@/field.interface';
 
+/**
+ * Marks an action that runs outermost in its chain: `ActionsMap` keeps it above every action registered without
+ * the mark, so a handler that does not call `supr` cannot keep it from running. The package does not export it.
+ */
+export const Outermost = Symbol('FieldActionBase.outermost');
+
 type ActionExecutor = (field: FieldBase, supr: FieldActionExecute, ...params: any[]) => any;
 
 export default abstract class FieldActionBase {

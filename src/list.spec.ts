@@ -13,6 +13,7 @@ import {
   VisibilityChangingAction,
 } from './actions';
 import { Field } from './field';
+import { FieldBase } from './field-base';
 import { Group } from './group';
 import { List, type ListValue } from './list';
 import { transaction } from './transaction';
@@ -1556,7 +1557,8 @@ describe('List of fields', () => {
 
 describe('List without an item template', () => {
   it('builds a field from a value that is neither a plain object nor an array', () => {
-    const list = new List();
+    // rows of any kind: the default row type is Group, whose data is an object
+    const list = new List<FieldBase>();
     const when = new Date(0);
 
     list.push('abc');

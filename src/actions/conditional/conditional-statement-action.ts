@@ -2,7 +2,9 @@ import type { Access } from '../../access';
 import { bindingsIn, scopeOf } from '../../binding/resolve';
 import { type FieldBase } from '../../field-base';
 import { FieldActionExecute } from '../../field.interface';
+import { currentTransaction } from '../../transaction';
 import type { Visibility } from '../../visibility';
+import { Outermost } from '../field-action-base';
 import { ValueChangedAction } from '../value-changed-action';
 
 import { Statement } from './statement';
@@ -49,12 +51,28 @@ export class ConditionalStatementAction extends ValueChangedAction {
 
     // one listener per field the statement reads, however many records the field has: the listener receives the
     // field that changed, which determines the record to re-evaluate. A listener per record would add one handler
-    // to the field's chain for every row of a list.
-    const relay = new ValueChangedAction((source: FieldBase, supr: FieldActionExecute, ...params: any[]) => {
+    // to the field's chain for every row of a list. It runs outermost in the field's chain, so a handler that does
+    // not call supr does not keep it from running
+    this.relay = new ValueChangedAction((source: FieldBase, supr: FieldActionExecute, ...params: any[]) => {
       this.applyFrom(source);
       return supr(source, ...params);
     });
-    statement.collectFields().forEach((field) => field.registerAction(relay));
+    (this.relay as any)[Outermost] = true;
+    this.listen();
+  }
+
+  /** The listener on the fields the statement reads; installed while the action is registered on an element. */
+  private readonly relay: ValueChangedAction;
+
+  /** The number of elements the action is registered on; the relay is removed when it drops to zero. */
+  private registered = 0;
+
+  private listening = false;
+
+  private listen(): void {
+    if (this.listening) return;
+    this.listening = true;
+    this.statement.collectFields().forEach((field) => field.registerAction(this.relay));
   }
 
   static get classIdentifier() {
@@ -67,11 +85,24 @@ export class ConditionalStatementAction extends ValueChangedAction {
 
   boundToBinding(binding: FieldBase) {
     this.declarations.add(binding.declaration);
+    if (!this.registrations.has(binding)) this.registered++;
     this.registrations.add(binding);
+    this.listen();
   }
 
   unregisterFrom(binding: FieldBase) {
-    this.registrations.delete(binding);
+    if (this.registrations.delete(binding)) this.registered--;
+    // taken off the last element, the action has nothing left to apply, and the listener it installed on the fields
+    // the statement reads is removed with it
+    if (this.registered === 0 && this.listening) {
+      // a rollback re-registers the relay first and the action on its element after it (newest undo first), so the
+      // flag is restored in between and the re-registered action does not install the relay a second time
+      currentTransaction()?.whenRolledBack(() => {
+        this.listening = true;
+      });
+      this.listening = false;
+      this.statement.collectFields().forEach((field) => field.unregisterAction(this.relay));
+    }
   }
 
   /**

@@ -1,4 +1,5 @@
 import { Container } from './container';
+import { ReorderRows } from './element-state';
 import { FieldBase } from './field-base';
 import { type GenericFieldsInterface, Group } from './group';
 import { List } from './list';
@@ -124,13 +125,7 @@ function listView(list: List<any, any>): unknown[] {
   /** replaces the shown rows with `rows`, keeping every row element and its state */
   const reorder = (rows: FieldBase[]) =>
     transaction(() => {
-      const shownRows = shown();
-      const order = list.items.map((row) => {
-        const at = shownRows.indexOf(row);
-        return at === -1 ? row : rows[at];
-      });
-      while (list.length) list.pop();
-      order.forEach((row) => list.push(row));
+      list[ReorderRows](rows);
     });
 
   const mutations: Record<string, (...args: any[]) => unknown> = {

@@ -1,4 +1,4 @@
-import { isEmpty } from 'lodash-es';
+import { isEmpty, isPlainObject } from 'lodash-es';
 
 import type { Action } from './action';
 import { Container } from './container';
@@ -6,6 +6,8 @@ import { type GroupSlots, groupSlots } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
+// list.ts imports this module as well; List is used only inside a call, after both modules are loaded
+import { List } from './list';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
@@ -48,6 +50,13 @@ export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsTo
  * constructor has written the given data, so a rule that reads a sibling runs over that data, not over the values
  * the members were bound with.
  */
+/** The element plain data is built into: a `Group` for a plain object, a `List` for an array, a `Field` otherwise. */
+function elementFromData(value: unknown): FieldBase {
+  if (isPlainObject(value)) return Group.createFromFormData(value as Record<string, any>);
+  if (Array.isArray(value)) return new List(undefined, { value });
+  return new Field({ value });
+}
+
 const assembling = new WeakSet<object>();
 
 /** the value of a group in which no member sends anything; it is frozen like every value a group builds */
@@ -269,12 +278,17 @@ export class Group<
     return typeof flds === 'object' && flds !== null && Object.entries(flds).every(([, field]) => isFieldAll(field));
   }
 
+  /**
+   * Builds a group from plain data, so that its `fullValue` is `data`: a plain object becomes a `Group`, an array a
+   * `List` without an item template (whose rows are built by the same rule), and any other value a `Field`, at every
+   * level.
+   */
   static createFromFormData(data: Record<string, any> | null): Group {
     if (data instanceof FieldBase) {
       throw new Error('data is already a Form structure, should be a simple object');
     }
     return new Group(
-      data == null ? {} : Object.fromEntries(Object.entries(data).map(([key, value]) => [key, new Field({ value })])),
+      data == null ? {} : Object.fromEntries(Object.entries(data).map(([key, value]) => [key, elementFromData(value)])),
     );
   }
 

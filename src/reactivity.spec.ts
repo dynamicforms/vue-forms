@@ -2,6 +2,7 @@ import { isEqual } from 'lodash-es';
 import { EffectScope, effectScope, isReactive, isReadonly, nextTick, readonly, toRaw, watchEffect } from 'vue';
 
 import { Action } from './action';
+import { ValidationEpoch } from './element-state';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
@@ -168,13 +169,13 @@ describe('Field reactivity', () => {
 
   it('re-runs on validationEpoch', async () => {
     const field = new Field({ value: 1, validators: [new Validators.Required()] });
-    const runs = track(() => field.validationEpoch);
+    const runs = track(() => field[ValidationEpoch]);
     expect(runs).toEqual([0]);
 
     field.clearValidators();
     await nextTick();
 
-    expect(field.validationEpoch).toBe(1);
+    expect(field[ValidationEpoch]).toBe(1);
     expect(runs).toEqual([0, 1]);
   });
 });
