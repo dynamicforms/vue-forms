@@ -27,13 +27,101 @@ for one group, `new Group<Fields, Presentation>(fields, { label: … })`. Both a
 [Constructor parameters](/api/field-base#constructor-parameters), which also describes the order in which the
 parameters are applied.
 
-| Parameter<br>Type<br>Default | Description |
-|---|---|
-| **`fields`**<br>`GenericFieldsInterface` (`Record<string, FieldBase>`)<br>required | Map of member name → element instance |
-| **`params.access`**<br>[`Access`](/api/field-base#access)<br>default `'editable'` | What the group sends to its own container, and the access applied to its members through `effectiveAccess`. See [What a container serializes](/api/container#what-a-container-serializes). |
-| **`params.originalValue`**<br>`GroupValueInput<T>`<br>default same as `value` | Baseline for `isChanged`. When `value` is absent or explicitly `undefined`, it is also applied to the members as their initial value |
-| **`params.touched`**<br>`boolean`<br>default `false` | Initial interaction flag, propagated to every child |
-| **`params.value`**<br>`GroupValueInput<T>` (`Partial<FieldsToValues<T>> \| null`)<br>default not assigned | Initial values applied to matching members; members whose key is absent keep the value they were created with. An absent or explicitly `undefined` `value` assigns nothing, so every member keeps the value it was created with; an explicit `null` clears all of them |
+<table class="members">
+<thead><tr><th>Parameter</th><th>Type</th><th>Default</th></tr></thead>
+<tbody>
+<tr class="member-head"><td>
+
+**`fields`**
+
+</td><td>
+
+`GenericFieldsInterface` (`Record<string, FieldBase>`)
+
+</td><td>
+
+required
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Map of member name → element instance
+
+</td></tr>
+<tr class="member-head"><td>
+
+**`params.access`**
+
+</td><td>
+
+[`Access`](/api/field-base#access)
+
+</td><td>
+
+default `'editable'`
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+What the group sends to its own container, and the access applied to its members through `effectiveAccess`. See [What a container serializes](/api/container#what-a-container-serializes).
+
+</td></tr>
+<tr class="member-head"><td>
+
+**`params.originalValue`**
+
+</td><td>
+
+`GroupValueInput<T>`
+
+</td><td>
+
+default same as `value`
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Baseline for `isChanged`. When `value` is absent or explicitly `undefined`, it is also applied to the members as their initial value
+
+</td></tr>
+<tr class="member-head"><td>
+
+**`params.touched`**
+
+</td><td>
+
+`boolean`
+
+</td><td>
+
+default `false`
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Initial interaction flag, propagated to every child
+
+</td></tr>
+<tr class="member-head"><td>
+
+**`params.value`**
+
+</td><td>
+
+`GroupValueInput<T>` (`Partial<FieldsToValues<T>> | null`)
+
+</td><td>
+
+default not assigned
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Initial values applied to matching members; members whose key is absent keep the value they were created with. An absent or explicitly `undefined` `value` assigns nothing, so every member keeps the value it was created with; an explicit `null` clears all of them
+
+</td></tr>
+</tbody>
+</table>
 
 The constructor throws if `fields` is not an object of element instances (`Invalid fields object provided`). It also throws a `TypeError` when it receives an element that already belongs to another group or list: an element belongs to one container at a time. Each group needs its own element instances; create one with `field.bind()`. A `List` releases the rows it removes and a `Group` releases the element `removeField()` removes, so both can be added to a container again.
 
@@ -65,11 +153,65 @@ const form = Group.createFromFormData({ name: 'Alice', score: 42 });
 
 ## Properties
 
-| Property<br>Type<br>Writable | Description |
-|---|---|
-| <a id="prop-fields"></a>**`fields`**<br>`T`<br>read-only | The typed map of members. It is a guarded view over the group's map: reads return the members themselves, and every write throws a `TypeError`; `addField()` and `removeField()` change the set. The read is tracked, so a template rendering it re-renders when members are added or removed |
-| <a id="prop-fullValue"></a>**`fullValue`**<br>`FieldsToFullValues<T>`<br>read-only | Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): what the group holds (`value` is what it sends): every member's `fullValue`, regardless of access. A nested group includes its own full structure. A binding of the group copies this value |
-| <a id="prop-value"></a>**`value`**<br>reads `GroupValue<T>`, accepts `GroupValueInput<T>`<br>writable | Overrides [`FieldBase.value`](/api/field-base#prop-value): object of the values the members send, by the serialization rule below; `{}` when no member sends anything (a group without members, or one whose members the rule all leaves out). The group's value is never `null`. Each key has its member's own value type, optional and nullable: for `Group<{ age: Field<number> }>`, `group.value.age` is `number \| null \| undefined`, because a `'disabled'` `age` is left out and a `'disabled-null'` one is `null`. The object is built once per change and returned to every reader until the next change. It is frozen: writing into it throws in strict mode and is ignored otherwise. An array or object a member `Field` holds is not frozen; assign a new one instead of writing into it. The setter takes a `Partial`: absent keys are not changed, and assigning `null` sets every member to `null` |
+<table class="members">
+<thead><tr><th>Property</th><th>Type</th><th>Writable</th></tr></thead>
+<tbody>
+<tr class="member-head"><td><a id="prop-fields"></a>
+
+**`fields`**
+
+</td><td>
+
+`T`
+
+</td><td>
+
+read-only
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+The typed map of members. It is a guarded view over the group's map: reads return the members themselves, and every write throws a `TypeError`; `addField()` and `removeField()` change the set. The read is tracked, so a template rendering it re-renders when members are added or removed
+
+</td></tr>
+<tr class="member-head"><td><a id="prop-fullValue"></a>
+
+**`fullValue`**
+
+</td><td>
+
+`FieldsToFullValues<T>`
+
+</td><td>
+
+read-only
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): what the group holds (`value` is what it sends): every member's `fullValue`, regardless of access. A nested group includes its own full structure. A binding of the group copies this value
+
+</td></tr>
+<tr class="member-head"><td><a id="prop-value"></a>
+
+**`value`**
+
+</td><td>
+
+reads `GroupValue<T>`, accepts `GroupValueInput<T>`
+
+</td><td>
+
+writable
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.value`](/api/field-base#prop-value): object of the values the members send, by the serialization rule below; `{}` when no member sends anything (a group without members, or one whose members the rule all leaves out). The group's value is never `null`. Each key has its member's own value type, optional and nullable: for `Group<{ age: Field<number> }>`, `group.value.age` is `number | null | undefined`, because a `'disabled'` `age` is left out and a `'disabled-null'` one is `null`. The object is built once per change and returned to every reader until the next change. It is frozen: writing into it throws in strict mode and is ignored otherwise. An array or object a member `Field` holds is not frozen; assign a new one instead of writing into it. The setter takes a `Partial`: absent keys are not changed, and assigning `null` sets every member to `null`
+
+</td></tr>
+</tbody>
+</table>
 
 ::: tip Serialization rule
 `Group.value` includes every member according to its access: an `'editable'` or `'readonly'` member with its value, a `'disabled-null'` one as `null`, and a `'disabled'` one not at all. A nested container is a member like any other, so a `'disabled'` one is left out regardless of what it holds. See [What a container serializes](/api/container#what-a-container-serializes) for the full rules.

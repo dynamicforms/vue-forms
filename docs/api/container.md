@@ -18,11 +18,65 @@ access (`group.fields.name`, `list.get(0)`) is specific to each class and is des
 
 ## Properties
 
-| Property<br>Type<br>Writable | Description |
-|---|---|
-| <a id="prop-busy"></a>**`busy`**<br>`boolean`<br>read-only | Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending` covers both |
-| <a id="prop-touched"></a>**`touched`**<br>`boolean`<br>writable | Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child |
-| <a id="prop-valid"></a>**`valid`**<br>`boolean`<br>read-only | Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well |
+<table class="members">
+<thead><tr><th>Property</th><th>Type</th><th>Writable</th></tr></thead>
+<tbody>
+<tr class="member-head"><td><a id="prop-busy"></a>
+
+**`busy`**
+
+</td><td>
+
+`boolean`
+
+</td><td>
+
+read-only
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending` covers both
+
+</td></tr>
+<tr class="member-head"><td><a id="prop-touched"></a>
+
+**`touched`**
+
+</td><td>
+
+`boolean`
+
+</td><td>
+
+writable
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child
+
+</td></tr>
+<tr class="member-head"><td><a id="prop-valid"></a>
+
+**`valid`**
+
+</td><td>
+
+`boolean`
+
+</td><td>
+
+read-only
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well
+
+</td></tr>
+</tbody>
+</table>
 
 ## Methods
 
