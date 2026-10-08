@@ -236,17 +236,17 @@ describe('SubmitAction', () => {
     expect(form.isChanged).toBe(true);
   });
 
-  it('refuses an invalid target: rejects with SubmitRefusedException', async () => {
+  it('refuses an invalid target: resolves with SubmitRefusedException', async () => {
     const handler = vi.fn();
     const form = new Group({
       name: new Field({ value: '', validators: [new Validators.Required()] }),
       save: new Action({ actions: [new SubmitAction(holder, handler)] }),
     });
 
-    const refusal = await form.fields.save.execute().catch((e: unknown) => e);
+    const result = await form.fields.save.execute();
 
-    expect(refusal).toBeInstanceOf(SubmitRefusedException);
-    expect((refusal as SubmitRefusedException).reason).toBe('invalid');
+    expect(result).toBeInstanceOf(SubmitRefusedException);
+    expect((result as SubmitRefusedException).reason).toBe('invalid');
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -289,7 +289,7 @@ describe('SubmitAction', () => {
 
     const first = form.fields.save.execute();
     await Promise.resolve();
-    const second = await form.fields.save.execute().catch((e: SubmitRefusedException) => e);
+    const second = await form.fields.save.execute();
     settle(undefined);
     await first;
 

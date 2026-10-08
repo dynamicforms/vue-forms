@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
-  target or a concurrent run by rejecting with a `SubmitRefusedException` whose `reason` says which, sends the target's value to `handler`, rebinds the target to the result and resolves with
+  target or a concurrent run with a `SubmitRefusedException` whose `reason` says which, sends the target's value to `handler`, rebinds the target to the result and resolves with
   `{ action, sent, received }`. `RejectAction(target)` rebinds the target to its `originalValue`.
 - `Container.confirm()` and `reject()`: execute the action whose `SubmitAction` or `RejectAction` targets the
   container, else the only shown action with `defaultConfirm` or `defaultReject`.

@@ -134,7 +134,8 @@ On `execute()` it:
 
 1. waits until `target.validating` is `false`, so a validation started in the same event is finished. It does not
    await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
-2. where `target.valid` is `false`, throws a `SubmitRefusedException` whose `reason` is `'invalid'`;
+2. where `target.valid` is `false`, ends with a `SubmitRefusedException` whose `reason` is `'invalid'`, which
+   `execute()` resolves with;
 3. calls `handler(target.value, target)` and awaits it;
 4. where the result is not `undefined` and `options.rebind` is not `false`, calls `target.rebind(result)`;
 5. calls the next handler in the chain and resolves with a `SubmitResult`:
@@ -147,7 +148,7 @@ interface SubmitResult<R = any> {
 }
 ```
 
-A second `execute()` while a submit of the same action is running throws a `SubmitRefusedException` whose
+A second `execute()` while a submit of the same action is running resolves with a `SubmitRefusedException` whose
 `reason` is `'running'` and does not call `handler`. A `handler` that throws or rejects makes `execute()` reject with that error, and the target is
 not changed. Writing a server's field errors to the fields is the handler's: it writes them to `field.errors`
 before it throws, as in [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned).
@@ -155,10 +156,8 @@ before it throws, as in [Showing errors the server returned](/guide/cookbook#sho
 `canExecute()` is `true` while the target is valid and not `pending`, so `Action.executable` is `false` while the
 form is invalid, a validation is running or the submit itself is running.
 
-`execute()` (and `Container.confirm()`) rejects with a `SubmitRefusedException` as with an error the handler
-throws, so a `catch` handles every submit that sent nothing. `SubmitRefusedException` extends `Error`, not
-`AbortEventHandlingException`, which `execute()` would resolve with. Its `reason` (`SubmitRefusalReason`) states why
-the submit was refused:
+`SubmitRefusedException` extends `AbortEventHandlingException`. Its `reason` (`SubmitRefusalReason`) states why the
+submit was refused:
 
 | `reason` | Cause |
 |---|---|
@@ -166,12 +165,8 @@ the submit was refused:
 | `'running'` | a submit of the same action is running |
 
 ```typescript
-try {
-  const { sent, received } = await form.confirm();
-} catch (e) {
-  if (e instanceof SubmitRefusedException && e.reason === 'invalid') form.touched = true;
-  else throw e;
-}
+const result = await form.confirm();
+if (result instanceof SubmitRefusedException && result.reason === 'invalid') form.touched = true;
 ```
 
 ## `RejectAction(target)`

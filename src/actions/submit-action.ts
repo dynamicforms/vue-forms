@@ -1,6 +1,7 @@
 import { watch } from 'vue';
 
 import type { FieldBase } from '../field-base';
+import { AbortEventHandlingException } from '../field.interface';
 
 import { ExecuteAction } from './execute-action';
 
@@ -60,11 +61,10 @@ function validated(element: FieldBase): Promise<void> {
 export type SubmitRefusalReason = 'invalid' | 'running';
 
 /**
- * The error a `SubmitAction` throws when it refuses to submit; `reason` states why. It is not an
- * `AbortEventHandlingException`, so `execute()` and `Container.confirm()` reject with it, as they do with an error
- * from the handler: a caller's `catch` handles every submit that sent nothing.
+ * The exception a `SubmitAction` ends with when it refuses to submit. `execute()` resolves with it; `reason` states
+ * why.
  */
-export class SubmitRefusedException extends Error {
+export class SubmitRefusedException extends AbortEventHandlingException {
   constructor(public readonly reason: SubmitRefusalReason) {
     super(reason === 'invalid' ? 'the submitted element is invalid' : 'a submit of this action is already running');
   }
@@ -75,14 +75,15 @@ export class SubmitRefusedException extends Error {
  *
  * 1. waits until `target.validating` is false, so a validation started in the same event is finished. It does not
  *    await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
- * 2. where `target.valid` is false, throws a `SubmitRefusedException` with `reason` `'invalid'`;
+ * 2. where `target.valid` is false, ends with a `SubmitRefusedException` with `reason` `'invalid'`, which
+ *    `execute()` resolves with;
  * 3. calls `handler(target.value, target)` and awaits it;
  * 4. where the result is not `undefined` and `rebind` is not false, calls `target.rebind(result)`;
  * 5. calls the next handler in the chain and returns a `SubmitResult`: the action, the value sent and the value
  *    `handler` returned.
  *
- * A second `execute()` while a submit of the same action is running throws a `SubmitRefusedException` with
- * `reason` `'running'`. `execute()` rejects with either.
+ * A second `execute()` while a submit of the same action is running is refused with a `SubmitRefusedException`
+ * with `reason` `'running'`.
  *
  * A `handler` that throws or rejects makes `execute()` reject with that error; the target is not changed. Mapping
  * a server's field errors to the fields is the handler's: it writes them to `field.errors` before it throws.
