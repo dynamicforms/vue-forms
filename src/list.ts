@@ -165,8 +165,11 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
           // own data, so two rows can have different members, and writing one row's data into another's members
           // would drop the members they do not share. The row is reset, not assigned, so it ends in the state of a
           // row built for this position.
-          if (row && this._itemTemplate && !(item instanceof FieldBase)) {
-            this.resetChild(row, this._itemTemplate, item);
+          // A row the list did not build from its item template (an element passed to push()) is replaced: reset
+          // through the template, it would lose the members the template does not have.
+          const template = this._itemTemplate;
+          if (row && template && !(item instanceof FieldBase) && row.declaration === template.declaration) {
+            this.resetChild(row, template, item);
             rows[index] = row;
           } else {
             if (row) this.releaseChild(row);

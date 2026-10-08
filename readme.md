@@ -56,7 +56,7 @@ npm install @dynamicforms/vue-forms
 ```
 
 The package is ESM-only and requires Node 22 or newer. A CommonJS consumer reaches it through `require()` of an ES
-module, which Node supports. Type definitions ship with the build. The package ships no components and no styles.
+module, which Node supports without a flag from 22.12; on 22.0–22.11 it needs `--experimental-require-module`. Type definitions ship with the build. The package ships no components and no styles.
 
 ## Basic Usage Example
 

@@ -672,8 +672,6 @@ with the key.
 
 ```typescript
 class CountingAction extends ValueChangedAction {
-  static get classIdentifier() { return CountingActionClassIdentifier; }
-
   constructor() {
     super((field, supr, newValue, oldValue) => {
       const counter = this.state(field, () => ({ writes: 0 }));

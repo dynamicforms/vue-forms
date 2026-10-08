@@ -89,7 +89,7 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
     set(target, key, value) {
       if (key === '$') throw new TypeError('$ is the element a view stands for, and cannot be replaced');
       const element = memberOf(key);
-      if (!element) throw new TypeError(`${String(key)} is not a member of this group - use $addField() to add one`);
+      if (!element) throw new TypeError(`${String(key)} is not a member of this group - use $.addField() to add one`);
       writeSlot(element, value);
       return true;
     },
@@ -104,7 +104,7 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
       return { value: slotOf(group.fields[key]), writable: true, enumerable: true, configurable: true };
     },
     deleteProperty(target, key) {
-      throw new TypeError(`${String(key)} cannot be deleted from a view - use $removeField() to take a member out`);
+      throw new TypeError(`${String(key)} cannot be deleted from a view - use $.removeField() to take a member out`);
     },
     defineProperty(target, key) {
       throw new TypeError(`${String(key)} cannot be defined on a view`);
@@ -194,10 +194,10 @@ function listView(list: List<any, any>): unknown[] {
       return proxy;
     },
     fill: () => {
-      throw new TypeError('fill() is not available on a list view - assign $value instead');
+      throw new TypeError('fill() is not available on a list view - assign $.value instead');
     },
     copyWithin: () => {
-      throw new TypeError('copyWithin() is not available on a list view - assign $value instead');
+      throw new TypeError('copyWithin() is not available on a list view - assign $.value instead');
     },
   };
 

@@ -28,6 +28,8 @@ export default class ActionsMap {
    */
   register(action: FieldActionBase, before?: FieldActionBase): void {
     if (!(action instanceof FieldActionBase)) throw new Error('Invalid action type');
+    // read here, so a class without a classIdentifier is refused at registration, before it is in the chain
+    void action.classIdentifier;
     const at = before ? this.actions.indexOf(before) : -1;
     if (before && (before.classIdentifier !== action.classIdentifier || at < 0)) {
       throw new Error('Action to register before is not registered under the same identifier');

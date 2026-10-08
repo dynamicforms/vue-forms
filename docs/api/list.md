@@ -293,7 +293,9 @@ instead. `originalValue` is a separate copy and is not frozen. The freeze covers
 
 An assignment reuses the existing row objects, position by position, so `list.get(0)` returns the same instance
 after `list.value = rows` when the new array has the same length. A keyed `v-for` over the rows therefore does not
-remount them on every assignment. A reused row is reset to the state of a new row built for that position: a member
+remount them on every assignment. Only a row the list built from its item template is reused; a row that was
+passed to `push()` or `insert()` as an element is replaced by a new row, so it keeps the data of the members the
+item template does not have. A reused row is reset to the state of a new row built for that position: a member
 whose key is absent from the new item gets the item template member's `originalValue`, and `originalValue`, `isChanged`, `touched`
 and `errors` are reset. The new set is built separately and installed as a whole, so a validator that reads
 `list.value` during the assignment never sees an unfilled position.

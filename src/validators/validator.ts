@@ -42,7 +42,10 @@ const ValidatorClassIdentifier = Symbol('Validator');
 
 /** Replaces each `{name}` placeholder in `template` with `params[name]`; one without a matching param stays. */
 function interpolate(template: string, params: Record<string, unknown>): string {
-  return Object.keys(params).reduce((acc, name) => acc.replaceAll(`{${name}}`, String(params[name])), template);
+  // one pass over the template, so a substituted value that contains a placeholder is not substituted again
+  return template.replace(/\{(\w+)\}/g, (placeholder, name: string) =>
+    Object.hasOwn(params, name) ? String(params[name]) : placeholder,
+  );
 }
 
 /**

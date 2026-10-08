@@ -35,6 +35,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces the instance on the field.
 
 ### Fixed
+- `Required` and the length validators measure a `Map` and a `Set` by size and an object without a prototype by its
+  keys; such an object threw.
+- A substituted value that contains a placeholder is not substituted again.
+- A list assignment replaces a row that was not built from the item template, instead of resetting it through the
+  template and dropping the members the template lacks.
+- An action class without a `classIdentifier` is refused at registration; it was registered and broke every later
+  trigger on the element.
+- View error messages name `$.addField()`, `$.removeField()` and `$.value`.
 - A `Pattern` with the `g` or `y` flag passed and failed the same value in turn; it tests with a copy without them.
 - A `VisibilityChangingAction` that returned the current visibility did not refuse the write.
 - A conditional action registered on a second element of a record did not apply the current result to it.
