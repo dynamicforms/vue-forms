@@ -2,3 +2,13 @@
 .vp-doc td {
   vertical-align: top;
 }
+
+/* use the window width: VitePress caps the page at 1440px and the text column at 688px */
+:root {
+  --vp-layout-max-width: 100%;
+}
+.VPDoc .container,
+.VPDoc.has-aside .content-container,
+.VPDoc .content-container {
+  max-width: none !important;
+}
