@@ -642,3 +642,30 @@ covers all three; a custom error class overrides the same getters on it.
 
 **Rejected: keeping the two classes as aliases.** 3.0.0 is already a major release, and aliases would leave three
 names for one thing in every listing of the exports.
+
+## D-037 — The library does not render; an error is data
+
+**Version:** 3.0.0. Supersedes D-036 and the `errorText` configuration of D-035.
+
+`ValidationError` carries `code`, `params`, an English plain-text `detail` and an `origin`, and nothing to render.
+`MessagesWidget`, `RenderableValue`, `MdString`, `SimpleComponentDef`, the `RenderContent` types and guards, the
+stylesheet and the configuration (`forms`, `getConfig`, `setConfig`) are removed; `@dynamicforms/vuetify-inputs`
+takes the rendering primitives. A built-in validator takes `{ code?, detail? }` instead of a message.
+
+**What forced it.** The library calls itself UI-agnostic, and the rendering primitives were the one part of it that
+was not: a Vue component, markdown, `innerHTML` bodies and CSS classes. Every consumer that renders them
+(`vuetify-inputs`, `vue-grid`, `vuetify-modal-form-kit`) already depends on `vuetify-inputs`, so moving them adds no
+dependency edge. Questions about how content is rendered, such as when `componentVHtml` is safe, belong to the
+package that renders it.
+
+**One text channel.** A validator's `message` was a second way to set the text of an error, beside `errorText`, and
+it bypassed translation unless the application wrapped it in a reference. With the message reduced to `detail`, the
+renderer chooses the text from `code` and `params` and falls back to `detail`, for validator and server errors
+alike. A field that needs its own text gets its own code.
+
+**`sameAs` over params.** An error is compared over its data, params included, so the params on the field always
+state the value the field holds. Comparing over rendered output kept an instance whose `params.newValue` named an
+earlier value.
+
+**Rejected: an opaque `message: unknown` passed through to the renderer.** It duplicates `detail` and keeps a
+render-specific value on a data object.

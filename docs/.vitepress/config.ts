@@ -52,8 +52,6 @@ export default defineConfig({
             { text: 'Validators', link: '/api/validators' },
             { text: 'Actions', link: '/api/actions' },
             { text: 'Transactions', link: '/api/transactions' },
-            { text: 'Components', link: '/api/components' },
-            { text: 'Configuration', link: '/api/config' },
           ]
         }
       ],
@@ -68,7 +66,6 @@ export default defineConfig({
             { text: 'Action', link: '/examples/action' },
             { text: 'Transactions', link: '/examples/transactions' },
             { text: 'Extended properties', link: '/examples/extended-properties' },
-            { text: 'Messages widget', link: '/examples/messages-widget' },
           ]
         }
       ]

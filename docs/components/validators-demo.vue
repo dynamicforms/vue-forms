@@ -115,16 +115,13 @@
 
 <script setup>
 import { formatParams, interpolate } from '@dynamicforms/translatable';
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
   Group,
   Field,
-  MdString,
   ValueChangedAction,
   Validators,
   ValidationError,
-  getConfig,
-  setConfig,
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
 import messages from './validators-demo.messages.json';
@@ -164,24 +161,21 @@ const translate = formatParams(t, (value) => {
   return useMarkdown.value ? `**${shown}**` : shown;
 });
 
-// errorText renders every error a built-in validator states by code: the demo's own message for it, as markdown where
-// the checkbox says so. The only list of allowed values in the demo is the roles, named here by the demo rather than by
-// their codes. A code the demo has no message for keeps the library's English detail. errorText is read on every
-// render of an error, so the errors already on the fields follow the language and the checkbox without revalidating.
-const previousErrorText = getConfig().errorText;
-setConfig({
-  errorText: (error) => {
-    const params =
-      error.code === 'in_allowed_values'
-        ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
-        : error.params;
-    const message = translate(error.code, params);
-    if (message === error.code) return undefined;
-    return useMarkdown.value ? new MdString(message) : message;
-  },
-});
-// the configuration is global; leave the rest of the documentation as it was
-onUnmounted(() => setConfig({ errorText: previousErrorText }));
+// The text of an error: the demo's message for its code in the current language, with the params substituted. The
+// only list of allowed values in the demo is the roles, named by the demo rather than by their codes. A code the demo
+// has no message for shows the error's English detail. The function is called on every render, so the errors already
+// on the fields follow the language and the checkbox without revalidating.
+function errorText(error) {
+  const params =
+    error.code === 'in_allowed_values'
+      ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
+      : error.params;
+  const message = translate(error.code, params);
+  return message === error.code ? error.detail : message;
+}
+
+// Vuetify's error-messages prop takes strings; the message slot renders each one as markdown
+const getErrorMessages = (field) => field.errors.map(errorText);
 
 // Create a form group with validated fields
 const validatedForm = new Group({
@@ -197,7 +191,7 @@ const validatedForm = new Group({
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        computed(() => text.value.invalidEmail),
+        { code: 'invalid_email', detail: 'Please enter a valid email address' },
       ),
       // Async validator to simulate email availability check
       new Validators.Validator(async (newValue) => {
@@ -211,7 +205,7 @@ const validatedForm = new Group({
 
         // Check if email is "taken"
         if (newValue.endsWith('@taken.com')) {
-          return [new ValidationError(computed(() => text.value.emailTaken))];
+          return [new ValidationError('email_taken', {}, 'This email address is already taken')];
         }
 
         return null; // Email is available
@@ -248,13 +242,6 @@ const validatedForm = new Group({
 // validation is in flight anywhere below the group. Both reads are tracked, so these recompute on their own.
 const formValid = computed(() => validatedForm.valid);
 const formBusy = computed(() => validatedForm.busy);
-
-// Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
-// componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.
-function getErrorMessages(field) {
-  if (!field.errors || field.errors.length === 0) return [];
-  return field.errors.map(error => error.componentBody || error.componentBindings.source || 'Validation error');
-}
 
 // Function to reset the form
 function resetForm() {

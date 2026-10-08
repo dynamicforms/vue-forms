@@ -1,9 +1,6 @@
 import { isArray, isObject, isString } from 'lodash-es';
 
-import type { FieldBase } from '../field-base';
-import { RenderContentRef } from '../render-content';
-
-import { ValidationFunction, Validator } from './validator';
+import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 
 function toLength(a: any): number {
   if (a == null) return 0;
@@ -14,11 +11,11 @@ function toLength(a: any): number {
 }
 
 export class MinLength extends Validator {
-  constructor(minLength: number, message?: RenderContentRef) {
-    const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
+  constructor(minLength: number, options?: ValidationErrorOptions) {
+    const validationFn: ValidationFunction = (newValue, oldValue) => {
       if (toLength(newValue) < minLength) {
         return [
-          this.errorFor(field, message, 'min_length', 'Length must be larger or equal to {minLength}', {
+          this.errorFor(options, 'min_length', 'Length must be larger or equal to {minLength}', {
             newValue,
             oldValue,
             minLength,
@@ -33,11 +30,11 @@ export class MinLength extends Validator {
 }
 
 export class MaxLength extends Validator {
-  constructor(maxLength: number, message?: RenderContentRef) {
-    const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
+  constructor(maxLength: number, options?: ValidationErrorOptions) {
+    const validationFn: ValidationFunction = (newValue, oldValue) => {
       if (toLength(newValue) > maxLength) {
         return [
-          this.errorFor(field, message, 'max_length', 'Length must be less than or equal to {maxLength}', {
+          this.errorFor(options, 'max_length', 'Length must be less than or equal to {maxLength}', {
             newValue,
             oldValue,
             maxLength,
@@ -52,12 +49,12 @@ export class MaxLength extends Validator {
 }
 
 export class LengthInRange extends Validator {
-  constructor(minLength: number, maxLength: number, message?: RenderContentRef) {
-    const validationFn: ValidationFunction = (newValue, oldValue, field: FieldBase) => {
+  constructor(minLength: number, maxLength: number, options?: ValidationErrorOptions) {
+    const validationFn: ValidationFunction = (newValue, oldValue) => {
       const len = toLength(newValue);
       if (len < minLength || len > maxLength) {
         return [
-          this.errorFor(field, message, 'length_in_range', 'Length must be between {minLength} and {maxLength}', {
+          this.errorFor(options, 'length_in_range', 'Length must be between {minLength} and {maxLength}', {
             newValue,
             oldValue,
             minLength,

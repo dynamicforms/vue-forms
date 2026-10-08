@@ -14,11 +14,10 @@ exists.
 
 ## Upgrading to v3.0.0 (from v2.0.x)
 
-3.0.0 takes translation and markdown out of the library: a built-in validator states what failed, and the
-application decides how that reads. The error classes are consolidated with it. Two changes are silent: the renamed
-error codes, which come first, and a bare `new ValidationError(code)`, described under
-[`ValidationError` is the error class](#validationerror-is-the-error-class). There is a
-[checklist](#checklist-for-3-0-0) at the end of this section.
+3.0.0 removes rendering from the library. An error is data — `code`, `params` and an English `detail` — and the
+application, or a UI library such as `@dynamicforms/vuetify-inputs`, renders it. The library ships no components,
+no styles and no configuration, and no longer depends on `@dynamicforms/translatable`. One change is silent: the
+renamed error codes, which come first. There is a [checklist](#checklist-for-3-0-0) at the end of this section.
 
 ### Error codes are renamed
 
@@ -35,31 +34,10 @@ stops matching.
 
 `required` and `pattern` stay.
 
-### Translations go through `errorText`
+### `ValidationError` is data
 
-`translateStrings` and `strings` are gone, and the library no longer depends on `@dynamicforms/translatable`. A
-built-in validator given no `message` reports a `ValidationErrorDescription` — `code`, `params` and an English
-`detail` — and the application renders it through `errorText` in the configuration, called on every read of the
-error:
-
-```typescript
-// before
-translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
-
-// after
-setConfig({
-  errorText: (error) => (te(`forms.${error.code}`) ? t(`forms.${error.code}`, error.params) : undefined),
-});
-```
-
-The translations move from the message keys to the codes: `MinValue` to `min_value`, `Required` to `required` — the
-[Error codes](/api/validators#error-codes) table lists every code with its params. `undefined` leaves the English
-detail. An error on screen follows a locale switch, because `errorText` is read when the error is rendered.
-
-### `ValidationError` is the error class
-
-`ValidationErrorText` and `ValidationErrorRenderContent` are gone; using either is a compile error. `ValidationError`
-takes their place with the same constructor arguments — content, classes, code, origin, params:
+`ValidationErrorText` and `ValidationErrorRenderContent` are gone. `ValidationError` takes a code, params, an
+English detail and an optional origin; it carries no content, no classes and nothing to render:
 
 ```typescript
 // before
@@ -67,44 +45,85 @@ new ValidationErrorText('This name is taken', '', 'name_taken', 'server');
 new ValidationErrorRenderContent(new MdString('**Required**'));
 
 // after
-new ValidationError('This name is taken', '', 'name_taken', 'server');
-new ValidationError(new MdString('**Required**'));
+new ValidationError('name_taken', {}, 'This name is taken', 'server');
+new ValidationError('required', {}, 'Required');
 ```
 
-Two reads change with it. `.text` of a `ValidationErrorText` is `resolvedText`, and `getTextType` is `kind`.
+The 2.0 constructor `new ValidationError(code?, origin?)` no longer compiles: `params` and `detail` are required.
+`text`, `resolvedText`, `componentName`, `componentBindings`, `componentBody`, `extraClasses` and `getTextType` are
+gone; read `code`, `params` and `detail`.
 
-`new ValidationError(code)` built a bare error whose first argument was its code; the first argument is now the
-content, so such a call compiles and renders the code as text. Pass the code third: `new ValidationError('', '',
-code)`.
+`sameAs` compares the class, `code`, `params`, `detail` and the stated origin. A re-run whose params differ, such
+as a changed `newValue`, replaces the error instance on the field.
 
-`RenderableValue` is now the base class of `ValidationError` instead of a subclass of it. Its constructor is
-unchanged, and it no longer carries `code`, `params` or `origin`.
+### Validators take `{ code, detail }` instead of a message
 
-### Built-in messages are plain text
-
-The English details carry no markdown, and `useMarkdownInValidators` and `buildErrorMessage` are gone; using either
-is a compile error. Where an application wants markdown, `errorText` answers an `MdString`, and a message of its own
-is an `MdString` from the start:
+The `message` argument of every built-in validator is replaced by `ValidationErrorOptions`, which sets the error's
+`code`, its `detail`, or both. `{name}` placeholders in the detail are replaced with the params. `{field}` and
+`{otherField}` are not params and stay as written.
 
 ```typescript
 // before
-new Validators.Required(buildErrorMessage('**Required**'));
+new Validators.Required('Select a role');
+new Validators.Required('Select a role', { trim: false });
+new Validators.CompareTo(password, (a, b) => a === b, 'Passwords must match');
 
 // after
-new Validators.Required(new MdString('**Required**'));
+new Validators.Required({ code: 'role_required', detail: 'Select a role' });
+new Validators.Required({ code: 'role_required', detail: 'Select a role', trim: false });
+new Validators.CompareTo(password, (a, b) => a === b, { detail: 'Passwords must match' });
+```
+
+`CompareTo` no longer requires the argument; its default is the code `compare_to` with the detail
+`Value does not match the comparison with {otherValue}`.
+
+A message given as a `Ref`, a `computed`, a function, an `MdString` or a component definition has no replacement in
+the validator. The renderer chooses the text by the error's code; give the field a code of its own where its text
+differs from that of other fields with the same rule.
+
+### Translation is the renderer's
+
+`translateStrings` and `strings` are gone. The renderer looks the text up by the error's code and substitutes the
+params:
+
+```typescript
+// before
+translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
+
+// after, where the application renders the error
+const errorText = (error) => (te(`forms.${error.code}`) ? t(`forms.${error.code}`, error.params) : error.detail);
+```
+
+The translations move from the message keys to the codes: `MinValue` to `min_value`, `Required` to `required`. The
+[Error codes](/api/validators#error-codes) table lists every code with its params.
+
+### Rendering and configuration are removed
+
+`MessagesWidget`, `RenderableValue`, `MdString`, `SimpleComponentDef`, the `RenderContent` types, `ClassType`,
+`ClassTypes`, `isSimpleComponentDef` and `isCallableFunction` are no longer exported, and the package has no
+`style.css`. They move to `@dynamicforms/vuetify-inputs`.
+
+The plugin `forms`, `getConfig`, `setConfig` and `FormsConfig` are removed, with `useMarkdownInValidators`. The
+English details are plain text, and `buildErrorMessage` is gone.
+
+```typescript
+// before
+import '@dynamicforms/vue-forms/style.css';
+app.use(forms, { useMarkdownInValidators: false });
+
+// after: nothing to install
 ```
 
 ### Checklist for 3.0.0
 
 1. Replace every comparison with an old error code by the new one.
-2. Replace `translateStrings` with `errorText`, and move the translations to the error codes.
-3. Remove `useMarkdownInValidators` from the plugin options and `setConfig` calls; answer an `MdString` from
-   `errorText` where markdown is wanted.
-4. Replace `buildErrorMessage(text)` with the text, or with `new MdString(text)` for markdown.
-5. Replace `ValidationErrorText` and `ValidationErrorRenderContent` with `ValidationError`, `.text` with
-   `resolvedText` and `getTextType` with `kind`; move the code of a bare `new ValidationError(code)` to the third
-   argument.
-6. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
+2. Replace `ValidationErrorText`, `ValidationErrorRenderContent` and `new ValidationError(code, origin)` with
+   `new ValidationError(code, params, detail, origin?)`; read `detail` where the code read the rendered text.
+3. Replace the `message` argument of every built-in validator with `{ code?, detail? }`.
+4. Remove `translateStrings`, and translate in the renderer by error code.
+5. Remove `app.use(forms, …)`, `getConfig`, `setConfig`, `buildErrorMessage` and the `style.css` import.
+6. Import `MessagesWidget`, `MdString`, `RenderableValue` and the render types from the UI library instead.
+7. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

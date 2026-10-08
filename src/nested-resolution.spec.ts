@@ -11,7 +11,9 @@ describe('a rule written against a field of an enclosing row', () => {
       lines: new List(lineTemplate),
     });
     lineTemplate.fields.amount.registerAction(
-      new Validators.CompareTo<number>(target(orderTemplate), (amount, total) => amount <= total, 'over the total'),
+      new Validators.CompareTo<number>(target(orderTemplate), (amount, total) => amount <= total, {
+        detail: 'over the total',
+      }),
     );
     return new List(orderTemplate);
   };
@@ -48,7 +50,7 @@ describe('a rule written against a field of an enclosing row', () => {
       rows: new List(rowTemplate),
     });
     rowTemplate.fields.amount.registerAction(
-      new Validators.CompareTo<number>(form.fields.maxAmount, (a, max) => a <= max, 'too big'),
+      new Validators.CompareTo<number>(form.fields.maxAmount, (a, max) => a <= max, { detail: 'too big' }),
     );
 
     form.fields.rows.push({ amount: 10 });

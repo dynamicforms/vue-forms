@@ -11,7 +11,7 @@ section or a list row behaves the same way a single field does — and rendering
 
 ## Design Goals
 
-- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The only component the library ships is the optional `MessagesWidget` for rendering validation errors. The few members that speak about the interface are listed in [What the library carries for the interface](#what-the-library-carries-for-the-interface), each with the reason it is there.
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The library ships no components. The few members that speak about the interface are listed in [What the library carries for the interface](#what-the-library-carries-for-the-interface), each with the reason it is there.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read — assign a property and whatever read it re-renders, with no `ref` to unwrap. A group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
@@ -30,7 +30,6 @@ that should drive it. None of them renders anything: each states something a ren
 | [`visibility`](/api/field#visibility) | how an element is drawn: `'full'`, `'invisible'`, `'hidden'`, `'suppress'` | showing and hiding a field is the commonest rule a form has, and [`ConditionalVisibilityAction`](/api/actions#conditionalvisibilityaction-statement-whentrue-whenfalse) declares it with the form rather than in a template. It is presentation alone and changes nothing about what is sent or validated |
 | [`enabled`, `effectiveEnabled`](/api/field#properties) | whether an element accepts input, on its own and with the containers above it | read from [`access`](/api/field#access), which decides what is sent; the input half follows from it the way it does for an HTML `<input readonly>` or `<input disabled>`, so the two cannot disagree |
 | [`touched`](/api/field#properties) | whether the user has interacted with an element | the condition under which a form shows its errors; the library never sets it, the rendering layer does |
-| validation errors as render content | a message as text, markdown or a component | an error is shown to a user, so what it carries is how it is shown; the optional `MessagesWidget` renders it, and nothing else depends on it |
 | [`Action`](/examples/action#why-action-is-not-ui-agnostic) | a label and an icon | the element a form's submit and cancel hang on; the pair is what makes it a concept rather than a `Field`, and a UI library widens it |
 
 Everything else a rendering layer needs — a label, a hint, a width, a component to render with — goes in an

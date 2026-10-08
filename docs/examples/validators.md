@@ -18,16 +18,13 @@ Here's the source code for the demo above:
 
 ```js
 import { formatParams, interpolate } from '@dynamicforms/translatable';
-import { computed, onUnmounted, ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
   Group,
   Field,
-  MdString,
   ValueChangedAction,
   Validators,
   ValidationError,
-  getConfig,
-  setConfig,
 } from '@dynamicforms/vue-forms';
 
 import messages from './validators-demo.messages.json';
@@ -67,24 +64,21 @@ const translate = formatParams(t, (value) => {
   return useMarkdown.value ? `**${shown}**` : shown;
 });
 
-// errorText renders every error a built-in validator states by code: the demo's own message for it, as markdown where
-// the checkbox says so. The only list of allowed values in the demo is the roles, named here by the demo rather than by
-// their codes. A code the demo has no message for keeps the library's English detail. errorText is read on every
-// render of an error, so the errors already on the fields follow the language and the checkbox without revalidating.
-const previousErrorText = getConfig().errorText;
-setConfig({
-  errorText: (error) => {
-    const params =
-      error.code === 'in_allowed_values'
-        ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
-        : error.params;
-    const message = translate(error.code, params);
-    if (message === error.code) return undefined;
-    return useMarkdown.value ? new MdString(message) : message;
-  },
-});
-// the configuration is global; leave the rest of the documentation as it was
-onUnmounted(() => setConfig({ errorText: previousErrorText }));
+// The text of an error: the demo's message for its code in the current language, with the params substituted. The
+// only list of allowed values in the demo is the roles, named by the demo rather than by their codes. A code the demo
+// has no message for shows the error's English detail. The function is called on every render, so the errors already
+// on the fields follow the language and the checkbox without revalidating.
+function errorText(error) {
+  const params =
+    error.code === 'in_allowed_values'
+      ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
+      : error.params;
+  const message = translate(error.code, params);
+  return message === error.code ? error.detail : message;
+}
+
+// Vuetify's error-messages prop takes strings; the message slot renders each one as markdown
+const getErrorMessages = (field) => field.errors.map(errorText);
 
 // Create a form group with validated fields
 const validatedForm = new Group({
@@ -100,7 +94,7 @@ const validatedForm = new Group({
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        computed(() => text.value.invalidEmail),
+        { code: 'invalid_email', detail: 'Please enter a valid email address' },
       ),
       // Async validator to simulate email availability check
       new Validators.Validator(async (newValue) => {
@@ -114,7 +108,7 @@ const validatedForm = new Group({
 
         // Check if email is "taken"
         if (newValue.endsWith('@taken.com')) {
-          return [new ValidationError(computed(() => text.value.emailTaken))];
+          return [new ValidationError('email_taken', {}, 'This email address is already taken')];
         }
 
         return null; // Email is available
@@ -152,13 +146,6 @@ const validatedForm = new Group({
 const formValid = computed(() => validatedForm.valid);
 const formBusy = computed(() => validatedForm.busy);
 
-// Function to extract error messages as plain strings, as required by Vuetify's error-messages prop.
-// componentBody carries the text of plain-text errors, componentBindings.source the source of markdown ones.
-function getErrorMessages(field) {
-  if (!field.errors || field.errors.length === 0) return [];
-  return field.errors.map(error => error.componentBody || error.componentBindings.source || 'Validation error');
-}
-
 // Function to reset the form
 function resetForm() {
   validatedForm.fields.username.value = '';
@@ -177,8 +164,9 @@ validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldV
 
 ### Translations
 
-The demo's text lives in `validators-demo.messages.json`, one block per language: `errors` keyed by the code a
-built-in validator states, `roles` keyed by the stored role, and `ui` for the demo's own labels. An excerpt:
+The demo's text lives in `validators-demo.messages.json`, one block per language: `errors` keyed by error code,
+`roles` keyed by the stored role, and `ui` for the demo's own labels. `errors` holds the codes of the built-in
+validators and the demo's own codes, `invalid_email` and `email_taken`. An excerpt:
 
 ```json
 {
@@ -187,7 +175,9 @@ built-in validator states, `roles` keyed by the stored role, and `ui` for the de
       "required": "Prosimo, vnesite vrednost",
       "value_in_range": "Vrednost mora biti med {minValue} in {maxValue}",
       "in_allowed_values": "Mora biti ena od [{allowedAsText}]",
-      "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}"
+      "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}",
+      "invalid_email": "Vnesite veljaven e-poštni naslov",
+      …
     },
     "roles": {
       "admin": "Skrbnik",
@@ -351,35 +341,32 @@ error inside the validation function only when the user should read something mo
 ## Translated Messages in This Demo
 
 The language selector switches the demo between English, Slovenian, German, Spanish, Japanese, Chinese, Persian and
-Bengali. The library takes no part in it: every built-in validator reports its failure as a `code`, `params` and an
-English `detail`, and the demo renders the error itself through [`errorText`](/api/config).
+Bengali. The library does not render errors: every error is a `code`, `params` and an English `detail`, and the
+demo's `errorText` function turns it into the text Vuetify's `error-messages` prop shows.
 
 - **Messages.** `errorText` looks the error's code up under `errors` in the current language and substitutes the
-  params with `interpolate` from `@dynamicforms/translatable`. A code the language has no message for keeps the
-  library's English detail.
+  params with `interpolate` from `@dynamicforms/translatable`. A code the language has no message for shows the
+  error's `detail`.
+- **The demo's own codes.** The email pattern validator is given `{ code: 'invalid_email', detail: … }`, and the
+  asynchronous validator returns an error with the code `email_taken`. Both are translated like the built-in codes.
 - **Numbers.** `formatParams`, from the same package, formats the params before they are substituted: numbers go
   through `Intl.NumberFormat` for the language, so Persian and Bengali show the age range in their own digits.
 - **Role names.** A role is stored as its code, `guest`, and the error's params carry the codes in `allowedValues`.
   The demo names them from `roles`, for the message and for the select's items alike.
-- **Markdown.** With the checkbox on, the formatting wraps each value in `**` and `errorText` answers an `MdString`,
-  which each field renders through the `vue-markdown` component in Vuetify's `message` slot, since the
-  `error-messages` prop shows plain text. With it off, the message is plain text, values as they are.
+- **Markdown.** With the checkbox on, the formatting wraps each value in `**`. Each field renders its messages
+  through the `vue-markdown` component in Vuetify's `message` slot.
 
-`errorText` reads the language and the checkbox on every render of an error, so the errors already on the fields
-change without the fields revalidating. The labels, the hint and the messages the demo gives its own email
-validators come from `ui`; a message given to a validator as a `computed` follows the language the same way.
+`errorText` is called on every render, so the errors already on the fields follow the language and the checkbox
+without revalidating.
 
 Persian is written right to left: the demo wraps itself in Vuetify's `v-locale-provider` with `rtl` set for it, and
 the Persian message for `in_allowed_values` isolates the list with U+2068 and U+2069, so its brackets stay in place.
-
-`errorText` is global, so the demo restores the previous one when it is unmounted. See
-[Error messages and translation](/guide/getting-started#error-messages-and-translation).
 
 ## API Reference
 
 - [Validators](/api/validators) — all built-in validators with signatures and placeholder list
 - [Field → errors](/api/field#properties) — `errors`, `valid`, `validating` and `busy` properties
-- [MessagesWidget](/api/components) — renders `field.errors` directly, without converting them to strings
+- [Errors](/api/validators#validationerror) — `code`, `params`, `detail` and `origin` of an error
 
 ## Key Features Demonstrated
 
@@ -390,9 +377,9 @@ the Persian message for `in_allowed_values` isolates the list with U+2068 and U+
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
   run deciding the verdict, and `form.busy` disabling submit while the tree is still deciding
-- **Translated Messages**: The validators' errors rendered by the application through `errorText`, in eight
-  languages, numbers in the language's digits, following a language switch on screen
-- **Markdown**: The application answering an `MdString` where it wants markdown
+- **Translated Messages**: Errors rendered by the application from their code and params, in eight languages,
+  numbers in the language's digits, following a language switch on screen
+- **Markdown**: The application rendering its messages as markdown
 - **Form-level Validation**: Tracking overall form validity based on individual field states
 - **Error Display**: Showing validation errors to the user
 

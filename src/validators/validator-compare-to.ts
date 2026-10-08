@@ -3,10 +3,8 @@ import { unref } from 'vue';
 import { ValueChangedAction } from '../actions';
 import { bindingsIn, resolveByName, resolveInScope, scopeOf } from '../binding/resolve';
 import type { FieldBase } from '../field-base';
-import { RenderContentRef } from '../render-content';
 
-import { ValidationError } from './validation-error';
-import { ValidationFunction, Validator, ValidatorBindingState } from './validator';
+import { ValidationErrorOptions, ValidationFunction, Validator, ValidatorBindingState } from './validator';
 
 /**
  * How the field to compare against is named. A field names it directly, a string names it by the name its
@@ -49,7 +47,7 @@ export default class CompareTo<T = any> extends Validator {
   constructor(
     otherField: CompareToTarget,
     private isValidComparison: (myValue: T, otherValue: T) => boolean,
-    message: RenderContentRef,
+    options?: ValidationErrorOptions,
   ) {
     const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
       this.comparisonState(field).oldValue = oldValue;
@@ -65,15 +63,12 @@ export default class CompareTo<T = any> extends Validator {
 
       const otherValue = unref(other.value);
       if (!this.isValidComparison(unref(newValue), otherValue)) {
-        const params = { newValue, oldValue, otherValue };
         return [
-          new ValidationError(
-            this.replacePlaceholders(message, { ...params, field, otherField: other }),
-            '',
-            'compare_to',
-            undefined,
-            params,
-          ),
+          this.errorFor(options, 'compare_to', 'Value does not match the comparison with {otherValue}', {
+            newValue,
+            oldValue,
+            otherValue,
+          }),
         ];
       }
       return null;

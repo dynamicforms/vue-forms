@@ -2,20 +2,14 @@ import { mount } from '@vue/test-utils';
 import { type MockInstance, vi } from 'vitest';
 import { nextTick } from 'vue';
 
-import MessagesWidget from './components/messages-widget.vue';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
 import { ValidationError } from './validators';
 
-// MessagesWidget resolves vue-markdown at setup; a stub keeps the resolution warning out of the way so that the
-// console.warn spy below only ever sees warnings this suite is actually about
-const MockVueMarkdown = { name: 'VueMarkdown', props: ['source'], template: '<div>{{ source }}</div>' };
-
 const ErrorHost = {
-  components: { MessagesWidget },
   props: { form: { type: Object, required: true } },
-  template: '<MessagesWidget :message="form.errors" classes="text-error" />',
+  template: '<div v-for="error in form.errors" class="text-error">{{ error.detail }}</div>',
 };
 
 const RowsHost = {
@@ -42,14 +36,11 @@ describe('rendering a live form', () => {
 
   it('renders a group-level error as it appears and removes it again', async () => {
     const form = new Group({ ime: new Field({ value: 'Janez' }) });
-    const wrapper = mount(ErrorHost, {
-      props: { form },
-      global: { components: { VueMarkdown: MockVueMarkdown } },
-    });
+    const wrapper = mount(ErrorHost, { props: { form } });
 
     expect(wrapper.findAll('div')).toHaveLength(0);
 
-    form.errors.push(new ValidationError('At least one contact is required'));
+    form.errors.push(new ValidationError('invalid', {}, 'At least one contact is required'));
     await nextTick();
 
     const divs = wrapper.findAll('div');

@@ -8,8 +8,8 @@ describe('The origin of an error', () => {
     const field = required('');
 
     expect(field.errors[0].origin).toBe('validator');
-    expect(new ValidationError('taken').origin).toBe('application');
-    expect(new ValidationError('taken', '', 'taken', 'server').origin).toBe('server');
-    expect(new ValidationError('stale', '', 'stale', 'sync').origin).toBe('sync');
+    expect(new ValidationError('invalid', {}, 'taken').origin).toBe('application');
+    expect(new ValidationError('taken', {}, 'taken', 'server').origin).toBe('server');
+    expect(new ValidationError('stale', {}, 'stale', 'sync').origin).toBe('sync');
   });
 });

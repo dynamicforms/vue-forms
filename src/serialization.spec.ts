@@ -193,7 +193,7 @@ describe('An error written by hand into a member that sends nothing', () => {
   it('stays on the member and is not counted by the container', () => {
     const field = new Field({ value: 'x' });
     const form = new Group({ field });
-    field.errors.push(new ValidationError('refused by the server'));
+    field.errors.push(new ValidationError('invalid', {}, 'refused by the server'));
     field.validate();
     expect(form.valid).toBe(false);
 

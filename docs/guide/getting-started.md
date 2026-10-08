@@ -11,17 +11,8 @@ npm install @dynamicforms/vue-forms
 The package is ESM-only and requires Node 22 or newer. A CommonJS consumer reaches it through `require()` of an
 ES module, which Node supports.
 
-### Stylesheet
-
-The library ships a small stylesheet used by `MessagesWidget`. It is not bundled into the JavaScript, so import it
-once in your app entry point if you use that component:
-
-```typescript
-import '@dynamicforms/vue-forms/style.css';
-```
-
-Everything else — `Field`, `Group`, `List`, validators, actions — is UI-agnostic and needs no styles. The few
-members that speak about the interface, such as `visibility` and `enabled`, are listed with the reason for each in
+The library ships no components and no styles. The few members that speak about the interface, such as
+`visibility` and `enabled`, are listed with the reason for each in
 [What the library carries for the interface](/guide/rationale#what-the-library-carries-for-the-interface).
 
 ## Basic Usage
@@ -80,20 +71,18 @@ whatever its access), and it still takes a write to `value`, so loading a record
 
 ## Validation
 
-Attach validators to a field and render the resulting errors with the `MessagesWidget` component:
+Attach validators to a field and render the resulting errors yourself:
 
 ```vue
 <template>
   <input v-model="username.value" />
-  <messages-widget
-    v-if="username.touched && username.errors.length > 0"
-    :message="username.errors"
-    classes="text-error"
-  />
+  <div v-if="username.touched" v-for="error in username.errors" :key="error.code" class="text-error">
+    {{ error.detail }}
+  </div>
 </template>
 
 <script setup>
-import { Field, MessagesWidget, Validators } from '@dynamicforms/vue-forms';
+import { Field, Validators } from '@dynamicforms/vue-forms';
 
 const username = new Field({ value: '', validators: [new Validators.Required()] });
 </script>
@@ -103,14 +92,14 @@ Validators run eagerly — the field above is already invalid right after creati
 the template checks `touched` before showing the errors. `Required` trims a string before measuring it, so a value
 of spaces alone is no value; pass `new Validators.Required({ trim: false })` where the spaces belong to the field.
 
+`@dynamicforms/vuetify-inputs` renders `field.errors` in its inputs.
+
 ## Error messages and translation
 
-A built-in validator states a failure as data rather than as a sentence: a `code` naming what failed, `params`
-holding the values it failed with, and an English `detail`. The library ships no translations, picks no locale and
-renders no markdown of its own; the application decides how an error reads through one function, `errorText`:
+An error is data: a `code` naming what failed, `params` holding the values it failed with, and an English `detail`.
+The library ships no translations, picks no locale and renders nothing. The application turns an error into text:
 
 ```typescript
-import { setConfig } from '@dynamicforms/vue-forms';
 import { formatParams } from '@dynamicforms/translatable';
 
 const { t, n, d, te } = i18n.global;
@@ -118,39 +107,26 @@ const { t, n, d, te } = i18n.global;
 const tf = formatParams(t, (value) =>
   typeof value === 'number' ? n(value) : value instanceof Date ? d(value) : value);
 
-setConfig({
-  errorText: (error) => (te(`errors.${error.code}`) ? tf(`errors.${error.code}`, error.params) : undefined),
-});
+const errorText = (error) => (te(`errors.${error.code}`) ? tf(`errors.${error.code}`, error.params) : error.detail);
 ```
 
 ```json
 { "errors": { "min_value": "Vrednost mora biti vsaj {minValue}", "required": "Prosimo, vnesite vrednost" } }
 ```
 
-`errorText` answers a string, an `MdString` for markdown or a `SimpleComponentDef`; `undefined` leaves the English
-detail, so an application can adopt a locale before it translates every code. The codes, their params and their
-English details are listed under [Error codes](/api/validators#error-codes).
+A function called on every render follows a locale switch without the field revalidating. Falling back to `detail`
+lets an application adopt a locale before it translates every code. The codes, their params and their English
+details are listed under [Error codes](/api/validators#error-codes). An error the server returned has the same shape
+when it is built as a [`ValidationError`](/api/validators#validationerror) from the `detail_code`, `detail_params`
+and `detail` a `@dynamicforms/fastapi-viewsets` server answers with. The [validators demo](/examples/validators)
+renders its errors in eight languages, with and without markdown, this way.
 
-`errorText` is called on every read of an error, so an error already on screen follows a locale switch without the
-field revalidating. An error the server returned goes through the same function when it is built as a
-[`ValidationErrorDescription`](/api/validators#validationerrordescription), the shape a
-`@dynamicforms/fastapi-viewsets` server answers with. The [validators demo](/examples/validators) renders its errors
-in eight languages, with and without markdown, this way.
-
-A validator given a `message` of its own reports that message, and `errorText` is not asked about it.
-
-## Plugin Setup
-
-The library ships a Vue plugin for its global options:
+A validator takes `{ code, detail }` as its last argument. A field that needs its own text for a failure gets its own
+code, and the application translates that code like any other:
 
 ```typescript
-import { forms } from '@dynamicforms/vue-forms';
-
-app.use(forms, { errorText });
+new Validators.Required({ code: 'role_required', detail: 'Select a role' });
 ```
-
-The same options are reachable without the plugin, through `getConfig()` and `setConfig()` — see
-[Configuration](/api/config).
 
 ## Versioning and support
 
@@ -171,8 +147,8 @@ break your code and a minor or patch release does not. Every breaking change is 
 how a `List` builds its rows. The [Cookbook](/guide/cookbook) has short recipes for what a form needs next —
 loading and submitting a record, server errors, optional sections, fields that depend on a type. The
 [Examples](/examples/basic-form) section shows the patterns in running forms and the API reference names every
-member: [Field](/api/field), [Group](/api/group),
-[Validators](/api/validators) and [Configuration](/api/config).
+member: [Field](/api/field), [Group](/api/group) and
+[Validators](/api/validators).
 
 Upgrading an existing project? The [migration guide](/guide/migration) has a section per release, newest first,
 starting with 1.x to 2.0.

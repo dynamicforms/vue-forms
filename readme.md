@@ -14,7 +14,7 @@ mechanism applies at every level of a nested form.
 
 ### Design Goals
 
-- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own. The few members that speak about the interface — `visibility`, `enabled`, `touched`, error render content and `Action` — are there because nearly every form needs them; [Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface) lists them with the reason for each.
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with any Vue components, including your own. The few members that speak about the interface — `visibility`, `enabled`, `touched` and `Action` — are there because nearly every form needs them; [Rationale](https://docs.velis.si/dynamicforms/vue-forms/guide/rationale#what-the-library-carries-for-the-interface) lists them with the reason for each.
 - **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and an action pipeline lets a handler intercept, transform or abort an event.
 - **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read, and a group's value type is inferred from the fields it holds, nested structures included.
 - **Structural serialization**: A group's value is the shape of its fields, and `Group.createFromFormData()` turns a plain object back into a form.
@@ -55,29 +55,7 @@ npm install @dynamicforms/vue-forms
 ```
 
 The package is ESM-only and requires Node 22 or newer. A CommonJS consumer reaches it through `require()` of an ES
-module, which Node supports. Type definitions ship with the build; the stylesheet is
-`@dynamicforms/vue-forms/style.css`.
-
-## Setup
-
-The library ships a Vue plugin for its global options:
-
-```typescript
-import { forms } from '@dynamicforms/vue-forms';
-
-app.use(forms, { errorText: (error) => myErrorText(error) });
-```
-
-The import must be a named one — the default export is a namespace of the library members, not the plugin.
-
-`errorText` is how an application renders the errors of the built-in validators: each states a `code`, `params` and
-an English `detail`, and the function answers the application's text for it — in its own language, as a string,
-an `MdString` or a component — or `undefined` to leave the English detail. It is read on every render, so an error
-on screen follows a locale switch.
-
-The configuration is module-global rather than per app, and `getConfig()`, `setConfig()` and the `FormsConfig` type
-are exported beside the plugin, so the options can be read and written where there is no app to install a plugin
-on.
+module, which Node supports. Type definitions ship with the build. The package ships no components and no styles.
 
 ## Basic Usage Example
 
@@ -144,7 +122,7 @@ const emailField = new Field({ value: '' })
   .registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
     // Custom validation on value change
     if (!newValue.includes('@')) {
-      field.errors = [new ValidationError('Invalid email format')];
+      field.errors = [new ValidationError('invalid_email', {}, 'Invalid email format')];
     } else {
       field.errors = [];
     }
@@ -191,7 +169,7 @@ import { Field, Group, Validators } from '@dynamicforms/vue-forms';
 const validatedForm = new Group({
   // Required field
   username: new Field({ 
-    validators: [new Validators.Required('Username is required')] 
+    validators: [new Validators.Required({ detail: 'Username is required' })] 
   }),
   
   // Email validation with pattern
@@ -199,7 +177,7 @@ const validatedForm = new Group({
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        'Please enter a valid email address'
+        { code: 'invalid_email', detail: 'Please enter a valid email address' }
       )
     ] 
   }),
@@ -208,7 +186,7 @@ const validatedForm = new Group({
   age: new Field({ 
     value: 25, 
     validators: [
-      new Validators.ValueInRange(18, 100, 'Age must be between 18 and 100')
+      new Validators.ValueInRange(18, 100, { detail: 'Age must be between {minValue} and {maxValue}' })
     ] 
   }),
   
@@ -222,7 +200,7 @@ const validatedForm = new Group({
   // Text length validation
   bio: new Field({
     validators: [
-      new Validators.LengthInRange(10, 200, 'Bio must be between 10 and 200 characters')
+      new Validators.LengthInRange(10, 200, { detail: 'Bio must be between 10 and 200 characters' })
     ]
   })
 });
@@ -233,72 +211,19 @@ invalid immediately. Use `field.touched` to decide when to show the errors in th
 before it measures it, so a value of spaces alone is no value; `new Validators.Required({ trim: false })` keeps the
 spaces where they are part of what the field holds.
 
-Every error a built-in validator produces carries a `code` — `required`, `pattern`, `min_length`, … — and the
-`params` it failed with, so a program reacting to one particular failure need not match message text, and an
-application translates the error from its code.
+An error is data: a `code` — `required`, `pattern`, `min_length`, … — the `params` it failed with, and an English
+`detail`. The library does not render it. The application, or a UI library such as `@dynamicforms/vuetify-inputs`,
+turns it into text, translated by its code. A validator's last argument, `{ code, detail }`, replaces the code and
+the English detail it states.
 
 A validation function may return a `Promise`. `field.validating` is `true` while such a run is pending — on the
 field and on every container above it, so a form answers for the whole tree — and the verdict applied to the field
 is always the one belonging to the newest run, so a slow check cannot overwrite a faster one started after it. The
 function receives an `AbortSignal` as its fourth argument, which aborts the moment the run's verdict stops
 counting, so the request behind it can be called off. `form.busy` is the same question with the `Action.execute()`
-runs below it included — what a submit button binds to. A validator message given as a `Ref` or `computed` is
-resolved when the message is rendered, so a translated message follows a locale switch without revalidating.
+runs below it included — what a submit button binds to.
 `field.clearValidators()` drops the validators, empties the errors and cancels whatever validation is still in
 flight.
-
-## Messages Widget Component
-
-The library includes a `messages-widget` Vue component for displaying validation errors and messages:
-
-```vue
-<template>
-  <!-- Simple string message -->
-  <messages-widget 
-    message="This is an error message"
-    classes="text-error"
-  />
-  
-  <!-- Display field validation errors -->
-  <messages-widget 
-    v-if="emailField.errors.length > 0"
-    :message="emailField.errors"
-    :classes="['text-error', 'mt-2']"
-  />
-  
-  <!-- Markdown message -->
-  <messages-widget :message="markdownErrors" />
-</template>
-
-<script setup>
-import { MessagesWidget, Field, Validators, ValidationError, MdString } from '@dynamicforms/vue-forms';
-
-// Example field with validation
-const emailField = new Field({
-  value: '',
-  validators: [
-    new Validators.Pattern(
-      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-      'Please enter a valid email address'
-    )
-  ]
-});
-
-// Markdown message support (requires VueMarkdown component)
-const markdownErrors = [
-  new ValidationError(
-    new MdString('**Error**: This field contains *invalid* data.')
-  )
-];
-</script>
-```
-
-The messages widget supports:
-- **String messages**: Simple text messages
-- **ValidationError arrays**: Rich error objects with styling and components
-- **Markdown content**: Rich text formatting (requires VueMarkdown component)
-- **Custom components**: Render any Vue component as an error message
-- **Flexible styling**: Multiple ways to apply CSS classes
 
 ## Conditional Form Behavior
 

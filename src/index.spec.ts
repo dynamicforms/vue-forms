@@ -1,24 +1,15 @@
-import { getConfig as getModuleConfig, setConfig as setModuleConfig } from './config';
-
-import { Field, forms, getConfig, setConfig, type FormsConfig } from './index';
+import * as entry from './index';
 
 describe('package entry point', () => {
-  it('exports the configuration surface beside the elements', () => {
-    expect(typeof getConfig).toBe('function');
-    expect(typeof setConfig).toBe('function');
-    expect(typeof forms.install).toBe('function');
-    expect(new Field({ value: 1 }).value).toBe(1);
+  it('exports the elements and the validators', () => {
+    expect(new entry.Field({ value: 1 }).value).toBe(1);
+    expect(typeof entry.Validators.Required).toBe('function');
+    expect(typeof entry.ValidationError).toBe('function');
   });
 
-  it('reads and writes the configuration the library itself reads', () => {
-    try {
-      const options: Partial<FormsConfig> = { errorText: () => 'text' };
-      setConfig(options);
-
-      expect(getConfig()).toBe(getModuleConfig());
-      expect(getModuleConfig().errorText).toBe(options.errorText);
-    } finally {
-      setModuleConfig({ errorText: undefined });
+  it('exports no rendering or configuration surface', () => {
+    for (const name of ['MessagesWidget', 'MdString', 'RenderableValue', 'forms', 'getConfig', 'setConfig']) {
+      expect(entry).not.toHaveProperty(name);
     }
   });
 });

@@ -1,10 +1,7 @@
 import { truncate } from 'lodash-es';
 import { type Ref, unref } from 'vue';
 
-import type { FieldBase } from '../field-base';
-import { RenderContentRef } from '../render-content';
-
-import { ValidationFunction, Validator } from './validator';
+import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 
 /**
  * The values a field may hold: a fixed list, or a reference or a callback for a list that is filled in or replaced
@@ -13,7 +10,7 @@ import { ValidationFunction, Validator } from './validator';
 export type AllowedValues<T> = T[] | Ref<T[]> | (() => T[]);
 
 export default class InAllowedValues<T = any> extends Validator {
-  constructor(allowedValues: AllowedValues<T>, message?: RenderContentRef) {
+  constructor(allowedValues: AllowedValues<T>, options?: ValidationErrorOptions) {
     // the list is read at each validation rather than at construction, so a list that arrives later is the one the
     // value is measured against and the one the error names
     const resolve = (): T[] => {
@@ -26,11 +23,11 @@ export default class InAllowedValues<T = any> extends Validator {
       return truncate(text, { length: 40, separator: ', ', omission: `... (${values.length} items total)` });
     };
 
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T, field: FieldBase) => {
+    const validationFn: ValidationFunction = (newValue: T, oldValue: T) => {
       const values = resolve();
       if (!values.includes(unref(newValue))) {
         return [
-          this.errorFor(field, message, 'in_allowed_values', 'Must be one of [{allowedAsText}]', {
+          this.errorFor(options, 'in_allowed_values', 'Must be one of [{allowedAsText}]', {
             newValue,
             oldValue,
             allowedValues: values,
