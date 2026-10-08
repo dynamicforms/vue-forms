@@ -26,13 +26,13 @@ value a rendering layer reads.
 
 | Member | What it holds | Why it is in the library |
 |---|---|---|
-| [`visibility`](/api/field#visibility) | how an element is drawn: `'full'`, `'invisible'`, `'hidden'`, `'suppress'` | showing and hiding a field is the most common rule in a form, and [`ConditionalVisibilityAction`](/api/actions#conditionalvisibilityaction-statement-whentrue-whenfalse) declares it in the form instead of in a template. It is presentation only and does not affect what is sent or validated |
-| [`enabled`, `effectiveEnabled`](/api/field#properties) | whether an element accepts input, on its own and including the containers above it | derived from [`access`](/api/field#access), which determines what is sent; input acceptance follows from it as it does for an HTML `<input readonly>` or `<input disabled>`, so the two are always consistent |
-| [`touched`](/api/field#properties) | whether the user has interacted with an element | the condition under which a form shows its errors; the rendering layer sets it, the library never does |
+| [`visibility`](/api/field-base#visibility) | how an element is drawn: `'full'`, `'invisible'`, `'hidden'`, `'suppress'` | showing and hiding a field is the most common rule in a form, and [`ConditionalVisibilityAction`](/api/actions#conditionalvisibilityaction-statement-whentrue-whenfalse) declares it in the form instead of in a template. It is presentation only and does not affect what is sent or validated |
+| [`enabled`, `effectiveEnabled`](/api/field-base#prop-enabled) | whether an element accepts input, on its own and including the containers above it | derived from [`access`](/api/field-base#access), which determines what is sent; input acceptance follows from it as it does for an HTML `<input readonly>` or `<input disabled>`, so the two are always consistent |
+| [`touched`](/api/field-base#prop-touched) | whether the user has interacted with an element | the condition under which a form shows its errors; the rendering layer sets it, the library never does |
 | [`Action`](/examples/action#why-action-is-not-ui-agnostic) | a label and an icon | the element a form's submit and cancel are attached to; the label/icon pair distinguishes it from a `Field`, and a UI library extends it |
 
 Any other data a rendering layer needs (a label, a hint, a width, a component to render with) goes in an element's
-[extended properties](/api/field#extended-properties). The library stores them and does not read them, so one form
+[extended properties](/api/field-base#extended-properties). The library stores them and does not read them, so one form
 definition can serve more than one rendering layer.
 
 ## What this library will not do

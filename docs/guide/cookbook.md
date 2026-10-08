@@ -48,7 +48,7 @@ async function submit() {
 <button :disabled="!form.valid || form.pending" @click="submit">Save</button>
 ```
 
-[`settled()`](/api/field#settled-promise-void) resolves once no validation and no `Action.execute()` is running at
+[`settled()`](/api/field-base#settled-promise-void) resolves once no validation and no `Action.execute()` is running at
 or below the form. The handler awaits it although the button is disabled on `pending`: the click can start a
 validation in the same event, when the blur of an input commits its value. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
 `null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again.
@@ -97,7 +97,7 @@ edited since.
 
 You want to put a form back to its declared values, or empty it. `Group` and `Field` have no `clear()` method: a
 `Group` and a `List` have their own empty state, and a `Field`'s empty value (an empty string, a zero, `false`)
-depends on its `T`. [`rebind()`](/api/field#rebind-data-this) does both:
+depends on its `T`. [`rebind()`](/api/field-base#rebind-data-this) does both:
 
 ```typescript
 group.rebind(group.originalValue);   // back to what the group was declared with
@@ -116,7 +116,7 @@ the setter patches by key, and a key missing from the object keeps its value.
 Emptying a `Group` writes `null` into every member below it, whatever the member's `T` allows: a `Field<string>`
 inside a cleared group holds `null` at runtime while its type is `string`. A form that is cleared this way declares
 its fields as `T | null`; a form with stricter types resets field by field.
-A field can carry its own empty value as an [extended property](/api/field#extended-properties):
+A field can carry its own empty value as an [extended property](/api/field-base#extended-properties):
 
 ```typescript
 interface Emptyable<T> { emptyValue: T }
@@ -254,13 +254,13 @@ lineItem.fields.quantity.registerAction(new ValueChangedAction((field, supr, new
 The field's `parent` is typed [`Container`](/api/container#parent), so the check narrows it to a `Group` before
 reading `fields`. The check also tests whether the row exists yet: a row is built member by member, and a member's
 first validation runs before it has a row. In that case the validator has no result;
-[`markRecordIncomplete()`](/api/field#markrecordincomplete-void) records this, and the row runs the validator again
+[`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) records this, and the row runs the validator again
 once it holds its members and the data it was built with.
 
 A validator runs when its own field changes. The second action re-validates the unit price when the quantity is
 edited after the row exists.
 
-A rule comparing two fields by name needs none of this: [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message)
+A rule comparing two fields by name needs none of this: [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options)
 resolves the other field in its record and re-validates when that field changes. The
 [List example](/examples/list#reaching-a-sibling-field) runs these two actions in a form.
 

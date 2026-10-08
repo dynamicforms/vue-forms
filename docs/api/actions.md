@@ -352,7 +352,7 @@ new VisibilityChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. A result that is none of the four [visibilities](/api/field#visibility) makes the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
+If the action returns `null` or `undefined`, `newValue` is used instead. A result that is none of the four [visibilities](/api/field-base#visibility) makes the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
 
 **With `watch()`:** no equivalent. A watcher runs after the write and cannot refuse or change it.
 
@@ -419,7 +419,9 @@ field.triggerAction(ExecuteAction, { reason: 'submit' });
 
 ### The `Action` class
 
-`Action` is a `Field` whose value is an `ActionValue` (`{ label?: unknown; icon?: unknown }`). It represents a button or menu entry that runs an `ExecuteAction` chain.
+`Action` is a [`Field`](/api/field) whose value is an `ActionValue` (`{ label?: unknown; icon?: unknown }`). It
+represents a button or menu entry that runs an `ExecuteAction` chain. It extends `Field`, which extends
+[`FieldBase`](/api/field-base); the table below lists what `Action` adds or overrides.
 
 ::: tip Action is not UI-agnostic, deliberately
 The library describes data and behaviour; the few members that concern the user interface are listed in
@@ -454,11 +456,54 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 
 | Member | Description |
 |--------|-------------|
-| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` (an `IFieldParams<T, X>`), applied in the same order: `validators` and `actions` are registered first, so an action guarding `access` or `visibility` applies to the assignment from the same object, and each eager action runs once over the final value. [Extended properties](/api/field#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore go to its value; `X` accordingly defaults to [`Extras`](/api/field#extras) without those two keys |
-| `busy` | `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action includes this in its own `busy`, so a form reports that a run is in progress below it. An asynchronous validation of the action itself is reported by `validating` |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` (an `IFieldParams<T, X>`), applied in the same order: `validators` and `actions` are registered first, so an action guarding `access` or `visibility` applies to the assignment from the same object, and each eager action runs once over the final value. [Extended properties](/api/field-base#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore go to its value; `X` accordingly defaults to [`Extras`](/api/field-base#extras) without those two keys |
+| `busy` | Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action includes this in its own `busy`, so a form reports that a run is in progress below it. An asynchronous validation of the action itself is reported by `validating` |
 | `execute(params?)` | Triggers `ExecuteAction` on this action and returns the chain's return value as a promise. A handler that throws rejects that promise instead of throwing out of the call, except for `AbortEventHandlingException`, which the promise resolves with; see [Handling a failed run](#handling-a-failed-run) |
 | `icon` | Reads `value.icon`, at the type `T` gives that member; writing it assigns a new value object with the new icon |
 | `label` | Reads `value.label`, at the type `T` gives that member (`unknown` on an `Action` without a value type argument); writing it assigns a new value object with the new label |
+
+Inherited from `Field`:
+
+| Member | Description |
+|--------|-------------|
+| [`bind(data?, overrides?)`](/api/field#bind-data-overrides-this) | Returns a new element of the same class over `data` |
+| [`touched`](/api/field#prop-touched) | Interaction flag the element stores; writable |
+| [`value`](/api/field#prop-value) | The value the element holds; writable |
+
+Inherited from `FieldBase`:
+
+| Member | Description |
+|--------|-------------|
+| [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
+| [`beginValidating() / endValidating()`](/api/field-base#beginvalidating-void-endvalidating-void) | Increment and decrement the asynchronous validation counter behind `validating` |
+| [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
+| [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
+| [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
+| [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
+| [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
+| [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
+| [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
+| [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |
+| [`extra`](/api/field-base#prop-extra) | The extended properties the element holds, frozen; written through `setExtendedValues()` |
+| [`fieldName`](/api/field-base#prop-fieldName) | Key name within the parent `Group` |
+| [`fullValue`](/api/field-base#prop-fullValue) | What the element holds; identical to `value` except on `Group` and `List` |
+| [`isChanged`](/api/field-base#prop-isChanged) | `true` when `value` differs from `originalValue` (deep equality) |
+| [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) | Marks that an eager action did not find a second element of a record not yet assembled |
+| [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
+| [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
+| [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
+| [`rebind(data)`](/api/field-base#rebind-data-this) | Replaces the data the element holds, in place |
+| [`registerAction(action)`](/api/field-base#registeraction-action-this) | Registers an action on the element; returns `this` |
+| [`registerActionBefore(action, before)`](/api/field-base#registeractionbefore-action-before-this) | Registers `action` inside an existing chain, wrapped by `before` |
+| [`setExtendedValues(values)`](/api/field-base#setextendedvalues-values-void) | Merges extended properties into `extra` |
+| [`settled()`](/api/field-base#settled-promise-void) | Resolves once `pending` is `false` |
+| [`triggerAction(actionClass, ...params)`](/api/field-base#triggeraction-actionclass-params-any) | Fires an action class on the element and returns what the chain returns |
+| [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
+| [`valid`](/api/field-base#prop-valid) | `true` when `errors` is empty |
+| [`validate(revalidate?)`](/api/field-base#validate-revalidate-void) | Publishes the validity derived from `errors` |
+| [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
+| [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
+| [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
 
 `Action` is a `Field`, so resetting one (rarely needed, since a label and an icon are not normally form data) is
 `action.rebind(action.originalValue)`; see [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form).
@@ -636,13 +681,13 @@ been written to it. `value.label` is the unfiltered read (`action.value.label` o
 result has to be the label the action holds, not the one it renders.
 
 Giving an action's presentation property a different name is covered by the separate rule about
-[extended properties](/api/field#extended-properties), and it applies to a property that is neither `label` nor
+[extended properties](/api/field-base#extended-properties), and it applies to a property that is neither `label` nor
 `icon`: a construction parameter with either of those names goes to the value, not to `extra`. A subclass that
 reads either member differently narrows the accessor pair as shown above, and does not use a different name.
 
 The same rule makes an action's extended properties differ from every other element's. `Action` declares
 `X extends object = Omit<Extras, keyof ActionValue>`, so a `label` or an `icon` added to
-[`Extras`](/api/field#extras) by augmentation is absent from `action.extra`. An action's label and icon are always
+[`Extras`](/api/field-base#extras) by augmentation is absent from `action.extra`. An action's label and icon are always
 the members above, whether or not the action declares extended properties.
 
 ### `NullableAction`
@@ -881,7 +926,7 @@ Optional overrides:
 | Member | Description |
 |--------|-------------|
 | `boundToBinding(binding)` | Called once for every element this action applies to: the element it is registered on, and every binding of that element when the binding receives the action. Use it to record the elements the action applies to |
-| `get eager()` | Return `true` to have the action run over what the element sends (its [`contribution`](/api/field#properties)) at every point the eager pass runs: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` that changes what it sends (inside the write, before any `ValueChangedAction` fires), a change of access, and a container recomputing what it sends, which re-runs a group's eager action when a member changes. [The full list is under `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: the eager pass does not run a non-eager action registered under the same `classIdentifier` as an eager one |
+| `get eager()` | Return `true` to have the action run over what the element sends (its [`contribution`](/api/field-base#prop-contribution)) at every point the eager pass runs: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` that changes what it sends (inside the write, before any `ValueChangedAction` fires), a change of access, and a container recomputing what it sends, which re-runs a group's eager action when a member changes. [The full list is under `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: the eager pass does not run a non-eager action registered under the same `classIdentifier` as an eager one |
 | `unregisterFrom(binding)` | Called by `unregisterAction()` and by `clearValidators()`, with the element the action was removed from. Override it to release what the action installed for that element: `CompareTo` stops validating it, and `Validator` removes the errors it set there. It runs inside the operation that removed the registration, so a rollback restores both the registration and what this method removed |
 
 State an action keeps between runs belongs to the element it ran for, because the instance is shared by every

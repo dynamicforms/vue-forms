@@ -1,0 +1,30 @@
+/* member tables: the first cell holds name, type and access on separate lines */
+.vp-doc td {
+  vertical-align: top;
+}
+
+/* use the window width: VitePress caps the page at 1440px and the text column at 688px */
+:root {
+  --vp-layout-max-width: 100%;
+}
+.VPDoc .container,
+.VPDoc.has-aside .content-container,
+.VPDoc .content-container {
+  max-width: none !important;
+}
+
+/* member tables: a head row with name, type and access, then the description across all columns */
+.vp-doc table.members tr.member-head td {
+  background-color: var(--vp-c-bg-soft);
+  border-bottom: none;
+}
+.vp-doc table.members tr.member-desc td {
+  background-color: var(--vp-c-bg);
+}
+.vp-doc table.members tr.member-head td :is(p) ,
+.vp-doc table.members tr.member-desc td > p:first-child {
+  margin-top: 0;
+}
+.vp-doc table.members td > p:last-child {
+  margin-bottom: 0;
+}

@@ -12,7 +12,7 @@ export default defineConfig({
     nav: [
       { text: 'Home', link: '/' },
       { text: 'Guide', link: '/guide/getting-started' },
-      { text: 'API', link: '/api/field' },
+      { text: 'API', link: '/api/field-base' },
       { text: 'Examples', link: '/examples/basic-form' },
     ],
     sidebar: {
@@ -44,6 +44,7 @@ export default defineConfig({
         {
           text: 'API Reference',
           items: [
+            { text: 'FieldBase', link: '/api/field-base' },
             { text: 'Field', link: '/api/field' },
             { text: 'Group', link: '/api/group' },
             { text: 'List', link: '/api/list' },

@@ -7,6 +7,7 @@ import * as directives from 'vuetify/directives'
 import VueMarkdown from 'vue-markdown-render';
 import 'vuetify/styles'
 import '@mdi/font/css/materialdesignicons.css'
+import './custom.css'
 
 export default {
   extends: DefaultTheme,

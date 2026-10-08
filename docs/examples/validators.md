@@ -365,7 +365,7 @@ the Persian message for `in_allowed_values` isolates the list with U+2068 and U+
 ## API Reference
 
 - [Validators](/api/validators): all built-in validators with signatures and placeholder list
-- [Field → errors](/api/field#properties): `errors`, `valid`, `validating` and `busy` properties
+- [FieldBase → errors](/api/field-base#prop-errors): `errors`, `valid`, `validating` and `busy` properties
 - [Errors](/api/validators#validationerror): `code`, `params`, `detail` and `origin` of an error
 
 ## Key Features Demonstrated

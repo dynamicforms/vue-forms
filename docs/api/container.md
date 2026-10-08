@@ -16,19 +16,121 @@ name.parent === form;      // true; name.parent is typed Container | undefined
 `Group` holds named members and `List` holds rows by position. This page describes what the two share. Child
 access (`group.fields.name`, `list.get(0)`) is specific to each class and is described on its page.
 
-## Properties and methods
+## Properties
 
-| Member | Type | Description |
-|--------|------|-------------|
-| `busy` | `boolean` | `true` while an `Action.execute()` in any child is pending |
-| `notifyValueChanged()` | `void` | Records that a child changed what it holds or sends, so that the open [transaction](/api/transactions) computes at commit what the container holds and sends and announces each once. The mutation methods call it, so a direct call is rarely needed |
-| `pending` | `boolean` | `validating \|\| busy`: `true` while a validation or an `Action.execute()` in any child is pending |
-| `touched` | `boolean`, writable | `true` where any child is touched. Assigning it assigns every child |
-| `valid` | `boolean` | `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well |
-| `validate(revalidate?)` | `void` | With `revalidate: true`, every child is revalidated first and the container then computes its own validity over the result, so it announces at most one net transition of its validity |
+<table class="members">
+<thead><tr><th>Property</th><th>Type</th><th>Writable</th></tr></thead>
+<tbody>
+<tr class="member-head"><td><a id="prop-busy"></a>
 
-All other members (`value`, `fullValue`, `errors`, `access`, `bind()`, `rebind()` and the rest) are inherited from
-[`FieldBase`](/api/field#fieldbase-t), typed with the container's value shape.
+**`busy`**
+
+</td><td>
+
+`boolean`
+
+</td><td>
+
+read-only
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending` covers both
+
+</td></tr>
+<tr class="member-head"><td><a id="prop-touched"></a>
+
+**`touched`**
+
+</td><td>
+
+`boolean`
+
+</td><td>
+
+writable
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child
+
+</td></tr>
+<tr class="member-head"><td><a id="prop-valid"></a>
+
+**`valid`**
+
+</td><td>
+
+`boolean`
+
+</td><td>
+
+read-only
+
+</td></tr>
+<tr class="member-desc"><td colspan="3">
+
+Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well
+
+</td></tr>
+</tbody>
+</table>
+
+## Methods
+
+### `notifyValueChanged(): void`
+
+Records that a child changed what it holds or sends, so that the open [transaction](/api/transactions) computes at
+commit what the container holds and sends, announces each once, fires `ValueChangedAction` where the value differs
+from the value last announced, and recomputes validity. The mutation methods call it when a child's value changes,
+so a direct call is rarely needed.
+
+### `validate(revalidate?): void`
+
+Overrides [`FieldBase.validate()`](/api/field-base#validate-revalidate-void). With `revalidate: true`, every child
+is revalidated first and the container then computes its own validity over the result, so it announces at most one
+net transition of its validity. A child that becomes valid while a later child is still unchecked produces no
+notification on the container.
+
+## Inherited from FieldBase
+
+`value`, `fullValue`, `bind()` and the other inherited members are typed with the container's value shape.
+`value` and `bind()` are abstract here and implemented by `Group` and `List`.
+
+| Member | Description |
+|--------|-------------|
+| [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
+| [`beginValidating() / endValidating()`](/api/field-base#beginvalidating-void-endvalidating-void) | Increment and decrement the asynchronous validation counter behind `validating` |
+| [`bind(data?, overrides?)`](/api/field-base#bind-data-overrides-fieldbase-t-x) | Returns a new element of the same class over `data`, with the same actions and extended properties |
+| [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
+| [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
+| [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
+| [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
+| [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
+| [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
+| [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
+| [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |
+| [`extra`](/api/field-base#prop-extra) | The extended properties the element holds, frozen; written through `setExtendedValues()` |
+| [`fieldName`](/api/field-base#prop-fieldName) | Key name within the parent `Group` |
+| [`fullValue`](/api/field-base#prop-fullValue) | What the element holds; identical to `value` except on `Group` and `List` |
+| [`isChanged`](/api/field-base#prop-isChanged) | `true` when `value` differs from `originalValue` (deep equality) |
+| [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) | Marks that an eager action did not find a second element of a record not yet assembled |
+| [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
+| [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
+| [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
+| [`rebind(data)`](/api/field-base#rebind-data-this) | Replaces the data the element holds, in place |
+| [`registerAction(action)`](/api/field-base#registeraction-action-this) | Registers an action on the element; returns `this` |
+| [`registerActionBefore(action, before)`](/api/field-base#registeractionbefore-action-before-this) | Registers `action` inside an existing chain, wrapped by `before` |
+| [`setExtendedValues(values)`](/api/field-base#setextendedvalues-values-void) | Merges extended properties into `extra` |
+| [`settled()`](/api/field-base#settled-promise-void) | Resolves once `pending` is `false` |
+| [`triggerAction(actionClass, ...params)`](/api/field-base#triggeraction-actionclass-params-any) | Fires an action class on the element and returns what the chain returns |
+| [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
+| [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
+| [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
+| [`value`](/api/field-base#prop-value) | Current value; writable |
+| [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
 
 ## What a container serializes
 
@@ -54,7 +156,7 @@ A container's access applies to everything inside it, and `effectiveAccess` hold
 container that is `'disabled'` or `'disabled-null'` sends none of its children, regardless of what they hold, so
 every element below it has `effectiveAccess` `'disabled'`: none of them is validated, and none carries an error from
 a validator. Below a `'readonly'` container an `'editable'` element is `'readonly'`. Elsewhere an element's own
-access applies.
+access applies. Each child keeps the access it was given.
 
 The rule is implemented in `FieldBase.serializesAs(purpose)`, and every container composes `value` by calling it on
 each child. It applies equally to the members of a `Group` and the rows of a `List`. The method is protected: a
@@ -166,5 +268,5 @@ if (field.parent instanceof Group) field.parent.fields.other.validate(true);
 ```
 
 A cast is not checked at runtime: where the parent is a `List`, `fields` reads `undefined` and the lookup after it
-throws. Passing the sibling's name to [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-message),
+throws. Passing the sibling's name to [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options),
 which resolves it, needs neither.
