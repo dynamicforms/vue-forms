@@ -96,8 +96,11 @@ show one of them. One candidate is executed if it is [`executable`](/api/action)
 not, nothing is executed and the later steps are not searched. Two or more candidates in one step are ambiguous:
 nothing is executed and a warning is logged. Returns `undefined` where nothing is executed.
 
+The returned promise rejects where the action's `execute()` rejects, for example with a
+[`SubmitRefusedException`](/api/action#submitaction-target-handler-options), so a key handler catches it:
+
 ```typescript
-onKeydown('Enter', () => form.confirm());
+onKeydown('Enter', () => form.confirm()?.catch(reportError));
 ```
 
 ### `notifyValueChanged(): void`
