@@ -221,8 +221,8 @@ A validation function may return a `Promise`. `field.validating` is `true` while
 field and on every container above it, so a form's `validating` covers the whole tree. The result applied to the
 field is always that of the newest run, so a slow run cannot overwrite a faster one started after it. The function
 receives an `AbortSignal` as its fourth argument, which is aborted when the run's result is no longer used, so the
-request behind it can be cancelled. `form.busy` is `true` while an `Action.execute()` below the form has not settled. It
-does not include validation, so a submit button binds to both `busy` and `validating`.
+request behind it can be cancelled. `form.busy` is `true` while an `Action.execute()` below the form has not settled, and
+`form.pending` while either a validation or an execution has not, which is what a submit button binds to.
 `field.clearValidators()` removes the validators, empties the errors and cancels any validation still in
 progress.
 

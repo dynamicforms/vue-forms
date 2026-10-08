@@ -12,9 +12,9 @@ export interface IFieldConstructorActionsList {
 /**
  * Parameters accepted by field constructors and by bind overrides.
  *
- * Only writable members are listed. valid, validating, busy, fullValue, isChanged, enabled and effectiveEnabled are
- * getter-only, so assigning them throws a TypeError. So are parent and fieldName: only a container writes the
- * slots behind them, when it takes an element, so the type rejects them.
+ * Only writable members are listed. valid, validating, busy, pending, fullValue, isChanged, enabled and
+ * effectiveEnabled are getter-only, so assigning them throws a TypeError. So are parent and fieldName: only a
+ * container writes the slots behind them, when it takes an element, so the type rejects them.
  */
 export type IFieldConstructorParams<T = any> = {
   value: T;

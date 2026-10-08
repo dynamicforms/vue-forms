@@ -19,7 +19,7 @@ of a list. Both extend [`Container`](/api/container), which composes `valid`, `b
 and is the type of every element's `parent`. Everything below applies at every level.
 
 Every element has the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
-`access`, `effectiveAccess`, `enabled`, `visibility`, `touched`, `validating`, `busy`, `settled()`, `isChanged`, `parent`
+`access`, `effectiveAccess`, `enabled`, `visibility`, `touched`, `validating`, `busy`, `pending`, `settled()`, `isChanged`, `parent`
 and `fieldName`. A container adds its own: `fields`, `field()`, `addField()` and `removeField()` on a `Group`;
 `length`, `items`, `get()`, `push()`, `insert()`, `remove()` and `clear()` on a `List`. Any additional data the
 application stores on an element goes in `extra`, the element's
@@ -272,8 +272,8 @@ validation function is aborted, so the work behind it can be cancelled.
 
 `busy` is `true` while an `Action.execute()` at or below the element has not settled, and `false` otherwise.
 `busy` does not include validation, and `validating` does not
-include execution. To wait until the tree is idle, read both, or await `settled()`, which resolves when both are
-`false`; a submit path uses it instead of polling.
+include execution. `pending` is `validating || busy`, and `settled()` is the promise that resolves when `pending` is
+`false`.
 
 ## Where a value comes from
 

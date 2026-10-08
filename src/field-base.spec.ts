@@ -1,5 +1,5 @@
 import { isEqual } from 'lodash-es';
-import { nextTick, watchEffect } from 'vue';
+import { nextTick, watch, watchEffect } from 'vue';
 
 import { Action } from './action';
 import {
@@ -585,6 +585,46 @@ describe('settled', () => {
     field.endValidating();
     await waiting;
     expect(done).toBe(true);
+  });
+});
+
+describe('pending', () => {
+  it('is false where nothing is running', () => {
+    expect(new Group({ field: new Field({ value: 'x' }) }).pending).toBe(false);
+  });
+
+  it('is true while a validation or an execution below the element runs', async () => {
+    let settle: (value: unknown) => void = () => null;
+    const action = new Action({ actions: [new ExecuteAction(() => new Promise((resolve) => (settle = resolve)))] });
+    const field = new Field({ value: 'x' });
+    const group = new Group({ action, field });
+
+    field.beginValidating();
+    expect([group.pending, field.pending, action.pending]).toEqual([true, true, false]);
+
+    const running = action.execute();
+    field.endValidating();
+    expect([group.pending, field.pending, action.pending]).toEqual([true, false, true]);
+
+    settle(null);
+    await running;
+    expect(group.pending).toBe(false);
+  });
+
+  it('is reactive', async () => {
+    const field = new Field({ value: 'x' });
+    const group = new Group({ field });
+    const seen: boolean[] = [];
+    watch(
+      () => group.pending,
+      (pending) => seen.push(pending),
+      { flush: 'sync' },
+    );
+
+    field.beginValidating();
+    field.endValidating();
+
+    expect(seen).toEqual([true, false]);
   });
 });
 

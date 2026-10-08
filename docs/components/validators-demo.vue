@@ -238,10 +238,10 @@ const validatedForm = new Group({
   })
 });
 
-// A group's validity is computed over its members. validating is true while an asynchronous validation runs
-// anywhere below the group, busy while an Action.execute() does. Both reads are reactive.
+// A group's validity is computed over its members. pending is true while an asynchronous validation or an
+// Action.execute() runs anywhere below the group. Both reads are reactive.
 const formValid = computed(() => validatedForm.valid);
-const formBusy = computed(() => validatedForm.validating || validatedForm.busy);
+const formBusy = computed(() => validatedForm.pending);
 
 // Function to reset the form
 function resetForm() {

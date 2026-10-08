@@ -45,11 +45,12 @@ async function submit() {
 ```
 
 ```vue
-<button :disabled="!form.valid || form.validating || form.busy" @click="submit">Save</button>
+<button :disabled="!form.valid || form.pending" @click="submit">Save</button>
 ```
 
 [`settled()`](/api/field#settled-promise-void) resolves once no validation and no `Action.execute()` is running at
-or below the form. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
+or below the form. The handler awaits it although the button is disabled on `pending`: the click can start a
+validation in the same event, when the blur of an input commits its value. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
 `null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again.
 
 ## Showing errors the server returned

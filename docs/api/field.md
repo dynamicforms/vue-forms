@@ -42,8 +42,8 @@ assigned. The check is made at runtime as well as by the type, so a parameter ob
 also throws; the key is not silently dropped.
 
 These are the only accepted parameters, and they are exactly the writable members of a field. Derived members
-(`valid`, `validating`, `busy`, `fullValue`, `isChanged`) and the container back-references (`parent`, `fieldName`)
-are rejected by the type checker. All seven are getter-only, so assigning any of them throws a `TypeError`, whether or
+(`valid`, `validating`, `busy`, `pending`, `fullValue`, `isChanged`) and the container back-references (`parent`,
+`fieldName`) are rejected by the type checker. All eight are getter-only, so assigning any of them throws a `TypeError`, whether or
 not the field belongs to a container. Only the container sets `parent` and `fieldName`.
 
 The first generic argument is inferred from `params.value`, so `new Field({ value: 'John' })` is a `Field<string>`
@@ -224,7 +224,8 @@ apply them: `validators` and `actions` are copied from the declaration, and the 
 | `visibility` | [`Visibility`](#visibility) | yes | How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or `'suppress'`. It is presentation only and does not affect what the element sends or whether it is validated. Writing the visibility the element already has is not a change, as for `access`. Writing a value that is not one of the four throws `Error("'x' is not a visibility: …")`. |
 | `valid` | `boolean` | no | `true` when `errors` is empty. It is computed from the live array, so it reflects an error pushed in by hand without any call. `ValidChangedAction` fires only when `validate()` is called |
 | `validating` | `boolean` | no | `true` while an asynchronous validation is in flight on this element **or on any of its descendants**, so on a form it covers the whole tree. An element counts its own runs through `beginValidating()` / `endValidating()`, which validators call around a returned promise, and a container keeps a count of how many of its children are `validating`. Reading it is O(1) whatever the size of the tree; a run that starts or settles updates one count per nesting level |
-| `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` covers its own runs, a `Group` or `List` the actions below it, and any other element is always `false`. `busy` covers executions and `validating` covers validations, so a submit gate reads both, or awaits [`settled()`](#settled-promise-void) instead |
+| `busy` | `boolean` | no | `true` while an `Action.execute()` at or below the element has yet to settle. An `Action` covers its own runs, a `Group` or `List` the actions below it, and any other element is always `false`. `busy` covers executions and `validating` covers validations; `pending` covers both |
+| `pending` | `boolean` | no | `validating \|\| busy`: `true` while an asynchronous validation or an `Action.execute()` at or below the element has not settled. Reactive, so a submit button binds to it. [`settled()`](#settled-promise-void) resolves when it turns `false` |
 | `validationEpoch` | `number` | no | Generation counter of the field's validators, incremented by `clearValidators()` and by `unregisterAction()` on a validator. A `Validator` reads it to check whether a result it is about to apply still belongs to the validators the field currently has |
 | `errors` | `ValidationError[]` | yes | Current validation errors. Writable. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this field and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()` |
 | `touched` | `boolean` | yes | Interaction flag. The library does not set it in response to input; your UI must assign `field.touched = true` (e.g. on blur). `Group`/`List` aggregate it from their children and propagate an assignment down |
@@ -424,8 +425,9 @@ It does not descend into members. A `Group` or a `List` also derives `valid` fro
 ### `settled(): Promise<void>`
 
 Resolves once nothing at or below the element is running: no asynchronous validation and no unsettled
-`Action.execute()`. It resolves immediately where nothing is running, so a submit path awaits it instead of polling
-`validating` and `busy`. [Submitting](/guide/cookbook#submitting) shows it in a submit handler.
+`Action.execute()`, which is when `pending` turns `false`. It resolves immediately where `pending` is `false`. A
+submit handler awaits it, because the click that runs the handler can start a validation in the same event (a
+blur that commits a value), before the button's `:disabled` is re-rendered. [Submitting](/guide/cookbook#submitting) shows it in a submit handler.
 
 It reflects the state at the moment it resolves only: work started later makes the element run again. A caller
 that acts on a settled tree reads what it needs immediately after awaiting.
@@ -616,7 +618,7 @@ holds. It defaults to [`Extras`](#extras), so `FieldBase` without type arguments
 a validator or an action handler reads the augmented properties from the element it receives.
 
 It provides `originalValue`, `access`, `effectiveAccess`, `contribution`, `enabled`, `effectiveEnabled`, `visibility`,
-`valid`, `errors`, `validating`, `busy`,
+`valid`, `errors`, `validating`, `busy`, `pending`,
 `validationEpoch`, `isChanged`, `fullValue`, `parent`, `fieldName`, `extra`, `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()`, `validate()`, `clearValidators()`, `setExtendedValues()`, `rebind()`,
 `beginValidating()` and `endValidating()`, so these work the same way on every form
