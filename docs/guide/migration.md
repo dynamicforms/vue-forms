@@ -150,7 +150,7 @@ form.fields.name.errors;     // before: [Required]                after: []
 
 - A `'disabled'` element sends nothing, so it is not validated and carries no error from a validator. Nor is any
   element inside a container that is `'disabled'` or `'disabled-null'`: such a container sends none of its members.
-  [`effectiveAccess`](/api/field#properties) states this on each element.
+  [`effectiveAccess`](/api/field-base#prop-effectiveAccess) states this on each element.
 - A `'disabled-null'` element sends `null`, so it is validated over `null`: a `Required` on it refuses it.
 - A container does not count a `'disabled'` child at all, so an error written into one by hand — an error the server
   returned — stays on the child and no longer holds the form back.
@@ -1564,7 +1564,7 @@ price.isChanged;  // false
 ```
 
 `Action`, `Group` and `List` call `constructed` at the same point in their own construction. See
-[Subclassing](/api/field#subclassing) for what a container completing a member states about it.
+[Subclassing](/api/field-base#subclassing) for what a container completing a member states about it.
 
 ### `reactiveValue` is gone — read `.value`
 

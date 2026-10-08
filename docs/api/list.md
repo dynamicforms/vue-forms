@@ -2,7 +2,9 @@
 
 `List<R>` manages a dynamic array of rows of type `R`. A row is any form element: a `Group` for a list of records,
 a `Field` for a list of plain values, another `List` for a list of lists. The list supports adding, removing and
-replacing rows, and uses the same action and validation system as `Field` and `Group`.
+replacing rows, and uses the same action and validation system as `Field` and `Group`. It extends
+[`Container`](/api/container), which extends [`FieldBase`](/api/field-base). This page describes what `List` adds
+or overrides.
 
 ## Creating a list
 
@@ -49,52 +51,34 @@ array a `List`, and anything else (a string, a number, `null`, a `Date`) a `Fiel
 
 ## `new List(itemTemplate?, params?)`
 
-`params` is an `IFieldParams<ListValueInput<R>, X>`: the parameter type every element takes, with the list's value
-shape substituted. A list takes [extended properties](/api/field#extended-properties) like every other
-element: augment [`Extras`](/api/field#extras) once and every list carries them, or declare them as the second
+`params` is an [`IFieldParams<ListValueInput<R>, X>`](/api/field-base#ifieldparams-t-x): the parameter type every
+element takes, with the list's value shape substituted. A list takes
+[extended properties](/api/field-base#extended-properties) like every other element: augment
+[`Extras`](/api/field-base#extras) once and every list carries them, or declare them as the second
 type argument for one list, `new List<Group<Fields>, Presentation>(template, { label: … })`. Both are read through
 `list.extra`. Every row built from the item template is a binding of it, so the item template's members copy their
 extended properties into each row. `length` and `items` are read-only members declared by `List`, so a parameter of
 either name throws a `TypeError`, as `valid` and `busy` do. Give a presentation property with that meaning a
-different name.
+different name. `actions`, `errors`, `validators` and `visibility` apply to the list itself as on every element; see
+[Constructor parameters](/api/field-base#constructor-parameters), which also describes the order in which the
+parameters are applied.
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `itemTemplate` | `R` | `undefined` | Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else |
-| `params.access` | [`Access`](/api/field#access) | `'editable'` | What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts value assignment and every mutation regardless of its access. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `params.actions` | `FieldActionBase[]` | `[]` | List-level actions |
-| `params.errors` | `ValidationError[]` | `[]` | Initial list-level validation errors |
+| `params.access` | [`Access`](/api/field-base#access) | `'editable'` | What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts value assignment and every mutation regardless of its access. See [What a container serializes](/api/container#what-a-container-serializes). |
 | `params.originalValue` | `ListValueInput<R>` | same as `value` (`[]` when empty) | Baseline for `isChanged`, and the rows the list is built with where no `value` is supplied |
 | `params.touched` | `boolean` | `false` | Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead |
-| `params.validators` | `FieldActionBase[]` | `[]` | List-level validators |
 | `params.value` | `ListValueInput<R>` (`ListValue<R> \| null`) | `[]` | Initial array of item values. When absent, `originalValue` is used; an explicit `null` is not replaced and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError` |
-| `params.visibility` | [`Visibility`](/api/field#visibility) | `'full'` | How a rendering layer shows the list. |
-
-`validators` and `actions` are registered before the remaining parameters are applied, and registration fires no
-action. An `AccessChangingAction` or `VisibilityChangingAction` passed here therefore already applies to the
-`access` and `visibility` in the same object, and every eager action among them runs exactly once, over the
-finished list. `Field`, `Action` and `Group` behave the same way; see [Field](/api/field) for the full description.
 
 ## Properties
 
 | Property | Type | Writable | Description |
 |----------|------|----------|-------------|
-| `access` | [`Access`](/api/field#access) | yes | What the list sends to its container and whether it is validated (`'disabled'` leaves it out and `'disabled-null'` sends `null` regardless of what it holds), and, through `effectiveAccess`, what every element inside it sends: below a `'disabled'` or `'disabled-null'` list nothing is sent or validated, and below a `'readonly'` one nothing accepts input. Each row keeps the access it was given. See [What a container serializes](/api/container#what-a-container-serializes). |
-| `busy` | `boolean` | no | `true` while an `Action.execute()` in a row is pending. Pending validation in a row is reported by `validating`, not `busy`; `pending` covers both |
-| `effectiveAccess` | [`Access`](/api/field#access) | no | The access that applies after the containers above are taken into account; see [`effectiveAccess`](/api/field#properties) |
-| `effectiveEnabled` | `boolean` | no | `true` where `effectiveAccess` is `'editable'`. A rendering layer reads it to draw the inputs of a whole section as not accepting input |
-| `enabled` | `boolean` | no | `true` where `access` is `'editable'` |
-| `errors` | `ValidationError[]` | yes | List-level validation errors. Writable, but normally managed by validators |
-| `fullValue` | `ListFullValue<R>` | no | The `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it |
-| `isChanged` | `boolean` | no | `true` when `value` differs from `originalValue` |
-| `items` | `readonly R[]` | no | The rows themselves; see [The rows](#the-rows) |
-| `length` | `number` | no | The number of rows the list holds. Reading it builds no array |
-| `originalValue` | `ListValue<R>` | yes | Value at creation time. Writable; assigning it resets the baseline of `isChanged` |
-| `touched` | `boolean` | yes | `true` when any item has been touched; setting propagates to all items |
-| `valid` | `boolean` | no | `true` when the list itself and every row it counts are valid. A `'disabled'` row sends nothing and is not counted, whatever errors it carries |
-| `validating` | `boolean` | no | `true` while an asynchronous validation is pending on the list itself or in any row. The list keeps a count of the rows whose `validating` is `true`, so the read is constant-time regardless of the number of rows |
-| `value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged; because the setter is typed, such a value can only come from JavaScript or through an `as any` |
-| `visibility` | [`Visibility`](/api/field#visibility) | yes | How a rendering layer shows the list. It does not affect what the list sends or whether it is validated |
+| <a id="prop-fullValue"></a>`fullValue` | `ListFullValue<R>` | no | Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): the `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it |
+| <a id="prop-items"></a>`items` | `readonly R[]` | no | The rows themselves; see [The rows](#the-rows) |
+| <a id="prop-length"></a>`length` | `number` | no | The number of rows the list holds. Reading it builds no array |
+| <a id="prop-value"></a>`value` | reads `ListValue<R>`, accepts `ListValueInput<R>` | yes | Overrides [`FieldBase.value`](/api/field-base#prop-value): array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged; because the setter is typed, such a value can only come from JavaScript or through an `as any` |
 
 `ListValue<R>` is exported as `(R['value'] | null)[]`, `ListValueInput<R>` as `ListValue<R> | null` and
 `ListFullValue<R>` as `R['fullValue'][]`, each with `R` defaulting to `Group`.
@@ -152,25 +136,18 @@ and `errors` are reset. The new set is built separately and installed as a whole
 
 ## Methods
 
-A `List` also has every method listed under [Field → Methods](/api/field#methods), such as `settled()`,
-`clearValidators()` and `setExtendedValues()`. The methods below are the ones a `List` adds or changes.
-
 ### `bind(data?, overrides?): List<R>`
 
-Returns a new `List` over `data`, with a binding of the item template, the actions and the extended
-properties. `overrides` is an [`IBindParams<ListValueInput<R>, X>`](/api/field#ibindparams-t-x): `originalValue`,
-`access`, `visibility` and the extended properties, which override the ones copied from the source.
-Binding an empty list returns an empty list. Without `data`, the new list gets what this one holds (its
-`fullValue`, every row regardless of access), not what it sends.
+Overrides [`FieldBase.bind()`](/api/field-base#bind-data-overrides-fieldbase-t-x), which describes `overrides`
+(an [`IBindParams<ListValueInput<R>, X>`](/api/field-base#ibindparams-t-x)), the construction through
+`this.constructor` and the detached result. Returns a new `List` over `data`, with a binding of the item template,
+the actions and the extended properties. Binding an empty list returns an empty list. Without `data`, the new list
+gets what this one holds (its `fullValue`, every row regardless of access), not what it sends. `bind(null)` returns
+an empty list.
 
-The new list is constructed through `this.constructor`, so a subclass of `List` binds into its own class. A
-subclass whose constructor does not take `(itemTemplate, params)` would ignore the bound item template and produce a
-list with the declaration's rows; `bind()` throws a `TypeError` in that case. Such a subclass must override `bind()`
-and construct itself.
-
-On `List`, `Group` and `Field` alike, `originalValue` counts as supplied when its key is present, and the data when
-it is anything other than `undefined`: an explicit `null` is supplied data, so `bind(null)` returns an empty list,
-while an `undefined` `data` counts as not supplied and the new list gets the current items.
+A subclass whose constructor does not take `(itemTemplate, params)` would ignore the bound item template and produce
+a list with the declaration's rows; `bind()` throws a `TypeError` in that case. Such a subclass must override
+`bind()` and construct itself.
 
 ### `clear()`
 
@@ -196,12 +173,6 @@ for an array, fields holding `undefined` for anything else.
 and finally for `item` at its position. That position is the value `insert()` returns, so a negative `index` is
 reported resolved.
 
-### `notifyValueChanged(): void`
-
-Records that a row changed its value, so that the open [transaction](/api/transactions) computes at commit this
-list's new value, fires `ValueChangedAction` where it differs from the value last announced, and recomputes
-validity. The mutation methods call it, so a direct call is rarely needed.
-
 ### `pop(): R | undefined`
 
 Removes the last item and returns it (`undefined` if the list is empty). Triggers `ListItemRemovedAction`.
@@ -214,20 +185,6 @@ Appends an item to the end of the list. `item` is either the data a row is built
 list.push({ name: 'Charlie', score: 70 });
 ```
 
-### `rebind(data): this`
-
-Replaces the rows this list holds with `data`, in place: the same list instance, existing rows reused by position
-as in a whole-value assignment, and the baseline of `isChanged` reset. No `ValueChangedAction` fires for the list
-itself. See [`rebind()`](/api/field#rebind-data-this) for the full description, and
-[Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `rebind(list.originalValue)` (reset) and
-`rebind(null)` (empty).
-
-### `registerAction(action): this`
-
-Registers an action on the list. Returns `this`. `registerActionBefore(action, before)` registers
-one before another and `unregisterAction(action)` removes one; see
-[`Field`](/api/field#registeractionbefore-action-before-this).
-
 ### `remove(index): R | undefined`
 
 Removes the item at `index` and returns it: the row instance itself, which `list.get(index)` returned before the
@@ -237,11 +194,47 @@ The removed row is released: its `parent` is cleared, it no longer counts toward
 be pushed into another list or back into this one. It keeps its state: a row edited before removal has `isChanged`
 `true`, keeps the errors its validators produced, and its `originalValue` is the data it was bound to.
 
-### `validate(revalidate?): void`
+## Inherited from Container
 
-Validates the list. Pass `revalidate: true` to revalidate all items as well. The items are revalidated first and
-the list then computes its own validity over the result, so it announces at most one net transition of its own
-validity. An item that becomes valid while a later item is still unchecked produces no notification on the list.
+| Member | Description |
+|--------|-------------|
+| [`busy`](/api/container#prop-busy) | `true` while an `Action.execute()` in any child has not settled |
+| [`notifyValueChanged()`](/api/container#notifyvaluechanged-void) | Records that a child changed its value, for the open transaction to announce |
+| [`touched`](/api/container#prop-touched) | `true` where any child is touched; assigning it assigns every child |
+| [`valid`](/api/container#prop-valid) | `true` where the container's own errors are empty and every child it counts is valid |
+| [`validate(revalidate?)`](/api/container#validate-revalidate-void) | Revalidates every child first with `revalidate: true`, then computes the container's validity |
+
+## Inherited from FieldBase
+
+| Member | Description |
+|--------|-------------|
+| [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
+| [`beginValidating() / endValidating()`](/api/field-base#beginvalidating-void-endvalidating-void) | Increment and decrement the asynchronous validation counter behind `validating` |
+| [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
+| [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
+| [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
+| [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
+| [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
+| [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
+| [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
+| [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |
+| [`extra`](/api/field-base#prop-extra) | The extended properties the element holds, frozen; written through `setExtendedValues()` |
+| [`fieldName`](/api/field-base#prop-fieldName) | Key name within the parent `Group` |
+| [`isChanged`](/api/field-base#prop-isChanged) | `true` when `value` differs from `originalValue` (deep equality) |
+| [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) | Marks that an eager action did not find a second element of a record not yet assembled |
+| [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
+| [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
+| [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
+| [`rebind(data)`](/api/field-base#rebind-data-this) | Replaces the data the element holds, in place |
+| [`registerAction(action)`](/api/field-base#registeraction-action-this) | Registers an action on the element; returns `this` |
+| [`registerActionBefore(action, before)`](/api/field-base#registeractionbefore-action-before-this) | Registers `action` inside an existing chain, wrapped by `before` |
+| [`setExtendedValues(values)`](/api/field-base#setextendedvalues-values-void) | Merges extended properties into `extra` |
+| [`settled()`](/api/field-base#settled-promise-void) | Resolves once `pending` is `false` |
+| [`triggerAction(actionClass, ...params)`](/api/field-base#triggeraction-actionclass-params-any) | Fires an action class on the element and returns what the chain returns |
+| [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
+| [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
+| [`validationEpoch`](/api/field-base#prop-validationEpoch) | Generation counter of the element's validators |
+| [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
 
 ## `NullableList`
 
@@ -249,5 +242,6 @@ Type alias for `List | null`.
 
 ---
 
-> See also: [The model](/guide/model#how-a-list-builds-rows) for how a row is built and what a record is,
+> See also: [FieldBase](/api/field-base), [Container](/api/container),
+> [The model](/guide/model#how-a-list-builds-rows) for how a row is built and what a record is,
 > [Actions reference](/api/actions) for `ListItemAddedAction` and `ListItemRemovedAction`

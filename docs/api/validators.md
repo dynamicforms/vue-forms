@@ -73,7 +73,7 @@ Pass it to the work the function starts; a function with nothing to cancel ignor
 Validators are eager: they run once at field creation, over the value the constructor produced, immediately when
 passed to `registerAction()` on an existing field, on every value change, on `field.validate(true)`, and once more
 where a run produced no result because the record it reads was not assembled yet (see
-[`markRecordIncomplete()`](/api/field#markrecordincomplete-void), and
+[`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void), and
 [A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record)). A field can therefore be `valid === false` before the user has
 interacted with it. Use `touched` to decide when to display the errors.
 
@@ -117,7 +117,7 @@ or on the `Group` above it) to retry once the service is available. The failure 
 specific message, catch inside the validation function and return a custom error, e.g.
 `[new ValidationError('unverified', {}, 'Could not verify this value')]`.
 
-[`clearValidators()`](/api/field#methods) also cancels pending validation: it removes the validators, empties
+[`clearValidators()`](/api/field-base#clearvalidators-void) also cancels pending validation: it removes the validators, empties
 `field.errors` and recomputes validity over the empty list, and a run that settles afterwards (resolved or rejected)
 does not add errors to the field. A field that was invalid therefore fires `ValidChangedAction`, and the `Group` or
 `List` holding it recomputes its own validity. `field.validationEpoch` is the read-only counter that implements the

@@ -155,7 +155,7 @@ conditionsForm.fields.submitAction.registerAction(
 
 - [Actions → Conditional actions](/api/actions#conditional-actions): `Statement`, `Operator`,
   `ConditionalVisibilityAction`, `ConditionalAccessAction`, `ConditionalValueAction`
-- [Field → Visibility](/api/field#visibility)
+- [FieldBase → Visibility](/api/field-base#visibility)
 
 ## Key Features Demonstrated
 

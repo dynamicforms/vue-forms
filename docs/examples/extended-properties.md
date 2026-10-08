@@ -138,5 +138,5 @@ list.get(0)!.fields.amount.extra.label;   // 'Amount', copied from the item temp
 
 ## See also
 
-- [`Field` API reference](/api/field#extended-properties): the full rules, including subclasses
+- [`FieldBase` API reference](/api/field-base#extended-properties): the full rules, including subclasses
 - [The model](/guide/model): where extended properties sit among the other pieces

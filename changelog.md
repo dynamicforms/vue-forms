@@ -248,7 +248,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 - The value rules on the same page state what a construction settles on: a `params.value` counts as empty when
   every member it carries is `null` or absent, and `params.originalValue` is frozen carrying every member it was
   given.
-- [Extended properties](https://docs.velis.si/dynamicforms/vue-forms/api/field#extended-properties) and the
+- [Extended properties](https://docs.velis.si/dynamicforms/vue-forms/api/field-base#extended-properties) and the
   [extended properties example](https://docs.velis.si/dynamicforms/vue-forms/examples/extended-properties) hold the
   two rules apart: an action's presentation property of another name is an extended property, while a differently
   shaped read of `label` or `icon` is an accessor pair on the subclass. The

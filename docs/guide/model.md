@@ -23,8 +23,8 @@ Every element has the same members, whatever its class: `value`, `originalValue`
 and `fieldName`. A container adds its own: `fields`, `field()`, `addField()` and `removeField()` on a `Group`;
 `length`, `items`, `get()`, `push()`, `insert()`, `remove()` and `clear()` on a `List`. Any additional data the
 application stores on an element goes in `extra`, the element's
-[extended properties](/api/field#extended-properties). They are declared once by augmenting
-[`Extras`](/api/field#extras) or per element as its second type argument, given at construction, written with
+[extended properties](/api/field-base#extended-properties). They are declared once by augmenting
+[`Extras`](/api/field-base#extras) or per element as its second type argument, given at construction, written with
 `setExtendedValues()`, and read like every other member.
 
 ```typescript
@@ -334,7 +334,8 @@ arrays has the same limitation as comparing two fields directly. The package's o
 
 | Question | Page |
 |---|---|
-| every member of `Field` and `FieldBase` | [Field](/api/field) |
+| every member every element has | [FieldBase](/api/field-base) |
+| what `Field` implements, writing a value | [Field](/api/field) |
 | members, serialization, `fields` | [Group](/api/group) |
 | loading, submitting, resetting, optional sections, type-dependent fields | [Cookbook](/guide/cookbook) |
 | a group or a list read as plain data | [view()](/api/view) |
