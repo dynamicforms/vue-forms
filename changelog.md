@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reading an index or `length` of `view(list)` copied the row array on every read.
 
 ### Added
+- Vue devtools support in development: a "vue-forms" inspector listing every root element, grouped by the file or
+  the component that constructed it, with its members and state, and the state a component constructed shown in
+  that component's inspector. `describeState()`, `hideState()` and `setDevtoolsRegistration()` name, hide and select
+  what is listed. In a production build everything devtools-related is removed by the bundler.
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
   target or a concurrent run with a `SubmitRefusedException` whose `reason` says which, sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the handler fails, rebinds the target to the result and resolves with
   `{ action, sent, received }`. `RejectAction(target)` rebinds the target to its `originalValue`.

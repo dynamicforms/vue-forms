@@ -54,6 +54,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@vue/devtools-api": "^8.2.1",
     "lodash-es": "^4.17.21"
   },
   "peerDependencies": {
