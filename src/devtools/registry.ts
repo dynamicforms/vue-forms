@@ -80,6 +80,11 @@ export function describe(element: FieldBase, description: StateDescription): voi
   entry.description = { ...entry.description, ...description };
   entry.described = true;
   entry.hidden = false;
+  // an element its component handed on before unmounting is listed again, as global state
+  if (!entries.has(entry.id)) {
+    entry.instance = undefined;
+    entries.set(entry.id, entry);
+  }
   changed?.();
 }
 

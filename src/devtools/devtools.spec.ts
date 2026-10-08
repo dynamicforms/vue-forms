@@ -159,5 +159,8 @@ describe('state a component constructs', () => {
     wrapper.unmount();
 
     expect(isListed(built!)).toBe(false);
+    describeState(built!, { name: 'Kept' });
+    expect(isListed(built!)).toBe(true);
+    expect(entryOf(built!)!.instance).toBeUndefined();
   });
 });
