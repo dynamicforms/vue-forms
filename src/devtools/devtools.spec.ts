@@ -6,9 +6,8 @@ import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
 
+import { describeState, hideState, setDevtoolsRegistration } from './api';
 import { callerFile, entryOf, listed } from './registry';
-
-import { describeState, hideState, setDevtoolsRegistration } from './index';
 
 const handlers: Record<string, (payload: any) => void> = {};
 vi.mock('@vue/devtools-api', () => ({

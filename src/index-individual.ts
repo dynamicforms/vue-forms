@@ -10,7 +10,7 @@ export {
   hideState,
   setDevtoolsRegistration,
   type StateDescription,
-} from './devtools';
+} from './devtools/api';
 export * from './field';
 export * from './field.interface';
 export * from './field-base';

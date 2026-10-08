@@ -14,7 +14,7 @@ import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import { type Container } from './container';
-import { noteElement, noteInternal } from './devtools';
+import { noteElement, noteInternal } from './devtools/api';
 import { BeginValidating, type ElementSlots, ValidationEpoch } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
 import {

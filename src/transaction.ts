@@ -1,5 +1,5 @@
 import type FieldActionBase from './actions/field-action-base';
-import { noteChange } from './devtools';
+import { noteChange } from './devtools/api';
 import type { FieldBase } from './field-base';
 
 /**

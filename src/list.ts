@@ -2,7 +2,7 @@ import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
-import { noteInternal } from './devtools';
+import { noteInternal } from './devtools/api';
 import { type ListSlots, listSlots, ReorderRows } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
