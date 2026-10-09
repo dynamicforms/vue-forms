@@ -108,7 +108,10 @@ template.registerAction(new ValueChangedAction((field, supr, newValue) => {
 For action authors: state stored on the action instance is shared by every element the action serves. Per-element
 state goes into `protected state(key, init)`, keyed by the element or by its record, and is released together with
 the key. `boundToBinding(binding)` is called once for every element the action is attached to, and
-`unregisterFrom(binding)` once for every element it is removed from.
+`unregisterFrom(binding)` once for every element it is removed from. `resetBinding(binding)` is called when a
+binding is reset to a new binding of its declaration (a reused `List` row and its members); an override drops the
+state it keeps about the element, which `protected forgetState(key)` does with a rollback restoring it. The
+element's eager actions then run again over the new record.
 
 An action belongs to the declaration, and a binding reads the declaration's actions directly. Registering an action
 on one row of a list therefore registers it on the item template, and it applies to every row, existing and added

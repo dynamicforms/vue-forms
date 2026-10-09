@@ -178,6 +178,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * announces it with the value the element had when the transaction opened as the old value.
    *
    * Keys missing from `data` are taken from the element's `declaration`, not from the previous record.
+   *
+   * The element keeps its `access` and `visibility`. A member reset from an element other than itself (a member of
+   * a `List` row, a reused row) takes them from that element, see `resetChild`.
    */
   rebind(data: T): this {
     transactional((tx) => {
@@ -192,6 +195,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // announces no change of either
       if (owed) Object.assign(this.#raw, { announcedValue, announcedContribution, validatedValue });
       else this.recordAnnounced();
+      // the members reset from their declaration run their eager actions over the record they now hold
+      this.completeRecords();
     });
     return this;
   }
@@ -715,8 +720,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   /**
    * Sets this element to the state of a new binding of `source` with `value`: `value` is written if supplied, and
    * `source`'s value otherwise; the change history (originalValue, touched) starts over, and the errors are cleared
-   * and set again by the validators. A container that reuses an element at a position calls it, so the element is
-   * indistinguishable from one built for that position.
+   * and set again by the validators. A container that reuses an element at a position calls it through
+   * `resetChild`, which also writes the flags, so the element is in the state of one built for that position;
+   * extended properties are kept.
    */
   protected resetTo(source: FieldBase, value: any): void {
     transactional(() => {
@@ -733,8 +739,19 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     });
   }
 
-  /** Resets a member. A container calls it to reset a child of any class. */
+  /**
+   * Resets a member. A container calls it to reset a child of any class. A child reset from an element other than
+   * itself (a reused `List` row and the members of one) also takes `source`'s `access` and `visibility`, and its
+   * eager actions run again once the record is complete, so the conditional rules apply over the new record. A child
+   * that is its own source (a member of a declared group) keeps its flags.
+   */
   protected resetChild(child: FieldBase, source: FieldBase, value: any): void {
+    if (child !== source) {
+      child.access = source.access;
+      child.visibility = source.visibility;
+      child.boundActions?.resetBinding(child);
+      child.markRecordIncomplete();
+    }
     child.resetTo(source, value);
   }
 

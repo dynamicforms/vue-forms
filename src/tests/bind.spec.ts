@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-import { ValidChangedAction, ValueChangedAction } from '../actions';
+import { ConditionalVisibilityAction, Operator, Statement, ValidChangedAction, ValueChangedAction } from '../actions';
 import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
@@ -254,5 +254,72 @@ describe('rebind()', () => {
     expect(field.value).toBe('b');
     expect(field.originalValue).toBe('a');
     expect(field.isChanged).toBe(true);
+  });
+  it('gives a recycled row and its members the access and visibility of the declaration', () => {
+    const template = new Group({ name: new Field({ value: '' }) });
+    const list = new List(template, { value: [{ name: 'a' }, { name: 'b' }] });
+    const first = list.get(0)!;
+    first.access = 'disabled';
+    list.get(1)!.fields.name.visibility = 'hidden';
+    expect(list.value).toEqual([{ name: 'b' }]);
+
+    list.rebind(list.originalValue);
+
+    expect(list.get(0)).toBe(first);
+    expect(first.access).toBe('editable');
+    expect(list.get(1)!.fields.name.visibility).toBe('full');
+    expect(list.value).toEqual([{ name: 'a' }, { name: 'b' }]);
+  });
+
+  it('gives a row reused by an assignment the access of the declaration', () => {
+    const list = new List(new Group({ name: new Field({ value: '' }) }), { value: [{ name: 'a' }] });
+    list.get(0)!.access = 'disabled';
+
+    list.value = [{ name: 'b' }];
+
+    expect(list.get(0)!.access).toBe('editable');
+    expect(list.value).toEqual([{ name: 'b' }]);
+  });
+
+  it('applies the conditional rules of a recycled row again over the record it takes', () => {
+    const template = new Group({ kind: new Field({ value: 'standard' }), detail: new Field({ value: '' }) });
+    template.fields.detail.registerAction(
+      new ConditionalVisibilityAction(new Statement(template.fields.kind, Operator.EQUALS, 'other')),
+    );
+    const list = new List(template, { value: [{ kind: 'other', detail: 'x' }] });
+    const detail = list.get(0)!.fields.detail;
+    expect(detail.visibility).toBe('full');
+
+    // the statement's result is the same before and after: the rule still writes it over the declaration's visibility
+    list.rebind([{ kind: 'other', detail: 'y' }]);
+
+    expect(detail.visibility).toBe('full');
+  });
+
+  it('keeps the access and visibility of the element it is called on and of a declared member', () => {
+    const form = new Group({ name: new Field({ value: 'a' }) });
+    form.access = 'readonly';
+    form.visibility = 'hidden';
+    form.fields.name.access = 'disabled';
+
+    form.rebind({ name: 'b' });
+
+    expect(form.access).toBe('readonly');
+    expect(form.visibility).toBe('hidden');
+    expect(form.fields.name.access).toBe('disabled');
+  });
+
+  it('restores the access of a recycled row when the transaction rolls back', () => {
+    const list = new List(new Group({ name: new Field({ value: '' }) }), { value: [{ name: 'a' }] });
+    list.get(0)!.access = 'disabled';
+
+    expect(() =>
+      transaction(() => {
+        list.rebind([{ name: 'b' }]);
+        throw new Error('abandon');
+      }),
+    ).toThrow('abandon');
+
+    expect(list.get(0)!.access).toBe('disabled');
   });
 });

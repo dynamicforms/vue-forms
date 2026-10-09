@@ -167,6 +167,10 @@ interface SubmitResult<R = any> {
 }
 ```
 
+The rebind in step 4 replaces the target's value with the result. A change written to the target while `handler`
+runs is lost, and `isChanged` is `false` afterwards. `SubmitAction` does not lock the target: `busy` and `pending`
+report the running submit, and the rendering layer disables the inputs while they are `true`.
+
 A second `execute()` while a submit of the same action is running resolves with a `SubmitRefusedException` whose
 `reason` is `'running'` and does not call `handler`. Writing a server's field errors to the fields is the handler's:
 it writes them to `field.errors` before it throws, as in
@@ -175,33 +179,49 @@ it writes them to `field.errors` before it throws, as in
 `canExecute()` is `true` while the target is valid and not `pending`, so `Action.executable` is `false` while the
 form is invalid, a validation is running or the submit itself is running.
 
-Every outcome of a submit is the resolved value of `execute()` (and of `Container.confirm()`):
+Every outcome of a submit is the resolved value of `execute()` (and of `Container.confirm()`), of the type
+`SubmitResult<R> | SubmitFailedException`:
 
 | Resolved value | Outcome |
 |---|---|
 | `SubmitResult` | the handler returned; the target is rebound to the result (see `options.rebind`) |
+| `SubmitFailedException` | the handler threw or rejected; `cause` is the error, and the target is not changed |
 | `SubmitRefusedException`, `reason` `'invalid'` | the target is invalid after its validation finished; the handler was not called |
 | `SubmitRefusedException`, `reason` `'running'` | a submit of the same action is running; the handler was not called |
-| `SubmitFailedException` | the handler threw or rejected; `cause` is the error, and the target is not changed |
 
-Both exceptions extend `AbortEventHandlingException`, which `execute()` resolves with. `execute()` rejects only
-where something other than the submit fails, such as another handler in the chain or a `target` callback that
-returns no element.
+`SubmitRefusedException` extends `SubmitFailedException`, and its `cause` is `undefined`. `SubmitFailedException`
+extends `AbortEventHandlingException`, which `execute()` resolves with. `execute()` rejects only where something
+other than the submit fails, such as another handler in the chain or a `target` callback that returns no element.
+
+`execute()` is typed `Promise<any>`, because the chain of an action may hold other handlers. The caller states the
+type where it awaits the result:
 
 ```typescript
-const result = await form.confirm();
-if (result instanceof SubmitFailedException) reportError(result.cause);
-else if (result instanceof SubmitRefusedException) {
+const result: SubmitResult<Saved> | SubmitFailedException = await save.execute();
+if (result instanceof SubmitRefusedException) {
   if (result.reason === 'invalid') form.touched = true;
-} else if (result) {
+} else if (result instanceof SubmitFailedException) {
+  reportError(result.cause);
+} else {
   const { sent, received } = result;
 }
 ```
+
+`SubmitRefusedException` is tested before `SubmitFailedException`, because every refusal is also a
+`SubmitFailedException`. [`Container.confirm()`](/api/container#confirm-params-promise-any-undefined) returns
+`undefined` where it executes nothing, so its result is typed `SubmitResult<R> | SubmitFailedException | undefined`.
 
 ## `RejectAction(target)`
 
 An `ExecuteAction` that puts `target` back to its baseline: on `execute()` it calls
 `target.rebind(target.originalValue)`, then the next handler in the chain, and returns that handler's result.
+
+The baseline is data. `target` keeps its own `access`, `visibility` and extended properties, and so does every
+member of a group that is its own declaration; conditional actions set the flags again where the restored values
+change their statements. The rows of a `List` are reset to the state of new rows: they take the flags of the item
+template, and their conditional actions apply again (see [`rebind()`](/api/field-base#rebind-data-this)). A row
+that was `'disabled'` when the baseline was recorded is not in `originalValue`, which holds what the list sends,
+so the reject does not restore it.
 `target` is a `CommandTarget`, as for `SubmitAction`. `canExecute()` is `true` while the target exists, whatever its
 validity.
 

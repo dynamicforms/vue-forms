@@ -126,6 +126,11 @@ export default class ActionsMap {
     this.actions.forEach((action) => action.boundToBinding(owner));
   }
 
+  /** Tells every action in this map that `owner` is reset to a new binding of its declaration. */
+  resetBinding(owner: FieldBase): void {
+    this.actions.forEach((action) => action.resetBinding(owner));
+  }
+
   /** True if no eager action of the same identifier follows `index`, so `index` is the group's entry point. */
   private static outermostEager(actions: FieldActionBase[], index: number): boolean {
     const identifier = actions[index].classIdentifier;

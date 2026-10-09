@@ -90,6 +90,11 @@ export class ConditionalStatementAction extends ValueChangedAction {
     this.listen();
   }
 
+  /** Forgets the result last applied to `binding`, so the next pass applies the statement over its new flags. */
+  resetBinding(binding: FieldBase) {
+    this.forgetState(binding);
+  }
+
   unregisterFrom(binding: FieldBase) {
     if (this.registrations.delete(binding)) this.registered--;
     // taken off the last element, the action has nothing left to apply, and the listener it installed on the fields

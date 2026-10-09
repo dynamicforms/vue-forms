@@ -256,6 +256,9 @@ describe('SubmitAction', () => {
 
     expect(result).toBeInstanceOf(SubmitRefusedException);
     expect((result as SubmitRefusedException).reason).toBe('invalid');
+    // a refusal is a failed submit, so a caller that checks for SubmitFailedException handles it as well
+    expect(result).toBeInstanceOf(SubmitFailedException);
+    expect((result as SubmitFailedException).cause).toBeUndefined();
     expect(handler).not.toHaveBeenCalled();
   });
 

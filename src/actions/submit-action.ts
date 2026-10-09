@@ -57,27 +57,30 @@ function validated(element: FieldBase): Promise<void> {
   });
 }
 
+/**
+ * The exception a `SubmitAction` ends with when nothing was saved. `execute()` resolves with it, so the resolved
+ * value of a submit is `SubmitResult | SubmitFailedException`. A handler that throws or rejects ends the submit
+ * with this class, and `cause` is what it threw; a refused submit ends with the subclass `SubmitRefusedException`.
+ */
+export class SubmitFailedException extends AbortEventHandlingException {
+  constructor(cause: unknown, message = 'the submit handler failed') {
+    super(message, cause === undefined ? undefined : { cause });
+  }
+}
+
 /** Why a `SubmitAction` refused to submit: the target is invalid, or a submit of the same action is running. */
 export type SubmitRefusalReason = 'invalid' | 'running';
 
 /**
- * The exception a `SubmitAction` ends with when it refuses to submit. `execute()` resolves with it; `reason` states
- * why.
+ * The `SubmitFailedException` a `SubmitAction` ends with when it refuses to submit and does not call the handler;
+ * `reason` states why, and `cause` is undefined.
  */
-export class SubmitRefusedException extends AbortEventHandlingException {
+export class SubmitRefusedException extends SubmitFailedException {
   constructor(public readonly reason: SubmitRefusalReason) {
-    super(reason === 'invalid' ? 'the submitted element is invalid' : 'a submit of this action is already running');
-  }
-}
-
-/**
- * The exception a `SubmitAction` ends with when its handler throws or rejects; `cause` is what the handler threw.
- * `execute()` resolves with it, so a failed submit, a refused one and a successful one all arrive as the resolved
- * value.
- */
-export class SubmitFailedException extends AbortEventHandlingException {
-  constructor(cause: unknown) {
-    super('the submit handler failed', { cause });
+    super(
+      undefined,
+      reason === 'invalid' ? 'the submitted element is invalid' : 'a submit of this action is already running',
+    );
   }
 }
 
@@ -99,6 +102,13 @@ export class SubmitFailedException extends AbortEventHandlingException {
  * A `handler` that throws or rejects ends the submit with a `SubmitFailedException` whose `cause` is the error;
  * `execute()` resolves with it and the target is not changed. Mapping a server's field errors to the fields is the
  * handler's: it writes them to `field.errors` before it throws.
+ *
+ * The resolved value is `SubmitResult<R> | SubmitFailedException`. `execute()` is typed `Promise<any>`, because the
+ * chain may hold other handlers; the caller states the type where it awaits the result.
+ *
+ * The rebind in step 4 replaces the target's value with the result, so a change written to the target while the
+ * handler runs is lost and `isChanged` is false afterwards. The target is not locked: `busy` and `pending` report
+ * the running submit, and the rendering layer disables the inputs while they are true.
  *
  * `canExecute()` is true while the target is valid and not `pending`, so `Action.executable` disables a submit
  * button while the form is invalid or a validation is running.

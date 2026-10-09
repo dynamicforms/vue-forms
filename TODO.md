@@ -16,6 +16,14 @@ parameter, which is a wider change than adding the type argument to `FieldBase` 
 properties live in one tracked slot..."). Undecided whether that is worth doing, and if so, whether `X` defaults
 to `{}` on those signatures the way it does everywhere else or is required to be stated explicitly.
 
+## Before the 3.0.0 release: what the application-state items need from the 3.0 surface
+
+Every item of the next section is checked before 3.0.0 is tagged: does it belong in 3.x, and if so, what does its
+implementation need from the surface 3.0 publishes — a hook, a payload shape, a policy such as value identity or
+what a commit records. Each gets a short specification that answers that. Only the parts of the surface the
+specifications show are needed are added or changed for 3.0; the items themselves are not implemented. An item
+whose implementation would change published behaviour is a 4.0 change if it is not settled here.
+
 ## What application state asks of the library beyond what a form does
 
 Application state is a design goal (`docs/guide/rationale.md`), and the things below that state held outside a form
