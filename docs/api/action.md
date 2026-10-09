@@ -198,14 +198,19 @@ type where it awaits the result:
 
 ```typescript
 const result: SubmitResult<Saved> | CommandException = await save.execute();
-if (result instanceof SubmitFailedException) {
-  reportError(result.cause);
-} else if (result instanceof SubmitRefusedException) {
-  if (result.reason === 'invalid') form.touched = true;
+if (result instanceof CommandException) {
+  if (result instanceof SubmitRefusedException) {
+    if (result.reason === 'invalid') form.touched = true;
+  } else if (result instanceof SubmitFailedException) {
+    reportError(result.cause);
+  }
 } else {
   const { sent, received } = result;
 }
 ```
+
+The first test is on `CommandException`: `SubmitResult` is an interface, so only the base class narrows the
+union to it in the `else` branch.
 
 [`Container.confirm()`](/api/container#confirm-params-promise-any-undefined) returns
 `undefined` where it executes nothing, so its result is typed `SubmitResult<R> | CommandException | undefined`.

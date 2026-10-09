@@ -80,10 +80,22 @@ export default class ActionsMap {
    * eager action, the last one registered under that identifier.
    */
   triggerEager(field: FieldBase, ...params: any[]): void {
+    this.runEager(() => true, field, params);
+  }
+
+  /**
+   * Runs the eager actions other than the validators, as `triggerEager` does: the rules that set an element's flags
+   * or values from its record.
+   */
+  triggerEagerRules(field: FieldBase, ...params: any[]): void {
+    this.runEager((action) => !(action instanceof Validator), field, params);
+  }
+
+  private runEager(include: (action: FieldActionBase) => boolean, field: FieldBase, params: any[]): void {
     const actions = this.actions;
     for (let index = actions.length - 1; index >= 0; index--) {
       const action = actions[index];
-      if (!action.eager) continue;
+      if (!action.eager || !include(action)) continue;
       // the group runs once, from its outermost eager action; the earlier ones are called through supr
       if (ActionsMap.outermostEager(actions, index)) {
         try {

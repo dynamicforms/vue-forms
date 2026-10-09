@@ -404,11 +404,15 @@ export class Group<
         else if (value !== undefined) memberValue = Object.hasOwn(value, name) ? value[name] : source.originalValue;
         this.resetChild(field, source, memberValue);
       });
-      // a reset group announces nothing itself: the container that reset it announces the change
-      this.recordAnnounced();
-      this.originalValue = Group.baseline(this.value);
+      this.recordBaseline();
       super.validate(true);
     });
+  }
+
+  protected recordBaseline(): void {
+    // a reset group announces nothing itself: the container that reset it announces the change
+    this.recordAnnounced();
+    this.originalValue = Group.baseline(this.value);
   }
 
   /**

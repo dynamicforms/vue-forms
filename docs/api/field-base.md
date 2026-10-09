@@ -821,6 +821,11 @@ declaration also keeps its `access` and `visibility`. A member of a group bound 
 `visibility` of the corresponding element of the declaration, and their conditional actions apply their statements
 again over the new record, as they do over a new binding. Extended properties stay on every element.
 
+The baseline is recorded after the rules: once every reset element holds its new values, the eager actions other
+than the validators run over each of them, and `originalValue` is recorded from what the element then holds. A
+member a conditional access enables for the new record is in the baseline, and `isChanged` is `false` after the
+rebind.
+
 A member of a `Group` whose key is missing from `data` takes the `originalValue` of the corresponding member of the
 group's declaration: for a group that is its own declaration, the member's own baseline. `group.originalValue` holds
 what the group sends, so it leaves a `'disabled'` member out, and `group.rebind(group.originalValue)` puts that

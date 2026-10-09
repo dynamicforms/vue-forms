@@ -87,6 +87,9 @@ function refuseEnabled(params: object): void {
  */
 let incompleteRecords = 0;
 
+/** The elements the reset in progress has reset, each after its members; null outside a reset. */
+let resetElements: FieldBase[] | null = null;
+
 export abstract class FieldBase<T = any, X extends object = Extras> {
   /**
    * Vue's getTargetType returns INVALID for an object that has __v_skip, so reactive() returns an element
@@ -190,13 +193,14 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // read before the reset, which enrols the element and, on a container, writes its own baseline.
       const owed = tx.willAnnounceValue(this);
       const { announcedValue, announcedContribution, validatedValue } = this.#raw;
-      this.resetTo(this.declaration, data);
+      this.asReset(() => {
+        this.resetTo(this.declaration, data);
+        resetElements?.push(this);
+      });
       // with no pending change, what the element now holds and sends is recorded as announced, so the commit
       // announces no change of either
       if (owed) Object.assign(this.#raw, { announcedValue, announcedContribution, validatedValue });
       else this.recordAnnounced();
-      // the members reset from their declaration run their eager actions over the record they now hold
-      this.completeRecords();
     });
     return this;
   }
@@ -721,8 +725,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * Sets this element to the state of a new binding of `source` with `value`: `value` is written if supplied, and
    * `source`'s value otherwise; the change history (originalValue, touched) starts over, and the errors are cleared
    * and set again by the validators. A container that reuses an element at a position calls it through
-   * `resetChild`, which also writes the flags, so the element is in the state of one built for that position;
-   * extended properties are kept.
+   * `resetChild`, which also writes the flags, inside `asReset`, which applies the rules before the baseline is
+   * final, so the element is in the state of one built for that position; extended properties are kept.
    */
   protected resetTo(source: FieldBase, value: any): void {
     transactional(() => {
@@ -750,9 +754,41 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       child.access = source.access;
       child.visibility = source.visibility;
       child.boundActions?.resetBinding(child);
-      child.markRecordIncomplete();
     }
     child.resetTo(source, value);
+    resetElements?.push(child);
+  }
+
+  /**
+   * Runs `reset`, which resets elements to new records through `resetTo`, as one reset. Once every element holds
+   * its new values, the rules of each reset element (its eager actions other than the validators) run over them, and
+   * each records its baseline again, so `originalValue` includes what the rules changed: a member a conditional
+   * access enables is in its container's baseline. A reset inside a reset is part of the outer one.
+   */
+  protected asReset(reset: () => void): void {
+    if (resetElements) {
+      reset();
+      return;
+    }
+    const elements: FieldBase[] = [];
+    resetElements = elements;
+    try {
+      reset();
+    } finally {
+      resetElements = null;
+    }
+    elements.forEach((element) =>
+      element.boundActions?.triggerEagerRules(element, element.contribution, element.contribution),
+    );
+    elements.forEach((element) => element.recordBaseline());
+  }
+
+  /**
+   * Records what the element holds as its baseline at the end of a reset. A container also records it as the
+   * value its listeners last heard: the container that reset it announces the change.
+   */
+  protected recordBaseline(): void {
+    this.originalValue = this.value;
   }
 
   /**

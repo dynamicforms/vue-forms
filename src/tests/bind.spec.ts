@@ -1,6 +1,13 @@
 import { vi } from 'vitest';
 
-import { ConditionalVisibilityAction, Operator, Statement, ValidChangedAction, ValueChangedAction } from '../actions';
+import {
+  ConditionalAccessAction,
+  ConditionalVisibilityAction,
+  Operator,
+  Statement,
+  ValidChangedAction,
+  ValueChangedAction,
+} from '../actions';
 import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
@@ -307,6 +314,66 @@ describe('rebind()', () => {
     expect(group.access).toBe('readonly');
     expect(group.fields.name.access).toBe('editable');
     expect(group.value).toEqual({ name: 'b' });
+  });
+
+  describe('records the baseline after the conditional rules applied over the new record', () => {
+    const detailWhenOther = (kind: Field<string>) =>
+      new ConditionalAccessAction(new Statement(kind, Operator.EQUALS, 'other'), 'editable', 'disabled');
+    const rowTemplate = () => {
+      const template = new Group({ kind: new Field({ value: 'standard' }), detail: new Field({ value: '' }) });
+      template.fields.detail.registerAction(detailWhenOther(template.fields.kind));
+      return template;
+    };
+
+    it('where the statement keeps its result', () => {
+      const list = new List(rowTemplate(), { value: [{ kind: 'other', detail: 'x' }] });
+      const row = list.get(0)!;
+
+      row.rebind({ kind: 'other', detail: 'y' });
+
+      expect(row.value).toEqual({ kind: 'other', detail: 'y' });
+      expect(row.originalValue).toEqual({ kind: 'other', detail: 'y' });
+      expect(row.isChanged).toBe(false);
+    });
+
+    it('where the statement changes its result', () => {
+      const list = new List(rowTemplate(), { value: [{ kind: 'standard', detail: '' }] });
+      const row = list.get(0)!;
+
+      row.rebind({ kind: 'other', detail: 'y' });
+
+      expect(row.value).toEqual({ kind: 'other', detail: 'y' });
+      expect(row.isChanged).toBe(false);
+    });
+
+    it('on a list whose row is reused', () => {
+      const list = new List(rowTemplate(), { value: [{ kind: 'standard', detail: '' }] });
+
+      list.rebind([{ kind: 'other', detail: 'y' }]);
+
+      expect(list.value).toEqual([{ kind: 'other', detail: 'y' }]);
+      expect(list.get(0)!.isChanged).toBe(false);
+      expect(list.isChanged).toBe(false);
+    });
+
+    it('on a row reused by an assignment, whose list stays changed', () => {
+      const list = new List(rowTemplate(), { value: [{ kind: 'standard', detail: '' }] });
+
+      list.value = [{ kind: 'other', detail: 'y' }];
+
+      expect(list.get(0)!.isChanged).toBe(false);
+      expect(list.isChanged).toBe(true);
+    });
+
+    it('on a declared group', () => {
+      const form = new Group({ kind: new Field({ value: 'standard' }), detail: new Field({ value: '' }) });
+      form.fields.detail.registerAction(detailWhenOther(form.fields.kind));
+
+      form.rebind({ kind: 'other', detail: 'y' });
+
+      expect(form.value).toEqual({ kind: 'other', detail: 'y' });
+      expect(form.isChanged).toBe(false);
+    });
   });
 
   it('keeps the access and visibility of the element it is called on and of a declared member', () => {
