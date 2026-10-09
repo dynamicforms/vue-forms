@@ -68,7 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vue devtools support in development: a "vue-forms" inspector listing every root element, grouped by the file or
   the component that constructed it, with its members and state, and the state a component constructed shown in
   that component's inspector. `describeState()` and `hideState()` name and hide an element; `configureDevtools()`
-  turns the devtools off, selects what is listed and turns off the capture of the constructing file. Values,
+  turns the devtools off, selects what is listed and turns off the capture of the constructing file. The location
+  section of an element shows that file and the frames of the construction stack outside the library. Values,
   access, visibility, touched and extended properties are editable in the inspector; an edit is a write through the
   element's setter. The devtools are a plugin the library installs in development; a binding, such as a list row,
   records nothing, and a member keeps no captured stack. In a production build everything devtools-related is

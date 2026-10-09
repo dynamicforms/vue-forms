@@ -7,7 +7,7 @@ import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
 import { configureDevtools, describeState, hideState } from '../plugins/devtools/api';
-import { callerFile, entryOf, listed } from '../plugins/devtools/registry';
+import { callerFile, callerFrames, entryOf, listed } from '../plugins/devtools/registry';
 
 const handlers: Record<string, (payload: any) => void> = {};
 // the devtools API a plugin's setup function receives; the handlers it registers are kept for the tests
@@ -134,6 +134,36 @@ describe('callerFile', () => {
   });
 });
 
+describe('callerFrames', () => {
+  const library = '/src/';
+
+  it('returns the frames outside the library and node_modules with function, file, line and column', () => {
+    const chrome = [
+      'Error',
+      '    at new FieldBase (http://localhost:5173/src/field-base.ts?t=1:10:5)',
+      '    at new Group (http://localhost:5173/node_modules/.vite/deps/x.js:1:1)',
+      '    at createCart (http://localhost:5173/stores/cart.ts?t=2:4:10)',
+      '    at http://localhost:5173/main.ts:7:1',
+      '    at <anonymous>',
+    ].join('\n');
+    const firefox = [
+      'FieldBase@http://localhost:5173/src/field-base.ts:10:5',
+      'setup@http://localhost:5173/components/Cart.vue:3:7',
+      '@http://localhost:5173/main.ts:7:1',
+    ].join('\n');
+
+    expect(callerFrames(chrome, library)).toEqual([
+      { name: 'createCart', file: 'stores/cart.ts', line: 4, column: 10 },
+      { name: undefined, file: 'main.ts', line: 7, column: 1 },
+    ]);
+    expect(callerFrames(firefox, library)).toEqual([
+      { name: 'setup', file: 'components/Cart.vue', line: 3, column: 7 },
+      { name: undefined, file: 'main.ts', line: 7, column: 1 },
+    ]);
+    expect(callerFrames(undefined, library)).toEqual([]);
+  });
+});
+
 describe('the devtools plugin', () => {
   it('lists global and component state, shows an element, and adds component state', async () => {
     const app = { config: {} };
@@ -175,6 +205,14 @@ describe('the devtools plugin', () => {
     const state = { inspectorId: 'dynamicforms-state', nodeId: `${node.id}/name`, state: {} as any };
     handlers.getInspectorState(state);
     expect(state.state.element[0]).toEqual({ key: 'value', value: 'Ada', editable: true });
+    expect(state.state.location).toEqual([{ key: 'file', value: 'src/stores/profile.ts' }]);
+
+    const created = new Error();
+    created.stack = 'Error\n    at createProfile (http://localhost:5173/stores/profile.ts:4:10)';
+    entryOf(global)!.created = created;
+    const withStack = { inspectorId: 'dynamicforms-state', nodeId: node.id, state: {} as any };
+    handlers.getInspectorState(withStack);
+    expect(withStack.state.location).toContainEqual({ key: 'stack', value: ['createProfile stores/profile.ts:4:10'] });
 
     const instanceData = { state: [] as any[] };
     handlers.inspectComponent({ componentInstance: (wrapper.vm as any).$, instanceData });

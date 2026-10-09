@@ -2,7 +2,16 @@ import { type App, toRaw } from 'vue';
 
 import type { FieldBase } from '../../field-base';
 
-import { callerFile, componentPath, type Entry, entryById, entryOf, listed, onRegistryChanged } from './registry';
+import {
+  callerFile,
+  callerFrames,
+  componentPath,
+  type Entry,
+  entryById,
+  entryOf,
+  listed,
+  onRegistryChanged,
+} from './registry';
 
 const INSPECTOR = 'dynamicforms-state';
 
@@ -265,11 +274,15 @@ function setup(app: App): void {
         const found = resolve(payload.nodeId);
         if (!found) return;
         const instance = found.entry.instance?.deref();
+        const frames = callerFrames(found.entry.created?.stack).map(
+          ({ name, file, line, column }) => `${name ? `${name} ` : ''}${file}:${line}:${column}`,
+        );
         payload.state = {
           ...stateOf(found.element),
           location: [
             { key: 'file', value: fileOf(found.entry) ?? 'unknown' },
             ...(instance ? [{ key: 'component', value: componentPath(instance) }] : []),
+            ...(frames.length ? [{ key: 'stack', value: frames }] : []),
           ],
         };
       });
