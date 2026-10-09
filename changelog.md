@@ -79,6 +79,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
 - `ValidationErrorOptions`.
 - `params` on every error.
+- `"sideEffects": false` in `package.json`: no module of the package runs code on import, so a bundler drops the
+  modules an application does not use.
 
 ### Removed
 - `beginValidating()`, `endValidating()` and `validationEpoch` from the public API; validators reach them through

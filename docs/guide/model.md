@@ -299,8 +299,16 @@ Object.isFrozen(group.value);    // true; assign a new value instead of writing 
 ```
 
 The freeze covers the objects the containers build. An array or object that a `Field` holds as its value is not
-frozen: writing into it changes the field's value without a `ValueChangedAction`, so assign a new array or object
-instead.
+frozen. The field's value is one unit, and a change of it is an assignment to `value`. A write into the object the
+field holds is outside that contract: no transaction records it, no `ValueChangedAction` fires and the validators do
+not run. Where `originalValue` is the same object as the value, which it is when the field was built without a
+separate `originalValue` and after `rebind()`, the write changes the baseline as well: `isChanged` stays `false` and
+`rebind(originalValue)` does not put the old content back. Assign a new array or object instead:
+
+```typescript
+address.value.city = 'Bled';                         // outside the contract
+address.value = { ...address.value, city: 'Bled' };  // a change of the field
+```
 
 A `Group` sends each member according to its `access`: an `'editable'` or `'readonly'` member with its value, a
 `'disabled-null'` member as `null`, and a `'disabled'` member not at all. Its value is `{}` when no member is sent.
@@ -319,6 +327,26 @@ the nesting, not the size of the tree.
 
 `originalValue` is the baseline `isChanged` compares against, and assigning it resets that baseline. On a container
 it is a separate copy, not the frozen object `value` returns, so it is writable where the value is not.
+
+## Memory per element
+
+Every value is an element: it holds its state (value, baseline, access, visibility, errors, validity counters), its
+actions and, once read, cached computations of its validity and its value. Approximate heap use in V8, production
+build:
+
+| what | per instance |
+|---|---|
+| a `Field` | 0.4 KB |
+| a `Group` of three fields, `value` and `valid` read | 6 KB |
+| `reactive({ a, b, c })` | 0.5 KB |
+
+In development the devtools also record where each element was built, about 2.4 KB more per element; a production
+build leaves this out ([Vue devtools](/api/devtools)).
+
+The cost is per element, not per value: a `Field` that holds an array of ten thousand rows is one element. State that
+is read and replaced as a whole, such as rows fetched for a table that is only displayed, fits one `Field` or a
+`shallowRef`. State where each value needs its own rules, validation, access or change tracking fits elements; a
+[`List`](/api/list#scale) is designed to hold thousands of rows.
 
 ## Comparing elements
 
