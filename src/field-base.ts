@@ -16,7 +16,7 @@ import { VisibilityChangedAction, VisibilityChangingAction } from './actions/vis
 import { type Container } from './container';
 import { BeginValidating, type ElementSlots, ValidationEpoch } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
-import { elementCreated, pipeOriginalValue } from './plugins';
+import { elementAdopted, elementCreated, pipeOriginalValue } from './plugins';
 import {
   currentTransaction,
   type Transaction,
@@ -665,6 +665,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // validated again
       if (detached) child.revalidateWhereChanged(detached);
       this.adoptChild(child);
+      elementAdopted(tx, child);
     });
   }
 

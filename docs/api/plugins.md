@@ -29,6 +29,7 @@ Every member is optional.
 | `onSetValue(value, element)` | on every write of the value a `Field` or an `Action` holds: the construction, the `value` setter and `rebind()` |
 | `onSetOriginalValue(value, element)` | on every write of `originalValue` of any element, a container's included |
 | `onElementCreated(element, binding)` | at the start of every element's construction, before its parameters are applied. `binding` is `true` for an element `bind()` builds, the rows of a `List` and their members included |
+| `onElementAdopted(element)` | when a container takes `element` as its member, once the transaction that took it commits; not where it is rolled back |
 | `onCommit()` | after every committed transaction, once its changes are announced; not after a rollback |
 
 Every hook runs in the order of installation. The value hooks run as a pipeline: the first receives the value being

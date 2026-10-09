@@ -75,3 +75,20 @@ describe('PluginContext.changeInPlace', () => {
     ).toThrow(TypeError);
   });
 });
+
+describe('the onElementAdopted hook', () => {
+  it('runs when a container takes a member, after the commit, and not for a rolled-back take', () => {
+    const adopted: string[] = [];
+    const uninstall = installPlugin({ onElementAdopted: (element) => adopted.push(String(element.value)) });
+    const kept = new Field({ value: 'kept' });
+    const dropped = new Field({ value: 'dropped' });
+    const form = new Group({ kept });
+    transaction((tx) => {
+      form.addField('dropped', dropped);
+      tx.rollback();
+    });
+    uninstall();
+
+    expect(adopted).toEqual(['kept']);
+  });
+});

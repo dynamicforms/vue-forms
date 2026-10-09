@@ -93,6 +93,15 @@ export function describe(element: FieldBase, description: StateDescription): voi
   changed?.();
 }
 
+/**
+ * Drops the stack captured for an element a container took: a member is shown inside its container, and its own
+ * file is shown again only if the container releases it.
+ */
+export function forgetLocation(element: FieldBase): void {
+  const entry = byElement.get(element);
+  if (entry) entry.created = undefined;
+}
+
 export function setHidden(element: FieldBase, hidden: boolean): void {
   const entry = byElement.get(element);
   if (!entry) return;

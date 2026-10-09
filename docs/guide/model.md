@@ -343,7 +343,7 @@ build:
 | `reactive({ a, b, c })` | 0.5 KB |
 
 In development the devtools also record where each root element was built, about 2.4 KB per root element; a
-binding, such as a row of a `List`, records nothing, and a production build leaves the devtools out
+member and a binding, such as a row of a `List`, keep nothing, and a production build leaves the devtools out
 ([Vue devtools](/api/devtools#what-is-listed)).
 
 The cost is per element, not per value: a `Field` that holds an array of ten thousand rows is one element. State that

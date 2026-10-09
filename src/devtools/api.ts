@@ -1,11 +1,11 @@
 /**
  * Vue devtools support. In development every root element is listed in a "vue-forms" inspector, grouped by the file
  * or the component that constructed it, and shown in the inspector of that component. The devtools are a plugin
- * built on the plugin hooks (`onElementCreated`, `onCommit`); the library installs it on the first element built in
- * development. In a production build (`process.env.NODE_ENV === 'production'`, which the application's bundler
- * replaces) every function here is empty, and the bundler drops the registry and the devtools plugin. The condition
- * is written out in every function: a bundler removes a branch over the replaced expression, not one over a
- * constant that holds it.
+ * built on the plugin hooks (`onElementCreated`, `onElementAdopted`, `onCommit`); the library installs it on the
+ * first element built in development. In a production build (`process.env.NODE_ENV === 'production'`, which the
+ * application's bundler replaces) every function here is empty, and the bundler drops the registry and the devtools
+ * plugin. The condition is written out in every function: a bundler removes a branch over the replaced expression,
+ * not one over a constant that holds it.
  */
 import type { FieldBase } from '../field-base';
 import { installPlugin, type Plugin } from '../plugins';
@@ -61,6 +61,9 @@ const devtools: Plugin = {
     if (binding) return;
     registry.noteElement(element, location);
     load(element);
+  },
+  onElementAdopted(element) {
+    registry.forgetLocation(element);
   },
   onCommit() {
     registry.noteChange();

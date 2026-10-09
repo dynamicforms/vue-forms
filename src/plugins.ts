@@ -1,5 +1,6 @@
 import { installDevtools } from './devtools/api';
 import type { FieldBase } from './field-base';
+import type { Transaction } from './transaction';
 
 /**
  * The method a `Field` implements for `PluginContext.changeInPlace`. It is keyed by a symbol the package does not
@@ -49,6 +50,11 @@ export interface Plugin {
    * an element `bind()` builds, a row of a `List` included. The hooks run in the order of installation.
    */
   onElementCreated?(element: FieldBase, binding: boolean): void;
+  /**
+   * Called when a container takes `element` as its member, once the transaction that took it commits. Not called
+   * where the transaction is rolled back.
+   */
+  onElementAdopted?(element: FieldBase): void;
   /** Called after every committed transaction, once its changes are announced. Not called after a rollback. */
   onCommit?(): void;
 }
@@ -57,6 +63,7 @@ const installed: Plugin[] = [];
 let valueHooks: Plugin[] = [];
 let originalValueHooks: Plugin[] = [];
 let createdHooks: Plugin[] = [];
+let adoptedHooks: Plugin[] = [];
 let commitHooks: Plugin[] = [];
 
 /** the item templates of the lists built so far */
@@ -80,6 +87,7 @@ function collect() {
   valueHooks = installed.filter((plugin) => plugin.onSetValue);
   originalValueHooks = installed.filter((plugin) => plugin.onSetOriginalValue);
   createdHooks = installed.filter((plugin) => plugin.onElementCreated);
+  adoptedHooks = installed.filter((plugin) => plugin.onElementAdopted);
   commitHooks = installed.filter((plugin) => plugin.onCommit);
 }
 
@@ -136,6 +144,17 @@ export function elementCreated(element: FieldBase): void {
   if (process.env.NODE_ENV !== 'production') installDevtools();
   const binding = bindingDepth > 0;
   for (const plugin of createdHooks) plugin.onElementCreated!(element, binding);
+}
+
+/**
+ * Runs the `onElementAdopted` hooks once `tx` commits. Called by a container when it takes a member; nothing is
+ * registered while no plugin has the hook.
+ */
+export function elementAdopted(tx: Transaction, element: FieldBase): void {
+  if (adoptedHooks.length === 0) return;
+  tx.whenCommitted(() => {
+    for (const plugin of adoptedHooks) plugin.onElementAdopted!(element);
+  });
 }
 
 /** Runs the `onCommit` hooks. Called by a transaction after its commit. */

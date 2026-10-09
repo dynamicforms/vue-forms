@@ -82,6 +82,16 @@ describe('configureDevtools', () => {
     expect(entryOf(list.get(0)!.fields.a)).toBeUndefined();
   });
 
+  it('drops the stack of an element a container takes', () => {
+    const member = new Field({ value: 0 });
+    expect(entryOf(member)!.created).toBeInstanceOf(Error);
+
+    const form = new Group({ member });
+
+    expect(entryOf(member)!.created).toBeUndefined();
+    expect(entryOf(form)!.created).toBeInstanceOf(Error);
+  });
+
   it('captures no stack with location false', () => {
     configureDevtools({ location: false });
     const form = new Group({ a: new Field() });

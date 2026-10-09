@@ -797,13 +797,15 @@ object through a reference that is not Vue's proxy.
 
 **Version:** 3.0.0
 
-The devtools use the plugin hooks `onElementCreated` and `onCommit`, and the library installs the plugin on the
+The devtools use the plugin hooks `onElementCreated`, `onElementAdopted` and `onCommit`, and the library installs the plugin on the
 first element built in development, so the core calls no devtools code. The devtools are listed without the
 application installing anything, as an inspector in a store library is.
 
 **A binding records nothing.** `bind()` constructs its element inside `asBinding()`, so `onElementCreated` knows a
 binding at construction. A binding is never listed, so the stack and the component are not captured for it; a list
-of 1000 rows of 8 fields is 9000 bindings and one root.
+of 1000 rows of 8 fields is 9000 bindings and one root. An element built directly is captured, since its
+construction does not know whether a container will take it, and the captured stack is dropped when a container
+does.
 
 **Rejected: the devtools as a plugin the application installs.** The modules that build global state are imported,
 and run, before the entry module's own code, so a plugin installed there would not see that state.
