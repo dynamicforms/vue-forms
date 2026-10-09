@@ -728,3 +728,39 @@ A method one class of the library calls on another, where `protected` cannot rea
 `ReorderRows`, `SentNowhere`, `ExecuteHandlers`, and `Outermost` on an action. `beginValidating()`,
 `endValidating()` and `validationEpoch` were public, and an extra `endValidating()` resolved `settled()` while a
 run was in flight; `[BeginValidating]()` returns a function that ends that run once.
+
+## D-042 — A derived value is a `computed` beside the state, not a member of an element
+
+**Version:** 3.0.0
+
+A value derived from state and a function that changes it live beside the element, as `computed` and plain
+functions, and a factory that builds the state returns them with it. A subscription to every change in a subtree
+is a `ValueChangedAction` registered on the container.
+
+**Rejected: derived values carried by an element** (`new Group(fields, { computed: … })`, as Pinia getters). Vue's
+`computed` already tracks what it reads through the element, and a second mechanism on the element would duplicate
+it.
+
+## D-043 — The cost of an element is documented, not reduced
+
+**Version:** 3.0.0
+
+Every value is an element with its state, its actions and its cached validity, which costs several times a plain
+reactive value (`docs/guide/model.md`, "Memory per element"). State read and replaced as a whole is held in one
+`Field` or outside the library.
+
+## D-044 — Server state belongs to a query library; the form rebinds to it
+
+**Version:** 3.0.0
+
+The library does not fetch, cache, invalidate or refetch. A query library holds the server's copy, and the form
+rebinds to each result while it holds no edits, or is built from the first one with `Group.createFromFormData()`
+(cookbook, "Data from a server cache").
+
+## D-045 — No asynchronous derived value
+
+**Version:** 3.0.0
+
+A value loaded for another value is a `watch` that writes the answer into a field, so it is validated, announced
+and part of `isChanged` like any other write (cookbook, "A value loaded for another value"). A derived value that
+is a promise, with components suspending on it (Jotai and Recoil async atoms), is not part of the library.

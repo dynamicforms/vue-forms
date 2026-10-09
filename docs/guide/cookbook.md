@@ -359,6 +359,10 @@ quantity changes, and `total` recomputes when prices and quantities change. Whil
 `createCart()` builds a new cart on each call, so the caller decides where the state lives (a module, a `provide()`
 in the owning component, or elsewhere), and a test builds its own cart.
 
+A value derived from the state, such as `total`, is a `computed` beside it, and a function that changes the state is
+a plain function; neither is a member of an element. Where they belong to the state, the factory builds them and
+returns them with it: `return { cart, total, addItem }`.
+
 ## Keeping state across a hot module replacement
 
 You want state a module builds to keep what it held when the module is replaced during development. Save the
@@ -416,9 +420,74 @@ settings.editor.tabSize = 4;
 settings.$.addField('fontSize', new Field({ value: 14 }));
 ```
 
-A `Field` holds one value. An object or an array a `Field` holds is not frozen, and writing into it changes the
-field's value without a transaction or a `ValueChangedAction`, so assign a new object instead. Data built by
+A `Field` holds one value, and a change of it is an assignment to `value`; a write into an object or an array a
+`Field` holds is not a change of the field (see [The model](/guide/model#where-a-value-comes-from)). Data built by
 `createFromFormData()` has no such field: every object and array in it is an element.
+
+## Data from a server cache
+
+You want a query library such as TanStack Query to fetch, cache and refetch a record, and a form to edit it. Rebind
+the form to each result while it holds no edits:
+
+```typescript
+import { useQuery, useQueryClient } from '@tanstack/vue-query';
+
+const form = createPersonForm();
+const queryClient = useQueryClient();
+const { data } = useQuery({ queryKey: ['person', id], queryFn: () => api.person(id) });
+
+watch(data, (person) => {
+  if (person && !form.isChanged) form.rebind(person);
+}, { immediate: true });
+
+const save = new Action({
+  value: { label: 'Save' },
+  actions: [new SubmitAction(form, async (value) => {
+    const saved = await api.savePerson(id, value);
+    queryClient.setQueryData(['person', id], saved);
+    return saved;
+  })],
+});
+```
+
+The query library holds the server's copy: fetching, caching, invalidation and refetching. The form holds the edit.
+A refetch that arrives while the form holds edits leaves the form as it is. `SubmitAction` rebinds the form to what
+the server saved, and `setQueryData` puts the same record into the cache.
+
+Where the shape of the data is not known in advance, build the element tree from the first result and rebind it to
+the following ones:
+
+```typescript
+const settings = shallowRef<Group>();
+
+watch(data, (fetched) => {
+  if (!fetched) return;
+  if (!settings.value) settings.value = Group.createFromFormData(fetched);
+  else if (!settings.value.isChanged) settings.value.rebind(fetched);
+}, { immediate: true });
+```
+
+`rebind()` writes the keys the tree has: a key the data adds is ignored, and a key the data leaves out takes the
+member's baseline. Data with a different shape needs a new tree from `createFromFormData()`.
+
+## A value loaded for another value
+
+You want a field filled from the server whenever another field changes, such as the city for a postcode. Watch the
+source and write the result into the field:
+
+```typescript
+watch(() => form.fields.postcode.value, async (postcode, _, onCleanup) => {
+  let current = true;
+  onCleanup(() => { current = false; });
+  const city = postcode ? await api.city(postcode) : '';
+  if (current) form.fields.city.value = city;
+});
+```
+
+The result is an ordinary write: it is validated, announced and part of `isChanged`. `onCleanup` runs when the
+postcode changes again before the answer arrives, so the answer for an older postcode is dropped. The library has
+no asynchronous derived value; a component that should not render before the first answer awaits it in an `async
+setup()` inside `<Suspense>`.
 
 ## Reacting to every change below an element
 
