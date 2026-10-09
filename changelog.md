@@ -47,10 +47,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Validator`'s protected `replacePlaceholders()` and `replacePlaceholdersFunction()` are replaced by the protected
   `errorFor(options, code, detail, params)`, which returns the `ValidationError` a built-in validator reports.
 - `Validators.AllowedValues` is `T[] | Ref<T[]> | (() => T[])` instead of `any`.
+- An eager pass runs the rules before the validators, and the validators receive what the element sends after the
+  rules ran.
 - `sameAs` compares the class, `code`, `params`, `detail` and the stated origin, so an error whose params changed
   replaces the instance on the field.
 
 ### Fixed
+- `bind()` of a `Group` records every member's part of the data as the member's `originalValue`, at every level:
+  a member, a nested list, a `List` row built from the item template and the members of a row start out with
+  `isChanged` `false`. A member whose key the data leaves out takes the declared member's `originalValue`.
+- A `Group` constructed with `value`, or with `originalValue` alone, records what every element below it holds as its
+  `originalValue`; a `params.originalValue` given next to `value`, and the `originalValue` of `bind()` overrides,
+  is the baseline of each member it contains, at every nested group. A member reported `isChanged` `true` against
+  the value it was created with.
+- A member that a conditional access enables while it is bound is validated over the value it holds; it kept the
+  error of a validation over `undefined`.
 - `rebind()` and a `List` assignment that reuses rows record the baseline after the conditional actions applied
   over the new record. A rebound element whose rule enables or disables a member reported `isChanged` `true`.
 - A `tx.rollback()` whose signal a `try`/`catch` in the callback caught let the transaction commit; it rolls back.

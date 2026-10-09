@@ -81,7 +81,7 @@ default same as `value`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Baseline for `isChanged`. When `value` is absent or explicitly `undefined`, it is also applied to the members as their initial value
+Baseline for `isChanged`. When `value` is absent or explicitly `undefined`, it is also applied to the members as their initial value. When `value` is given, each member it contains takes its part as its `originalValue`, through every nested group; a `List` member takes its part as its own `originalValue`, and its rows keep what they hold
 
 </td></tr>
 <tr class="member-head"><td>
@@ -117,7 +117,7 @@ default not assigned
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Initial values applied to matching members; members whose key is absent keep the value they were created with. An absent or explicitly `undefined` `value` assigns nothing, so every member keeps the value it was created with; an explicit `null` clears all of them
+Initial values applied to matching members; members whose key is absent keep the value they were created with. An absent or explicitly `undefined` `value` assigns nothing, so every member keeps the value it was created with; an explicit `null` clears all of them. When a value is applied, every element below the group records what it holds at the end of the construction as its `originalValue`, so the members start with `isChanged` `false`
 
 </td></tr>
 </tbody>
@@ -249,9 +249,12 @@ and sent like any other, but is not part of the type. Declare it in `T` to have 
 Overrides [`FieldBase.bind()`](/api/field-base#bind-data-overrides-fieldbase-t-x), which describes `overrides`,
 the construction through `this.constructor` and the detached result. Returns a new `Group` over `data`: every member
 is bound in turn, and the actions and extended properties of the group and of each member are copied. `data` is
-applied to the members exactly as a value passed to the constructor, so a member whose key is absent gets the value
-from the declaration. `overrides` is an [`IBindParams<GroupValueInput<T>, X>`](/api/field-base#ibindparams-t-x);
-its `access` and `visibility` apply to the group itself, and each member keeps its own. `bind(null)` returns a group
+applied to the members as a value passed to the constructor; a member whose key is absent gets the `originalValue`
+of the declared member, as in [`rebind()`](/api/field-base#rebind-data-this). Once the group is built, every
+element below it records what it holds as its `originalValue`, so `isChanged` is `false` on the group and on every
+member, row and row member. `overrides` is an [`IBindParams<GroupValueInput<T>, X>`](/api/field-base#ibindparams-t-x);
+its `access` and `visibility` apply to the group itself, and each member keeps its own. Its `originalValue` is the
+baseline of the group and of each member it contains, as `params.originalValue` next to `value`. `bind(null)` returns a group
 with every member cleared.
 
 A subclass whose constructor does not take `(fields, params)` would ignore the bound members and produce a group with
