@@ -203,6 +203,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
         }
         for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
         this.raw.rows = rows;
+        // the reused rows hold their new records, so their eager actions run over them
+        this.completeRecords();
       }
       if (List.rowsDiffer(held, this.raw.rows)) this.rowsChanged();
       this.bumpValueVersion();

@@ -51,7 +51,9 @@ async function submit() {
 [`settled()`](/api/field-base#settled-promise-void) resolves once no validation and no `Action.execute()` is running at
 or below the form. The handler awaits it although the button is disabled on `pending`: the click can start a
 validation in the same event, when the blur of an input commits its value. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
-`null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again.
+`null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again. It also
+replaces what the form holds, so an edit made while the request runs is lost; the inputs are disabled until the
+request returns.
 
 The same submit as an action of the form, with a cancel beside it in a bar of actions:
 
@@ -72,13 +74,15 @@ const form = new Group({
 ```
 
 ```vue
+<input v-model="form.fields.name.value" :disabled="form.busy" />
 <button :disabled="!form.fields.actions.fields.save.executable" @click="form.confirm()">Save</button>
 ```
 
 [`SubmitAction`](/api/action#submitaction-target-handler-options) does what `submit()` above does and resolves with
-`{ action, sent, received }`, or with a `SubmitRefusedException` or a `SubmitFailedException` where nothing was
-saved. `executable` is `false` while the form is invalid, a validation is running or the
-submit is running. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
+`{ action, sent, received }`, or with a `CommandException` where nothing was saved: a `SubmitFailedException` where
+the handler failed, a `SubmitRefusedException` where the submit was refused before the handler ran. `executable` is `false` while the form is
+invalid, a validation is running or the submit is running. `form.busy` is `true` while the submit runs, so the input
+above is disabled until the form is rebound to the result. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
 Enter and Escape to them. The bar of actions sends nothing, so `form.value` is `{ name: … }`.
 
 ## Showing errors the server returned

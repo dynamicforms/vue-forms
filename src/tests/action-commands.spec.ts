@@ -2,7 +2,14 @@ import { vi } from 'vitest';
 import { watch } from 'vue';
 
 import { Action } from '../action';
-import { ExecuteAction, RejectAction, SubmitAction, SubmitFailedException, SubmitRefusedException } from '../actions';
+import {
+  ExecuteAction,
+  RejectAction,
+  SubmitAction,
+  CommandException,
+  SubmitFailedException,
+  SubmitRefusedException,
+} from '../actions';
 import { BeginValidating } from '../element-state';
 import { Field } from '../field';
 import { type FieldBase } from '../field-base';
@@ -256,6 +263,9 @@ describe('SubmitAction', () => {
 
     expect(result).toBeInstanceOf(SubmitRefusedException);
     expect((result as SubmitRefusedException).reason).toBe('invalid');
+    // a refusal and a failure share CommandException, and a refusal is not a failure of the handler
+    expect(result).toBeInstanceOf(CommandException);
+    expect(result).not.toBeInstanceOf(SubmitFailedException);
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -287,6 +297,7 @@ describe('SubmitAction', () => {
     const result = await form.fields.save.execute();
 
     expect(result).toBeInstanceOf(SubmitFailedException);
+    expect(result).toBeInstanceOf(CommandException);
     expect((result.cause as Error).message).toBe('offline');
     expect(form.fields.name.value).toBe('Grace');
   });

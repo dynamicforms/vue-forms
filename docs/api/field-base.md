@@ -813,9 +813,13 @@ No `ValueChangedAction` fires for the element itself, as for a newly built eleme
 (the fields of a rebound row fire `ValueChangedAction` for their new values), and a validity change is published as
 always, so a rebound row that is invalid notifies the list holding it.
 
-`rebind` restores data, not state: `access`, `visibility` and the extended properties stay as they are, so what
-the element sends after a rebind follows its current access. A disabled `Field` takes the value, as it does any
-write to `value`. A disabled `Group` or `List` writes through to its members, as an assignment to it does.
+The element's own `access`, `visibility` and extended properties stay as they are, so what it sends after a rebind
+follows its current access. A disabled `Field` takes the value, as it does any write to `value`. A disabled `Group`
+or `List` writes through to its members, as an assignment to it does. A member of a group that is its own
+declaration also keeps its `access` and `visibility`. A member of a group bound from a declaration (a group
+`bind()` built, every `List` row among them), and a `List` row reused at its position, take the `access` and
+`visibility` of the corresponding element of the declaration, and their conditional actions apply their statements
+again over the new record, as they do over a new binding. Extended properties stay on every element.
 
 A member of a `Group` whose key is missing from `data` takes the `originalValue` of the corresponding member of the
 group's declaration: for a group that is its own declaration, the member's own baseline. `group.originalValue` holds

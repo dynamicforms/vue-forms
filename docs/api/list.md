@@ -296,8 +296,9 @@ after `list.value = rows` when the new array has the same length. A keyed `v-for
 remount them on every assignment. Only a row the list built from its item template is reused; a row that was
 passed to `push()` or `insert()` as an element is replaced by a new row, so it keeps the data of the members the
 item template does not have. A reused row is reset to the state of a new row built for that position: a member
-whose key is absent from the new item gets the item template member's `originalValue`, and `originalValue`, `isChanged`, `touched`
-and `errors` are reset. The new set is built separately and installed as a whole, so a validator that reads
+whose key is absent from the new item gets the item template member's `originalValue`; `originalValue`, `isChanged`, `touched`
+and `errors` are reset; the row and its members take the `access` and `visibility` of the item template, and their
+conditional actions apply their statements again over the new item. Extended properties stay as they are. The new set is built separately and installed as a whole, so a validator that reads
 `list.value` during the assignment never sees an unfilled position.
 
 ## Methods

@@ -26,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   method (`validate`, `bind`) is an extended property.
 - `rebind()` gives a `Group` member whose key is missing from the data the `originalValue` of the declaration's
   member, so `group.rebind(group.originalValue)` restores a `'disabled'` member.
+- A member of a group bound from a declaration, reset by `rebind()`, and a `List` row reused by `rebind()` or by a
+  `value` assignment take the `access` and `visibility` of the declaration's element, and their conditional
+  actions apply their statements again over the new record. The element `rebind()` is called on, and a member of
+  a group that is its own declaration, keep theirs.
 - An `Action` sends nothing: it is left out of its container's `value` and `fullValue`, does not affect the
   container's `isChanged` or validity, and its validators do not run. A container whose members are all actions
   sends nothing either.
@@ -78,7 +82,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   target or a concurrent run with a `SubmitRefusedException` whose `reason` (`SubmitRefusalReason`) says which,
   sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the
   handler fails, rebinds the target to the result and resolves with `{ action, sent, received }` (`SubmitResult`).
+  Both exceptions extend the abstract `CommandException`, the base of the exceptions a `TargetedExecuteAction` ends
+  with, so the resolved value is `SubmitResult | CommandException`.
   `SubmitOptions` types the options. `RejectAction(target)` rebinds the target to its `originalValue`.
+- `FieldActionBase.resetBinding(binding)`: called when a binding is reset to a new binding of its declaration; an
+  override drops the per-element state it keeps. `ConditionalStatementAction` forgets the result it last applied.
 - `TargetedExecuteAction`, the base class of `SubmitAction` and `RejectAction`: an `ExecuteAction` whose
   `targetFor(action)` resolves a `CommandTarget`, an element or a callback that returns one.
 - `Container.confirm()` and `reject()`: execute the action whose `SubmitAction` or `RejectAction` targets the

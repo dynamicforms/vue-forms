@@ -1,5 +1,6 @@
 import type { FieldBase } from '@/field-base';
 import { FieldActionExecute } from '@/field.interface';
+import { currentTransaction } from '@/transaction';
 
 /**
  * Marks an action that runs outermost in its chain: `ActionsMap` keeps it above every action registered without
@@ -40,6 +41,17 @@ export default abstract class FieldActionBase {
     return this.states.get(key) as S;
   }
 
+  /**
+   * Drops this action's state for `key`, so the next `state()` call creates it again. A rollback of the operation
+   * that dropped it puts it back.
+   */
+  protected forgetState(key: object): void {
+    if (!this.states.has(key)) return;
+    const state = this.states.get(key);
+    this.states.delete(key);
+    currentTransaction()?.whenRolledBack(() => this.states.set(key, state));
+  }
+
   execute(field: FieldBase, supr: FieldActionExecute, ...params: any[]): any {
     return this.executorFn(field, supr, ...params);
   }
@@ -64,4 +76,12 @@ export default abstract class FieldActionBase {
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   unregisterFrom(binding: FieldBase) {}
+
+  /**
+   * Called when `binding` is reset to a new binding of its declaration: a member of a bound group, or a `List` row
+   * reused for another record. An override drops what it keeps about the element's state before the reset; the
+   * element's eager actions run again once its record is complete.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  resetBinding(binding: FieldBase) {}
 }
