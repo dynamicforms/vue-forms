@@ -8,6 +8,7 @@ import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 // list.ts imports this module as well; List is used only inside a call, after both modules are loaded
 import { List } from './list';
+import { asBinding } from './plugins';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
@@ -448,14 +449,17 @@ export class Group<
     });
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
-    const res = new Ctor(newFields, {
-      // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
-      // the group holds (fullValue), not what it sends, so a member that sends nothing keeps its data
-      value: data !== undefined ? data : (this.fullValue as GroupValueInput<T>),
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-      access: overrides?.access ?? this.access,
-      visibility: overrides?.visibility ?? this.visibility,
-    } as IFieldParams<GroupValueInput<T>, X>);
+    const res = asBinding(
+      () =>
+        new Ctor(newFields, {
+          // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
+          // the group holds (fullValue), not what it sends, so a member that sends nothing keeps its data
+          value: data !== undefined ? data : (this.fullValue as GroupValueInput<T>),
+          ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
+          access: overrides?.access ?? this.access,
+          visibility: overrides?.visibility ?? this.visibility,
+        } as IFieldParams<GroupValueInput<T>, X>),
+    );
     Group.assertTookFields(res, newFields, this.constructor.name);
     res.boundFrom(this, res.contribution, res.originalValue, overrides);
     return res;

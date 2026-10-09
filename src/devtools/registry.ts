@@ -1,6 +1,7 @@
 import { type ComponentInternalInstance, getCurrentInstance, getCurrentScope, onScopeDispose } from 'vue';
 
 import type { FieldBase } from '../field-base';
+import type { PluginContext } from '../plugins';
 
 /** Which elements the devtools list: every root element except the hidden ones, or only the described ones. */
 export type DevtoolsRegistration = 'opt-out' | 'opt-in';
@@ -22,8 +23,6 @@ export interface Entry {
   /** the component whose setup constructed the element */
   instance?: WeakRef<ComponentInternalInstance>;
   description: StateDescription;
-  /** a binding or an item template: never listed */
-  internal: boolean;
   hidden: boolean;
   described: boolean;
 }
@@ -32,19 +31,32 @@ const entries = new Map<string, Entry>();
 const byElement = new WeakMap<FieldBase, Entry>();
 let nextId = 1;
 let registration: DevtoolsRegistration = 'opt-out';
+let enabled = true;
 let changed: (() => void) | undefined;
+let context: PluginContext | undefined;
+
+/** Records the context the devtools plugin received; it tells a binding or an item template from a root. */
+export function useContext(installed: PluginContext): void {
+  context = installed;
+}
 
 /** Called by the devtools plugin; runs after a change the devtools show. */
 export function onRegistryChanged(listener: () => void): void {
   changed = listener;
 }
 
-/** Records an element at construction: the component that constructs it and the stack that leads to it. */
-export function noteElement(element: FieldBase): void {
-  const limit = Error.stackTraceLimit;
-  Error.stackTraceLimit = 20;
-  const created = new Error();
-  Error.stackTraceLimit = limit;
+/**
+ * Records an element at construction: the component that constructs it and, where `location` is true, the stack
+ * that leads to it.
+ */
+export function noteElement(element: FieldBase, location: boolean): void {
+  let created: Error | undefined;
+  if (location) {
+    const limit = Error.stackTraceLimit;
+    Error.stackTraceLimit = 20;
+    created = new Error();
+    Error.stackTraceLimit = limit;
+  }
   const instance = getCurrentInstance();
   const entry: Entry = {
     id: String(nextId++),
@@ -52,7 +64,6 @@ export function noteElement(element: FieldBase): void {
     created,
     instance: instance ? new WeakRef(instance) : undefined,
     description: {},
-    internal: false,
     hidden: false,
     described: false,
   };
@@ -66,12 +77,6 @@ export function noteElement(element: FieldBase): void {
       changed?.();
     });
   }
-}
-
-/** Marks a binding or an item template: part of another element's definition, never listed on its own. */
-export function noteInternal(element: FieldBase): void {
-  const entry = byElement.get(element);
-  if (entry) entry.internal = true;
 }
 
 export function describe(element: FieldBase, description: StateDescription): void {
@@ -100,6 +105,12 @@ export function setRegistration(mode: DevtoolsRegistration): void {
   changed?.();
 }
 
+/** Lists nothing while `on` is false. */
+export function setEnabled(on: boolean): void {
+  enabled = on;
+  changed?.();
+}
+
 /** Reports a committed change. */
 export function noteChange(): void {
   changed?.();
@@ -115,18 +126,20 @@ export function entryById(id: string): Entry | undefined {
 }
 
 /**
- * The listed elements: alive, not held by a container, not internal, not hidden, and in opt-in mode described.
- * Entries whose element was collected are dropped here.
+ * The listed elements: alive, not held by a container, not a binding or an item template, not hidden, and in
+ * opt-in mode described. Entries whose element was collected are dropped here. Nothing is listed while the devtools
+ * are turned off.
  */
 export function listed(): { entry: Entry; element: FieldBase }[] {
   const out: { entry: Entry; element: FieldBase }[] = [];
+  if (!enabled) return out;
   entries.forEach((entry, id) => {
     const element = entry.element.deref();
     if (!element) {
       entries.delete(id);
       return;
     }
-    if (entry.internal || entry.hidden || element.parent) return;
+    if (entry.hidden || element.parent || context?.isInternal(element)) return;
     if (registration === 'opt-in' && !entry.described) return;
     out.push({ entry, element });
   });

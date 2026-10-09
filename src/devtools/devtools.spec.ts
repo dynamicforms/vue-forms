@@ -7,7 +7,7 @@ import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
 
-import { describeState, hideState, setDevtoolsRegistration } from './api';
+import { configureDevtools, describeState, hideState } from './api';
 import { callerFile, entryOf, listed } from './registry';
 
 const handlers: Record<string, (payload: any) => void> = {};
@@ -25,7 +25,7 @@ const api = {
 const isListed = (element: object) => listed().some((item) => item.element === element);
 
 describe('the devtools registry', () => {
-  afterEach(() => setDevtoolsRegistration('opt-out'));
+  afterEach(() => configureDevtools({ registration: 'opt-out' }));
 
   it('lists a root element and not the members a container holds', () => {
     const name = new Field({ value: 'a' });
@@ -65,9 +65,42 @@ describe('the devtools registry', () => {
     expect(isListed(hidden)).toBe(false);
     expect(entryOf(named)!.description).toEqual({ name: 'Cart', file: 'src/stores/cart.ts' });
 
-    setDevtoolsRegistration('opt-in');
+    configureDevtools({ registration: 'opt-in' });
     expect(isListed(plain)).toBe(false);
     expect(isListed(named)).toBe(true);
+  });
+});
+
+describe('configureDevtools', () => {
+  afterEach(() => configureDevtools({ enabled: true, location: true, registration: 'opt-out' }));
+
+  it('records no binding: a list row has no entry', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }] });
+
+    expect(entryOf(list)).toBeDefined();
+    expect(entryOf(list.get(0)!)).toBeUndefined();
+    expect(entryOf(list.get(0)!.fields.a)).toBeUndefined();
+  });
+
+  it('captures no stack with location false', () => {
+    configureDevtools({ location: false });
+    const form = new Group({ a: new Field() });
+
+    expect(entryOf(form)!.created).toBeUndefined();
+    expect(isListed(form)).toBe(true);
+  });
+
+  it('records and lists nothing while turned off, and lists what was recorded when turned on again', () => {
+    const before = new Group({ a: new Field() });
+    configureDevtools({ enabled: false });
+    const during = new Group({ a: new Field() });
+
+    expect(isListed(before)).toBe(false);
+    expect(entryOf(during)).toBeUndefined();
+
+    configureDevtools({ enabled: true });
+    const after = new Group({ a: new Field() });
+    expect([isListed(before), isListed(during), isListed(after)]).toEqual([true, false, true]);
   });
 });
 

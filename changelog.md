@@ -64,10 +64,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Vue devtools support in development: a "vue-forms" inspector listing every root element, grouped by the file or
   the component that constructed it, with its members and state, and the state a component constructed shown in
-  that component's inspector. `describeState()`, `hideState()` and `setDevtoolsRegistration()` name, hide and select
-  what is listed. Values, access, visibility, touched and extended properties are editable in the inspector; an
-  edit is a write through the element's setter. In a production build everything devtools-related is removed by the
-  bundler.
+  that component's inspector. `describeState()` and `hideState()` name and hide an element; `configureDevtools()`
+  turns the devtools off, selects what is listed and turns off the capture of the constructing file. Values,
+  access, visibility, touched and extended properties are editable in the inspector; an edit is a write through the
+  element's setter. The devtools are a plugin the library installs in development; a binding, such as a list row,
+  records nothing. In a production build everything devtools-related is removed by the bundler.
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
   target or a concurrent run with a `SubmitRefusedException` whose `reason` says which, sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the handler fails, rebinds the target to the result and resolves with
   `{ action, sent, received }`. `RejectAction(target)` rebinds the target to its `originalValue`.
@@ -80,8 +81,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ValidationErrorOptions`.
 - `params` on every error.
 - `installPlugin(plugin)`: a plugin's `onSetValue` and `onSetOriginalValue` hooks run as a pipeline on every write of
-  a field's value and of any element's `originalValue`; `PluginContext.changeInPlace()` makes a write into the value
-  a field holds a change of the field.
+  a field's value and of any element's `originalValue`; `onElementCreated` runs at every construction and
+  `onCommit` after every committed transaction. `PluginContext.changeInPlace()` makes a write into the value a field
+  holds a change of the field, and `isInternal()` tells a binding or an item template from a root.
 - The tracking plugin, `@dynamicforms/vue-forms/plugins/tracking`: a field holds a copy of an object value, and a
   write into a plain object, an array, a `Map`, a `Set` or a `Date` it holds is a change of the field.
   `untracked()` and `setTrackingWarnings()`.

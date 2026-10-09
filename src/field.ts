@@ -3,7 +3,7 @@ import { toRaw } from 'vue';
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
-import { ChangeInPlace, pipeValue } from './plugins';
+import { asBinding, ChangeInPlace, pipeValue } from './plugins';
 import { transactional } from './transaction';
 
 class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
@@ -120,13 +120,16 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
   bind(data?: T, overrides?: IBindParams<T, X>): this {
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (params?: IFieldParams<T, X>) => this;
-    const res = new Ctor({
-      // undefined data counts as not supplied; an explicit null is supplied and clears
-      value: data !== undefined ? data : this.value,
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-      access: overrides?.access ?? this.access,
-      visibility: overrides?.visibility ?? this.visibility,
-    } as IFieldParams<T, X>);
+    const res = asBinding(
+      () =>
+        new Ctor({
+          // undefined data counts as not supplied; an explicit null is supplied and clears
+          value: data !== undefined ? data : this.value,
+          ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
+          access: overrides?.access ?? this.access,
+          visibility: overrides?.visibility ?? this.visibility,
+        } as IFieldParams<T, X>),
+    );
     res.boundFrom(this, res.contribution, res.originalValue, overrides);
     return res;
   }

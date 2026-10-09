@@ -5,10 +5,11 @@ export * from './actions';
 export * from './action';
 export * from './container';
 export {
+  configureDevtools,
   describeState,
+  type DevtoolsOptions,
   type DevtoolsRegistration,
   hideState,
-  setDevtoolsRegistration,
   type StateDescription,
 } from './devtools/api';
 export * from './field';

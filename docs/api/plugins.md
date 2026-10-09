@@ -1,7 +1,8 @@
 # Plugins
 
-A plugin adds behaviour to every element. The library has one plugin, [tracking](#tracking), exported from
-`@dynamicforms/vue-forms/plugins/tracking`; an application that does not import it does not bundle it.
+A plugin adds behaviour to every element. The library has two plugins: [tracking](#tracking), exported from
+`@dynamicforms/vue-forms/plugins/tracking`, which an application that does not import it does not bundle, and the
+[devtools](/api/devtools), which the library installs in development.
 
 ```typescript
 import { installPlugin } from '@dynamicforms/vue-forms';
@@ -27,9 +28,11 @@ Every member is optional.
 | `setup(context)` | once, by `installPlugin()`, with the [`PluginContext`](#plugincontext) |
 | `onSetValue(value, element)` | on every write of the value a `Field` or an `Action` holds: the construction, the `value` setter and `rebind()` |
 | `onSetOriginalValue(value, element)` | on every write of `originalValue` of any element, a container's included |
+| `onElementCreated(element, binding)` | at the start of every element's construction, before its parameters are applied. `binding` is `true` for an element `bind()` builds, the rows of a `List` and their members included |
+| `onCommit()` | after every committed transaction, once its changes are announced; not after a rollback |
 
-The value hooks of the installed plugins run as a pipeline in the order of installation: the first receives the
-value being written, each following one receives the previous one's result, and the last result is stored.
+Every hook runs in the order of installation. The value hooks run as a pipeline: the first receives the value being
+written, each following one receives the previous one's result, and the last result is stored.
 
 - A write of the value the field already holds (the same object, or `NaN` over `NaN`) is not a write and calls no
   hook.
@@ -59,6 +62,11 @@ a `TypeError`. It opens a transaction, or joins the open one, and in it:
    field holds and the recorded old value.
 
 `write()` and `undo()` change the object the field holds. Readers of `field.value` re-run after the change.
+
+### `isInternal(element): boolean`
+
+`true` for an element that is part of another element's definition: a binding (an element `bind()` built, such as a
+row of a `List`) or a `List`'s item template.
 
 ## Tracking
 
