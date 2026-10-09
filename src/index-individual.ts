@@ -11,7 +11,7 @@ export {
   type DevtoolsRegistration,
   hideState,
   type StateDescription,
-} from './devtools/api';
+} from './plugins/devtools/api';
 export * from './field';
 export * from './field.interface';
 export * from './field-base';

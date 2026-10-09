@@ -1,5 +1,5 @@
-import { installDevtools } from './devtools/api';
 import type { FieldBase } from './field-base';
+import { installDevtools } from './plugins/devtools/api';
 import type { Transaction } from './transaction';
 
 /**

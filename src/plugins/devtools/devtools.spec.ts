@@ -3,9 +3,9 @@ import { mount } from '@vue/test-utils';
 import { vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
-import { Field } from '../field';
-import { Group } from '../group';
-import { List } from '../list';
+import { Field } from '../../field';
+import { Group } from '../../group';
+import { List } from '../../list';
 
 import { configureDevtools, describeState, hideState } from './api';
 import { callerFile, entryOf, listed } from './registry';

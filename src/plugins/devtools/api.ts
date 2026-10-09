@@ -7,8 +7,8 @@
  * plugin. The condition is written out in every function: a bundler removes a branch over the replaced expression,
  * not one over a constant that holds it.
  */
-import type { FieldBase } from '../field-base';
-import { installPlugin, type Plugin } from '../plugins';
+import type { FieldBase } from '../../field-base';
+import { installPlugin, type Plugin } from '../../plugins';
 
 import * as registry from './registry';
 import type { DevtoolsRegistration, StateDescription } from './registry';

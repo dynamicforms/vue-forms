@@ -1,7 +1,7 @@
 import { type ComponentInternalInstance, getCurrentInstance, getCurrentScope, onScopeDispose } from 'vue';
 
-import type { FieldBase } from '../field-base';
-import type { PluginContext } from '../plugins';
+import type { FieldBase } from '../../field-base';
+import type { PluginContext } from '../../plugins';
 
 /** Which elements the devtools list: every root element except the hidden ones, or only the described ones. */
 export type DevtoolsRegistration = 'opt-out' | 'opt-in';
@@ -156,13 +156,16 @@ export function listed(): { entry: Entry; element: FieldBase }[] {
 }
 
 /**
- * The path prefix of the library's own files: `…/src/` where the source is served, or the bundle file. Frames from
- * it are skipped when the caller's file is looked up.
+ * The path prefix of the library's own files: `…/src/` where the source is served, or `…/dist/` where the build is.
+ * Frames from it are skipped when the caller's file is looked up.
  */
 function libraryPrefix(): string {
-  // the first frame of a stack taken here is this module, served from the library's source or its bundle
+  // the first frame of a stack taken here is this module, served from the library's source or from a chunk of its
+  // build, which lives in dist/ beside the entry files
   const own = /(?:https?:\/\/[^/\s]+|file:\/\/)?(\/[^\s?):]+\.[cm]?[jt]s)/.exec(new Error().stack ?? '')?.[1] ?? '';
-  return own.includes('/src/devtools/') ? own.slice(0, own.indexOf('/src/') + 5) : own;
+  if (own.includes('/src/plugins/devtools/')) return own.slice(0, own.indexOf('/src/') + 5);
+  if (own.includes('/dist/')) return own.slice(0, own.lastIndexOf('/dist/') + 6);
+  return own;
 }
 
 /**
