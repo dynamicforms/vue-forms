@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The built-in validators take `ValidationErrorOptions` (`{ code?, detail? }`) as their last argument instead of a
   message. `RequiredOptions` extends it. `CompareTo` no longer requires it.
 - The English details of the built-in validators are plain text, without markdown.
+- `Validator`'s protected `replacePlaceholders()` and `replacePlaceholdersFunction()` are replaced by the protected
+  `errorFor(options, code, detail, params)`, which returns the `ValidationError` a built-in validator reports.
+- `Validators.AllowedValues` is `T[] | Ref<T[]> | (() => T[])` instead of `any`.
 - `sameAs` compares the class, `code`, `params`, `detail` and the stated origin, so an error whose params changed
   replaces the instance on the field.
 
@@ -65,26 +68,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Vue devtools support in development: a "vue-forms" inspector listing every root element, grouped by the file or
   the component that constructed it, with its members and state, and the state a component constructed shown in
   that component's inspector. `describeState()` and `hideState()` name and hide an element; `configureDevtools()`
-  turns the devtools off, selects what is listed and turns off the capture of the constructing file. Values,
+  turns the devtools off, selects what is listed and turns off the capture of the constructing file. The location
+  section of an element shows that file and the frames of the construction stack outside the library. Values,
   access, visibility, touched and extended properties are editable in the inspector; an edit is a write through the
   element's setter. The devtools are a plugin the library installs in development; a binding, such as a list row,
-  records nothing, and a member keeps no captured stack. In a production build everything devtools-related is removed by the bundler.
+  records nothing, and a member keeps no captured stack. In a production build everything devtools-related is
+  removed by the bundler. `DevtoolsOptions`, `DevtoolsRegistration` and `StateDescription` type the API.
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
-  target or a concurrent run with a `SubmitRefusedException` whose `reason` says which, sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the handler fails, rebinds the target to the result and resolves with
-  `{ action, sent, received }`. `RejectAction(target)` rebinds the target to its `originalValue`.
+  target or a concurrent run with a `SubmitRefusedException` whose `reason` (`SubmitRefusalReason`) says which,
+  sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the
+  handler fails, rebinds the target to the result and resolves with `{ action, sent, received }` (`SubmitResult`).
+  `SubmitOptions` types the options. `RejectAction(target)` rebinds the target to its `originalValue`.
+- `TargetedExecuteAction`, the base class of `SubmitAction` and `RejectAction`: an `ExecuteAction` whose
+  `targetFor(action)` resolves a `CommandTarget`, an element or a callback that returns one.
 - `Container.confirm()` and `reject()`: execute the action whose `SubmitAction` or `RejectAction` targets the
   container, else the only shown action with `defaultConfirm` or `defaultReject`.
 - `defaultConfirm` and `defaultReject` in `ActionValue`, with getters on `Action`.
 - `Action.executable`, and `ExecuteAction.canExecute()`, which it reads.
 - `pending` on every element: `validating || busy`, reactive. `settled()` resolves when it turns `false`.
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
-- `ValidationErrorOptions`.
+- `Validators.ValidationErrorOptions`.
+- `ActionsMap.ofClass(identifier)`: the registered actions with that class identifier, in registration order.
 - `params` on every error.
 - `installPlugin(plugin)`: a plugin's `onSetValue` and `onSetOriginalValue` hooks run as a pipeline on every write of
   a field's value and of any element's `originalValue`; `onElementCreated` runs at every construction,
   `onElementAdopted` when a container takes a member, and `onCommit` after every committed transaction.
   `PluginContext.changeInPlace()` makes a write into the value a field holds a change of the field, and
-  `isInternal()` tells a binding or an item template from a root.
+  `isInternal()` tells a binding or an item template from a root. `Plugin` is the type of a plugin and
+  `PluginContext` that of the context its `setup()` receives.
 - The tracking plugin, `@dynamicforms/vue-forms/plugins/tracking`: a field holds a copy of an object value, and a
   write into a plain object, an array, a `Map`, a `Set` or a `Date` it holds is a change of the field.
   `untracked()` and `setTrackingWarnings()`.
@@ -99,7 +110,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The plugin `forms`, `getConfig`, `setConfig`, `FormsConfig` and `useMarkdownInValidators`.
 - `ValidationErrorText` and `ValidationErrorRenderContent`.
 - `buildErrorMessage`.
-- The dependency on `@dynamicforms/translatable`, together with `translateStrings` and the `strings` dictionary.
+- The dependency on `@dynamicforms/translatable`, together with `translateStrings`, `translatedMessage` and the
+  `strings` dictionary.
 
 ## [2.0.3] - 2026-10-06
 

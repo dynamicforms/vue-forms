@@ -108,12 +108,12 @@ export default class ActionsMap {
     return this.run(identifier, true, field, params);
   }
 
-  /** the validators registered here, in registration order */
   /** The registered actions with `identifier`, in registration order. */
   ofClass(identifier: symbol): FieldActionBase[] {
     return this.actions.filter((action) => action.classIdentifier === identifier);
   }
 
+  /** The validators registered here, in registration order. */
   get validators(): Validator[] {
     return this.actions.filter((action): action is Validator => action instanceof Validator);
   }

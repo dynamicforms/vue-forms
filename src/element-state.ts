@@ -172,6 +172,10 @@ export function listSlots<R extends FieldBase = Group>(): ListSlots<R> {
   return { ...containerSlots<ListValue<R>>(), rows: null, rowsVersion: 0, cachedItems: null, cachedItemsVersion: -1 };
 }
 
+/** Key of the `Action` method that lists its `ExecuteAction` handlers; `Container` calls it, and the package does not
+ * export it. */
+export const ExecuteHandlers = Symbol('Action.executeHandlers');
+
 /** Key of the `List` method that reorders the rows in place; `view()` calls it, and the package does not export it. */
 export const ReorderRows = Symbol('List.reorderRows');
 

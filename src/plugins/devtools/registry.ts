@@ -168,18 +168,44 @@ function libraryPrefix(): string {
   return own;
 }
 
+/** A frame of a stack: the function, where the stack names one, and the file, line and column. */
+export interface StackFrame {
+  name?: string;
+  /** a path relative to the served root: Vite serves a project file at `/src/…` */
+  file: string;
+  line: number;
+  column: number;
+}
+
+// a Chrome frame is `    at name (url:line:column)` or `    at url:line:column`; a Firefox and a Safari frame is
+// `name@url:line:column`
+const chromeFrame = /^\s*at (?:(.*?) \()?(\S+?):(\d+):(\d+)\)?$/;
+const firefoxFrame = /^(.*?)@(\S+?):(\d+):(\d+)$/;
+const framePath = /^(?:[a-z]+:\/\/[^/\s]*)?(\/[^\s?]+\.(?:[cm]?[jt]sx?|vue))(?:\?\S*)?$/;
+
 /**
- * The file of the first frame of `stack` outside the library, as a path relative to the served root: Vite serves
- * a project file at `/src/…`. Undefined where no frame outside the library carries a URL.
+ * The frames of `stack` outside the library and `node_modules`, outermost last. A frame without a URL of a script
+ * or a `.vue` file is left out.
  */
-export function callerFile(stack: string | undefined, library = libraryPrefix()): string | undefined {
-  if (!stack) return undefined;
-  for (const match of stack.matchAll(/(?:https?:\/\/[^/\s]+)?(\/[^\s?):]+\.[cm]?[jt]sx?|\/[^\s?):]+\.vue)/g)) {
-    const path = match[1];
-    if (path.startsWith(library) || path.includes('/node_modules/')) continue;
-    return path.replace(/^\//, '');
+export function callerFrames(stack: string | undefined, library = libraryPrefix()): StackFrame[] {
+  const frames: StackFrame[] = [];
+  for (const text of stack?.split('\n') ?? []) {
+    const match = chromeFrame.exec(text) ?? firefoxFrame.exec(text);
+    const path = match && framePath.exec(match[2])?.[1];
+    if (!path || path.startsWith(library) || path.includes('/node_modules/')) continue;
+    frames.push({
+      name: match[1] || undefined,
+      file: path.replace(/^\//, ''),
+      line: Number(match[3]),
+      column: Number(match[4]),
+    });
   }
-  return undefined;
+  return frames;
+}
+
+/** The file of the first frame of `stack` outside the library and `node_modules`; undefined where there is none. */
+export function callerFile(stack: string | undefined, library = libraryPrefix()): string | undefined {
+  return callerFrames(stack, library)[0]?.file;
 }
 
 /** The names of the components from the root of the app to `instance`, joined by ` > `. */

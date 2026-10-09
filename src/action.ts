@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue';
 
 import { ExecuteAction } from './actions';
+import { ExecuteHandlers } from './element-state';
 import { Field } from './field';
 import { type Extras, IFieldParams } from './field.interface';
 import { SentNowhere, transactional } from './transaction';
@@ -29,10 +30,6 @@ export interface ActionValue {
  * that reads `busy` re-renders when the count leaves zero and when it returns to zero.
  */
 const busyCounters = new WeakMap<object, Ref<number>>();
-
-/** Key of the method that lists an action's `ExecuteAction` handlers. `Container` reads it; the package does not
- * export it. */
-export const ExecuteHandlers = Symbol('Action.executeHandlers');
 
 /**
  * Returns the value object if any of its members is set, and undefined otherwise. A member holding `null` or

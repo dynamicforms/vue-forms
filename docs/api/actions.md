@@ -712,7 +712,7 @@ The actions one element has registered, grouped by `classIdentifier`. It is the 
 action store and is exported so that type can be named; `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()` and `clearValidators()` on the field are the supported way to use it. Its
 own members are `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerFor()`, `willTrigger()`,
-`hasEager`, `validators` and `bindTo()`.
+`hasEager`, `ofClass()`, `validators` and `bindTo()`.
 
 Within a group the actions are stored in registration order and run from the last to the first, so the newest
 registration is the outermost handler and calls the ones before it through its `supr`.
@@ -731,6 +731,8 @@ chain ran through an asynchronous handler; `triggerEager` returns nothing, and s
 group it was thrown in, on the asynchronous path as on the synchronous one.
 `willTrigger(identifier)` returns whether any action is registered under that identifier and `hasEager` whether
 any eager action is registered at all, so a caller can skip building the parameters when nothing would run.
+`ofClass(identifier)` returns the actions registered under `identifier`, and `validators` the registered
+validators, both in registration order.
 
 Binding an element uses the declaration's map itself, not a copy, and `bindTo(owner)` notifies each action in it
 that it now applies to `owner`. This is how an action registered on an item template applies to every row.

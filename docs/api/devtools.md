@@ -24,7 +24,7 @@ Selecting a node shows its state:
 | element | `value`, `originalValue`, `isChanged`, `access`, `effectiveAccess`, `visibility`, `touched` |
 | validity | `valid`, `validating`, `busy`, `errors` (code, detail, origin and params of each) |
 | extra | the [extended properties](/api/field-base#extended-properties) |
-| location | the file, and the component path for component state |
+| location | the file, the component path for component state, and `stack`: the frames of the construction stack outside the library and `node_modules`, each as `function file:line:column` |
 
 The inspector of a component lists, under **vue-forms**, the value of every element the component's `setup()`
 constructed. The tree and the state are sent again after every committed transaction, at most once per 100 ms.
@@ -69,7 +69,8 @@ is removed when it is unmounted; an element the component hands on to outlive it
 - in opt-in mode, an element not named with `describeState()`.
 
 An element's file is read from the stack at its construction: the first frame outside the library and outside
-`node_modules`. The stack is captured at construction and turned into text only when the devtools show the element.
+`node_modules`. The location section lists every such frame, innermost first; a member shows the stack of the root
+element it is shown under, and an element whose stack was not captured or was dropped shows none. The stack is captured at construction and turned into text only when the devtools show the element.
 A file the stack does not name, and a name other than the element's class and number, are given with
 `describeState()`.
 
