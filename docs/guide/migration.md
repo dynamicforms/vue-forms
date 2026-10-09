@@ -17,8 +17,10 @@ exists.
 3.0.0 removes rendering from the library. An error is data — `code`, `params` and an English `detail` — and the
 application, or a UI library such as `@dynamicforms/vuetify-inputs`, renders it. The library ships no components,
 no styles and no configuration, and no longer depends on `@dynamicforms/translatable`. An `Action` is a command and
-sends nothing. Four changes are silent and come first: the actions left out of a container's value, the validators
-that pass an empty value, the access and visibility events that fire at commit, and the renamed error codes. There is a [checklist](#checklist-for-3-0-0) at the end of this section.
+sends nothing. The changes that keep compiling come first: the actions left out of a container's value, the
+validators that pass an empty value, the access and visibility events that fire at commit, the renamed error codes
+and the [smaller silent changes](#smaller-silent-changes). There is a [checklist](#checklist-for-3-0-0) at the end
+of this section.
 
 ### An action sends nothing
 
@@ -70,6 +72,60 @@ stops matching.
 
 `required` and `pattern` stay.
 
+### Smaller silent changes
+
+**`Group.createFromFormData()` builds the structure of the data.** A nested object becomes a `Group` and an array
+a `List`, at every level. In 2.0 every key became a `Field` holding the object or the array as it was.
+
+```typescript
+const form = Group.createFromFormData({ address: { city: 'Ljubljana' }, tags: ['a'] });
+form.fields.address;   // 2.0: Field   3.0: Group
+form.fields.tags;      // 2.0: Field   3.0: List
+```
+
+`form.value` is the same object in both. Code that reads the members as `Field`, or registers validators on them
+that expect the whole object, reads the nested members instead.
+
+**A construction parameter named like a method is an extended property.** A parameter is assigned to the element
+only where it names an accessor. `new Field({ validate: fn })` assigned `fn` over the method in 2.0; in 3.0 `fn` is
+the extended property `validate`, and `field.validate()` is the library's method.
+
+**`rebind()` puts a member the data leaves out back to its declaration's `originalValue`.** In 2.0 a `Group`
+member whose key was missing from the data kept the value of the template's member, which is the value written to
+it since construction. In 3.0 it takes the template member's `originalValue`, so
+`group.rebind(group.originalValue)` restores a `'disabled'` member as well.
+
+**List events follow the rows.** A `value` assignment fires `ListItemRemovedAction` for every row it removes and
+`ListItemAddedAction` for every row it builds, and `clear()` fires `ListItemRemovedAction` for every row. `sort()`
+and `reverse()` of `view(list)` reorder the rows in place and fire neither.
+
+**`Operator.isDefined()` returns `false`** for a string that names no operator. In 2.0 it threw.
+
+### Types the checker finds for you
+
+- `List.push()` and `insert()` take `ListItemInput<R>` (`R['value'] | R`) instead of `any`. A list without an item
+  template that holds rows other than groups is declared `new List<FieldBase>()`; the default row type is `Group`.
+- `Validators.AllowedValues` is `T[] | Ref<T[]> | (() => T[])` instead of `any`.
+- `new ValidationError(code?, origin?)` and the `message` argument of the built-in validators no longer compile;
+  [`ValidationError` is data](#validationerror-is-data) and
+  [Validators take `{ code, detail }`](#validators-take-code-detail-instead-of-a-message) give the replacements.
+
+### Asynchronous validation is counted by the validator
+
+`beginValidating()`, `endValidating()` and `validationEpoch` are no longer public. A field is `validating` while a
+`Validator` registered on it has a run whose promise has not settled:
+
+```typescript
+// before
+field.beginValidating();
+try { field.errors = await checkOnServer(field.value); } finally { field.endValidating(); }
+
+// after
+field.registerAction(new Validators.Validator(async (value, _old, _field, signal) => checkOnServer(value, signal)));
+```
+
+The validator discards the result of a run a newer run superseded, and aborts `signal` for it.
+
 ### `ValidationError` is data
 
 `ValidationErrorText` and `ValidationErrorRenderContent` are gone. `ValidationError` takes a code, params, an
@@ -117,10 +173,18 @@ A message given as a `Ref`, a `computed`, a function, an `MdString` or a compone
 the validator. The renderer chooses the text by the error's code; give the field a code of its own where its text
 differs from that of other fields with the same rule.
 
+A `Validator` subclass that built its message with the protected `replacePlaceholders()` or
+`replacePlaceholdersFunction()` builds its error with the protected `errorFor(options, code, detail, params)`,
+which applies `ValidationErrorOptions` and substitutes the params into the detail:
+
+```typescript
+return [this.errorFor(options, 'even', 'Value must be even', {})];
+```
+
 ### Translation is the renderer's
 
-`translateStrings` and `strings` are gone. The renderer looks the text up by the error's code and substitutes the
-params:
+`translateStrings`, `translatedMessage` and `strings` are gone. The renderer looks the text up by the error's code
+and substitutes the params:
 
 ```typescript
 // before
@@ -155,8 +219,9 @@ app.use(forms, { useMarkdownInValidators: false });
 1. Replace every comparison with an old error code by the new one.
 2. Replace `ValidationErrorText`, `ValidationErrorRenderContent` and `new ValidationError(code, origin)` with
    `new ValidationError(code, params, detail, origin?)`; read `detail` where the code read the rendered text.
-3. Replace the `message` argument of every built-in validator with `{ code?, detail? }`.
-4. Remove `translateStrings`, and translate in the renderer by error code.
+3. Replace the `message` argument of every built-in validator with `{ code?, detail? }`; in a `Validator`
+   subclass, replace `replacePlaceholders()` and `replacePlaceholdersFunction()` with `errorFor()`.
+4. Remove `translateStrings` and `translatedMessage`, and translate in the renderer by error code.
 5. Remove `app.use(forms, …)`, `getConfig`, `setConfig`, `buildErrorMessage` and the `style.css` import.
 6. Import `MessagesWidget`, `MdString`, `RenderableValue` and the render types from the UI library instead.
 7. Remove `@dynamicforms/translatable` from the application's dependencies unless it uses it itself.
@@ -169,6 +234,10 @@ app.use(forms, { useMarkdownInValidators: false });
 12. Check `ListItemAddedAction` and `ListItemRemovedAction` handlers: a `value` assignment and `clear()` fire them, and
     a view's `sort()` and `reverse()` no longer do.
 13. Declare a list without an item template that holds rows other than groups as `new List<FieldBase>()`.
+14. Check code that reads the members of a `Group.createFromFormData()` result as `Field`.
+15. Rename construction parameters named like a method of the element, or read them through `extra`.
+16. Check `rebind()` calls whose data leaves out members that were written since construction.
+17. Remove the `try`/`catch` around `Operator.isDefined()`.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

@@ -83,6 +83,21 @@ subclass adds) is stored per element: `protected bindingState(field)` returns it
 `protected newBindingState()` to extend it, returning `{ ...super.newBindingState(), … }`. The exported type of the
 state `Validator` itself stores is `ValidatorBindingState`.
 
+`protected errorFor(options, code, detail, params)` returns the `ValidationError` a validator reports where it takes
+`ValidationErrorOptions` as the built-in ones do: the `code` and `detail` from `options` where they are set, else
+`code` and `detail`, with each `{name}` placeholder of the detail that names a key of `params` replaced by that
+param, in one pass.
+
+```typescript
+class Even extends Validators.Validator<number> {
+  constructor(options?: Validators.ValidationErrorOptions) {
+    super((value) =>
+      value == null || value % 2 === 0 ? null : [this.errorFor(options, 'even', 'Value must be even', {})],
+    );
+  }
+}
+```
+
 ### Asynchronous validation
 
 When the validation function returns a `Promise`, `field.validating` becomes `true` immediately (the field counts

@@ -1,8 +1,9 @@
 import { computed, type ComputedRef } from 'vue';
 
-import { Action, ExecuteHandlers } from './action';
+import { Action } from './action';
 import { RejectAction } from './actions/reject-action';
 import { SubmitAction } from './actions/submit-action';
+import { ExecuteHandlers } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras } from './field.interface';
 import { transactional } from './transaction';
