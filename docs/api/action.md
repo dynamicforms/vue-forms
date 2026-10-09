@@ -180,7 +180,7 @@ it writes them to `field.errors` before it throws, as in
 form is invalid, a validation is running or the submit itself is running.
 
 Every outcome of a submit is the resolved value of `execute()` (and of `Container.confirm()`), of the type
-`SubmitResult<R> | SubmitException`:
+`SubmitResult<R> | CommandException`:
 
 | Resolved value | Outcome |
 |---|---|
@@ -189,7 +189,7 @@ Every outcome of a submit is the resolved value of `execute()` (and of `Containe
 | `SubmitRefusedException`, `reason` `'invalid'` | the target is invalid after its validation finished; the handler was not called |
 | `SubmitRefusedException`, `reason` `'running'` | a submit of the same action is running; the handler was not called |
 
-`SubmitFailedException` and `SubmitRefusedException` extend the abstract `SubmitException`, which extends
+`SubmitFailedException` and `SubmitRefusedException` extend the abstract `CommandException`, which extends
 `AbortEventHandlingException`, which `execute()` resolves with. `execute()` rejects only where something
 other than the submit fails, such as another handler in the chain or a `target` callback that returns no element.
 
@@ -197,7 +197,7 @@ other than the submit fails, such as another handler in the chain or a `target` 
 type where it awaits the result:
 
 ```typescript
-const result: SubmitResult<Saved> | SubmitException = await save.execute();
+const result: SubmitResult<Saved> | CommandException = await save.execute();
 if (result instanceof SubmitFailedException) {
   reportError(result.cause);
 } else if (result instanceof SubmitRefusedException) {
@@ -208,7 +208,7 @@ if (result instanceof SubmitFailedException) {
 ```
 
 [`Container.confirm()`](/api/container#confirm-params-promise-any-undefined) returns
-`undefined` where it executes nothing, so its result is typed `SubmitResult<R> | SubmitException | undefined`.
+`undefined` where it executes nothing, so its result is typed `SubmitResult<R> | CommandException | undefined`.
 
 ## `RejectAction(target)`
 

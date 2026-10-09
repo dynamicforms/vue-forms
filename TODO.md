@@ -16,6 +16,15 @@ parameter, which is a wider change than adding the type argument to `FieldBase` 
 properties live in one tracked slot..."). Undecided whether that is worth doing, and if so, whether `X` defaults
 to `{}` on those signatures the way it does everywhere else or is required to be stated explicitly.
 
+## `RejectException` for a reject that can fail
+
+`RejectAction` calls `target.rebind(target.originalValue)` and has no handler, so it cannot fail and resolves with
+the next handler's result. A reject that reaches a server (discarding a draft stored there) is asynchronous and can
+fail or be refused. It would take a handler, as `SubmitAction` does, and end with a `RejectException` that extends
+`CommandException`, the base `SubmitFailedException` and `SubmitRefusedException` share. Undecided: whether the
+handler is an option of `RejectAction` or a separate action, and whether a refused and a failed reject are two
+classes, as for a submit.
+
 ## Before the 3.0.0 release: what the application-state items need from the 3.0 surface
 
 Every item of the next section is checked before 3.0.0 is tagged: does it belong in 3.x, and if so, what does its

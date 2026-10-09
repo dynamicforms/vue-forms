@@ -6,7 +6,7 @@ import {
   ExecuteAction,
   RejectAction,
   SubmitAction,
-  SubmitException,
+  CommandException,
   SubmitFailedException,
   SubmitRefusedException,
 } from '../actions';
@@ -263,8 +263,8 @@ describe('SubmitAction', () => {
 
     expect(result).toBeInstanceOf(SubmitRefusedException);
     expect((result as SubmitRefusedException).reason).toBe('invalid');
-    // a refusal and a failure share SubmitException, and a refusal is not a failure of the handler
-    expect(result).toBeInstanceOf(SubmitException);
+    // a refusal and a failure share CommandException, and a refusal is not a failure of the handler
+    expect(result).toBeInstanceOf(CommandException);
     expect(result).not.toBeInstanceOf(SubmitFailedException);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -297,7 +297,7 @@ describe('SubmitAction', () => {
     const result = await form.fields.save.execute();
 
     expect(result).toBeInstanceOf(SubmitFailedException);
-    expect(result).toBeInstanceOf(SubmitException);
+    expect(result).toBeInstanceOf(CommandException);
     expect((result.cause as Error).message).toBe('offline');
     expect(form.fields.name.value).toBe('Grace');
   });

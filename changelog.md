@@ -82,7 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   target or a concurrent run with a `SubmitRefusedException` whose `reason` (`SubmitRefusalReason`) says which,
   sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the
   handler fails, rebinds the target to the result and resolves with `{ action, sent, received }` (`SubmitResult`).
-  Both exceptions extend the abstract `SubmitException`, so the resolved value is `SubmitResult | SubmitException`.
+  Both exceptions extend the abstract `CommandException`, the base of the exceptions a `TargetedExecuteAction` ends
+  with, so the resolved value is `SubmitResult | CommandException`.
   `SubmitOptions` types the options. `RejectAction(target)` rebinds the target to its `originalValue`.
 - `FieldActionBase.resetBinding(binding)`: called when a binding is reset to a new binding of its declaration; an
   override drops the per-element state it keeps. `ConditionalStatementAction` forgets the result it last applied.

@@ -79,7 +79,7 @@ const form = new Group({
 ```
 
 [`SubmitAction`](/api/action#submitaction-target-handler-options) does what `submit()` above does and resolves with
-`{ action, sent, received }`, or with a `SubmitException` where nothing was saved: a `SubmitFailedException` where
+`{ action, sent, received }`, or with a `CommandException` where nothing was saved: a `SubmitFailedException` where
 the handler failed, a `SubmitRefusedException` where the submit was refused before the handler ran. `executable` is `false` while the form is
 invalid, a validation is running or the submit is running. `form.busy` is `true` while the submit runs, so the input
 above is disabled until the form is rebound to the result. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
