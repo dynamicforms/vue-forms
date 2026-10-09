@@ -17,6 +17,7 @@ import { type Container } from './container';
 import { noteElement, noteInternal } from './devtools/api';
 import { BeginValidating, type ElementSlots, ValidationEpoch } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
+import { pipeOriginalValue } from './plugins';
 import {
   currentTransaction,
   type Transaction,
@@ -203,7 +204,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   set originalValue(newValue: T) {
     this.touchState();
-    this.#state.originalValue = newValue;
+    this.#state.originalValue = pipeOriginalValue(this, newValue);
   }
 
   /**

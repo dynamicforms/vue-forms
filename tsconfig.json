@@ -8,6 +8,7 @@
     "resolveJsonModule": true,
     "paths": {
       "@/*": ["./src/*"],
+      "@dynamicforms/vue-forms": ["./src/index.ts"],
       "~/*": ["./node_modules/*"],
     },
     "types": ["vitest/globals", "node"],

@@ -310,6 +310,8 @@ address.value.city = 'Bled';                         // outside the contract
 address.value = { ...address.value, city: 'Bled' };  // a change of the field
 ```
 
+The [tracking plugin](/api/plugins#tracking) makes a write into the value a change of the field.
+
 A `Group` sends each member according to its `access`: an `'editable'` or `'readonly'` member with its value, a
 `'disabled-null'` member as `null`, and a `'disabled'` member not at all. Its value is `{}` when no member is sent.
 A `List` sends its rows by the same rule, and its value is `[]` when no row is sent. A container's value is never
@@ -371,6 +373,7 @@ arrays has the same limitation as comparing two fields directly. The package's o
 | rows, mutations, cost | [List](/api/list) |
 | a command: execute, submit, reset, confirm and reject | [Action](/api/action) |
 | every event, the action chain, conditionals | [Actions](/api/actions) |
+| a write into an object a field holds, other plugins | [Plugins](/api/plugins) |
 | built-in rules, custom and asynchronous validators | [Validators](/api/validators) |
 | `transaction()`, rollback, announcement order | [Transactions](/api/transactions) |
 | upgrading an existing project | [Migration guide](/guide/migration) |

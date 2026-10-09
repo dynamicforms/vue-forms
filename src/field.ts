@@ -1,6 +1,9 @@
+import { toRaw } from 'vue';
+
 import { type FieldSlots, fieldSlots } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
+import { ChangeInPlace, pipeValue } from './plugins';
 import { transactional } from './transaction';
 
 class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
@@ -22,7 +25,7 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
   }
 
   protected set _value(newValue: T) {
-    this.state.value = newValue;
+    this.state.value = pipeValue(this, newValue);
   }
 
   constructor(params?: IFieldParams<T, X>) {
@@ -62,6 +65,9 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
   }
 
   get value() {
+    // the version is read so that a reader re-runs on a change a plugin makes inside the value, which leaves the
+    // slot holding the same object
+    void this.valueVersion;
     return this._value;
   }
 
@@ -78,9 +84,27 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
       // the validators run here, not at the announcement, because the commit announces their result. They read
       // what the field sends, which a write changes only if the field sends its value: a field that sends nothing
       // or null sends the same after the write
-      if (this.serializesAs('value') === 'value') this.boundActions?.triggerEager(this, newValue, oldValue);
+      if (this.serializesAs('value') === 'value') this.boundActions?.triggerEager(this, this._value, oldValue);
       // the handlers receive the change when the transaction closes, with the field's final value
       this.propagateValueChanged();
+    });
+  }
+
+  /** The implementation of `PluginContext.changeInPlace`. */
+  protected [ChangeInPlace](write: () => void, undo: () => void, copy: () => T): void {
+    transactional((tx) => {
+      tx.touch(this);
+      const raw = this.raw;
+      // after an announcement the field's last announced value is the object it holds; the first write into it
+      // records a copy, so the commit reports what the value was before
+      if (toRaw(raw.announcedValue) === toRaw(raw.value)) raw.announcedValue = copy();
+      write();
+      tx.whenRolledBack(undo);
+      this.bumpValueVersion();
+      if (this.serializesAs('value') === 'value') {
+        this.boundActions?.triggerEager(this, this._value, raw.announcedValue);
+      }
+      this.propagateValueChanged(true);
     });
   }
 
