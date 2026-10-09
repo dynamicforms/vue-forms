@@ -2,7 +2,14 @@ import { vi } from 'vitest';
 import { watch } from 'vue';
 
 import { Action } from '../action';
-import { ExecuteAction, RejectAction, SubmitAction, SubmitFailedException, SubmitRefusedException } from '../actions';
+import {
+  ExecuteAction,
+  RejectAction,
+  SubmitAction,
+  SubmitException,
+  SubmitFailedException,
+  SubmitRefusedException,
+} from '../actions';
 import { BeginValidating } from '../element-state';
 import { Field } from '../field';
 import { type FieldBase } from '../field-base';
@@ -256,9 +263,9 @@ describe('SubmitAction', () => {
 
     expect(result).toBeInstanceOf(SubmitRefusedException);
     expect((result as SubmitRefusedException).reason).toBe('invalid');
-    // a refusal is a failed submit, so a caller that checks for SubmitFailedException handles it as well
-    expect(result).toBeInstanceOf(SubmitFailedException);
-    expect((result as SubmitFailedException).cause).toBeUndefined();
+    // a refusal and a failure share SubmitException, and a refusal is not a failure of the handler
+    expect(result).toBeInstanceOf(SubmitException);
+    expect(result).not.toBeInstanceOf(SubmitFailedException);
     expect(handler).not.toHaveBeenCalled();
   });
 
@@ -290,6 +297,7 @@ describe('SubmitAction', () => {
     const result = await form.fields.save.execute();
 
     expect(result).toBeInstanceOf(SubmitFailedException);
+    expect(result).toBeInstanceOf(SubmitException);
     expect((result.cause as Error).message).toBe('offline');
     expect(form.fields.name.value).toBe('Grace');
   });

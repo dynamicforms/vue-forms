@@ -180,7 +180,7 @@ it writes them to `field.errors` before it throws, as in
 form is invalid, a validation is running or the submit itself is running.
 
 Every outcome of a submit is the resolved value of `execute()` (and of `Container.confirm()`), of the type
-`SubmitResult<R> | SubmitFailedException`:
+`SubmitResult<R> | SubmitException`:
 
 | Resolved value | Outcome |
 |---|---|
@@ -189,27 +189,26 @@ Every outcome of a submit is the resolved value of `execute()` (and of `Containe
 | `SubmitRefusedException`, `reason` `'invalid'` | the target is invalid after its validation finished; the handler was not called |
 | `SubmitRefusedException`, `reason` `'running'` | a submit of the same action is running; the handler was not called |
 
-`SubmitRefusedException` extends `SubmitFailedException`, and its `cause` is `undefined`. `SubmitFailedException`
-extends `AbortEventHandlingException`, which `execute()` resolves with. `execute()` rejects only where something
+`SubmitFailedException` and `SubmitRefusedException` extend the abstract `SubmitException`, which extends
+`AbortEventHandlingException`, which `execute()` resolves with. `execute()` rejects only where something
 other than the submit fails, such as another handler in the chain or a `target` callback that returns no element.
 
 `execute()` is typed `Promise<any>`, because the chain of an action may hold other handlers. The caller states the
 type where it awaits the result:
 
 ```typescript
-const result: SubmitResult<Saved> | SubmitFailedException = await save.execute();
-if (result instanceof SubmitRefusedException) {
-  if (result.reason === 'invalid') form.touched = true;
-} else if (result instanceof SubmitFailedException) {
+const result: SubmitResult<Saved> | SubmitException = await save.execute();
+if (result instanceof SubmitFailedException) {
   reportError(result.cause);
+} else if (result instanceof SubmitRefusedException) {
+  if (result.reason === 'invalid') form.touched = true;
 } else {
   const { sent, received } = result;
 }
 ```
 
-`SubmitRefusedException` is tested before `SubmitFailedException`, because every refusal is also a
-`SubmitFailedException`. [`Container.confirm()`](/api/container#confirm-params-promise-any-undefined) returns
-`undefined` where it executes nothing, so its result is typed `SubmitResult<R> | SubmitFailedException | undefined`.
+[`Container.confirm()`](/api/container#confirm-params-promise-any-undefined) returns
+`undefined` where it executes nothing, so its result is typed `SubmitResult<R> | SubmitException | undefined`.
 
 ## `RejectAction(target)`
 

@@ -10,6 +10,7 @@ export { RejectAction } from './reject-action';
 export {
   type CommandTarget,
   SubmitAction,
+  SubmitException,
   SubmitFailedException,
   type SubmitRefusalReason,
   SubmitRefusedException,

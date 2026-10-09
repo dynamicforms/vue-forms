@@ -59,12 +59,14 @@ function validated(element: FieldBase): Promise<void> {
 
 /**
  * The exception a `SubmitAction` ends with when nothing was saved. `execute()` resolves with it, so the resolved
- * value of a submit is `SubmitResult | SubmitFailedException`. A handler that throws or rejects ends the submit
- * with this class, and `cause` is what it threw; a refused submit ends with the subclass `SubmitRefusedException`.
+ * value of a submit is `SubmitResult | SubmitException`: a `SubmitFailedException` or a `SubmitRefusedException`.
  */
-export class SubmitFailedException extends AbortEventHandlingException {
-  constructor(cause: unknown, message = 'the submit handler failed') {
-    super(message, cause === undefined ? undefined : { cause });
+export abstract class SubmitException extends AbortEventHandlingException {}
+
+/** The `SubmitException` a `SubmitAction` ends with when its handler throws or rejects; `cause` is what it threw. */
+export class SubmitFailedException extends SubmitException {
+  constructor(cause: unknown) {
+    super('the submit handler failed', { cause });
   }
 }
 
@@ -72,15 +74,12 @@ export class SubmitFailedException extends AbortEventHandlingException {
 export type SubmitRefusalReason = 'invalid' | 'running';
 
 /**
- * The `SubmitFailedException` a `SubmitAction` ends with when it refuses to submit and does not call the handler;
- * `reason` states why, and `cause` is undefined.
+ * The `SubmitException` a `SubmitAction` ends with when it refuses to submit and does not call the handler;
+ * `reason` states why.
  */
-export class SubmitRefusedException extends SubmitFailedException {
+export class SubmitRefusedException extends SubmitException {
   constructor(public readonly reason: SubmitRefusalReason) {
-    super(
-      undefined,
-      reason === 'invalid' ? 'the submitted element is invalid' : 'a submit of this action is already running',
-    );
+    super(reason === 'invalid' ? 'the submitted element is invalid' : 'a submit of this action is already running');
   }
 }
 
@@ -103,7 +102,7 @@ export class SubmitRefusedException extends SubmitFailedException {
  * `execute()` resolves with it and the target is not changed. Mapping a server's field errors to the fields is the
  * handler's: it writes them to `field.errors` before it throws.
  *
- * The resolved value is `SubmitResult<R> | SubmitFailedException`. `execute()` is typed `Promise<any>`, because the
+ * The resolved value is `SubmitResult<R> | SubmitException`. `execute()` is typed `Promise<any>`, because the
  * chain may hold other handlers; the caller states the type where it awaits the result.
  *
  * The rebind in step 4 replaces the target's value with the result, so a change written to the target while the
