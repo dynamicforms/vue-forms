@@ -23,12 +23,12 @@ may rely on are not settled. Each needs to be looked at and decided — implemen
 documented pattern, or declined — not necessarily built. Many of them, 3 onwards in particular, read as something a
 plugin could add, so the plugin system (2) is decided first and may settle several of the others:
 
-1. **Vue devtools: a timeline.** The inspector lists, shows and edits the state (`src/devtools/`); there is no
-   timeline of transactions, actions and validation runs. It needs the hook on committed transactions that plugins
-   (2) need as well.
-2. **Plugins: observers.** `installPlugin()` has the value pipeline (`onSetValue`, `onSetOriginalValue`); there are
-   no hooks on the existing events (value, access and visibility changes, execute, validation runs), run after the
-   element's own handlers, for persistence, logging and the devtools timeline.
+1. **Vue devtools: a timeline.** The inspector lists, shows and edits the state (`src/plugins/devtools/`); there is no
+   timeline of transactions, actions and validation runs. It needs the observer hooks of plugins (2).
+2. **Plugins: observers of events.** `installPlugin()` has the value pipeline (`onSetValue`, `onSetOriginalValue`),
+   `onElementCreated` and `onCommit`; there are no hooks on the events (value, access and visibility changes,
+   execute, validation runs), run after the element's own handlers, for persistence, logging and the devtools
+   timeline.
 3. **Undo, redo and a history of changes** (MobX-State-Tree, Redux devtools, Immer patches). A transaction already
    captures what it changes and can put it back; a history of committed transactions is the natural extension.
 4. **Snapshots and patches as a stream of changes** (MobX-State-Tree `onPatch` / `applyPatch`, Immer patches). Every

@@ -2,12 +2,12 @@ import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
-import { noteInternal } from './devtools/api';
 import { type ListSlots, listSlots, ReorderRows } from './element-state';
 import { Field } from './field';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { Group } from './group';
+import { asBinding, noteItemTemplate } from './plugins';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 
 /**
@@ -47,7 +47,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     super(listSlots<R>());
 
     this._itemTemplate = itemTemplate;
-    if (itemTemplate) noteInternal(itemTemplate);
+    if (itemTemplate) noteItemTemplate(itemTemplate);
 
     // construction is one transaction, so all rows are in place before anything is announced
     transactional(() => {
@@ -264,14 +264,17 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     const template = this._itemTemplate?.bind() as R | undefined;
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValueInput<R>, X>) => List<R, X>;
-    const res = new Ctor(template, {
-      // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
-      // the list holds (fullValue), not what it sends, so a row that sends nothing keeps its data
-      value: [...((data !== undefined ? data : this.fullValue) ?? [])],
-      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-      access: overrides?.access ?? this.access,
-      visibility: overrides?.visibility ?? this.visibility,
-    } as IFieldParams<ListValueInput<R>, X>);
+    const res = asBinding(
+      () =>
+        new Ctor(template, {
+          // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
+          // the list holds (fullValue), not what it sends, so a row that sends nothing keeps its data
+          value: [...((data !== undefined ? data : this.fullValue) ?? [])],
+          ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
+          access: overrides?.access ?? this.access,
+          visibility: overrides?.visibility ?? this.visibility,
+        } as IFieldParams<ListValueInput<R>, X>),
+    );
     // a subclass whose constructor does not take (itemTemplate, params) ignores both and would return a list built
     // from its own declaration instead of this record. The difference would not be visible, so it throws here.
     if (res._itemTemplate !== template) {

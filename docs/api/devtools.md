@@ -73,10 +73,26 @@ An element's file is read from the stack at its construction: the first frame ou
 A file the stack does not name, and a name other than the element's class and number, are given with
 `describeState()`.
 
+Capturing the stack is the expensive part of the devtools: about 9 µs of construction time and 2.4 KB of heap per
+element in V8, against about 2 µs for the rest of what the devtools record. What each element records in
+development:
+
+| element | recorded | construction time | heap kept |
+|---|---|---:|---:|
+| an element built directly, `location` true | the stack and the component | ~11 µs | 2.4 KB while it is a root |
+| an element built directly, `location` false | the component | ~2 µs | — |
+| a binding: an element `bind()` builds, such as a row of a `List` and the members of the row | nothing | 0 | 0 |
+
+An element built directly does not know at its construction whether a container will take it, so the stack is
+captured for a member of a declaration as well. When a container takes the element, the captured stack is dropped:
+the heap stays only for root elements, and an element a container releases again is shown without a file unless
+`describeState()` names one. `location: false` turns the capture off, for an application that builds many elements
+directly, for example with `Group.createFromFormData()`.
+
 ## API
 
 ```typescript
-import { describeState, hideState, setDevtoolsRegistration } from '@dynamicforms/vue-forms';
+import { configureDevtools, describeState, hideState } from '@dynamicforms/vue-forms';
 ```
 
 ### `describeState(element, description): void`
@@ -97,10 +113,28 @@ describeState(cart.$, { name: 'Cart', file: 'src/stores/cart.ts' });
 
 Leaves `element` out of the devtools; `hideState(element, false)` lists it again.
 
-### `setDevtoolsRegistration(mode): void`
+### `configureDevtools(options): void`
 
-`mode` is a `DevtoolsRegistration`: `'opt-out'` (default) lists every root element that is not hidden, `'opt-in'`
-lists only elements named with `describeState()`.
+Sets what the devtools record and list. `options` is a `DevtoolsOptions`; a member left out keeps its setting.
+
+| Member | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | `boolean` | `true` | While `false`, nothing is recorded or listed. An element built while `false` is not listed after it is set back to `true` |
+| `registration` | `DevtoolsRegistration` | `'opt-out'` | `'opt-out'` lists every root element that is not hidden, `'opt-in'` only elements named with `describeState()` |
+| `location` | `boolean` | `true` | Whether the stack is captured when an element is built directly, to show the file that built it ([cost](#what-is-listed)). While `false`, an element's file is the one `describeState()` gives, or none |
+
+```typescript
+// an application that builds many root elements and does not need their files
+configureDevtools({ location: false });
+```
+
+A setting applies to elements built after it, so it is called before the state is built: in the entry module, above
+the imports of the modules that build global state, or in a module imported first.
+
+## How the devtools are built
+
+The devtools are a [plugin](/api/plugins) built on the hooks `onElementCreated`, `onElementAdopted` and `onCommit`. The library installs
+it on the first element built in development; `configureDevtools({ enabled: false })` uninstalls it.
 
 ## Production builds
 

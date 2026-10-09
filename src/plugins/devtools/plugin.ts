@@ -1,6 +1,6 @@
 import { type App, toRaw } from 'vue';
 
-import type { FieldBase } from '../field-base';
+import type { FieldBase } from '../../field-base';
 
 import { callerFile, componentPath, type Entry, entryById, entryOf, listed, onRegistryChanged } from './registry';
 

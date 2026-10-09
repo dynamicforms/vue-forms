@@ -14,10 +14,9 @@ import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import { type Container } from './container';
-import { noteElement, noteInternal } from './devtools/api';
 import { BeginValidating, type ElementSlots, ValidationEpoch } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
-import { pipeOriginalValue } from './plugins';
+import { elementAdopted, elementCreated, pipeOriginalValue } from './plugins';
 import {
   currentTransaction,
   type Transaction,
@@ -136,7 +135,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   constructor(slots: ElementSlots<T>) {
     this.#raw = slots;
     this.#state = reactive(slots) as ElementSlots<T>;
-    noteElement(this);
+    elementCreated(this);
   }
 
   /** the tracked view of this element's state; a subclass narrows the return type to its own slots */
@@ -666,6 +665,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // validated again
       if (detached) child.revalidateWhereChanged(detached);
       this.adoptChild(child);
+      elementAdopted(tx, child);
     });
   }
 
@@ -1153,7 +1153,6 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected boundFrom(source: FieldBase<any, X>, newValue: any, oldValue: any, overrides?: object): void {
     if (overrides) refuseEnabled(overrides);
     this.#raw.declaration = source.declaration;
-    noteInternal(this);
     const extended: Partial<X> = { ...source.extra, ...(overrides && this.extendedOf(overrides)) };
     if (!isEmpty(extended)) this.setExtendedValues(extended);
     const declaration = this.declaration;

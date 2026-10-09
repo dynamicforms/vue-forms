@@ -1,6 +1,6 @@
 import type FieldActionBase from './actions/field-action-base';
-import { noteChange } from './devtools/api';
 import type { FieldBase } from './field-base';
+import { committed } from './plugins';
 
 /**
  * A transaction is the unit in which an observer sees a change. Every mutating operation runs inside one: if the
@@ -222,7 +222,7 @@ export class Transaction {
     // everything is announced and the change is committed, so the work registered with whenCommitted runs here
     for (let index = 0; index < this.settled.length; index++) this.settled[index]();
     this.settled.length = 0;
-    noteChange();
+    committed();
   }
 
   /**
