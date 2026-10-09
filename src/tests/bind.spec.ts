@@ -20,6 +20,80 @@ interface Presentation {
 }
 
 describe('bind()', () => {
+  describe('baselines every member to its part of the data', () => {
+    const declaration = () =>
+      new Group({
+        name: new Field({ value: '' }),
+        address: new Group({ city: new Field({ value: '' }) }),
+        rows: new List(new Group({ item: new Field({ value: '' }) })),
+      });
+
+    it('a leaf, a nested group, a nested list and the members of its rows', () => {
+      const bound = declaration().bind({ name: 'Ana', address: { city: 'Koper' }, rows: [{ item: 'a' }] });
+
+      expect(bound.fields.name.originalValue).toBe('Ana');
+      expect(bound.fields.name.isChanged).toBe(false);
+      expect(bound.fields.address.originalValue).toEqual({ city: 'Koper' });
+      expect(bound.fields.address.fields.city.isChanged).toBe(false);
+      expect(bound.fields.rows.originalValue).toEqual([{ item: 'a' }]);
+      expect(bound.fields.rows.isChanged).toBe(false);
+      expect(bound.fields.rows.get(0)!.fields.item.originalValue).toBe('a');
+      expect(bound.fields.rows.get(0)!.fields.item.isChanged).toBe(false);
+    });
+
+    it('a member the data leaves out to the declared member baseline', () => {
+      const form = declaration();
+      form.fields.name.value = 'written since';
+
+      const bound = form.bind({ address: { city: 'Koper' } } as any);
+
+      expect(bound.fields.name.value).toBe('');
+      expect(bound.fields.name.isChanged).toBe(false);
+    });
+
+    it('the row members of a list built over data', () => {
+      const list = new List(new Group({ item: new Field({ value: '' }) }), { value: [{ item: 'a' }] });
+
+      expect(list.get(0)!.fields.item.originalValue).toBe('a');
+      expect(list.get(0)!.fields.item.isChanged).toBe(false);
+    });
+
+    it('every member to null where the data is null', () => {
+      const bound = declaration().bind(null as any);
+
+      expect(bound.fields.name.value).toBeNull();
+      expect(bound.fields.name.isChanged).toBe(false);
+      expect(bound.isChanged).toBe(false);
+    });
+
+    it('validates a member a rule enables over the value it is bound to', () => {
+      const row = new Group({
+        kind: new Field({ value: 'stock' }),
+        description: new Field({ value: '', validators: [new Validators.Required()] }),
+      });
+      row.fields.description.registerAction(
+        new ConditionalAccessAction(new Statement(row.fields.kind, Operator.EQUALS, 'custom'), 'editable', 'disabled'),
+      );
+
+      const bound = row.bind({ kind: 'custom', description: 'oak' });
+
+      expect(bound.fields.description.enabled).toBe(true);
+      expect(bound.fields.description.errors).toEqual([]);
+      expect(bound.valid).toBe(true);
+    });
+
+    it('every member to its current value where no data is supplied', () => {
+      const form = declaration();
+      form.fields.name.value = 'current';
+
+      const bound = form.bind();
+
+      expect(bound.fields.name.value).toBe('current');
+      expect(bound.fields.name.isChanged).toBe(false);
+      expect(bound.isChanged).toBe(false);
+    });
+  });
+
   it('reads originalValue by key presence and everything else by fallback', () => {
     const field = new Field({ value: 'a', originalValue: 'declared', access: 'disabled', visibility: 'hidden' });
 

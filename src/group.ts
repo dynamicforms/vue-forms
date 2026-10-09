@@ -458,7 +458,7 @@ export class Group<
         new Ctor(newFields, {
           // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
           // the group holds (fullValue), not what it sends, so a member that sends nothing keeps its data
-          value: data !== undefined ? data : (this.fullValue as GroupValueInput<T>),
+          value: data !== undefined ? this.withBaselines(data) : (this.fullValue as GroupValueInput<T>),
           ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
           access: overrides?.access ?? this.access,
           visibility: overrides?.visibility ?? this.visibility,
@@ -466,7 +466,25 @@ export class Group<
     );
     Group.assertTookFields(res, newFields, this.constructor.name);
     res.boundFrom(this, res.contribution, res.originalValue, overrides);
+    // the members were bound empty and written by the construction, which assembles the record their rules read; a
+    // binding starts out unchanged at every level, so each member records what it holds as its baseline
+    res.baselineMembers();
     return res;
+  }
+
+  /**
+   * `data` with every key it leaves out filled in with the baseline of the corresponding member, as `rebind` fills
+   * it; null and an action, which holds no data, stay as they are.
+   */
+  private withBaselines(data: GroupValueInput<T> | null): GroupValueInput<T> | null {
+    if (data === null) return data;
+    const filled: Record<string, unknown> = { ...data };
+    Object.entries(this._fields).forEach(([name, field]) => {
+      if (!Object.hasOwn(filled, name) && this.childSerializesAs(field, 'fullValue') !== 'omit') {
+        filled[name] = field.originalValue;
+      }
+    });
+    return filled as GroupValueInput<T>;
   }
 
   /**

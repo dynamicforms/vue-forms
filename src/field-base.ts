@@ -784,6 +784,17 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
+   * Records what every element below this one holds as its baseline, each after its own members. A binding calls
+   * it once it is built, so a member written by the construction is not a change.
+   */
+  protected baselineMembers(): void {
+    this.members.forEach((member) => {
+      member.baselineMembers();
+      member.recordBaseline();
+    });
+  }
+
+  /**
    * Records what the element holds as its baseline at the end of a reset. A container also records it as the
    * value its listeners last heard: the container that reset it announces the change.
    */

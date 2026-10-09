@@ -145,7 +145,9 @@ not converted.
 
 **The eager pass does not return it.** `triggerEager()` runs each identifier's eager group separately, and an
 exception thrown in one group ends only that group: the remaining groups run and nothing is returned to the
-caller. The eager pass runs in these places:
+caller. The groups of the rules (every eager action other than a `Validator`) run before the validators. A rule can
+change the element's access or value, so where one ran, the validators receive the element's `contribution` read
+after it, in place of the value the caller passed. The eager pass runs in these places:
 
 - `registerAction()` and `registerActionBefore()`: both call `triggerEagerFor()`, which returns the exception, and
   discard it, so the consumer does not receive it;

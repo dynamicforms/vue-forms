@@ -761,7 +761,8 @@ are set before the new element's eager actions run. `originalValue` is applied w
 
 The new element is constructed through `this.constructor`, so a subclass binds into its own class. It is
 detached: it has no `parent` and no `fieldName`. `originalValue` is taken from `overrides` only when passed
-explicitly; otherwise it is the bound data, so `isChanged` starts out `false`.
+explicitly; otherwise it is the bound data, so `isChanged` starts out `false`. The members of a bound `Group` or
+`List` record their part of the data as their own `originalValue`, so they start out unchanged as well.
 
 ```typescript
 const row = template.bind({ name: 'John' });   // a group over one record
@@ -874,6 +875,11 @@ State an action keeps between runs is stored per element, not on the action; see
 
 The newest registration is the outermost handler: it runs first and calls the ones registered before it through
 `supr`. A registration made inside a [transaction](/api/transactions) is undone if the transaction rolls back.
+
+An eager action runs over the existing bindings when it is registered. A change it makes there, such as a
+conditional access that disables a member, is a change of the element: `originalValue` is not recorded again, so
+a container whose member the rule disables reports `isChanged` `true`. Rules registered on a declaration before it
+is bound (`bind()`, a `List`'s item template) are part of every binding's initial state.
 
 ### `registerActionBefore(action, before): this`
 

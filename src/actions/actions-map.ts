@@ -77,10 +77,14 @@ export default class ActionsMap {
 
   /**
    * Runs the eager actions of every identifier, each identifier's group separately. A group starts at its outermost
-   * eager action, the last one registered under that identifier.
+   * eager action, the last one registered under that identifier. The rules run before the validators: a rule can
+   * change the element's access or value, so after one ran the validators receive what the element sends then, in
+   * place of the first parameter.
    */
   triggerEager(field: FieldBase, ...params: any[]): void {
-    this.runEager(() => true, field, params);
+    const ruled = this.runEager((action) => !(action instanceof Validator), field, params);
+    const validatorParams = ruled ? [field.contribution, ...params.slice(1)] : params;
+    this.runEager((action) => action instanceof Validator, field, validatorParams);
   }
 
   /**
@@ -91,13 +95,16 @@ export default class ActionsMap {
     this.runEager((action) => !(action instanceof Validator), field, params);
   }
 
-  private runEager(include: (action: FieldActionBase) => boolean, field: FieldBase, params: any[]): void {
+  /** Runs the eager groups whose actions `include` accepts; returns whether any ran. */
+  private runEager(include: (action: FieldActionBase) => boolean, field: FieldBase, params: any[]): boolean {
+    let ran = false;
     const actions = this.actions;
     for (let index = actions.length - 1; index >= 0; index--) {
       const action = actions[index];
       if (!action.eager || !include(action)) continue;
       // the group runs once, from its outermost eager action; the earlier ones are called through supr
       if (ActionsMap.outermostEager(actions, index)) {
+        ran = true;
         try {
           const result = this.walk(actions, index, action.classIdentifier, true, field, params);
           // an abort from an asynchronous handler arrives as a rejection, which the catch below does not receive; it
@@ -113,6 +120,7 @@ export default class ActionsMap {
         }
       }
     }
+    return ran;
   }
 
   /** Runs only the eager actions registered under `identifier`. */
