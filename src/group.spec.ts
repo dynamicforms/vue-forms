@@ -326,6 +326,85 @@ describe('Group value initialization', () => {
 
     // Check isChanged reflects the difference between value and originalValue
     expect(group.isChanged).toBe(true);
+    expect(group.fields.name.originalValue).toBe('Original');
+    expect(group.fields.age.isChanged).toBe(true);
+  });
+
+  describe('baselines every member to its part of the value', () => {
+    const fields = () => ({
+      name: new Field({ value: '' }),
+      address: new Group({ city: new Field({ value: '' }) }),
+      tags: new List(new Group({ tag: new Field({ value: '' }) })),
+    });
+    const record = { name: 'Ana', address: { city: 'Koper' }, tags: [{ tag: 'vip' }] };
+
+    it('leaves no member of a group constructed with a value changed', () => {
+      const group = new Group(fields(), { value: record });
+
+      expect(group.fields.name.originalValue).toBe('Ana');
+      expect(group.fields.address.fields.city.originalValue).toBe('Koper');
+      expect(group.fields.tags.originalValue).toEqual([{ tag: 'vip' }]);
+      expect(group.fields.name.isChanged).toBe(false);
+      expect(group.fields.address.isChanged).toBe(false);
+      expect(group.fields.address.fields.city.isChanged).toBe(false);
+      expect(group.fields.tags.isChanged).toBe(false);
+      expect(group.fields.tags.get(0)!.isChanged).toBe(false);
+    });
+
+    it('leaves no member changed when only originalValue is given', () => {
+      const group = new Group(fields(), { originalValue: record });
+
+      expect(group.fields.address.fields.city.originalValue).toBe('Koper');
+      expect(group.fields.address.fields.city.isChanged).toBe(false);
+    });
+
+    it('records a member a value leaves out at what it holds', () => {
+      const group = new Group(fields(), { value: { name: 'Ana' } });
+
+      expect(group.fields.address.fields.city.originalValue).toBe('');
+      expect(group.isChanged).toBe(false);
+      expect(group.fields.address.isChanged).toBe(false);
+    });
+
+    it('gives the members their part of a supplied originalValue, through nested groups', () => {
+      const group = new Group(fields(), {
+        value: record,
+        originalValue: { name: 'Bor', address: { city: 'Celje' }, tags: [] },
+      });
+
+      expect(group.fields.name.originalValue).toBe('Bor');
+      expect(group.fields.name.isChanged).toBe(true);
+      expect(group.fields.address.originalValue).toEqual({ city: 'Celje' });
+      expect(group.fields.address.fields.city.originalValue).toBe('Celje');
+      expect(group.fields.address.fields.city.isChanged).toBe(true);
+      expect(group.fields.tags.originalValue).toEqual([]);
+      expect(group.fields.tags.isChanged).toBe(true);
+    });
+
+    it('gives the members the part of a baseline the bind overrides supply', () => {
+      const group = new Group(fields()).bind(record, { originalValue: { name: 'Bor' } });
+
+      expect(group.fields.name.originalValue).toBe('Bor');
+      expect(group.fields.name.isChanged).toBe(true);
+      expect(group.fields.address.fields.city.originalValue).toBe('Koper');
+      expect(group.fields.address.fields.city.isChanged).toBe(false);
+    });
+
+    it('records what the construction hook wrote into a member as its baseline', () => {
+      class PostalAddress extends Group<{ street: Field<string>; country: Field<string> }> {
+        protected constructed() {
+          if (!this.fields.country.value) this.fields.country.value = 'SI';
+        }
+      }
+
+      const group = new PostalAddress(
+        { street: new Field<string>({ value: '' }), country: new Field<string>() },
+        { value: { street: 'Main 1' } },
+      );
+
+      expect(group.fields.country.originalValue).toBe('SI');
+      expect(group.fields.country.isChanged).toBe(false);
+    });
   });
 });
 

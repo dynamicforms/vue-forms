@@ -993,9 +993,10 @@ price.isChanged;  // false
 ```
 
 A container completes itself through its members, and each member has already been constructed: the write is an
-ordinary write to the member, so the member fires its `ValueChangedAction` and has `isChanged` `true`, while the
-container's baseline is the record the hook leaves. Set the member's `originalValue` as well where it should start
-unchanged:
+ordinary write to the member, so the member fires its `ValueChangedAction`. The container's baseline is the record
+the hook leaves. A `Group` constructed with a value records what each member holds after the hook as the member's
+`originalValue`; without a value the member has `isChanged` `true`. Set the member's `originalValue` as well where
+it should start unchanged regardless:
 
 ```typescript
 class Address extends Group<{ street: Field<string>; country: Field<string> }> {

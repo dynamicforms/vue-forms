@@ -23,6 +23,15 @@ describe.each(realisticForms)('invariants of the $name form', (fixture) => {
     },
   );
 
+  // the rules are registered after the constructor wrote the value, so what they change on the group itself is a
+  // change of the group (see registerAction); its members hold their part of the value as their baseline
+  it.each(fixture.records.map((record, index) => [index, record]))(
+    'every member of a form constructed with record %i as its value holds no change',
+    (_, record) => {
+      expect(changed(snapshot(fixture.construct(record))).filter((path) => path !== '$')).toEqual([]);
+    },
+  );
+
   it.each(pairs(fixture.records.map((_, index) => index)))(
     'rebind from record %i to record %i equals a form built over the second one',
     (from, to) => {

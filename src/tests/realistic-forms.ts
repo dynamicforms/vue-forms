@@ -14,6 +14,8 @@ export interface RealisticForm {
   name: string;
   /** Builds the form holding `record`: the declaration with its rules, bound to the record. */
   build: (record?: any) => Group<any>;
+  /** Builds the form holding `record` by passing it to the constructor as its value, and then registers its rules. */
+  construct: (record: any) => Group<any>;
   /** Records the application loads: each differs from the others in what the conditional rules decide. */
   records: any[];
   /** Values a user types into a leaf, by the leaf's name. */
@@ -34,11 +36,9 @@ const contactTemplate = () => {
   return row;
 };
 
-/** A customer: the VAT id applies to a company only, the contacts are a list with a rule per row. */
-const customer: RealisticForm = {
-  name: 'customer',
-  build: (record) => {
-    const form = new Group({
+const declareCustomer = (record?: any) => {
+  const form = new Group(
+    {
       name: new Field({ value: '', validators: [new Validators.Required()] }),
       isCompany: new Field({ value: false }),
       vatId: new Field({ value: '', validators: [new Validators.Required(), new Validators.MinLength(8)] }),
@@ -47,12 +47,20 @@ const customer: RealisticForm = {
         city: new Field({ value: '', validators: [new Validators.Required()] }),
       }),
       contacts: new List(contactTemplate()),
-    });
-    form.fields.vatId.registerAction(
-      new ConditionalAccessAction(new Statement(form.fields.isCompany, Operator.EQUALS, true), 'editable', 'disabled'),
-    );
-    return record === undefined ? form : form.bind(record);
-  },
+    },
+    record === undefined ? undefined : { value: record },
+  );
+  form.fields.vatId.registerAction(
+    new ConditionalAccessAction(new Statement(form.fields.isCompany, Operator.EQUALS, true), 'editable', 'disabled'),
+  );
+  return form;
+};
+
+/** A customer: the VAT id applies to a company only, the contacts are a list with a rule per row. */
+const customer: RealisticForm = {
+  name: 'customer',
+  build: (record) => (record === undefined ? declareCustomer() : declareCustomer().bind(record)),
+  construct: declareCustomer,
   records: [
     {
       name: 'Ana',
@@ -110,11 +118,9 @@ const lineTemplate = () => {
   return row;
 };
 
-/** An order: lines with a custom description and a cancelled status, and a delivery address that can be omitted. */
-const order: RealisticForm = {
-  name: 'order',
-  build: (record) => {
-    const form = new Group({
+const declareOrder = (record?: any) => {
+  const form = new Group(
+    {
       number: new Field({ value: '' }),
       separateDelivery: new Field({ value: false }),
       delivery: new Group({
@@ -122,16 +128,24 @@ const order: RealisticForm = {
         city: new Field({ value: '', validators: [new Validators.Required()] }),
       }),
       lines: new List(lineTemplate()),
-    });
-    form.fields.delivery.registerAction(
-      new ConditionalAccessAction(
-        new Statement(form.fields.separateDelivery, Operator.EQUALS, true),
-        'editable',
-        'disabled',
-      ),
-    );
-    return record === undefined ? form : form.bind(record);
-  },
+    },
+    record === undefined ? undefined : { value: record },
+  );
+  form.fields.delivery.registerAction(
+    new ConditionalAccessAction(
+      new Statement(form.fields.separateDelivery, Operator.EQUALS, true),
+      'editable',
+      'disabled',
+    ),
+  );
+  return form;
+};
+
+/** An order: lines with a custom description and a cancelled status, and a delivery address that can be omitted. */
+const order: RealisticForm = {
+  name: 'order',
+  build: (record) => (record === undefined ? declareOrder() : declareOrder().bind(record)),
+  construct: declareOrder,
   records: [
     {
       number: 'O-1',

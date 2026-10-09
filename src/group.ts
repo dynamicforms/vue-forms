@@ -136,6 +136,8 @@ export class Group<
     // construction is one transaction: the members are added and written before anything is announced, and a
     // member that cannot be added (another container already holds it) leaves no partially built group
     transactional(() => {
+      let assigned = false;
+      let suppliedBaseline = false;
       assembling.add(this);
       try {
         Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
@@ -152,6 +154,8 @@ export class Group<
           // An explicit null is a supplied value and clears the members.
           if (paramValue !== undefined) this.assignMembers(paramValue as GroupValueInput<T>);
           else if (this.originalValue !== undefined) this.assignMembers(this.originalValue);
+          assigned = paramValue !== undefined || this.originalValue !== undefined;
+          suppliedBaseline = params.originalValue !== undefined && paramValue !== undefined;
         }
       } finally {
         assembling.delete(this);
@@ -173,7 +177,27 @@ export class Group<
       this.recordAnnounced();
 
       this.boundActions?.triggerEager(this, this.contribution, this.originalValue);
+
+      // the members hold their part of the assigned data, so it is their baseline as it is the group's
+      if (assigned) {
+        this.baselineMembers();
+        if (suppliedBaseline) this.baselineMembersFrom(this.originalValue);
+      }
       this.validate();
+    });
+  }
+
+  /**
+   * Gives every member `data` contains its part of `data` as its baseline, and so on through the groups below it;
+   * null gives each member null.
+   */
+  private baselineMembersFrom(data: GroupValue<T> | null): void {
+    Object.entries(this._fields).forEach(([name, field]) => {
+      if (this.childSerializesAs(field, 'fullValue') === 'omit') return;
+      if (data != null && !Object.hasOwn(data, name)) return;
+      const part = data == null ? null : (data as Record<string, any>)[name];
+      if (field instanceof Group) field.baselineMembersFrom(part);
+      field.originalValue = part;
     });
   }
 
@@ -467,8 +491,10 @@ export class Group<
     Group.assertTookFields(res, newFields, this.constructor.name);
     res.boundFrom(this, res.contribution, res.originalValue, overrides);
     // the members were bound empty and written by the construction, which assembles the record their rules read; a
-    // binding starts out unchanged at every level, so each member records what it holds as its baseline
+    // binding starts out unchanged at every level, so each member records what it holds as its baseline, and a
+    // baseline the overrides supply is the baseline of the members it contains
     res.baselineMembers();
+    if (overrides?.originalValue !== undefined) res.baselineMembersFrom(res.originalValue);
     return res;
   }
 

@@ -625,8 +625,10 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * A `Field` writes `_value` here, because the value setter records a change.
    *
    * A container completes itself through its members, and each member has already been constructed: the write
-   * reaches it as a regular change, so the member announces it and reports itself changed. To have a member start
-   * unchanged, set its baseline here as well: `this.fields.x.originalValue = this.fields.x.value`.
+   * reaches it as a regular change, so the member announces it. A `Group` constructed with a value records what each
+   * member holds after this hook as its baseline; without a value the member reports itself changed. To have a
+   * member start unchanged in both cases, set its baseline here as well:
+   * `this.fields.x.originalValue = this.fields.x.value`.
    *
    * `params` is the parameter object the constructor received, if any.
    */
@@ -784,8 +786,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Records what every element below this one holds as its baseline, each after its own members. A binding calls
-   * it once it is built, so a member written by the construction is not a change.
+   * Records what every element below this one holds as its baseline, each after its own members. A binding, and a
+   * group constructed with a value, call it once built, so a member written by the construction is not a change.
    */
   protected baselineMembers(): void {
     this.members.forEach((member) => {

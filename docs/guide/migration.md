@@ -102,6 +102,12 @@ conditional actions apply their statements again over the new record. In 2.0 the
 row disabled before the assignment held the new item disabled. Code that set these flags and relied on them
 surviving a `rebind()` or an assignment of the list sets them again after it.
 
+**A group constructed with a value starts with every member unchanged.** `new Group(fields, { value })`, and
+`new Group(fields, { originalValue })` without a value, record what every element below the group holds as its
+`originalValue` once the construction is complete. A `params.originalValue` given next to `value` is the baseline
+of the members it contains as well. In 2.0 a member kept the `originalValue` it was created with and had
+`isChanged` `true` wherever the group's value differed from it.
+
 **List events follow the rows.** A `value` assignment fires `ListItemRemovedAction` for every row it removes and
 `ListItemAddedAction` for every row it builds, and `clear()` fires `ListItemRemovedAction` for every row. `sort()`
 and `reverse()` of `view(list)` reorder the rows in place and fire neither.
@@ -246,7 +252,8 @@ app.use(forms, { useMarkdownInValidators: false });
 16. Check `rebind()` calls whose data leaves out members that were written since construction.
 17. Set the `access` and `visibility` of `List` rows and of the members of bound groups again after a `rebind()` or
     a `value` assignment of the list, where the code relied on them being kept.
-17. Remove the `try`/`catch` around `Operator.isDefined()`.
+18. Check code that reads `isChanged` or `originalValue` of the members of a group constructed with a value.
+19. Remove the `try`/`catch` around `Operator.isDefined()`.
 
 ## Upgrading to v2.0.2 (from v1.x)
 
