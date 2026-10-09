@@ -26,9 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   method (`validate`, `bind`) is an extended property.
 - `rebind()` gives a `Group` member whose key is missing from the data the `originalValue` of the declaration's
   member, so `group.rebind(group.originalValue)` restores a `'disabled'` member.
-- A `List` row reused by `rebind()` or by a `value` assignment, and every member of it, takes the `access` and
-  `visibility` of the item template's element, and its conditional actions apply their statements again over the
-  new item. The element `rebind()` is called on, and a member of a group that is its own declaration, keep theirs.
+- A member of a group bound from a declaration, reset by `rebind()`, and a `List` row reused by `rebind()` or by a
+  `value` assignment take the `access` and `visibility` of the declaration's element, and their conditional
+  actions apply their statements again over the new record. The element `rebind()` is called on, and a member of
+  a group that is its own declaration, keep theirs.
 - An `Action` sends nothing: it is left out of its container's `value` and `fullValue`, does not affect the
   container's `isChanged` or validity, and its validators do not run. A container whose members are all actions
   sends nothing either.

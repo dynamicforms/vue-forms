@@ -95,11 +95,12 @@ member whose key was missing from the data kept the value of the template's memb
 it since construction. In 3.0 it takes the template member's `originalValue`, so
 `group.rebind(group.originalValue)` restores a `'disabled'` member as well.
 
-**A reused `List` row takes the flags of the item template.** A row that `rebind()` or a `value` assignment reuses
-at its position, and every member of it, takes the `access` and `visibility` of the item template's element, and
-its conditional actions apply their statements again over the new item. In 2.0 a reused row kept the flags it had,
-so a row disabled before the assignment held the new item disabled. Code that set the flags of a row and relied on
-them surviving an assignment of the list sets them again after it.
+**A reused row and the members of a bound group take the flags of the declaration.** A `List` row that `rebind()`
+or a `value` assignment reuses at its position, and a member of a group bound from a declaration (`bind()`, every
+`List` row) that `rebind()` resets, take the `access` and `visibility` of the declaration's element, and their
+conditional actions apply their statements again over the new record. In 2.0 they kept the flags they had, so a
+row disabled before the assignment held the new item disabled. Code that set these flags and relied on them
+surviving a `rebind()` or an assignment of the list sets them again after it.
 
 **List events follow the rows.** A `value` assignment fires `ListItemRemovedAction` for every row it removes and
 `ListItemAddedAction` for every row it builds, and `clear()` fires `ListItemRemovedAction` for every row. `sort()`
@@ -243,8 +244,8 @@ app.use(forms, { useMarkdownInValidators: false });
 14. Check code that reads the members of a `Group.createFromFormData()` result as `Field`.
 15. Rename construction parameters named like a method of the element, or read them through `extra`.
 16. Check `rebind()` calls whose data leaves out members that were written since construction.
-17. Set the `access` and `visibility` of `List` rows again after a `value` assignment or a `rebind()` of the list
-    where the code relied on the rows keeping them.
+17. Set the `access` and `visibility` of `List` rows and of the members of bound groups again after a `rebind()` or
+    a `value` assignment of the list, where the code relied on them being kept.
 17. Remove the `try`/`catch` around `Operator.isDefined()`.
 
 ## Upgrading to v2.0.2 (from v1.x)

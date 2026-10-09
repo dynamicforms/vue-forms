@@ -215,15 +215,15 @@ if (result instanceof SubmitRefusedException) {
 
 An `ExecuteAction` that puts `target` back to its baseline: on `execute()` it calls
 `target.rebind(target.originalValue)`, then the next handler in the chain, and returns that handler's result.
+`target` is a `CommandTarget`, as for `SubmitAction`. `canExecute()` is `true` while the target exists, whatever its
+validity.
 
 The baseline is data. `target` keeps its own `access`, `visibility` and extended properties, and so does every
 member of a group that is its own declaration; conditional actions set the flags again where the restored values
-change their statements. The rows of a `List` are reset to the state of new rows: they take the flags of the item
-template, and their conditional actions apply again (see [`rebind()`](/api/field-base#rebind-data-this)). A row
-that was `'disabled'` when the baseline was recorded is not in `originalValue`, which holds what the list sends,
-so the reject does not restore it.
-`target` is a `CommandTarget`, as for `SubmitAction`. `canExecute()` is `true` while the target exists, whatever its
-validity.
+change their statements. A member of a group bound from a declaration — every `List` row is one — is reset to the
+state of a new binding: it takes the flags of the declaration's element, and its conditional actions apply again
+(see [`rebind()`](/api/field-base#rebind-data-this)). A row that was `'disabled'` when the baseline was recorded is
+not in `originalValue`, which holds what the list sends, so the reject does not restore it.
 
 ```typescript
 new Action({ value: { label: 'Cancel', defaultReject: true }, actions: [new RejectAction((a) => a.parent?.parent)] });

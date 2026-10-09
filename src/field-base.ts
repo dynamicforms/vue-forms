@@ -180,7 +180,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * Keys missing from `data` are taken from the element's `declaration`, not from the previous record.
    *
    * The element keeps its `access` and `visibility`. A member reset from an element other than itself (a member of
-   * a `List` row, a reused row) takes them from that element, see `resetChild`.
+   * a bound group, a reused `List` row) takes them from that element, see `resetChild`.
    */
   rebind(data: T): this {
     transactional((tx) => {
@@ -741,7 +741,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   /**
    * Resets a member. A container calls it to reset a child of any class. A child reset from an element other than
-   * itself (a reused `List` row and the members of one) also takes `source`'s `access` and `visibility`, and its
+   * itself (a member of a bound group, a reused `List` row) also takes `source`'s `access` and `visibility`, and its
    * eager actions run again once the record is complete, so the conditional rules apply over the new record. A child
    * that is its own source (a member of a declared group) keeps its flags.
    */

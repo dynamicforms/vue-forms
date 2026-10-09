@@ -296,6 +296,19 @@ describe('rebind()', () => {
     expect(detail.visibility).toBe('full');
   });
 
+  it('gives the members of a bound group the access and visibility of the declaration', () => {
+    const declaration = new Group({ name: new Field({ value: '' }) });
+    const group = declaration.bind({ name: 'a' });
+    group.access = 'readonly';
+    group.fields.name.access = 'disabled';
+
+    group.rebind({ name: 'b' });
+
+    expect(group.access).toBe('readonly');
+    expect(group.fields.name.access).toBe('editable');
+    expect(group.value).toEqual({ name: 'b' });
+  });
+
   it('keeps the access and visibility of the element it is called on and of a declared member', () => {
     const form = new Group({ name: new Field({ value: 'a' }) });
     form.access = 'readonly';
