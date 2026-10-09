@@ -17,6 +17,7 @@ export * from './field-base';
 export * from './group';
 export * from './is-equal';
 export * from './list';
+export { installPlugin, type Plugin, type PluginContext } from './plugins';
 // the participation protocol symbols are not exported; consumers use the transaction() entry point
 export { transaction, type TransactionControl } from './transaction';
 export * from './validators';

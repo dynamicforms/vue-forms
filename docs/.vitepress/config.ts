@@ -55,6 +55,7 @@ export default defineConfig({
             { text: 'Actions', link: '/api/actions' },
             { text: 'Transactions', link: '/api/transactions' },
             { text: 'Devtools', link: '/api/devtools' },
+            { text: 'Plugins', link: '/api/plugins' },
           ]
         }
       ],

@@ -764,3 +764,31 @@ rebinds to each result while it holds no edits, or is built from the first one w
 A value loaded for another value is a `watch` that writes the answer into a field, so it is validated, announced
 and part of `isChanged` like any other write (cookbook, "A value loaded for another value"). A derived value that
 is a promise, with components suspending on it (Jotai and Recoil async atoms), is not part of the library.
+
+## D-046 — A field's value is one unit; tracking writes into it is an opt-in plugin
+
+**Version:** 3.0.0
+
+A change of a field is an assignment to `value`, and a write into an object the field holds is outside that
+contract. The tracking plugin, exported from its own entry point (`@dynamicforms/vue-forms/plugins/tracking`) and
+installed with `installPlugin()`, makes such a write a change of the field. An application that does not import it
+does not bundle it.
+
+**Plugins are a pipeline on the value slot.** `onSetValue` runs where the value is stored, after the decision to
+write, on every path that stores it; `ValueChangedAction` and `field.value` receive the stored value. A plugin that
+changes the value therefore cannot be bypassed by the construction or by `rebind()`.
+
+**The write goes into the object, the old value is copied.** A row read from the value stays the row in the value,
+so a reference read from the field keeps working after a reorder. A rollback puts the writes back into the same
+objects. The field takes a copy on assignment, so a reference the application kept is not the field's, and every
+`originalValue` is a deep copy without tracking, so a write into the value does not move the baseline.
+
+**Rejected: a strict mode** (a frozen value, or a warning on a write into it). `Object.freeze` does not stop a write
+into a `Map`, a `Set`, a `Date` or a private class field, so it does not cover the values a plugin cannot track
+either.
+
+**Rejected: a copy on write** (a write produces a new object assigned through the setter). A row read from the
+value would no longer be in the value after the first write into it.
+
+**Rejected: a deep `watch` on the value.** It sees a write after it happened, and does not see a write into the
+object through a reference that is not Vue's proxy.

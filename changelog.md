@@ -79,6 +79,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
 - `ValidationErrorOptions`.
 - `params` on every error.
+- `installPlugin(plugin)`: a plugin's `onSetValue` and `onSetOriginalValue` hooks run as a pipeline on every write of
+  a field's value and of any element's `originalValue`; `PluginContext.changeInPlace()` makes a write into the value
+  a field holds a change of the field.
+- The tracking plugin, `@dynamicforms/vue-forms/plugins/tracking`: a field holds a copy of an object value, and a
+  write into a plain object, an array, a `Map`, a `Set` or a `Date` it holds is a change of the field.
+  `untracked()` and `setTrackingWarnings()`.
 - `"sideEffects": false` in `package.json`: no module of the package runs code on import, so a bundler drops the
   modules an application does not use.
 

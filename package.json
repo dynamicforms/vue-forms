@@ -15,6 +15,10 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/dynamicforms-vue-forms.js"
     },
+    "./plugins/tracking": {
+      "types": "./dist/plugins/tracking.d.ts",
+      "default": "./dist/plugins/tracking.js"
+    },
     "./package.json": "./package.json"
   },
   "workspaces": [

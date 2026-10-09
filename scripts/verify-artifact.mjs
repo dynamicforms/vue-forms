@@ -66,4 +66,14 @@ assert.throws(
 );
 assert.equal(list.length, 4, 'a throw rolls the transaction back');
 
+// the tracking plugin is a separate entry that imports the package by its name, so it must reach the same module
+// instance the application imported
+const tracking = await import(pathToFileURL(resolve('dist/plugins/tracking.js')).href);
+const uninstall = m.installPlugin(tracking.tracking);
+const address = new m.Field({ value: { city: 'Ljubljana' } });
+address.value.city = 'Bled';
+assert.equal(address.isChanged, true, 'a write into a tracked value is a change of the field');
+assert.equal(address.originalValue.city, 'Ljubljana', 'the baseline is a copy');
+uninstall();
+
 console.log(`artifact verified: ${expected.length} exports, a list of ${list.length} rows exercised end to end`);
