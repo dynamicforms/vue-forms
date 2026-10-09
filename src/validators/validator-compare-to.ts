@@ -1,8 +1,8 @@
 import { unref } from 'vue';
 
 import { ValueChangedAction } from '../actions';
-import { bindingsIn, resolveByName, resolveInScope, scopeOf } from '../binding/resolve';
 import type { FieldBase } from '../field-base';
+import { bindingsIn, resolveByName, resolveInScope, scopeOf } from '../resolve';
 
 import { ValidationErrorOptions, ValidationFunction, Validator, ValidatorBindingState } from './validator';
 

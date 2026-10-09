@@ -1,5 +1,5 @@
-import type { FieldBase } from '../field-base';
-import type { Group } from '../group';
+import type { FieldBase } from './field-base';
+import type { Group } from './group';
 
 /**
  * Resolution of one element against another element's record.
