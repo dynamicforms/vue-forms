@@ -1,5 +1,5 @@
-import { Field } from './field';
-import { ValidationError, Validators } from './validators';
+import { Field } from '../field';
+import { ValidationError, Validators } from '../validators';
 
 const required = (value: string) => new Field<string>({ value, validators: [new Validators.Required()] });
 

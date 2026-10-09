@@ -1,5 +1,4 @@
-import { BeginValidating } from './element-state';
-
+import { BeginValidating } from '../element-state';
 import {
   ConditionalVisibilityAction,
   Field,
@@ -12,7 +11,7 @@ import {
   transaction,
   ValueChangedAction,
   view,
-} from './index';
+} from '../index';
 
 const events = (list: List<any>) => {
   const seen: string[] = [];

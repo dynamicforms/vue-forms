@@ -10,7 +10,7 @@ import {
   transaction,
   ValueChangedAction,
   view,
-} from './index';
+} from '../index';
 
 const createState = () =>
   new Group({

@@ -1,11 +1,11 @@
 import { vi } from 'vitest';
 
-import { ValidChangedAction, ValueChangedAction } from './actions';
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { transaction } from './transaction';
-import { Validators } from './validators';
+import { ValidChangedAction, ValueChangedAction } from '../actions';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { transaction } from '../transaction';
+import { Validators } from '../validators';
 
 /** what a UI layer attaches to an element: the properties it binds to the input it renders the element with */
 interface Presentation {

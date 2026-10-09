@@ -1,12 +1,12 @@
 import { isEmpty } from 'lodash-es';
 import { computed, nextTick, ref, watch, watchEffect } from 'vue';
 
-import { ValueChangedAction } from './actions';
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { ValidationError, Validators } from './validators';
-import { view } from './view';
+import { ValueChangedAction } from '../actions';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { ValidationError, Validators } from '../validators';
+import { view } from '../view';
 
 /**
  * The recipes of docs/guide/cookbook.md, each run as the page writes it.

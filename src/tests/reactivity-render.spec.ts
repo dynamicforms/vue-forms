@@ -2,10 +2,10 @@ import { mount } from '@vue/test-utils';
 import { type MockInstance, vi } from 'vitest';
 import { nextTick } from 'vue';
 
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { ValidationError } from './validators';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { ValidationError } from '../validators';
 
 const ErrorHost = {
   props: { form: { type: Object, required: true } },

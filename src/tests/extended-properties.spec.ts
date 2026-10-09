@@ -1,10 +1,10 @@
-import { Action, type ActionValue } from './action';
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { transaction } from './transaction';
-import { ValidationError } from './validators/validation-error';
-import { Validator } from './validators/validator';
+import { Action, type ActionValue } from '../action';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { transaction } from '../transaction';
+import { ValidationError } from '../validators/validation-error';
+import { Validator } from '../validators/validator';
 
 /** what a UI layer attaches to an element: the properties it binds to the input it renders the element with */
 interface Presentation {

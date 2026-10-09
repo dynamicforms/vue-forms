@@ -10,7 +10,7 @@ describe('the devtools plugin in the devtools kit', () => {
   it('lists component state in the inspector and in the component inspector, once', async () => {
     const kit: any = await import('@vue/devtools-kit');
     kit.initDevTools();
-    const { Field, Group } = await import('../../index');
+    const { Field, Group } = await import('../index');
     const Demo = defineComponent({
       name: 'PersonDemo',
       setup() {

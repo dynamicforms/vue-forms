@@ -1,10 +1,10 @@
 import { expectTypeOf } from 'vitest';
 
-import { Action } from './action';
-import { Field } from './field';
-import { type Extras } from './field.interface';
-import { Group } from './group';
-import { List } from './list';
+import { Action } from '../action';
+import { Field } from '../field';
+import { type Extras } from '../field.interface';
+import { Group } from '../group';
+import { List } from '../list';
 
 /**
  * The augmentation a UI layer performs, written here against the module the interface is declared in; a consumer
@@ -15,7 +15,7 @@ import { List } from './list';
  * The interface is one per compilation, so this block is in force for every other spec too. Names that no other
  * spec uses keep it from answering for something a spec meant to reject.
  */
-declare module './field.interface' {
+declare module '../field.interface' {
   interface Extras {
     hint?: string;
     cssClass?: string;

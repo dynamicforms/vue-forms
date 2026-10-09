@@ -1,12 +1,12 @@
 import { nextTick, watchEffect } from 'vue';
 
-import { ContributionChangedAction, ValidChangedAction, ValueChangedAction } from './actions';
-import { Field } from './field';
-import { FieldBase } from './field-base';
-import { Group } from './group';
-import { List } from './list';
-import { transaction } from './transaction';
-import { ValidationError, Validators } from './validators';
+import { ContributionChangedAction, ValidChangedAction, ValueChangedAction } from '../actions';
+import { Field } from '../field';
+import { FieldBase } from '../field-base';
+import { Group } from '../group';
+import { List } from '../list';
+import { transaction } from '../transaction';
+import { ValidationError, Validators } from '../validators';
 
 /** every transition of `element`'s own announcements of one kind, newest last */
 function watchOwn(element: FieldBase, kind: 'value' | 'valid' | 'contribution'): unknown[] {

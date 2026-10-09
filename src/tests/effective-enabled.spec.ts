@@ -1,8 +1,8 @@
 import { computed, effectScope } from 'vue';
 
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
 
 const form = () =>
   new Group({

@@ -1,12 +1,12 @@
 import { vi } from 'vitest';
 import { computed, EffectScope, effectScope, nextTick, watchEffect } from 'vue';
 
-import { ValueChangedAction } from './actions';
-import { Field } from './field';
-import { FieldBase } from './field-base';
-import { Group } from './group';
-import { ValidationError, Validators } from './validators';
-import { ValidationFunctionResult, Validator } from './validators/validator';
+import { ValueChangedAction } from '../actions';
+import { Field } from '../field';
+import { FieldBase } from '../field-base';
+import { Group } from '../group';
+import { ValidationError, Validators } from '../validators';
+import { ValidationFunctionResult, Validator } from '../validators/validator';
 
 /**
  * The contract a UI layer binds an element to a rendered control with, held from that layer's seat rather than

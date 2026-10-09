@@ -1,7 +1,7 @@
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { Validators } from './validators';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { Validators } from '../validators';
 
 describe('a rule written against a field of an enclosing row', () => {
   const buildOrders = (target: any) => {

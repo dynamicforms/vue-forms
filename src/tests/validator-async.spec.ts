@@ -4,9 +4,8 @@ import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
 import { transaction } from '../transaction';
-
-import { ValidationError } from './validation-error';
-import { ValidationFunctionResult, Validator } from './validator';
+import { ValidationError } from '../validators/validation-error';
+import { ValidationFunctionResult, Validator } from '../validators/validator';
 
 const delay = (ms: number) =>
   new Promise((resolve) => {

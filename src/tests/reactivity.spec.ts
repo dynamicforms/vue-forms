@@ -1,12 +1,12 @@
 import { isEqual } from 'lodash-es';
 import { EffectScope, effectScope, isReactive, isReadonly, nextTick, readonly, toRaw, watchEffect } from 'vue';
 
-import { Action } from './action';
-import { ValidationEpoch } from './element-state';
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { ValidationError, Validators } from './validators';
+import { Action } from '../action';
+import { ValidationEpoch } from '../element-state';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { ValidationError, Validators } from '../validators';
 
 /**
  * A field is not a proxy of itself - it carries __v_skip, and what is reactive is the state it holds its members

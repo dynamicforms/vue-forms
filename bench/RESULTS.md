@@ -84,7 +84,7 @@ Allocations per row, for the reason `BASELINE.md` gives: counting them means cou
 the library, which cannot be observed without changing its source. Retained bytes per field stands in.
 
 Re-render counts and `[Vue warn]` counts need a mounted component; this harness has none. Those live in
-`src/reactivity-render.spec.ts`, which passes unedited.
+`src/tests/reactivity-render.spec.ts`, which passes unedited.
 
 ---
 
@@ -281,4 +281,4 @@ Allocations per row, for the reason `BASELINE.md` gives: counting them means cou
 the library, which cannot be observed without changing its source. Retained bytes per field stands in.
 
 Re-render counts and `[Vue warn]` counts need a mounted component, which this harness has none of. They live in
-`src/reactivity-render.spec.ts`, which has passed unedited through every release in the table.
+`src/tests/reactivity-render.spec.ts`, which has passed unedited through every release in the table.
