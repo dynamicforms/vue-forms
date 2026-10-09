@@ -1,13 +1,13 @@
 import { expectTypeOf } from 'vitest';
 
-import { Action, type ActionValue } from './action';
-import Operator from './actions/conditional/operator';
-import { Statement } from './actions/conditional/statement';
-import { Container } from './container';
-import { Field } from './field';
-import { FieldBase } from './field-base';
-import { Group } from './group';
-import { List } from './list';
+import { Action, type ActionValue } from '../action';
+import Operator from '../actions/conditional/operator';
+import { Statement } from '../actions/conditional/statement';
+import { Container } from '../container';
+import { Field } from '../field';
+import { FieldBase } from '../field-base';
+import { Group } from '../group';
+import { List } from '../list';
 
 /**
  * Type-level contract for the public construction surface. These assertions are enforced by `vue-tsc --noEmit`,

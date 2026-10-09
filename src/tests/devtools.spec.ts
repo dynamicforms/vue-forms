@@ -3,12 +3,11 @@ import { mount } from '@vue/test-utils';
 import { vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 
-import { Field } from '../../field';
-import { Group } from '../../group';
-import { List } from '../../list';
-
-import { configureDevtools, describeState, hideState } from './api';
-import { callerFile, entryOf, listed } from './registry';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { configureDevtools, describeState, hideState } from '../plugins/devtools/api';
+import { callerFile, entryOf, listed } from '../plugins/devtools/registry';
 
 const handlers: Record<string, (payload: any) => void> = {};
 // the devtools API a plugin's setup function receives; the handlers it registers are kept for the tests
@@ -210,7 +209,7 @@ describe('state a component constructs', () => {
 
 describe('editing in the inspector', () => {
   it('writes the value of a leaf, a member of an object it holds, access, visibility, touched and extra', async () => {
-    const { applyEdit } = await import('./plugin');
+    const { applyEdit } = await import('../plugins/devtools/plugin');
     const name = new Field({ value: 'Ada' });
     const address = new Field({ value: { city: 'Kranj', zip: '4000' } });
     const form = new Group({ name, address }, { hint: 'h' } as any);
@@ -228,7 +227,7 @@ describe('editing in the inspector', () => {
   });
 
   it('leaves a container value and a refused value as they are', async () => {
-    const { applyEdit } = await import('./plugin');
+    const { applyEdit } = await import('../plugins/devtools/plugin');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const form = new Group({ name: new Field({ value: 'Ada' }) });
 
@@ -244,7 +243,7 @@ describe('editing in the inspector', () => {
 
 describe('an access or a visibility typed in the inspector', () => {
   it('is matched as a value or by its letter, ignoring case', async () => {
-    const { optionNamed } = await import('./plugin');
+    const { optionNamed } = await import('../plugins/devtools/plugin');
     const access = { e: 'editable', r: 'readonly', d: 'disabled', n: 'disabled-null' };
 
     expect(optionNamed('R', access)).toBe('readonly');
@@ -254,7 +253,7 @@ describe('an access or a visibility typed in the inspector', () => {
     expect(optionNamed('read', access)).toBe('read');
 
     const field = new Field({ value: 1 });
-    const { applyEdit } = await import('./plugin');
+    const { applyEdit } = await import('../plugins/devtools/plugin');
     applyEdit(field, 'element', ['visibility'], 'H');
     expect(field.visibility).toBe('hidden');
   });

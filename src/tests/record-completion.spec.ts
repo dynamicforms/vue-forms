@@ -1,8 +1,8 @@
-import { ValueChangedAction } from './actions';
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { ValidationError, Validators } from './validators';
+import { ValueChangedAction } from '../actions';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { ValidationError, Validators } from '../validators';
 
 /** a unit price that is required while the quantity of the same row is above zero */
 function lineItem() {

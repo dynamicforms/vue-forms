@@ -1,10 +1,10 @@
 import { expectTypeOf } from 'vitest';
 
-import { Action, ActionValue } from './action';
-import { ValueChangedAction } from './actions';
-import { Field } from './field';
-import { IFieldParams } from './field.interface';
-import { Group } from './group';
+import { Action, ActionValue } from '../action';
+import { ValueChangedAction } from '../actions';
+import { Field } from '../field';
+import { IFieldParams } from '../field.interface';
+import { Group } from '../group';
 
 /**
  * How a UI library renders an action: the value it widens `ActionValue` to. `label` and `icon` are restated at the

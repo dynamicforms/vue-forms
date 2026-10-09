@@ -1,13 +1,13 @@
 import { vi } from 'vitest';
 
-import { ListItemAddedAction, ListItemRemovedAction, ValidChangedAction, ValueChangedAction } from './actions';
-import { Field } from './field';
-import { FieldBase } from './field-base';
-import { GenericFieldsInterface, Group } from './group';
-import { List } from './list';
-import { transaction } from './transaction';
-import { ValidationError } from './validators/validation-error';
-import { ValidationFunctionResult, Validator } from './validators/validator';
+import { ListItemAddedAction, ListItemRemovedAction, ValidChangedAction, ValueChangedAction } from '../actions';
+import { Field } from '../field';
+import { FieldBase } from '../field-base';
+import { GenericFieldsInterface, Group } from '../group';
+import { List } from '../list';
+import { transaction } from '../transaction';
+import { ValidationError } from '../validators/validation-error';
+import { ValidationFunctionResult, Validator } from '../validators/validator';
 
 /**
  * A ValidChangedAction carries the new verdict and the one it replaces, and the pair a level emits is the whole

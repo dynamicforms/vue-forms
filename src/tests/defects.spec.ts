@@ -16,7 +16,7 @@ import {
   view,
   VisibilityChangedAction,
   VisibilityChangingAction,
-} from './index';
+} from '../index';
 
 describe('a construction parameter named like a member', () => {
   it('becomes an extended property where it names a method, and leaves the method as it is', () => {

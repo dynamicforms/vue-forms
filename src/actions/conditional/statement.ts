@@ -1,8 +1,8 @@
 import { isString } from 'lodash-es';
 import { unref } from 'vue';
 
-import { resolveInScope } from '../../binding/resolve';
 import { FieldBase } from '../../field-base';
+import { resolveInScope } from '../../resolve';
 
 import Operator from './operator';
 

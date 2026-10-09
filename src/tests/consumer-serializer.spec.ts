@@ -1,10 +1,10 @@
 import { expectTypeOf } from 'vitest';
 
-import { isAccess } from './access';
-import { Field } from './field';
-import { Group } from './group';
-import { List } from './list';
-import { isVisibility } from './visibility';
+import { isAccess } from '../access';
+import { Field } from '../field';
+import { Group } from '../group';
+import { List } from '../list';
+import { isVisibility } from '../visibility';
 
 /**
  * What a serializer works over: the whole of a form in one read, and a whole record in one write. The elements

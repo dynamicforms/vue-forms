@@ -10,8 +10,9 @@ import {
   ValidationError,
   Validators,
   ValueChangedAction,
-} from '../../index';
-import { setTrackingWarnings, TrackedDate, TrackedMap, tracking, untracked } from '../tracking';
+} from '../index';
+
+import { setTrackingWarnings, TrackedDate, TrackedMap, tracking, untracked } from './tracking';
 
 let uninstall: () => void;
 beforeEach(() => {

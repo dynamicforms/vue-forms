@@ -1,14 +1,14 @@
 import { vi } from 'vitest';
 import { watch } from 'vue';
 
-import { Action } from './action';
-import { ExecuteAction, RejectAction, SubmitAction, SubmitFailedException, SubmitRefusedException } from './actions';
-import { BeginValidating } from './element-state';
-import { Field } from './field';
-import { type FieldBase } from './field-base';
-import { Group } from './group';
-import { List } from './list';
-import { Validators } from './validators';
+import { Action } from '../action';
+import { ExecuteAction, RejectAction, SubmitAction, SubmitFailedException, SubmitRefusedException } from '../actions';
+import { BeginValidating } from '../element-state';
+import { Field } from '../field';
+import { type FieldBase } from '../field-base';
+import { Group } from '../group';
+import { List } from '../list';
+import { Validators } from '../validators';
 
 /** starts and ends asynchronous validation runs on an element through the internal API, one run per call */
 const runs = new Map<object, (() => void)[]>();
