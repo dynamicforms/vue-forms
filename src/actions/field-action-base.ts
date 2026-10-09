@@ -80,7 +80,8 @@ export default abstract class FieldActionBase {
   /**
    * Called when `binding` is reset to a new binding of its declaration: a member of a bound group, or a `List` row
    * reused for another record. An override drops what it keeps about the element's state before the reset; the
-   * element's eager actions run again once its record is complete.
+   * element's eager actions other than the validators run again once the reset holds every new value, before the
+   * baseline is recorded.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   resetBinding(binding: FieldBase) {}

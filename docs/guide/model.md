@@ -111,7 +111,8 @@ the key. `boundToBinding(binding)` is called once for every element the action i
 `unregisterFrom(binding)` once for every element it is removed from. `resetBinding(binding)` is called when a
 binding is reset to a new binding of its declaration (a member of a bound group, a reused `List` row); an override drops the
 state it keeps about the element, which `protected forgetState(key)` does with a rollback restoring it. The
-element's eager actions then run again over the new record.
+element's eager actions other than the validators then run again over the new record, before its baseline is
+recorded.
 
 An action belongs to the declaration, and a binding reads the declaration's actions directly. Registering an action
 on one row of a list therefore registers it on the item template, and it applies to every row, existing and added

@@ -1,6 +1,7 @@
 import { expectTypeOf } from 'vitest';
 
 import { Action, type ActionValue } from '../action';
+import { CommandException, SubmitFailedException, SubmitRefusedException, type SubmitResult } from '../actions';
 import Operator from '../actions/conditional/operator';
 import { Statement } from '../actions/conditional/statement';
 import { Container } from '../container';
@@ -266,5 +267,21 @@ describe('Statement construction', () => {
     // what the compiler now refuses, the constructor refused at runtime all along
     // @ts-expect-error the call under test is the one the overload rejects
     expect(() => new Statement(flag, Operator.EQUALS)).toThrow(TypeError);
+  });
+});
+
+describe('submit result', () => {
+  it('narrows SubmitResult | CommandException by the base class first', () => {
+    const narrow = (result: SubmitResult<{ id: number }> | CommandException) => {
+      if (result instanceof CommandException) {
+        if (result instanceof SubmitRefusedException)
+          expectTypeOf(result.reason).toEqualTypeOf<'invalid' | 'running'>();
+        else if (result instanceof SubmitFailedException) expectTypeOf(result.cause).toEqualTypeOf<unknown>();
+      } else {
+        expectTypeOf(result.received).toEqualTypeOf<{ id: number }>();
+        expectTypeOf(result.sent).toEqualTypeOf<unknown>();
+      }
+    };
+    expect(narrow).toBeTypeOf('function');
   });
 });

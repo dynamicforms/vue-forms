@@ -152,63 +152,64 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     if (newValue != null && !Array.isArray(newValue)) {
       throw new TypeError('Invalid value provided: a list takes an array of rows, or null to empty it');
     }
-    transactional((tx) => {
-      tx.touch(this);
-      // the rows before the write, so `items` builds a new array only if the assignment changes the set of rows; an
-      // assignment that keeps every row keeps the array a reader already has
-      const held = this.raw.rows;
-      // null clears the list, as Group.value = null writes null into every member; otherwise a list nested in a
-      // group would keep its rows while every sibling field was cleared
-      const removed = (item: R, index: number) => {
-        if (announce) tx.recordStructural(this, { actionClass: ListItemRemovedAction, item, index });
-      };
-      const added = (item: R, index: number) => {
-        if (announce) tx.recordStructural(this, { actionClass: ListItemAddedAction, item, index });
-      };
-      if (newValue == null) {
-        const previous = this.raw.rows ?? [];
-        for (let index = previous.length - 1; index >= 0; index--) removed(previous[index], index);
-        this.releaseRows();
-        this.raw.rows = null;
-      } else {
-        const previous = this.raw.rows ?? [];
-        // rows past the new length leave first, from the last one, so every announced index is the row's position
-        // at the moment it leaves
-        for (let index = previous.length - 1; index >= newValue.length; index--) removed(previous[index], index);
-        // the new rows are built in a separate array and installed together: writing a row runs its validators, and
-        // a validator that reads this list during the loop must not see an unfilled position
-        const rows: R[] = new Array(newValue.length);
-        for (let index = 0; index < newValue.length; index++) {
-          const item = newValue[index];
-          const row = previous[index];
-          // an existing row at this index takes the new item, so its identity is kept and a keyed v-for keeps the
-          // component rendering it. This requires an item template: a list without one builds each row from its
-          // own data, so two rows can have different members, and writing one row's data into another's members
-          // would drop the members they do not share. The row is reset, not assigned, so it ends in the state of a
-          // row built for this position.
-          // A row the list did not build from its item template (an element passed to push()) is replaced: reset
-          // through the template, it would lose the members the template does not have.
-          const template = this._itemTemplate;
-          if (row && template && !(item instanceof FieldBase) && row.declaration === template.declaration) {
-            this.resetChild(row, template, item);
-            rows[index] = row;
-          } else {
-            if (row) {
-              this.releaseChild(row);
-              removed(row, index);
+    // a reused row is reset; its rules apply and its baseline is recorded once every row holds its new item
+    transactional((tx) =>
+      this.asReset(() => {
+        tx.touch(this);
+        // the rows before the write, so `items` builds a new array only if the assignment changes the set of rows; an
+        // assignment that keeps every row keeps the array a reader already has
+        const held = this.raw.rows;
+        // null clears the list, as Group.value = null writes null into every member; otherwise a list nested in a
+        // group would keep its rows while every sibling field was cleared
+        const removed = (item: R, index: number) => {
+          if (announce) tx.recordStructural(this, { actionClass: ListItemRemovedAction, item, index });
+        };
+        const added = (item: R, index: number) => {
+          if (announce) tx.recordStructural(this, { actionClass: ListItemAddedAction, item, index });
+        };
+        if (newValue == null) {
+          const previous = this.raw.rows ?? [];
+          for (let index = previous.length - 1; index >= 0; index--) removed(previous[index], index);
+          this.releaseRows();
+          this.raw.rows = null;
+        } else {
+          const previous = this.raw.rows ?? [];
+          // rows past the new length leave first, from the last one, so every announced index is the row's position
+          // at the moment it leaves
+          for (let index = previous.length - 1; index >= newValue.length; index--) removed(previous[index], index);
+          // the new rows are built in a separate array and installed together: writing a row runs its validators, and
+          // a validator that reads this list during the loop must not see an unfilled position
+          const rows: R[] = new Array(newValue.length);
+          for (let index = 0; index < newValue.length; index++) {
+            const item = newValue[index];
+            const row = previous[index];
+            // an existing row at this index takes the new item, so its identity is kept and a keyed v-for keeps the
+            // component rendering it. This requires an item template: a list without one builds each row from its
+            // own data, so two rows can have different members, and writing one row's data into another's members
+            // would drop the members they do not share. The row is reset, not assigned, so it ends in the state of a
+            // row built for this position.
+            // A row the list did not build from its item template (an element passed to push()) is replaced: reset
+            // through the template, it would lose the members the template does not have.
+            const template = this._itemTemplate;
+            if (row && template && !(item instanceof FieldBase) && row.declaration === template.declaration) {
+              this.resetChild(row, template, item);
+              rows[index] = row;
+            } else {
+              if (row) {
+                this.releaseChild(row);
+                removed(row, index);
+              }
+              rows[index] = this.processSetValueItem(item);
+              added(rows[index], index);
             }
-            rows[index] = this.processSetValueItem(item);
-            added(rows[index], index);
           }
+          for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
+          this.raw.rows = rows;
         }
-        for (let index = newValue.length; index < previous.length; index++) this.releaseChild(previous[index]);
-        this.raw.rows = rows;
-        // the reused rows hold their new records, so their eager actions run over them
-        this.completeRecords();
-      }
-      if (List.rowsDiffer(held, this.raw.rows)) this.rowsChanged();
-      this.bumpValueVersion();
-    });
+        if (List.rowsDiffer(held, this.raw.rows)) this.rowsChanged();
+        this.bumpValueVersion();
+      }),
+    );
   }
 
   get value(): ListValue<R> {
@@ -255,11 +256,15 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       tx.touch(this);
       if (this.errors.length) this.errors = [];
       this.setValueInternal(value === undefined ? (source as List<R>).fullValue : value);
-      // a reset list announces nothing itself: the container that reset it announces the change
-      this.recordAnnounced();
-      this.originalValue = List.baseline(this.value);
+      this.recordBaseline();
       super.validate(true);
     });
+  }
+
+  protected recordBaseline(): void {
+    // a reset list announces nothing itself: the container that reset it announces the change
+    this.recordAnnounced();
+    this.originalValue = List.baseline(this.value);
   }
 
   bind(data?: ListValueInput<R>, overrides?: IBindParams<ListValueInput<R>, X>): List<R, X> {

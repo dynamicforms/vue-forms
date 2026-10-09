@@ -51,6 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   replaces the instance on the field.
 
 ### Fixed
+- `rebind()` and a `List` assignment that reuses rows record the baseline after the conditional actions applied
+  over the new record. A rebound element whose rule enables or disables a member reported `isChanged` `true`.
 - A `tx.rollback()` whose signal a `try`/`catch` in the callback caught let the transaction commit; it rolls back.
 - `Required` and the length validators measure a `Map` and a `Set` by size and an object without a prototype by its
   keys; such an object threw.
