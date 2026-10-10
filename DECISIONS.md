@@ -603,8 +603,9 @@ each mechanism answered for one case. The application already owns the locale, t
 names of its own codes and whether it renders markdown, so the error carries what failed and the application says
 it.
 
-**One path for every error.** The shape is the one a `@dynamicforms/fastapi-viewsets` server answers with —
-`detail_code`, `detail_params`, `detail` — so a validator's error and a server's error reach the same `errorText`.
+**One path for every error.** A validator's error and an error built from a server's response carry the same
+`code`, `params` and `detail`, so both reach the same `errorText`. The origin is a client-side convention: the
+application sets `'server'` when it builds the error, and the server does not send it.
 
 **Codes are snake_case.** A code is the key an application looks its translation up by, and snake_case is the one
 form that is a plain identifier in JavaScript and in Python alike, so a dictionary of translations needs no quoted

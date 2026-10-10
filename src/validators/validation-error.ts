@@ -9,8 +9,8 @@ export type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {})
 
 /**
  * The content of an error: what failed, the values it failed with, an English sentence describing it, and its
- * origin. It has the shape of an error a `@dynamicforms/fastapi-viewsets` server returns (`detail_code`,
- * `detail_params` and `detail`), so a renderer converts validator and server errors to text with one function.
+ * origin. An error the application builds from a server's response has the same content, so a renderer converts
+ * validator and server errors to text with one function.
  */
 export interface ErrorDescription {
   /** Machine-readable identifier of what failed, in snake_case. */

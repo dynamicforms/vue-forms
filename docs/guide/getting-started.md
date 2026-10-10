@@ -118,10 +118,9 @@ const errorText = (error) => (te(`errors.${error.code}`) ? tf(`errors.${error.co
 
 A function called on every render reflects a locale switch without revalidating the field. Falling back to
 `detail` allows an application to use a locale before every code is translated. The codes, their params and their
-English details are listed under [Error codes](/api/validators#error-codes). A server error has the same shape when
-it is built as a [`ValidationError`](/api/validators#validationerror) from the `detail_code`, `detail_params` and
-`detail` a `@dynamicforms/fastapi-viewsets` server returns. The [validators demo](/examples/validators) renders its
-errors this way in eight languages, with and without markdown.
+English details are listed under [Error codes](/api/validators#error-codes). An error the application builds from a
+server's response as a [`ValidationError`](/api/validators#validationerror) is rendered by the same function. The
+[validators demo](/examples/validators) renders its errors this way in eight languages, with and without markdown.
 
 A validator takes `{ code, detail }` as its last argument. A field that needs its own text for a failure uses its
 own code, which the application translates like any other:
@@ -129,6 +128,28 @@ own code, which the application translates like any other:
 ```typescript
 new Validators.Required({ code: 'role_required', detail: 'Select a role' });
 ```
+
+Every code the library raises, with its English detail, as a starting point for a locale's messages:
+
+```json
+{
+  "errors": {
+    "required": "Please enter a value",
+    "pattern": "Value must match pattern \"{pattern}\"",
+    "min_value": "Value must be larger or equal to {minValue}",
+    "max_value": "Value must be less than or equal to {maxValue}",
+    "value_in_range": "Value must be between {minValue} and {maxValue}",
+    "min_length": "Length must be larger or equal to {minLength}",
+    "max_length": "Length must be less than or equal to {maxLength}",
+    "length_in_range": "Length must be between {minLength} and {maxLength}",
+    "in_allowed_values": "Must be one of [{allowedAsText}]",
+    "compare_to": "Value does not match the comparison with {otherValue}",
+    "validation_failed": "Validation could not be completed"
+  }
+}
+```
+
+The codes an application gives its own validators, and those of its server's errors, are added next to these.
 
 ## Versioning and support
 

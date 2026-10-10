@@ -35,8 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sends nothing either.
 - `ValidationError` is data: `new ValidationError(code, params, detail, origin?)`. It carries the `code` of what
   failed, the `params` it failed with, an English plain-text `detail` and an `origin`, and implements
-  `ErrorDescription`, the shape of an error a `@dynamicforms/fastapi-viewsets` server returns. The library does not
-  render it.
+  `ErrorDescription`. The library does not render it.
 - Error codes are snake_case and name what failed: `min` is `min_value`, `max` is `max_value`, `range` is
   `value_in_range`, `min-length` is `min_length`, `max-length` is `max_length`, `range-length` is
   `length_in_range`, `in-allowed-values` is `in_allowed_values`, `compare-to` is `compare_to` and
