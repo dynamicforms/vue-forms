@@ -24,7 +24,8 @@ subclass overrides a member, the entry below names it and links to the override.
 
 It holds every mutable member of an element in a separate reactive state object, so every form element is reactive
 without a wrapper: reading `field.value` in a template or a `computed` subscribes to that one slot, and assigning it
-re-renders whatever read it. The element itself is not a proxy, so `toRaw(field)` is `field`, and
+re-renders whatever read it. The element itself is not a proxy, so `toRaw(field)` is `field`, `ref([field])` is a
+`Ref` of the element's own class (see [Reactivity](/guide/model#reactivity)), and
 `watch(field, cb)` with a bare element as the source never fires. Watch the members you read:
 `watch(() => field.value, cb)`.
 

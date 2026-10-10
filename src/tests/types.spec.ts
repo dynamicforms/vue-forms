@@ -1,4 +1,5 @@
 import { expectTypeOf } from 'vitest';
+import { reactive, ref, type Ref } from 'vue';
 
 import { Action, type ActionValue } from '../action';
 import { CommandException, SubmitFailedException, SubmitRefusedException, type SubmitResult } from '../actions';
@@ -301,5 +302,18 @@ describe('validation error options', () => {
       new Validators.Required({ detail: 'Enter a name', trim: false }),
     ];
     expect(declare).toBeTypeOf('function');
+  });
+});
+
+describe('elements in Vue reactivity', () => {
+  it('keeps the class of an element held by ref() and reactive()', () => {
+    const action = new Action({ value: { label: 'Save' } });
+    const form = new Group({ name: new Field({ value: '' }), list: new List(new Field({ value: 0 })) });
+
+    const actions: Ref<Action[]> = ref([action]);
+    const held: Ref<typeof form> = ref(form);
+    const member: typeof form = reactive({ form }).form;
+    const fields: Field<string>[] = reactive({ fields: [form.fields.name] }).fields;
+    expect([actions, held, member, fields]).toHaveLength(4);
   });
 });

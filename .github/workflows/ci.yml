@@ -128,11 +128,16 @@ jobs:
           }
           JSON
           cat > probe.ts <<'TS'
-          import { Field, Group, List, ValidationError, Validators } from './lib.js';
+          import { reactive, ref, type Ref } from 'vue';
+          import { Action, Field, Group, List, ValidationError, Validators } from './lib.js';
           export const error = new ValidationError('taken', {}, 'Taken', 'server');
           export const field = new Field({ value: 1, validators: [new Validators.Required()] });
           export const group = new Group({ field });
           export const list = new List(group);
+          // the element classes are in Vue's RefUnwrapBailTypes, so ref() and reactive() keep them
+          export const actions: Ref<Action[]> = ref([new Action({ value: { label: 'Save' } })]);
+          export const held: Ref<typeof group> = ref(group);
+          export const member: typeof group = reactive({ group }).group;
           TS
           npm install --no-audit --no-fund typescript@5 vue@${{ steps.floor.outputs.vue }}
           ./node_modules/.bin/tsc -p tsconfig.json
