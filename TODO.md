@@ -25,46 +25,46 @@ fail or be refused. It would take a handler, as `SubmitAction` does, and end wit
 handler is an option of `RejectAction` or a separate action, and whether a refused and a failed reject are two
 classes, as for a submit.
 
-## Before the 3.0.0 release: what the application-state items need from the 3.0 surface
-
-Every item of the next section is checked before 3.0.0 is tagged: does it belong in 3.x, and if so, what does its
-implementation need from the surface 3.0 publishes — a hook, a payload shape, a policy such as value identity or
-what a commit records. Each gets a short specification that answers that. Only the parts of the surface the
-specifications show are needed are added or changed for 3.0; the items themselves are not implemented. An item
-whose implementation would change published behaviour is a 4.0 change if it is not settled here.
-
 ## What application state asks of the library beyond what a form does
 
-Application state is a design goal (`docs/guide/rationale.md`), and the things below that state held outside a form
-may rely on are not settled. Each needs to be looked at and decided — implemented, left to the application with a
-documented pattern, or declined — not necessarily built. Many of them, 3 onwards in particular, read as something a
-plugin could add, so the plugin system (2) is decided first and may settle several of the others:
+Application state is a design goal (`docs/guide/rationale.md`). Each item below belongs in 3.x, and each is added
+without a change to what 3.0 publishes; what the 3.0 surface has to hold for them is settled in `DECISIONS.md`
+(D-048, D-049). The commit record (2) comes first, since 1, 3 and 4 are built on it.
 
 1. **Vue devtools: a timeline.** The inspector lists, shows and edits the state (`src/plugins/devtools/`); there is no
-   timeline of transactions, actions and validation runs. It needs the observer hooks of plugins (2).
-2. **Plugins: observers of events.** `installPlugin()` has the value pipeline (`onSetValue`, `onSetOriginalValue`),
-   `onElementCreated` and `onCommit`; there are no hooks on the events (value, access and visibility changes,
-   execute, validation runs), run after the element's own handlers, for persistence, logging and the devtools
-   timeline.
-3. **Undo, redo and a history of changes** (MobX-State-Tree, Redux devtools, Immer patches). A transaction already
-   captures what it changes and can put it back; a history of committed transactions is the natural extension.
-4. **Snapshots and patches as a stream of changes** (MobX-State-Tree `onPatch` / `applyPatch`, Immer patches). Every
-   change as a serializable diff, for autosave, sync across tabs or devices, and collaborative editing.
-5. **Normalized entities and references by id** (Redux Toolkit entity adapter, MobX-State-Tree references, the
-   Apollo cache). One record several places point to, rather than a copy in each list that holds it.
-6. **State machines and statecharts** (XState). Explicit states and the transitions allowed between them — draft,
-   submitted, confirmed — with a transition refused where it is not allowed. Conditional actions cover part of it.
-7. **State derived from a schema** (MobX-State-Tree types, Zod integrations). Groups, fields and validators built from
-   one JSON Schema or Zod schema that also checks the shape.
+   timeline of transactions. Each committed transaction is a timeline event built from the commit record (2).
+2. **Plugins: the commit record.** `onCommit()` takes an argument describing the committed transaction: each element
+   it modified with its value, `originalValue`, access, visibility and validity before and after, and the rows added
+   and removed with their index. The state before is the snapshot the transaction takes at an element's first write.
+   An argument added to `onCommit` breaks no plugin that declares none. An optional origin tag on the transaction
+   (`transaction(fn, options?)`) is carried by the record, so a sync plugin does not send back a change it applied.
+3. **Undo, redo and a history of changes** (MobX-State-Tree, Redux devtools, Immer patches). A plugin exported from
+   its own entry point, as tracking is, keeps the commit records; undo applies the state before of one record in a
+   new transaction tagged as an undo. A removed row is released and can be put back into its list, so undoing a
+   remove restores the same element.
+4. **Snapshots and patches as a stream of changes** (MobX-State-Tree `onPatch` / `applyPatch`, Immer patches). A
+   plugin that turns a commit record into a serializable patch addressed by path (member names and row indexes,
+   resolved with `Group.field()` and `List.get()`), and applies a patch in a transaction tagged with its origin.
+   `form.value` after a commit is a snapshot: it is frozen, and every part that did not change is the object of the
+   previous snapshot.
+5. **Normalized entities and references by id** (Redux Toolkit entity adapter, the Apollo cache). A container of
+   records by key, and links that keep an element shown elsewhere equal to its record by writing one into the other
+   in the same transaction (D-048). A new class and a plugin; no existing class changes.
+6. **State machines and statecharts** (XState). A field holding the state, and a `ValueChangingAction` that refuses a
+   transition the way `AccessChangingAction` refuses an access change. A new action class; nothing already
+   registered behaves differently.
+7. **State derived from a schema** (MobX-State-Tree types, Zod integrations). A builder of groups, fields and
+   validators from a JSON Schema or a Zod schema, in its own entry point or package. It uses the published
+   constructors only.
 
 ## Making the library a state library as well
 
 The library holds application state as well as forms; the documentation presents it as a forms library. What the
 change of positioning needs, in order:
 
-1. **The plugin system first** (item 2 above): observers on events. The guide below can only describe what it
-   settles. Where state lives is decided: wherever the application builds it; the devtools list it by file and by
-   component (`docs/api/devtools.md`).
+1. **The commit record first** (item 2 above). The guide below can only describe what it settles. Where state
+   lives is decided: wherever the application builds it; the devtools list it by file and by component
+   (`docs/api/devtools.md`).
 2. **A guide page "Application state"**, beside The model: building state that is not a form, where to hold it (a
    module, `provide()`, a component), one definition with several instances, and links to the cookbook recipes
    (application state, hot module replacement, server-rendered state, free-form state, data from a server cache, a
