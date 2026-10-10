@@ -173,11 +173,14 @@ English detail, whose default is shown for each validator below, with the params
 argument of every built-in validator is `ValidationErrorOptions`:
 
 ```typescript
-interface ValidationErrorOptions {
-  code?: string;   // replaces the validator's code
-  detail?: string; // replaces the validator's detail; {name} placeholders are replaced with the params
-}
+type ValidationErrorOptions =
+  | { code?: string }                  // replaces the validator's code
+  | { code: string; detail?: string }; // a detail, which replaces the validator's detail, requires a code
 ```
+
+`{name}` placeholders in `detail` are replaced with the params. A renderer chooses the text by the error's code and
+falls back to `detail`, so a detail under the validator's own code would not be shown where the renderer has a text
+for that code: `{ detail }` without `code` does not compile.
 
 The options do not change the params. A `{name}` placeholder that names no param stays in the detail unchanged. The
 application renders the error; see [Error messages and translation](/guide/getting-started#error-messages-and-translation).
@@ -211,9 +214,9 @@ new Field({ value: ' ', validators: [new Validators.Required({ trim: false })] }
 ```
 
 ```typescript
-interface RequiredOptions extends ValidationErrorOptions {
+type RequiredOptions = ValidationErrorOptions & {
   trim?: boolean;
-}
+};
 ```
 
 `RequiredOptions` is exported.
@@ -231,7 +234,7 @@ interface RequiredOptions extends ValidationErrorOptions {
 Fails when the string representation of a non-empty value does not match `pattern`; the value is converted with `String(value)` before testing. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes and flags (`/^\d{4}$/`). The validator tests with a copy of `pattern` without the `g` and `y` flags, so every value is tested from its start, and the expression passed in is not modified.
 
 ```typescript
-new Validators.Pattern(/^\d{4}$/, { detail: 'Must be a 4-digit number' })
+new Validators.Pattern(/^\d{4}$/, { code: 'pin_format', detail: 'Must be a 4-digit number' })
 ```
 
 | Parameter | Type | Default |
@@ -268,7 +271,7 @@ Fails when a non-empty value is larger than `maxValue`, or cannot be compared wi
 Fails when a non-empty value is smaller than `minValue` or larger than `maxValue`, or cannot be compared with either. A number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 ```typescript
-new Validators.ValueInRange(0, 100, { detail: 'Must be between 0 and 100' })
+new Validators.ValueInRange(0, 100, { code: 'percent_range', detail: 'Must be between 0 and 100' })
 ```
 
 | Parameter | Type | Default |
@@ -306,7 +309,7 @@ Fails when the length of a non-empty value exceeds `maxLength`.
 Fails when the length of a non-empty value is outside `[minLength, maxLength]`.
 
 ```typescript
-new Validators.LengthInRange(10, 200, { detail: 'Must be between 10 and 200 characters' })
+new Validators.LengthInRange(10, 200, { code: 'bio_length', detail: 'Must be between 10 and 200 characters' })
 ```
 
 | Parameter | Type | Default |
@@ -384,12 +387,12 @@ containers, so it finds the enclosing row.
 ```typescript
 const row = new Group({ password: new Field(), confirmation: new Field() });
 row.fields.confirmation.registerAction(
-  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, { detail: 'Passwords must match' }),
+  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, { code: 'passwords_differ', detail: 'Passwords must match' }),
 );
 // every row of new List(row, …) now compares its own two fields
 
 // the same rule written against the name, which needs no reference to the template
-new Validators.CompareTo<string>('password', (mine, other) => mine === other, { detail: 'Passwords must match' });
+new Validators.CompareTo<string>('password', (mine, other) => mine === other, { code: 'passwords_differ', detail: 'Passwords must match' });
 ```
 
 When the record does not yet hold the compared field (a row is validated while it is assembled, before it holds

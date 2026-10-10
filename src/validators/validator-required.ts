@@ -5,13 +5,13 @@ import { ValidationErrorOptions, ValidationFunction, Validator } from './validat
 import { toLength } from './value-checks';
 
 /** How the value is read before its length is measured, and the error's code and detail. */
-export interface RequiredOptions extends ValidationErrorOptions {
+export type RequiredOptions = ValidationErrorOptions & {
   /**
    * Whether a string is trimmed before it is measured, so that whitespace alone counts as no value. Defaults to
    * true. Set it to false if spaces are part of the field's value.
    */
   trim?: boolean;
-}
+};
 
 export default class Required extends Validator {
   constructor(options?: RequiredOptions) {

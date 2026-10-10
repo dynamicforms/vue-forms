@@ -239,7 +239,7 @@ describe('a value that contains a placeholder', () => {
   it('is substituted once, not substituted again by a later param', () => {
     const field = new Field({
       value: '{minLength}',
-      validators: [new Validators.MinLength(20, { detail: 'Got {newValue}, need {minLength}' })],
+      validators: [new Validators.MinLength(20, { code: 'custom', detail: 'Got {newValue}, need {minLength}' })],
     });
 
     expect(field.errors[0].detail).toBe('Got {minLength}, need 20');

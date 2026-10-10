@@ -16,7 +16,9 @@ describe('CompareTo Validator', () => {
     const field2 = new Field({ value: 'xyz' });
 
     // Add validator to check for equality
-    field1.registerAction(new CompareTo(field2, (val1, val2) => val1 === val2, { detail: 'Fields must match' }));
+    field1.registerAction(
+      new CompareTo(field2, (val1, val2) => val1 === val2, { code: 'custom', detail: 'Fields must match' }),
+    );
 
     // Verify that validator correctly detects mismatch
     expect(field1.errors.length).toBe(1);
@@ -37,7 +39,10 @@ describe('CompareTo Validator', () => {
 
     // Check if value is greater than limit
     numberField.registerAction(
-      new CompareTo(limitField, (num, limit) => num > limit, { detail: 'Value must be greater than limit' }),
+      new CompareTo(limitField, (num, limit) => num > limit, {
+        code: 'custom',
+        detail: 'Value must be greater than limit',
+      }),
     );
 
     // Initial value is valid (10 > 5)
@@ -66,12 +71,16 @@ describe('CompareTo Validator', () => {
     // Add validator to both fields to check for equality
     form.fields.password.registerAction(
       new CompareTo(form.fields.confirmPassword, (pass, confirm) => pass === confirm, {
+        code: 'custom',
         detail: 'Passwords must match',
       }),
     );
 
     form.fields.confirmPassword.registerAction(
-      new CompareTo(form.fields.password, (confirm, pass) => confirm === pass, { detail: 'Passwords must match' }),
+      new CompareTo(form.fields.password, (confirm, pass) => confirm === pass, {
+        code: 'custom',
+        detail: 'Passwords must match',
+      }),
     );
 
     // Check initial state - both fields should have errors
@@ -102,6 +111,7 @@ describe('CompareTo Validator', () => {
     });
     template.fields.confirmation.registerAction(
       new CompareTo(template.fields.password, (mine: string, other: string) => mine === other, {
+        code: 'custom',
         detail: 'Passwords must match',
       }),
     );
@@ -133,6 +143,7 @@ describe('CompareTo Validator', () => {
     });
     template.fields.dateTo.registerAction(
       new CompareTo(template.fields.dateFrom, (to: number, from: number) => to >= from, {
+        code: 'custom',
         detail: 'dateTo precedes dateFrom',
       }),
     );
@@ -158,7 +169,10 @@ describe('CompareTo Validator', () => {
       dateTo: new Field<number>({ value: 0 }),
     });
     template.fields.dateTo.registerAction(
-      new CompareTo<number>('dateFrom', (to, from) => to >= from, { detail: 'dateTo precedes dateFrom' }),
+      new CompareTo<number>('dateFrom', (to, from) => to >= from, {
+        code: 'custom',
+        detail: 'dateTo precedes dateFrom',
+      }),
     );
 
     const list = new List(template, {
@@ -179,7 +193,7 @@ describe('CompareTo Validator', () => {
     const section = new Group({ amount: new Field<number>({ value: 50 }) });
     const form = new Group({ limit: new Field<number>({ value: 10 }), section });
     section.fields.amount.registerAction(
-      new CompareTo<number>('limit', (amount, limit) => amount <= limit, { detail: 'over the limit' }),
+      new CompareTo<number>('limit', (amount, limit) => amount <= limit, { code: 'custom', detail: 'over the limit' }),
     );
 
     expect(section.fields.amount.errors.length).toBe(1);
@@ -197,7 +211,7 @@ describe('CompareTo Validator', () => {
       new CompareTo<number>(
         (field: FieldBase) => (field.parent as Group)?.field('dateFrom'),
         (to, from) => to >= from,
-        { detail: 'dateTo precedes dateFrom' },
+        { code: 'custom', detail: 'dateTo precedes dateFrom' },
       ),
     );
 
@@ -221,7 +235,10 @@ describe('CompareTo Validator', () => {
       dateTo: new Field<number>({ value: 5 }),
     });
     template.fields.dateTo.registerAction(
-      new CompareTo<number>(template.fields.dateFrom, (to, from) => to >= from, { detail: 'dateTo precedes dateFrom' }),
+      new CompareTo<number>(template.fields.dateFrom, (to, from) => to >= from, {
+        code: 'custom',
+        detail: 'dateTo precedes dateFrom',
+      }),
     );
     expect(template.fields.dateTo.errors.length).toBe(1);
 
@@ -247,7 +264,10 @@ describe('CompareTo Validator', () => {
       dateTo: new Field<number>({ value: 5 }),
     });
     named.fields.dateTo.registerAction(
-      new CompareTo<number>('dateFrom', (to, from) => to >= from, { detail: 'dateTo precedes dateFrom' }),
+      new CompareTo<number>('dateFrom', (to, from) => to >= from, {
+        code: 'custom',
+        detail: 'dateTo precedes dateFrom',
+      }),
     );
     expect(new List(named, { value: [{ dateFrom: 10, dateTo: 5 }] }).get(0)!.fields.dateTo.errors.length).toBe(1);
 
@@ -259,7 +279,7 @@ describe('CompareTo Validator', () => {
       new CompareTo<number>(
         (field: FieldBase) => (field.parent as Group)?.field('dateFrom'),
         (to, from) => to >= from,
-        { detail: 'dateTo precedes dateFrom' },
+        { code: 'custom', detail: 'dateTo precedes dateFrom' },
       ),
     );
     expect(new List(resolved, { value: [{ dateFrom: 10, dateTo: 5 }] }).get(0)!.fields.dateTo.errors.length).toBe(1);
@@ -274,11 +294,12 @@ describe('CompareTo Validator', () => {
     const lines = form.fields.lines as List;
 
     // registered on one row: a row is a binding, and a rule belongs to the declaration it was bound from
-    lines
-      .get(0)!
-      .fields.amount.registerAction(
-        new CompareTo<number>('limit', (amount, limit) => amount <= limit, { detail: 'over the limit' }),
-      );
+    lines.get(0)!.fields.amount.registerAction(
+      new CompareTo<number>('limit', (amount, limit) => amount <= limit, {
+        code: 'custom',
+        detail: 'over the limit',
+      }),
+    );
 
     form.fields.limit.value = 0;
 
@@ -293,7 +314,7 @@ describe('CompareTo Validator', () => {
   it('answers to a name that only the form holding the list holds', () => {
     const template = new Group({ amount: new Field<number>({ value: 5 }) });
     template.fields.amount.registerAction(
-      new CompareTo<number>('limit', (amount, limit) => amount <= limit, { detail: 'over the limit' }),
+      new CompareTo<number>('limit', (amount, limit) => amount <= limit, { code: 'custom', detail: 'over the limit' }),
     );
     const form = new Group({
       limit: new Field<number>({ value: 1 }),
@@ -310,7 +331,10 @@ describe('CompareTo Validator', () => {
 
   it('listens again when it is registered again after clearValidators()', () => {
     const limit = new Field<number>({ value: 10 });
-    const validator = new CompareTo<number>(limit, (mine, max) => mine <= max, { detail: 'above the limit' });
+    const validator = new CompareTo<number>(limit, (mine, max) => mine <= max, {
+      code: 'custom',
+      detail: 'above the limit',
+    });
     const field = new Field<number>({ value: 1 });
 
     field.registerAction(validator);
@@ -331,7 +355,10 @@ describe('CompareTo Validator', () => {
     // Check that values are different
     const errorMessage = 'Display name must be different from username';
     form.fields.displayName.registerAction(
-      new CompareTo(form.fields.username, (display, user) => display !== user, { detail: errorMessage }),
+      new CompareTo(form.fields.username, (display, user) => display !== user, {
+        code: 'custom',
+        detail: errorMessage,
+      }),
     );
 
     // Currently they are equal, so we expect an error
@@ -347,7 +374,10 @@ describe('CompareTo unregistration', () => {
   it('withdraws the error it placed when it is taken off the field', () => {
     const other = new Field({ value: 'xyz' });
     const field = new Field({ value: 'abc' });
-    const compare = new CompareTo(other, (mine, theirs) => mine === theirs, { detail: 'Fields must match' });
+    const compare = new CompareTo(other, (mine, theirs) => mine === theirs, {
+      code: 'custom',
+      detail: 'Fields must match',
+    });
 
     field.registerAction(compare);
     expect(field.errors.length).toBe(1);
@@ -367,7 +397,7 @@ describe('CompareTo Validator error code', () => {
   it('states the compare_to code on the error it produces', () => {
     const other = new Field({ value: 'xyz' });
     const field = new Field({ value: 'abc' });
-    field.registerAction(new CompareTo(other, (mine, theirs) => mine === theirs, { detail: 'Fields must match' }));
+    field.registerAction(new CompareTo(other, (mine, theirs) => mine === theirs));
 
     expect(field.errors[0].code).toBe('compare_to');
   });

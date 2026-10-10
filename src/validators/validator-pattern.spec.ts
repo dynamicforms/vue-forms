@@ -84,7 +84,7 @@ describe('Pattern Validator', () => {
 
     const field = new Field({
       value: 'lowercase',
-      validators: [new Pattern(pattern, { detail: customMessage })],
+      validators: [new Pattern(pattern, { code: 'custom', detail: customMessage })],
     });
 
     // Assert

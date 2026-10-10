@@ -99,7 +99,7 @@ describe('Field', () => {
     // Test with validator that creates error
     const fieldWithValidator = new Form.Field({
       value: '',
-      validators: [new Form.Validators.Required({ detail: 'Required field' })],
+      validators: [new Form.Validators.Required({ code: 'custom', detail: 'Required field' })],
     });
     expect(fieldWithValidator.valid).toBe(false);
     expect(fieldWithValidator.errors.length).toBe(1);
