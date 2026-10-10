@@ -810,3 +810,50 @@ does.
 
 **Rejected: the devtools as a plugin the application installs.** The modules that build global state are imported,
 and run, before the entry module's own code, so a plugin installed there would not see that state.
+
+## D-048 — An element has one parent; a record shown in several places is several elements
+
+**Version:** 3.0.0
+
+An element belongs to one container at a time, and a container that takes an element with a parent throws a
+TypeError. `parent`, `fieldName`, the access and visibility a member inherits, the invalid count of a container,
+what a container serializes and the order of the commit (deepest first) are each defined over the one path from the
+root to the element.
+
+A record that application state shows in several places (normalized entities, references by id) is an element in
+each place, each with its own parent and its own access, visibility and errors, and the values are kept equal by
+writing one into the other inside the same transaction. A handler that writes during the commit joins the
+transaction, so the linked writes commit and roll back together.
+
+**Rejected: several parents** (MobX-State-Tree references, an Apollo cache entry held by several queries). The
+inherited access and visibility, the depth and the name of an element held by two containers have no single value,
+and the packages built on the library read `parent` as one container.
+
+**Rejected: the number of parents chosen by a plugin.** Plugins are installed per module instance, so the choice
+would change the meaning of `parent` for every package that shares it, and the core would have to define every
+derived property for several parents for the plugin that restricts it to one.
+
+## D-049 — A plugin observes committed transactions, not events
+
+**Version:** 3.0.0
+
+A plugin that observes changes (the devtools timeline, a history, patches, persistence, sync) is told once per
+committed transaction, after the commit has announced everything and the handlers that wrote during it have run.
+A rolled-back transaction tells it nothing. The value hooks are a pipeline on the write, not observers: a rollback
+restores the stored value without calling them.
+
+The element's own actions run during the commit, may write, and a throw from one of them rolls the transaction back
+after part of it has been announced to the other handlers. An observer that is told only of committed transactions
+never sees such a partial change.
+
+What the observer needs is the change itself: each element the transaction modified with its state before and
+after, and the rows added and removed. The transaction holds the state before, as the snapshot taken at the first
+write of each element, and the composed value of a container is frozen and keeps its identity while nothing below
+it changes, so a value from one commit is shared by the next where it did not change.
+
+**Rejected: a hook per event** (value, access and visibility changes, execute, validation runs). An observer would
+receive the events of a commit that a later handler rolls back.
+
+**Rejected: copy-on-write state with the announcement after the swap.** A handler's write would be a new
+transaction instead of joining the one it reacts to, so a cascade of rules would no longer commit, announce and
+roll back as one change.
