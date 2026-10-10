@@ -164,8 +164,8 @@ as a changed `newValue`, replaces the error instance on the field.
 ### Validators take `{ code, detail }` instead of a message
 
 The `message` argument of every built-in validator is replaced by `ValidationErrorOptions`, which sets the error's
-`code`, its `detail`, or both. `{name}` placeholders in the detail are replaced with the params. `{field}` and
-`{otherField}` are not params and stay as written.
+`code`, or its `code` and `detail`; a `detail` without a `code` does not compile. `{name}` placeholders in the
+detail are replaced with the params. `{field}` and `{otherField}` are not params and stay as written.
 
 ```typescript
 // before
@@ -176,7 +176,7 @@ new Validators.CompareTo(password, (a, b) => a === b, 'Passwords must match');
 // after
 new Validators.Required({ code: 'role_required', detail: 'Select a role' });
 new Validators.Required({ code: 'role_required', detail: 'Select a role', trim: false });
-new Validators.CompareTo(password, (a, b) => a === b, { detail: 'Passwords must match' });
+new Validators.CompareTo(password, (a, b) => a === b, { code: 'passwords_differ', detail: 'Passwords must match' });
 ```
 
 `CompareTo` no longer requires the argument; its default is the code `compare_to` with the detail
@@ -232,7 +232,7 @@ app.use(forms, { useMarkdownInValidators: false });
 1. Replace every comparison with an old error code by the new one.
 2. Replace `ValidationErrorText`, `ValidationErrorRenderContent` and `new ValidationError(code, origin)` with
    `new ValidationError(code, params, detail, origin?)`; read `detail` where the code read the rendered text.
-3. Replace the `message` argument of every built-in validator with `{ code?, detail? }`; in a `Validator`
+3. Replace the `message` argument of every built-in validator with `{ code, detail }`; in a `Validator`
    subclass, replace `replacePlaceholders()` and `replacePlaceholdersFunction()` with `errorFor()`.
 4. Remove `translateStrings` and `translatedMessage`, and translate in the renderer by error code.
 5. Remove `app.use(forms, …)`, `getConfig`, `setConfig`, `buildErrorMessage` and the `style.css` import.

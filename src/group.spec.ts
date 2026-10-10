@@ -939,7 +939,10 @@ describe('Group membership after construction', () => {
 
   it('re-forms its verdict over the member it took and the one it gave up', () => {
     const group = new Group({ a: new Field({ value: 'a' }) });
-    const invalid = new Field({ value: '', validators: [new Validators.Required({ detail: 'Required' })] });
+    const invalid = new Field({
+      value: '',
+      validators: [new Validators.Required({ code: 'custom', detail: 'Required' })],
+    });
 
     expect(group.valid).toBe(true);
 
@@ -1018,7 +1021,10 @@ describe('Group membership after construction', () => {
       .registerAction(new ValidChangedAction(onValidChanged));
 
     transaction(() => {
-      group.addField('b', new Field({ value: '', validators: [new Validators.Required({ detail: 'Required' })] }));
+      group.addField(
+        'b',
+        new Field({ value: '', validators: [new Validators.Required({ code: 'custom', detail: 'Required' })] }),
+      );
       group.addField('c', new Field({ value: 3 }));
       group.removeField('a');
     });
@@ -1036,6 +1042,7 @@ describe('Group membership after construction', () => {
     });
     template.fields.confirmation.registerAction(
       new Validators.CompareTo(template.fields.password, (mine: string, other: string) => mine === other, {
+        code: 'custom',
         detail: 'must match',
       }),
     );

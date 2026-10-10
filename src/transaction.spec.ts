@@ -35,7 +35,9 @@ describe('transaction', () => {
     it('keeps a cross-field validator listening when clearValidators() is rolled back', () => {
       const other = new Field({ value: 'abc' });
       const field = new Field({ value: 'abc' });
-      field.registerAction(new CompareTo(other, (mine, theirs) => mine === theirs, { detail: 'Fields must match' }));
+      field.registerAction(
+        new CompareTo(other, (mine, theirs) => mine === theirs, { code: 'custom', detail: 'Fields must match' }),
+      );
       expect(field.errors.length).toBe(0);
 
       expect(() =>
@@ -53,7 +55,9 @@ describe('transaction', () => {
     it('releases a cross-field validator once clearValidators() commits', () => {
       const other = new Field({ value: 'abc' });
       const field = new Field({ value: 'abc' });
-      field.registerAction(new CompareTo(other, (mine, theirs) => mine === theirs, { detail: 'Fields must match' }));
+      field.registerAction(
+        new CompareTo(other, (mine, theirs) => mine === theirs, { code: 'custom', detail: 'Fields must match' }),
+      );
 
       transaction(() => field.clearValidators());
 

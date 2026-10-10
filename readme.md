@@ -181,7 +181,7 @@ import { Field, Group, Validators } from '@dynamicforms/vue-forms';
 const validatedForm = new Group({
   // Required field
   username: new Field({ 
-    validators: [new Validators.Required({ detail: 'Username is required' })] 
+    validators: [new Validators.Required({ code: 'username_required', detail: 'Username is required' })] 
   }),
   
   // Email validation with pattern
@@ -198,7 +198,7 @@ const validatedForm = new Group({
   age: new Field({ 
     value: 25, 
     validators: [
-      new Validators.ValueInRange(18, 100, { detail: 'Age must be between {minValue} and {maxValue}' })
+      new Validators.ValueInRange(18, 100, { code: 'age_range', detail: 'Age must be between {minValue} and {maxValue}' })
     ] 
   }),
   
@@ -212,7 +212,7 @@ const validatedForm = new Group({
   // Text length validation
   bio: new Field({
     validators: [
-      new Validators.LengthInRange(10, 200, { detail: 'Bio must be between 10 and 200 characters' })
+      new Validators.LengthInRange(10, 200, { code: 'bio_length', detail: 'Bio must be between 10 and 200 characters' })
     ]
   })
 });

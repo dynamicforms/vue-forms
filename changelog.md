@@ -41,8 +41,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `value_in_range`, `min-length` is `min_length`, `max-length` is `max_length`, `range-length` is
   `length_in_range`, `in-allowed-values` is `in_allowed_values`, `compare-to` is `compare_to` and
   `validation-failed` is `validation_failed`. `required` and `pattern` stay.
-- The built-in validators take `ValidationErrorOptions` (`{ code?, detail? }`) as their last argument instead of a
-  message. `RequiredOptions` extends it. `CompareTo` no longer requires it.
+- The built-in validators take `ValidationErrorOptions` (`{ code? }` or `{ code, detail? }`: a `detail` requires a
+  `code`) as their last argument instead of a message. `RequiredOptions` adds `trim` to it. `CompareTo` no longer
+  requires it.
 - The English details of the built-in validators are plain text, without markdown.
 - `Validator`'s protected `replacePlaceholders()` and `replacePlaceholdersFunction()` are replaced by the protected
   `errorFor(options, code, detail, params)`, which returns the `ValidationError` a built-in validator reports.

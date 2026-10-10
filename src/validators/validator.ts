@@ -31,13 +31,23 @@ export interface ValidatorBindingState {
   abandon?: () => void;
 }
 
-/** The `code` and `detail` a built-in validator uses on its error in place of its own. */
-export interface ValidationErrorOptions {
-  /** The error's `code`. Defaults to the validator's own, such as `required`. */
-  code?: string;
-  /** The error's English `detail`, plain text. `{name}` placeholders are replaced with the error's `params`. */
-  detail?: string;
-}
+/**
+ * The `code` and `detail` a built-in validator uses on its error in place of its own. A `detail` requires a `code`:
+ * a renderer chooses the text by the code, so a detail under the validator's own code is not shown where the
+ * renderer has a text for that code.
+ */
+export type ValidationErrorOptions =
+  | {
+      /** The error's `code`. Defaults to the validator's own, such as `required`. */
+      code?: string;
+      detail?: never;
+    }
+  | {
+      /** The error's `code`. */
+      code: string;
+      /** The error's English `detail`, plain text. `{name}` placeholders are replaced with the error's `params`. */
+      detail?: string;
+    };
 
 const ValidatorClassIdentifier = Symbol('Validator');
 

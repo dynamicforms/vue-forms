@@ -97,7 +97,7 @@ describe('InAllowedValues Validator', () => {
 
     const field = new Field({
       value: 'superuser',
-      validators: [new InAllowedValues(allowedValues, { detail: customMessage })],
+      validators: [new InAllowedValues(allowedValues, { code: 'custom', detail: customMessage })],
     });
 
     // Assert

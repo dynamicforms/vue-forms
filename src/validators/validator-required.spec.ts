@@ -58,7 +58,7 @@ describe('Required Validator', () => {
     const customMessage = 'This field is required!';
     const field = new Field({
       value: '',
-      validators: [new Required({ detail: customMessage })],
+      validators: [new Required({ code: 'custom', detail: customMessage })],
     });
 
     // Act - validation happens on field creation
@@ -97,7 +97,10 @@ describe('Required Validator whitespace', () => {
   });
 
   it('takes trim together with the error options', () => {
-    const field = new Field({ value: '  ', validators: [new Required({ detail: 'Enter something', trim: false })] });
+    const field = new Field({
+      value: '  ',
+      validators: [new Required({ code: 'custom', detail: 'Enter something', trim: false })],
+    });
 
     expect(field.errors.length).toBe(0);
 

@@ -9,6 +9,7 @@ import { Field } from '../field';
 import { FieldBase } from '../field-base';
 import { Group } from '../group';
 import { List } from '../list';
+import { Validators } from '../validators';
 
 /**
  * Type-level contract for the public construction surface. These assertions are enforced by `vue-tsc --noEmit`,
@@ -283,5 +284,22 @@ describe('submit result', () => {
       }
     };
     expect(narrow).toBeTypeOf('function');
+  });
+});
+
+describe('validation error options', () => {
+  it('takes a detail only together with a code', () => {
+    const declare = () => [
+      new Validators.MinLength(5),
+      new Validators.MinLength(5, { code: 'username_short' }),
+      new Validators.MinLength(5, { code: 'username_short', detail: 'Username must have at least 5 characters' }),
+      // @ts-expect-error a detail under the validator's own code is not shown where the renderer translates the code
+      new Validators.MinLength(5, { detail: 'Username must have at least 5 characters' }),
+      new Validators.Required({ trim: false }),
+      new Validators.Required({ code: 'name_required', detail: 'Enter a name', trim: false }),
+      // @ts-expect-error a detail requires a code
+      new Validators.Required({ detail: 'Enter a name', trim: false }),
+    ];
+    expect(declare).toBeTypeOf('function');
   });
 });
