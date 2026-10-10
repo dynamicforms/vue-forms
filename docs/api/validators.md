@@ -156,7 +156,7 @@ Pass it to the work the function starts, so that work stops when its result is n
 
 ```typescript
 new Validators.Validator(async (newValue, oldValue, field, signal) => {
-  const response = await fetch(`/api/available?name=${newValue}`, { signal });
+  const response = await fetch(`/api/available?${new URLSearchParams({ name: newValue })}`, { signal });
   return (await response.json()).free ? null : [new ValidationError('name_taken', {}, 'This name is taken')];
 });
 ```
@@ -433,6 +433,10 @@ the library uses, with their params and the English detail:
 substituted again: a value that is an object, such as `newValue` of a group,
 is substituted as `[object Object]`, and `allowedValues` as `admin,user`. A renderer that needs the value reads it
 from `params`.
+
+`newValue`, `oldValue` and `otherValue` hold what the user entered, and the English detail of `compare_to` contains
+`otherValue`. A renderer that outputs messages as HTML or markdown escapes the params before substituting them, and
+escapes `detail` as well.
 
 ### `ValidationError`
 
