@@ -459,6 +459,17 @@ interface ErrorDescription {
 | `origin` | Where the error comes from; see below |
 | `params` | The values that describe the failure |
 
+::: tip A library that raises errors of this shape
+A library that builds on `ErrorDescription` and raises codes of its own documents them for the applications that
+translate them, as this library does with its [error codes](#error-codes) and the message list in
+[Error messages and translation](/guide/getting-started#error-messages-and-translation).
+[`src/tests/error-codes.spec.ts`](https://github.com/dynamicforms/vue-forms/blob/main/src/tests/error-codes.spec.ts)
+keeps those lists in sync with the source: it reads every `this.errorFor(…)` call and every `new ValidationError(…)`
+in the library source, requires the code and the detail of each to be string literals, and compares the resulting
+codes and details with both lists. Such a library can copy the spec and adapt the source directory, the
+construction it skips (the one inside `errorFor`), and the paths and patterns of its own documentation.
+:::
+
 An error the application builds from a server's response carries the same `code`, `params` and `detail`, so one
 function renders the errors of validators and of the server. The origin is not part of the response: the
 application sets `'server'` when it builds the error.
