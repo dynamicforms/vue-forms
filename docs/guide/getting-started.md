@@ -122,9 +122,9 @@ English details are listed under [Error codes](/api/validators#error-codes). An 
 server's response as a [`ValidationError`](/api/validators#validationerror) is rendered by the same function. The
 [validators demo](/examples/validators) renders its errors this way in eight languages, with and without markdown.
 
-`params` contain the values the user entered (`newValue`, `oldValue`, `otherValue`), and a server's `detail` is
-the server's text. An application that renders messages as HTML or markdown escapes both; text interpolation
-(`{{ }}`) and a string prop escape them already.
+`newValue`, `oldValue` and `otherValue` in `params` are field values, and `detail` of an error built from a
+server's response is the server's string; neither is escaped. Rendering a message as HTML or markdown requires
+escaping both. Text interpolation (`{{ }}`) and string props escape them.
 
 A validator takes `{ code, detail }` as its last argument. A field that needs its own text for a failure uses its
 own code, which the application translates like any other:

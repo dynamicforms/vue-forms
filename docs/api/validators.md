@@ -434,9 +434,8 @@ substituted again: a value that is an object, such as `newValue` of a group,
 is substituted as `[object Object]`, and `allowedValues` as `admin,user`. A renderer that needs the value reads it
 from `params`.
 
-`newValue`, `oldValue` and `otherValue` hold what the user entered, and the English detail of `compare_to` contains
-`otherValue`. A renderer that outputs messages as HTML or markdown escapes the params before substituting them, and
-escapes `detail` as well.
+`newValue`, `oldValue` and `otherValue` are field values and are not escaped. The English detail of `compare_to`
+contains `otherValue` unescaped. Rendering a message as HTML or markdown requires escaping the params and `detail`.
 
 ### `ValidationError`
 
