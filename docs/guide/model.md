@@ -59,6 +59,15 @@ readonly(field);               // returns the element unchanged, silently
 computed(() => field.value);   // expose the value, or a computed over it
 ```
 
+`ref()` and `reactive()` hold an element as it is, and their types keep its class. The library adds the element
+classes to Vue's `RefUnwrapBailTypes`, the interface Vue's types read to leave a type unwrapped:
+
+```typescript
+const actions = ref([save, cancel]);   // Ref<Action[]>
+const state = reactive({ form });
+state.form;                            // the form's own type
+```
+
 ## Declarations and bindings
 
 `new Field({ … })`, `new Group({ … })` and `new List(template)` build a **declaration**: an element that defines

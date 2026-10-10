@@ -1365,3 +1365,14 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     });
   }
 }
+
+declare module '@vue/reactivity' {
+  /**
+   * An element carries __v_skip, so ref() and reactive() hold it as it is. Listing it here makes their types do the
+   * same: `ref([action])` is a `Ref<Action[]>` and `reactive({ form }).form` is the form's own type, where Vue's
+   * unwrapping would otherwise produce a structural copy of the class without its non-public members.
+   */
+  export interface RefUnwrapBailTypes {
+    dynamicformsElement: FieldBase<any, any>;
+  }
+}
