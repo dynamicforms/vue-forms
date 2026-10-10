@@ -87,10 +87,13 @@ interface FieldSpec {
 }
 
 function buildForm(spec: FieldSpec[]) {
-  const fields: Record<string, Field<string, Presentation & { width?: number }>> = {};
-  for (const { name, value, label, hint, width } of spec) {
-    fields[name] = new Field<string, Presentation & { width?: number }>({ value, label, hint, width });
-  }
+  // fromEntries defines each name as an own property, so a name such as `__proto__` becomes a field
+  const fields = Object.fromEntries(
+    spec.map(({ name, value, label, hint, width }) => [
+      name,
+      new Field<string, Presentation & { width?: number }>({ value, label, hint, width }),
+    ]),
+  );
   return new Group(fields);
 }
 
