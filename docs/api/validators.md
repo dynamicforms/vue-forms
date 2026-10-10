@@ -459,12 +459,13 @@ interface ErrorDescription {
 | `origin` | Where the error comes from; see below |
 | `params` | The values that describe the failure |
 
-The shape is that of an error a `@dynamicforms/fastapi-viewsets` server returns (`detail_code`, `detail_params`,
-`detail`), so one function renders the errors of validators and of the server:
+An error the application builds from a server's response carries the same `code`, `params` and `detail`, so one
+function renders the errors of validators and of the server. The origin is not part of the response: the
+application sets `'server'` when it builds the error.
 
 ```typescript
-const body = await response.json(); // { detail, detail_code?, detail_params? }
-field.errors.push(new ValidationError(body.detail_code ?? 'server_error', body.detail_params ?? {}, body.detail, 'server'));
+// code, params and detail as the server's response states them for the field
+field.errors.push(new ValidationError(code, params, detail, 'server'));
 ```
 
 #### `sameAs(other): boolean`
@@ -479,7 +480,7 @@ the existing instance. A changed param, such as `newValue`, gives a new instance
 type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
 ```
 
-`'validator'` for an error a validator produced, `'server'` for one the server returned, and `'application'` for one
+`'validator'` for an error a validator produced, `'server'` for one built from a server's response, and `'application'` for one
 the application's own code computed and wrote into `errors`. An origin passed as the last constructor argument
 is used as is; where none is passed, an error returned by a validator is `'validator'` and any other is
 `'application'`. Any other string is an application-defined origin.
