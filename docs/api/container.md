@@ -205,7 +205,8 @@ not counted, so an error written into it directly (for example one returned by t
 does not make the container invalid. A `Required` on a section sent as `null` therefore fails, while the required
 fields inside that section are not checked until the section is sent again. A disabled section leaves no error and
 does not block a submit button. A change of access reruns the validators on the element and on every element below
-it whose `effectiveAccess` changed.
+it whose `effectiveAccess` changed what it sends; a change between `'editable'` and `'readonly'` changes what an
+element accepts, not what it sends, and reruns none.
 
 ### Where `null` comes from
 

@@ -1,8 +1,10 @@
+import { vi } from 'vitest';
 import { computed, effectScope } from 'vue';
 
 import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
+import { Validators } from '../validators';
 
 const form = () =>
   new Group({
@@ -117,5 +119,45 @@ describe('effectiveAccess', () => {
 
     f.fields.section.access = 'disabled';
     expect(f.fields.section.fields.a.effectiveAccess).toBe('disabled');
+  });
+});
+
+describe('validators on a change of access', () => {
+  const counted = () => {
+    const check = vi.fn(() => null);
+    return { check, field: new Field({ value: 'a', validators: [new Validators.Validator(check)] }) };
+  };
+
+  it('do not run where the change is between editable and readonly, on the element or below it', () => {
+    const own = counted();
+    const below = counted();
+    const form = new Group({ own: own.field, section: new Group({ city: below.field }) });
+    own.check.mockClear();
+    below.check.mockClear();
+
+    own.field.access = 'readonly';
+    form.access = 'readonly';
+    own.field.access = 'editable';
+    form.access = 'editable';
+
+    expect(own.check).not.toHaveBeenCalled();
+    expect(below.check).not.toHaveBeenCalled();
+  });
+
+  it('run where the change changes what the element sends', () => {
+    const own = counted();
+    const below = counted();
+    const form = new Group({ own: own.field, section: new Group({ city: below.field }) });
+    own.check.mockClear();
+    below.check.mockClear();
+
+    own.field.access = 'disabled-null';
+    expect(own.check).toHaveBeenCalledWith(null, 'a', own.field, expect.anything());
+    form.access = 'disabled';
+    // an element that is not sent is not validated, so the function is not called
+    expect(below.check).not.toHaveBeenCalled();
+    form.access = 'readonly';
+
+    expect(below.check).toHaveBeenCalledTimes(1);
   });
 });

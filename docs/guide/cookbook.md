@@ -38,31 +38,31 @@ You want a submit that waits for asynchronous validation, sends only a valid for
 once the server has saved it.
 
 ```typescript
-const saving = ref(false);
-
 async function submit() {
   await form.settled();
   if (!form.valid) return;
-  saving.value = true;
+  form.access = 'readonly';
   try {
     form.rebind(await api.save(form.value));
   } finally {
-    saving.value = false;
+    form.access = 'editable';
   }
 }
 ```
 
 ```vue
-<input v-model="form.fields.name.value" :disabled="saving" />
-<button :disabled="!form.valid || form.pending || saving" @click="submit">Save</button>
+<input v-model="form.fields.name.value" :disabled="!form.fields.name.effectiveEnabled" />
+<button :disabled="!form.valid || form.pending || !form.enabled" @click="submit">Save</button>
 ```
 
 [`settled()`](/api/field-base#settled-promise-void) resolves once no validation and no `Action.execute()` is running
 at or below the form; a click can start a validation in the same event, when the blur of an input commits its value.
 [`form.value`](/api/container#reading-the-values) is the payload: `'disabled'` members are left out and
 `'disabled-null'` ones are `null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is
-`false` again. It also replaces what the form holds, so an edit made while the request runs would be lost; `saving`
-disables the inputs until the request returns.
+`false` again. It also replaces what the form holds, so an edit made while the request runs would be lost:
+[`'readonly'`](/api/field-base#access) keeps the inputs from accepting one until the request returns. It sends and
+validates the form as `'editable'` does, so `form.value`, `valid` and `isChanged` stay as they are, and every member
+reads `effectiveEnabled` as `false`.
 
 The same submit as an action of the form, with a cancel beside it in a bar of actions:
 
@@ -83,7 +83,7 @@ const form = new Group({
 ```
 
 ```vue
-<input v-model="form.fields.name.value" :disabled="form.busy" />
+<input v-model="form.fields.name.value" :disabled="!form.fields.name.effectiveEnabled" />
 <button :disabled="!form.fields.actions.fields.save.executable" @click="form.confirm()">Save</button>
 ```
 
@@ -92,9 +92,10 @@ waits until `validating` is `false` instead of awaiting `settled()`, it refuses 
 and it rebinds the form only where the handler's result is not `undefined`. It resolves with
 `{ action, sent, received }`, or with a `CommandException` where nothing was saved: a `SubmitFailedException` where
 the handler failed, a `SubmitRefusedException` where the submit was refused before the handler ran. `executable` is
-`false` while the form is invalid, a validation is running or the submit is running. The submit is an
-`Action.execute()` run, so [`form.busy`](/api/container#prop-busy) is `true` while it runs and the input above needs
-no flag of its own. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
+`false` while the form is invalid, a validation is running or the submit is running. It makes the form `'readonly'`
+while the handler runs, as `submit()` above does, unless its `lock` option is `false`; the submit is an
+`Action.execute()` run, so [`form.busy`](/api/container#prop-busy) is `true` meanwhile, for a form that is drawn
+differently while it submits. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
 Enter and Escape to them. The bar of actions sends nothing, so `form.value` is `{ name: … }`.
 
 ## Showing every error when the user submits an invalid form
@@ -169,14 +170,14 @@ The submit catches the error, writes the messages and throws it again:
 async function submit() {
   await form.settled();
   if (!form.valid) return;
-  saving.value = true;
+  form.access = 'readonly';
   try {
     form.rebind(await api.save(form.value));
   } catch (error) {
     if (error instanceof FieldErrors) showServerErrors(form, error.errors);
     throw error;
   } finally {
-    saving.value = false;
+    form.access = 'editable';
   }
 }
 

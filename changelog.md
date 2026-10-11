@@ -19,8 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed by the bundler. `DevtoolsOptions`, `DevtoolsRegistration` and `StateDescription` type the API.
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
   target or a concurrent run with a `SubmitRefusedException` whose `reason` (`SubmitRefusalReason`) says which,
-  sends the target's value to `handler`, resolves with a `SubmitFailedException` (`cause`: the error) where the
-  handler fails, rebinds the target to the result and resolves with `{ action, sent, received }` (`SubmitResult`).
+  sends the target's value to `handler` with an `'editable'` target `'readonly'` until it returns (`lock`),
+  resolves with a `SubmitFailedException` (`cause`: the error) where the handler fails, rebinds the target to the
+  result and resolves with `{ action, sent, received }` (`SubmitResult`).
   Both exceptions extend the abstract `CommandException`, the base of the exceptions a `TargetedExecuteAction` ends
   with, so the resolved value is `SubmitResult | CommandException`.
   `SubmitOptions` types the options. `RejectAction(target)` rebinds the target to its `originalValue`.

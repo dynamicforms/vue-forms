@@ -349,6 +349,139 @@ describe('SubmitAction', () => {
   it('is not executable where the target callback returns no element', () => {
     expect(new Action({ actions: [new SubmitAction(holder, () => undefined)] }).executable).toBe(false);
   });
+
+  describe('locks the target while the handler runs', () => {
+    const pendingSubmit = () => {
+      let settle: (value: unknown) => void = () => null;
+      let fail: (error: unknown) => void = () => null;
+      const handler = vi.fn(
+        () =>
+          new Promise((resolve, reject) => {
+            settle = resolve;
+            fail = reject;
+          }),
+      );
+      return { handler, settle: (value: unknown) => settle(value), fail: (error: unknown) => fail(error) };
+    };
+
+    it('makes an editable target readonly, keeps its value, validity and isChanged, and restores it', async () => {
+      const { handler, settle } = pendingSubmit();
+      const form = new Group({
+        name: new Field({ value: 'Ada', validators: [new Validators.Required()] }),
+        save: new Action({ actions: [new SubmitAction(holder, handler)] }),
+      });
+      form.fields.name.value = 'Grace';
+
+      const running = form.fields.save.execute();
+      await vi.waitFor(() => expect(handler).toHaveBeenCalled());
+
+      expect(form.access).toBe('readonly');
+      expect(form.fields.name.effectiveAccess).toBe('readonly');
+      expect(form.fields.name.effectiveEnabled).toBe(false);
+      expect(form.value).toEqual({ name: 'Grace' });
+      expect(form.valid).toBe(true);
+      expect(form.isChanged).toBe(true);
+
+      settle({ name: 'Grace' });
+      await running;
+      expect(form.access).toBe('editable');
+      expect(form.fields.name.effectiveEnabled).toBe(true);
+      expect(form.isChanged).toBe(false);
+    });
+
+    it('restores the target where the handler fails', async () => {
+      const { handler, fail } = pendingSubmit();
+      const form = new Group({
+        name: new Field({ value: 'Ada' }),
+        save: new Action({ actions: [new SubmitAction(holder, handler)] }),
+      });
+
+      const running = form.fields.save.execute();
+      await vi.waitFor(() => expect(handler).toHaveBeenCalled());
+      fail(new Error('offline'));
+
+      expect(await running).toBeInstanceOf(SubmitFailedException);
+      expect(form.access).toBe('editable');
+    });
+
+    it('does not lock a refused submit', async () => {
+      const form = new Group({
+        name: new Field({ value: '', validators: [new Validators.Required()] }),
+        save: new Action({ actions: [new SubmitAction(holder, vi.fn())] }),
+      });
+      const accessWrites = vi.fn();
+      watch(() => form.access, accessWrites, { flush: 'sync' });
+
+      await form.fields.save.execute();
+
+      expect(accessWrites).not.toHaveBeenCalled();
+    });
+
+    it('runs no validator because of the lock', async () => {
+      const { handler, settle } = pendingSubmit();
+      const check = vi.fn(() => null);
+      const form = new Group({
+        name: new Field({ value: 'Ada', validators: [new Validators.Validator(check)] }),
+        address: new Group({ city: new Field({ value: 'Kranj', validators: [new Validators.Validator(check)] }) }),
+        save: new Action({ actions: [new SubmitAction(holder, handler)] }),
+      });
+      check.mockClear();
+
+      const running = form.fields.save.execute();
+      await vi.waitFor(() => expect(handler).toHaveBeenCalled());
+      settle(undefined);
+      await running;
+
+      expect(check).not.toHaveBeenCalled();
+    });
+
+    it('leaves a target that is not editable as it is', async () => {
+      const handler = vi.fn(() => {
+        expect(form.access).toBe('readonly');
+        return undefined;
+      });
+      const form = new Group(
+        { name: new Field({ value: 'Ada' }), save: new Action({ actions: [new SubmitAction(holder, handler)] }) },
+        { access: 'readonly' },
+      );
+
+      await form.fields.save.execute();
+
+      expect(handler).toHaveBeenCalled();
+      expect(form.access).toBe('readonly');
+    });
+
+    it('keeps an access written while the handler runs', async () => {
+      const { handler, settle } = pendingSubmit();
+      const form = new Group({
+        name: new Field({ value: 'Ada' }),
+        save: new Action({ actions: [new SubmitAction(holder, handler)] }),
+      });
+
+      const running = form.fields.save.execute();
+      await vi.waitFor(() => expect(handler).toHaveBeenCalled());
+      form.access = 'disabled-null';
+      settle(undefined);
+      await running;
+
+      expect(form.access).toBe('disabled-null');
+    });
+
+    it('does not lock where lock is false', async () => {
+      const handler = vi.fn(() => {
+        expect(form.access).toBe('editable');
+        return undefined;
+      });
+      const form = new Group({
+        name: new Field({ value: 'Ada' }),
+        save: new Action({ actions: [new SubmitAction(holder, handler, { lock: false })] }),
+      });
+
+      await form.fields.save.execute();
+
+      expect(handler).toHaveBeenCalled();
+    });
+  });
 });
 
 describe('RejectAction', () => {

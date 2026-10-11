@@ -155,6 +155,7 @@ if (result === undefined) {
 | `target` | `CommandTarget` (`FieldBase \| ((action: FieldBase) => FieldBase \| null \| undefined)`) | The element to submit, or a callback that returns it for the action the handler runs on. Required: an action in a bar of actions has the bar as its `parent`, not the form |
 | `handler` | `(value, target) => R \| Promise<R>` | Sends `value` (the target's `value`) and returns what was received |
 | `options.rebind` | `boolean` (`SubmitOptions`) | Default `true`: a result other than `undefined` is written back with `target.rebind(result)`, which makes it the new baseline |
+| `options.lock` | `boolean` (`SubmitOptions`) | Default `true`: an `'editable'` target is `'readonly'` while `handler` runs |
 
 On `execute()` it:
 
@@ -162,9 +163,12 @@ On `execute()` it:
    await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
 2. where `target.valid` is `false`, ends with a `SubmitRefusedException` whose `reason` is `'invalid'`, which
    `execute()` resolves with;
-3. calls `handler(target.value, target)` and awaits it;
-4. where the result is not `undefined` and `options.rebind` is not `false`, calls `target.rebind(result)`;
-5. calls the next handler in the chain and resolves with a `SubmitResult`:
+3. where `target.access` is `'editable'` and `options.lock` is not `false`, sets it to `'readonly'`;
+4. calls `handler(target.value, target)` and awaits it;
+5. where the result is not `undefined` and `options.rebind` is not `false`, calls `target.rebind(result)`;
+6. sets `target.access` back to `'editable'` where step 3 set it and it is still `'readonly'`, whether `handler`
+   succeeded or failed;
+7. calls the next handler in the chain and resolves with a `SubmitResult`:
 
 ```typescript
 interface SubmitResult<R = any> {
@@ -174,9 +178,16 @@ interface SubmitResult<R = any> {
 }
 ```
 
-The rebind in step 4 replaces the target's value with the result. A change written to the target while `handler`
-runs is lost, and `isChanged` is `false` afterwards. `SubmitAction` does not lock the target: `busy` and `pending`
-report the running submit, and the rendering layer disables the inputs while they are `true`.
+`'readonly'` sends and validates the target as `'editable'` does, so the lock does not change its `value`, `valid`
+or `isChanged`, and runs no validator. The members inherit it through
+[`effectiveAccess`](/api/field-base#prop-effectiveaccess): every input and every action below the target has
+`effectiveEnabled` `false` while `handler` runs, and an access the target is given meanwhile is kept. The lock is an
+`access` write, so it fires `AccessChangedAction` and `EnabledChangedAction` on the target, and an
+`AccessChangingAction` can refuse it. `busy` and `pending` report the running submit; a rendering layer that draws a
+form differently while it submits reads them.
+
+The rebind in step 5 replaces the target's value with the result. A change written to the target by code while
+`handler` runs is lost, and `isChanged` is `false` afterwards.
 
 A second `execute()` while a submit of the same action is running resolves with a `SubmitRefusedException` whose
 `reason` is `'running'` and does not call `handler`. Writing a server's field errors to the fields is the handler's:
@@ -380,7 +391,7 @@ the members above, whether or not the action declares extended properties.
 | [`bindingsOf(declaration)`](/api/field-base#bindingsof-declaration-fieldbase) | Returns every element in the subtree whose `declaration` is the one given |
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
-| [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
+| [`effectiveAccess`](/api/field-base#prop-effectiveaccess) | The access that applies once the containers above are taken into account |
 | [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
 | [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
 | [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |

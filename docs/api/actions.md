@@ -154,7 +154,8 @@ after it, in place of the value the caller passed. The eager pass runs in these 
 - the trigger at the end of a constructor;
 - binding an element: `bind()`, and every `List` row built from an item template with it;
 - a write to a leaf's `value`, where the validators run (the most frequent case);
-- a change of access, on the element and on every element below it whose `effectiveAccess` changed;
+- a change of access that changes what an element sends, on the element and on every element below it whose
+  `effectiveAccess` changed what it sends (a change between `'editable'` and `'readonly'` runs nothing);
 - a container recomputing what it sends;
 - `validate(true)`;
 - a container completing a record: a `Group` that has written its members, a `List` that has added a row.
