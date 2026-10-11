@@ -303,6 +303,9 @@ conditional actions apply their statements again over the new item. Extended pro
 
 ## Methods
 
+Every method that adds or removes rows (`push()`, `insert()`, `remove()`, `pop()`, `clear()`, `rebind()`) removes the
+list's own errors of [origin](/api/validators#origin) `'server'`, and those of every container above it.
+
 ### `bind(data?, overrides?): List<R, X>`
 
 Overrides [`FieldBase.bind()`](/api/field-base#bind-data-overrides-fieldbase-t-x), which describes `overrides`

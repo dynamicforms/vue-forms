@@ -236,7 +236,8 @@ The change is announced like any other: inside a [transaction](/api/transactions
 the transaction, and the group announces its final value once. A member that sends a value fires
 `ValueChangedAction` on the group; a `'disabled'` one, which the group leaves out, fires nothing. The baseline of
 `isChanged` is not changed: a group that gains a member holds a value its `originalValue` does not contain, and
-`isChanged` is `true` until `originalValue` is assigned.
+`isChanged` is `true` until `originalValue` is assigned. The group's own errors of
+[origin](/api/validators#origin) `'server'` are removed, also where the added member is `'disabled'`.
 
 The map is typed `T`, which lists the members declared in the group's type. A member added beyond those is held
 and sent like any other, but is not part of the type. Declare it in `T` to have it typed.
@@ -298,8 +299,8 @@ form.value;                              // { name: 'Jan' }
 ```
 
 The group's value and validity are recomputed over the remaining members and announced the same way as for
-`addField()`. The baseline of `isChanged` is not changed. When the transaction it ran in is rolled back, the
-member set is restored.
+`addField()`, and the group's own errors of [origin](/api/validators#origin) `'server'` are removed. The baseline
+of `isChanged` is not changed. When the transaction it ran in is rolled back, the member set is restored.
 
 ## Inherited members
 
