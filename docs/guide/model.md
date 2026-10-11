@@ -346,7 +346,7 @@ it is a separate copy, not the frozen object `value` returns, so it is writable 
 ## Memory per element
 
 Every value is an element: it holds its state (value, baseline, access, visibility, errors, validity counters), its
-actions and, once read, cached computations of its validity and its value. Approximate heap use in V8, production
+actions and, once read, cached computations of its validity and its value. Approximate heap use in Node, production
 build:
 
 | what | per instance |

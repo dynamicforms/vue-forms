@@ -48,6 +48,7 @@ namespace Operator {
     throw new Error(`Unrecognised operator ${op}`);
   }
 
+  /** `mode` as an operator: a number that is an operator value, or a name `fromString()` parses; else throws. */
   export function fromAny(mode: any): Operator {
     const input = typeof mode === 'number' ? mode : Operator.fromString(mode as string);
     if (Object.values(Operator).includes(input)) return input;
@@ -64,6 +65,7 @@ namespace Operator {
     }
   }
 
+  /** Whether `operator` is a logic operator (`NOT` … `NOR`) rather than a comparison. */
   // c8 reports the next line as a branch with one uncovered path, whatever the line contains
   export function isLogicOperator(operator: Operator): boolean {
     return operator >= 0;

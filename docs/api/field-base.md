@@ -29,6 +29,8 @@ re-renders whatever read it. The element itself is not a proxy, so `toRaw(field)
 `watch(field, cb)` with a bare element as the source never fires. Watch the members you read:
 `watch(() => field.value, cb)`.
 
+The default export of `@dynamicforms/vue-forms` is a namespace object holding every named export.
+
 The state is held in private class fields, which `Object.keys(field)`, `Object.getOwnPropertySymbols(field)` and
 `JSON.stringify(field)` do not see. None of the three reaches the `parent` link, so a walk over a group does not
 follow its descendants' back-references and terminates.
@@ -210,7 +212,7 @@ element sends. `Field`, `Action`, `Group` and `List` all apply their parameters 
 
 A parameter object containing `enabled` throws a `TypeError`: `enabled` is derived from `access` and cannot be
 assigned. The check is made at runtime as well as by the type, so a parameter object parsed from JSON or typed `any`
-also throws; the key is not silently dropped.
+also throws.
 
 These are the only accepted parameters, and they are exactly the writable members of an element. Derived members
 (`valid`, `validating`, `busy`, `pending`, `fullValue`, `isChanged`) and the container back-references (`parent`,
@@ -357,9 +359,8 @@ The exported type of the parameter object itself, taken by `new Field`, `new Act
 type IFieldParams<T = any, X extends object = Extras> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
 ```
 
-The two halves are made partial separately because `T` is inferred through this type. With
-`Partial<IFieldConstructorParams<T> & X>`, inference through a mapped type over an intersection yields one
-constituent of a union instead of the union, and `new Field({ value: stringOrNumber })` would be a `Field<string>`.
+The two halves are made partial separately, so `T` is inferred as the full type of `value`:
+`new Field({ value: stringOrNumber })` is a `Field<string | number>`.
 
 ### `IBindParams<T, X>`
 
@@ -1059,10 +1060,9 @@ value is one of them.
 ## Comparing elements
 
 A structural comparison of two elements (lodash `isEqual(fieldA, fieldB)`) compares identity. The element state is
-in private class fields, which a structural comparison does not read, so without further measures it would return
-`true` for any two instances of the same class. `FieldBase` has a `Symbol.toStringTag` accessor returning the
-element's class name; a structural comparison reads the tag first and returns `false` for two distinct objects with a
-tag it does not know.
+in private class fields, which a structural comparison does not read. `FieldBase` has a `Symbol.toStringTag`
+accessor returning the element's class name; a structural comparison reads the tag first and returns `false` for two
+distinct objects with a tag it does not know.
 Two elements are therefore equal only where they are the same element; compare their contents with
 `isEqual(a.value, b.value)`. The accessor is defined on the prototype, so it adds nothing to each instance, and
 `Object.prototype.toString.call(field)` returns `[object Field]`, not `[object Object]`. See

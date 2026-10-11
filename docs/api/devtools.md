@@ -75,7 +75,7 @@ A file the stack does not name, and a name other than the element's class and nu
 `describeState()`.
 
 Capturing the stack is the expensive part of the devtools: about 9 µs of construction time and 2.4 KB of heap per
-element in V8, against about 2 µs for the rest of what the devtools record. What each element records in
+element in Node, against about 2 µs for the rest of what the devtools record. What each element records in
 development:
 
 | element | recorded | construction time | heap kept |

@@ -454,7 +454,7 @@ contains `otherValue` unescaped. Rendering a message as HTML or markdown require
 ### `ValidationError`
 
 ```typescript
-new ValidationError(code: string, params: Record<string, unknown>, detail: string, origin?: ErrorOrigin)
+new ValidationError(code: string, params: Readonly<Record<string, unknown>>, detail: string, statedOrigin?: ErrorOrigin)
 ```
 
 An error a field carries. The library does not render it; a renderer chooses its text from `code` and `params` and

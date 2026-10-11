@@ -28,9 +28,9 @@ await save.execute({ reason: 'toolbar' }); // save.busy is true until this settl
 
 | Member | Description |
 |--------|-------------|
-| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` (an `IFieldParams<T, X>`), applied in the same order: `validators` and `actions` are registered first, so an action guarding `access` or `visibility` applies to the assignment from the same object, and each eager action runs once over the final value. [Extended properties](/api/field-base#extended-properties) work as on any element, except that `label` and `icon` are members `Action` declares itself and therefore go to its value; `X` accordingly defaults to [`Extras`](/api/field-base#extras) without those two keys |
+| `new Action(params?)` | Creates a reactive `Action`. Same parameters as `new Field()` (an `IFieldParams<T, X>`), applied in the same order: `validators` and `actions` are registered first, so an action guarding `access` or `visibility` applies to the assignment from the same object, and each eager action runs once over the final value. [Extended properties](/api/field-base#extended-properties) work as on any element, except for the members of [`ActionValue`](#value), which `Action` declares itself: `label` and `icon` go to its value, and `defaultConfirm` and `defaultReject` are read-only and are set in `value`. `X` accordingly defaults to [`Extras`](/api/field-base#extras) without the keys of `ActionValue` |
 | `busy` | Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` from the call to `execute()` until the run it started settles. Overlapping runs are counted. A container holding the action includes this in its own `busy`, so a form reports that a run is in progress below it. An asynchronous validation of the action itself is reported by `validating` |
-| `contribution` | Overrides [`FieldBase.contribution`](/api/field-base#prop-contribution): always `undefined`, because an action sends nothing |
+| `contribution` | Inherited from [`FieldBase.contribution`](/api/field-base#prop-contribution); always `undefined` on an action, which sends nothing |
 | `defaultConfirm` | `value.defaultConfirm`, `false` where it is not set: whether a container's [`confirm()`](/api/container#confirm-params-promise-any-undefined) executes this action |
 | `defaultReject` | `value.defaultReject`, `false` where it is not set: whether a container's [`reject()`](/api/container#reject-params-promise-any-undefined) executes this action |
 | `executable` | `true` while the action accepts input (`effectiveEnabled`), is shown (`visibility` is `'full'`), is not running (`busy` is `false`) and every `ExecuteAction` registered on it returns `true` from [`canExecute()`](/api/actions#executeaction). Reactive, so a button binds `:disabled="!action.executable"`. `confirm()` and `reject()` execute only an executable action; `execute()` does not check it |
@@ -128,7 +128,7 @@ async function onSave() {
 An `ExecuteAction` that sends the value of `target` to `handler`. Register it on the `Action` that submits a form.
 
 ```typescript
-import { Action, Field, Group, SubmitAction } from '@dynamicforms/vue-forms';
+import { Action, CommandException, Field, Group, SubmitAction } from '@dynamicforms/vue-forms';
 
 const form = new Group({
   name: new Field({ value: '' }),
@@ -140,14 +140,21 @@ const form = new Group({
   }),
 });
 
-const { sent, received } = await form.confirm();
+const result = await form.confirm();
+if (result === undefined) {
+  // no executable action submits the form, or more than one does
+} else if (result instanceof CommandException) {
+  // the submit was refused or failed; see the outcomes below
+} else {
+  const { sent, received } = result;
+}
 ```
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `target` | `CommandTarget` (`FieldBase \| ((action: FieldBase) => FieldBase \| null \| undefined)`) | The element to submit, or a callback that returns it for the action the handler runs on. Required: an action in a bar of actions has the bar as its `parent`, not the form |
 | `handler` | `(value, target) => R \| Promise<R>` | Sends `value` (the target's `value`) and returns what was received |
-| `options.rebind` | `boolean` | Default `true`: a result other than `undefined` is written back with `target.rebind(result)`, which makes it the new baseline |
+| `options.rebind` | `boolean` (`SubmitOptions`) | Default `true`: a result other than `undefined` is written back with `target.rebind(result)`, which makes it the new baseline |
 
 On `execute()` it:
 
@@ -189,6 +196,7 @@ Every outcome of a submit is the resolved value of `execute()` (and of `Containe
 | `SubmitRefusedException`, `reason` `'invalid'` | the target is invalid after its validation finished; the handler was not called |
 | `SubmitRefusedException`, `reason` `'running'` | a submit of the same action is running; the handler was not called |
 
+`reason` is of the exported type `SubmitRefusalReason`, `'invalid' | 'running'`.
 `SubmitFailedException` and `SubmitRefusedException` extend the abstract `CommandException`, which extends
 `AbortEventHandlingException`, which `execute()` resolves with. `execute()` rejects only where something
 other than the submit fails, such as another handler in the chain or a `target` callback that returns no element.
@@ -233,9 +241,34 @@ not in `originalValue`, which holds what the list sends, so the reject does not 
 new Action({ value: { label: 'Cancel', defaultReject: true }, actions: [new RejectAction((a) => a.parent?.parent)] });
 ```
 
-`SubmitAction` and `RejectAction` extend `TargetedExecuteAction`, whose `targetFor(action)` returns the element the
-handler works on for `action`. [`Container.confirm()` and `reject()`](/api/container#confirm-params-promise-any-undefined)
-find the action that submits or rejects a container by it.
+## `TargetedExecuteAction`
+
+The abstract `ExecuteAction` that `SubmitAction` and `RejectAction` extend: a handler that works on a target element.
+[`Container.confirm()` and `reject()`](/api/container#confirm-params-promise-any-undefined) find the action that
+submits or rejects a container by its target.
+
+| Member | Description |
+|--------|-------------|
+| `protected abstract readonly target: CommandTarget` | The element the handler works on, or a callback that returns it for the action the handler runs on. A subclass declares it and assigns it in its constructor |
+| `targetFor(action): FieldBase \| undefined` | The element the handler works on when it runs on `action`: `target` itself, or what the callback returns for `action`, `undefined` where it returns `null` or `undefined` |
+
+A subclass passes its handler to the `ExecuteAction` constructor and reads the element through `targetFor()`:
+
+```typescript
+import { type CommandTarget, TargetedExecuteAction } from '@dynamicforms/vue-forms';
+
+class ClearAction extends TargetedExecuteAction {
+  protected readonly target: CommandTarget;
+
+  constructor(target: CommandTarget) {
+    super((action, supr, params) => {
+      this.targetFor(action)?.rebind(null);
+      return supr(action, params);
+    });
+    this.target = target;
+  }
+}
+```
 
 ## Widening the value in a subclass
 
@@ -243,15 +276,13 @@ find the action that submits or rejects a container by it.
 and keeps everything the base class does: the `ExecuteAction` chain, `busy`, `access`, `visibility`, the
 conditional actions, the transaction semantics.
 
-`label` and `icon` are `unknown` in `ActionValue` because the rendering library defines what a label and an icon are:
-`interface RenderOptions extends ActionValue { label?: string | MdString }` is legal, while a `string` in the base
-would reject it.
+`label` and `icon` are `unknown` in `ActionValue`, so the rendering library defines what a label and an icon are:
+`interface RenderOptions extends ActionValue { label?: string | MdString }` is a valid extension.
 
 **The type of `label` and of `icon` is declared in the value type, not on the accessors.** `ActionValue` declares
 both as `unknown`, so a subclass redeclares them at the type it renders and the inherited accessors return that
 type, since `Action`'s accessors take it from `T`. A subclass does this and does not override an accessor: a getter
-declared on a subclass has to be assignable to the base class's, so widening it there is error `TS2416`, and no
-cast on the subclass's side avoids it.
+declared on a subclass has to be assignable to the base class's, so widening it there is error `TS2416`.
 
 ```typescript
 import { Action, ActionValue } from '@dynamicforms/vue-forms';

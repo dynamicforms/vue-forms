@@ -282,9 +282,9 @@ length of the list:
 | reading `value` after a change | one array of the current length, plus a rebuild of the rows that changed |
 | assigning `value`, or `validate(true)` | the whole list (both apply to every row) |
 
-The rows are held outside Vue's reactivity: a reactive array would route every row a `splice()` shifts through its
-proxy. Every change of the set of rows increments a tracked counter, so `length`, `get()`, `items` and a template
-that reads them re-run as before.
+The rows are held outside Vue's reactivity, so a `splice()` does not route the rows it shifts through a proxy.
+Every change of the set of rows increments a tracked counter, so `length`, `get()`, `items` and a template that
+reads them re-run on every such change.
 
 The caches are invalidated by the write itself, so no manual refresh is needed. `value` is rebuilt on the first
 read after a change and reused until the next change, so two consecutive reads return the same object. That object
@@ -303,7 +303,7 @@ conditional actions apply their statements again over the new item. Extended pro
 
 ## Methods
 
-### `bind(data?, overrides?): List<R>`
+### `bind(data?, overrides?): List<R, X>`
 
 Overrides [`FieldBase.bind()`](/api/field-base#bind-data-overrides-fieldbase-t-x), which describes `overrides`
 (an [`IBindParams<ListValueInput<R>, X>`](/api/field-base#ibindparams-t-x)), the construction through
@@ -316,7 +316,7 @@ A subclass whose constructor does not take `(itemTemplate, params)` would ignore
 a list with the declaration's rows; `bind()` throws a `TypeError` in that case. Such a subclass must override
 `bind()` and construct itself.
 
-### `clear()`
+### `clear(): void`
 
 Removes all items and triggers a value-changed notification. Every row is released, exactly as `remove()` releases
 the row it removes. It does not change the list's own `touched`, `errors` or `originalValue`; for a reset that

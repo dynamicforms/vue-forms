@@ -33,6 +33,18 @@ throws a `TypeError`: its transaction is closed, and any transaction open at tha
 cannot span an `await`. Await outside the transaction and open a transaction for each synchronous part. An
 asynchronous validator that settles later opens its own transaction and needs no coordination.
 
+### `TransactionControl`
+
+```typescript
+interface TransactionControl {
+  rollback(): never;
+}
+```
+
+The type of the handle `fn` receives. `rollback()` undoes everything the transaction has done and ends it; see
+[Rollback](#rollback). It does not return: it throws a signal that `transaction()` catches. On a handle whose
+transaction has closed it throws a `TypeError`.
+
 ## What is announced, and when
 
 | what | when |
@@ -72,9 +84,9 @@ transaction(() => {
 
 ## Rollback
 
-The first time a transaction modifies an element, it records the element's entire mutable state: `value`,
-`originalValue`, `touched`, `errors`, `access`, `visibility`, for a `Group` the names of its members and for a
-`List` its row array. A rollback restores all of it, together with the actions the transaction registered or
+The first time a transaction modifies an element, it records every state slot of the element, extended properties
+included: `value`, `originalValue`, `touched`, `errors`, `access`, `visibility`, `extra`, for a `Group` the names
+of its members and for a `List` its row array. A rollback restores all of it, together with the actions the transaction registered or
 unregistered (including the validators removed by `clearValidators()`), and **announces nothing**: to an observer,
 the transaction did not happen. An asynchronous validation that the unregistration would have cancelled is
 restored as well: the cancellation runs only at commit, so a run in flight when the transaction opened continues
