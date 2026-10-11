@@ -1,141 +1,51 @@
 # Basic Form Example
 
-This example demonstrates how to create a simple form with fields and interact with it using `@dynamicforms/vue-forms`.
+A person form built from a [`Group`](/api/group) of four [`Field`](/api/field)s and rendered with Vuetify
+components.
 
 ## Demo
 
-Here's a live demo of the person form with Vuetify components:
-
 <PersonFormDemo />
+
+## What the demo shows
+
+- **Access.** The select beside each field sets its [`access`](/api/field-base#access). An `'editable'` or
+  `'readonly'` field sends its value, a `'disabled-null'` field sends `null`, and a `'disabled'` field drops out of
+  the output: its key is missing. First Name has a `Required` validator, so `'disabled-null'` makes the form
+  invalid, while `'disabled'` does not, because a disabled field is not validated. See
+  [What a container serializes](/api/container#what-a-container-serializes).
+- **Visibility.** The second select sets [`visibility`](/api/field-base#visibility). The template renders it:
+  `'invisible'` keeps the field's space, `'hidden'` takes none, and `'suppress'` does not render the field. The output
+  is the same for all four.
+- **Extended properties.** Each field declares its label, hint and input type as
+  [extended properties](/examples/extended-properties) (the second type argument of `Field`), and the template
+  renders every field from `extra` in one `v-for` over `personForm.fields`.
+- **Baseline.** `isChanged` is `true` once the form's value differs from `originalValue`, so a change of access that
+  changes what a field sends also makes the form changed. Save calls
+  `personForm.rebind(personForm.value)`, which makes what the form sends the new baseline, the way a server's stored
+  record would. Reset calls `personForm.rebind(personForm.originalValue)` and puts the data back; access and
+  visibility stay as they are.
+- **Events.** The event log shows the actions registered on every field: `ValueChangedAction`,
+  `ContributionChangedAction` (what the field sends to the form), `AccessChangingAction` and `AccessChangedAction`,
+  `VisibilityChangingAction` and `VisibilityChangedAction`. A change of access does not change the value: it
+  announces a contribution change where it changes what the field sends (`'editable'` to `'readonly'` does not), and
+  no value change.
+
+Every read through an element is reactive, so the template binds `field.value` directly, and the output block that
+reads `personForm.value` re-renders on every change. Every element is created with `new`, as are the action classes.
+A command such as a submit button is an [`Action`](/examples/action).
 
 ## Source Code
 
-Here's the source code for the demo above:
-
-### JavaScript/TypeScript
-
-```js
-import { Group, Field, ValueChangedAction } from '@dynamicforms/vue-forms';
-
-// Create a form group with fields
-const personForm = new Group({
-  firstName: new Field({ value: 'John' }),
-  lastName: new Field({ value: 'Doe' }),
-  age: new Field({ value: 30 }),
-  active: new Field({ value: true })
-});
-
-
-// Function to toggle field enabled state
-const toggleField = (fieldName) => {
-  const field = personForm.fields[fieldName];
-  if (field) {
-    field.access = field.enabled ? 'disabled' : 'editable';
-  }
-};
-
-// Optional: react to any value change in the form
-personForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
-  console.log('form value has changed');
-  return supr(field, newValue, oldValue);
-}));
-```
-
-Every form element ([`Field`](/api/field), `Action`, [`Group`](/api/group), [`List`](/api/list)) is created with `new`, as are the action classes such as `ValueChangedAction`. Every read through an element is reactive, so the template below binds `personForm.fields.firstName.value` directly, and the output block that reads `personForm.value` re-renders on every change.
-
-### Vue Template
-
-```vue
-<template>
-  <div>
-    <v-card class="mb-4">
-      <v-card-title>Person Form</v-card-title>
-      <v-card-text>
-        <v-form @submit.prevent>
-          <v-row>
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model="personForm.fields.firstName.value"
-                :disabled="!personForm.fields.firstName.enabled"
-                label="First Name"
-                outlined
-              ></v-text-field>
-            </v-col>
-            
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model="personForm.fields.lastName.value"
-                :disabled="!personForm.fields.lastName.enabled"
-                label="Last Name"
-                outlined
-              ></v-text-field>
-            </v-col>
-          </v-row>
-          
-          <v-row>
-            <v-col cols="12" md="6">
-              <v-text-field
-                v-model.number="personForm.fields.age.value"
-                :disabled="!personForm.fields.age.enabled"
-                type="number"
-                label="Age"
-                outlined
-              ></v-text-field>
-            </v-col>
-            
-            <v-col cols="12" md="6">
-              <v-switch
-                v-model="personForm.fields.active.value"
-                :disabled="!personForm.fields.active.enabled"
-                label="Active"
-                color="primary"
-              ></v-switch>
-            </v-col>
-          </v-row>
-        </v-form>
-      </v-card-text>
-      
-      <v-card-actions>
-        <v-btn-group>
-          <v-btn @click="toggleField('firstName')" color="primary">
-            {{ personForm.fields.firstName.enabled ? 'Disable' : 'Enable' }} First Name
-          </v-btn>
-          <v-btn @click="toggleField('lastName')" color="primary">
-            {{ personForm.fields.lastName.enabled ? 'Disable' : 'Enable' }} Last Name
-          </v-btn>
-          <v-btn @click="toggleField('age')" color="primary">
-            {{ personForm.fields.age.enabled ? 'Disable' : 'Enable' }} Age
-          </v-btn>
-        </v-btn-group>
-      </v-card-actions>
-    </v-card>
-
-    <v-card>
-      <v-card-title>Form Output</v-card-title>
-      <v-card-text>
-        <pre>{{ personForm.value }}</pre>
-      </v-card-text>
-    </v-card>
-  </div>
-</template>
-```
+<<< @/components/person-form-demo.vue
 
 ## API Reference
 
-- [Field](/api/field): field creation, `value`, `enabled`, `registerAction()`
-- [Group](/api/group): `fields`, `value`, rules for what a group sends
-- [Actions → ValueChangedAction](/api/actions#valuechangedaction)
-
-## Key Features Demonstrated
-
-- **Form Creation**: Creating a form group with fields
-- **Reactivity**: Binding form fields to Vue components
-- **Field Controls**: Enabling and disabling fields
-- **Events**: Using the ValueChangedAction to respond to form changes
-
-## Try It Yourself
-
-You can experiment with the code by changing field values, toggling field states, or adding new fields to the form.
+- [Field](/api/field): field creation, `value`, `access`, `visibility`, `extra`, `registerAction()`
+- [Group](/api/group): `fields`, `value`, `isChanged`, `rebind()`
+- [FieldBase → Access](/api/field-base#access) and [Visibility](/api/field-base#visibility)
+- [Actions → Value events](/api/actions#value-events), [Access events](/api/actions#access-events),
+  [Visibility events](/api/actions#visibility-events)
 
 <script setup>
 import PersonFormDemo from '../components/person-form-demo.vue'

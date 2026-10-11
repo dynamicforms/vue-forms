@@ -21,6 +21,7 @@
               v-model="validatedForm.fields.username.value"
               :label="text.username"
               :error-messages="getErrorMessages(validatedForm.fields.username)"
+              @update:focused="(focused) => focused || (validatedForm.fields.username.touched = true)"
               outlined
               class="mb-2"
             >
@@ -32,11 +33,24 @@
               v-model="validatedForm.fields.email.value"
               :label="text.email"
               :error-messages="getErrorMessages(validatedForm.fields.email)"
+              @update:focused="(focused) => focused || (validatedForm.fields.email.touched = true)"
               :loading="validatedForm.fields.email.validating"
               outlined
               class="mb-2"
               :hint="text.emailHint"
               persistent-hint
+            >
+              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
+            </v-text-field>
+
+            <!-- Email confirmation field (CompareTo) -->
+            <v-text-field
+              v-model="validatedForm.fields.emailConfirmation.value"
+              :label="text.emailConfirmation"
+              :error-messages="getErrorMessages(validatedForm.fields.emailConfirmation)"
+              @update:focused="(focused) => focused || (validatedForm.fields.emailConfirmation.touched = true)"
+              outlined
+              class="mb-2"
             >
               <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
             </v-text-field>
@@ -47,6 +61,7 @@
               type="number"
               :label="text.age"
               :error-messages="getErrorMessages(validatedForm.fields.age)"
+              @update:focused="(focused) => focused || (validatedForm.fields.age.touched = true)"
               outlined
               class="mb-2"
             >
@@ -59,6 +74,7 @@
               :items="roleItems"
               :label="text.role"
               :error-messages="getErrorMessages(validatedForm.fields.role)"
+              @update:focused="(focused) => focused || (validatedForm.fields.role.touched = true)"
               outlined
               class="mb-2"
             >
@@ -70,6 +86,7 @@
               v-model="validatedForm.fields.bio.value"
               :label="text.bio"
               :error-messages="getErrorMessages(validatedForm.fields.bio)"
+              @update:focused="(focused) => focused || (validatedForm.fields.bio.touched = true)"
               outlined
               counter="200"
               class="mb-2"
@@ -82,8 +99,9 @@
         <v-card-actions>
           <v-btn
             color="primary"
-            :disabled="!formValid || formBusy"
+            :disabled="formBusy"
             :loading="formBusy"
+            @click="submitForm"
           >
             {{ text.submit }}
           </v-btn>
@@ -107,6 +125,10 @@
             {{ formValid ? text.valid : text.invalid }}
           </v-alert>
           <pre class="output" dir="ltr">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
+          <template v-if="submitted">
+            <p class="mt-4">{{ text.submitted }}</p>
+            <pre class="output" dir="ltr">{{ submitted }}</pre>
+          </template>
         </v-card-text>
       </v-card>
     </v-locale-provider>
@@ -119,7 +141,6 @@ import { computed, ref } from 'vue';
 import {
   Group,
   Field,
-  ValueChangedAction,
   Validators,
   ValidationError,
 } from '../../src'; // from '@dynamicforms/vue-forms'
@@ -174,8 +195,9 @@ function errorText(error) {
   return message === error.code ? error.detail : message;
 }
 
-// Vuetify's error-messages prop takes strings; the message slot renders each one as markdown
-const getErrorMessages = (field) => field.errors.map(errorText);
+// Vuetify's error-messages prop takes strings; the message slot renders each one as markdown. A field shows its
+// errors once it is touched: on blur, or for every field when the form is submitted.
+const getErrorMessages = (field) => (field.touched ? field.errors.map(errorText) : []);
 
 // Create a form group with validated fields
 const validatedForm = new Group({
@@ -213,6 +235,17 @@ const validatedForm = new Group({
     ]
   }),
 
+  // Field compared against the email field of the same group
+  emailConfirmation: new Field({
+    value: '',
+    validators: [
+      new Validators.CompareTo('email', (confirmation, email) => confirmation === email, {
+        code: 'emails_differ',
+        detail: 'The email addresses do not match',
+      }),
+    ],
+  }),
+
   // Number field with range validation
   age: new Field({
     value: null,
@@ -243,20 +276,20 @@ const validatedForm = new Group({
 const formValid = computed(() => validatedForm.valid);
 const formBusy = computed(() => validatedForm.pending);
 
-// Function to reset the form
-function resetForm() {
-  validatedForm.fields.username.value = '';
-  validatedForm.fields.email.value = '';
-  validatedForm.fields.age.value = null;
-  validatedForm.fields.role.value = '';
-  validatedForm.fields.bio.value = '';
+// What the last submit sent
+const submitted = ref('');
+
+// Submit marks every field touched, so every error shows, and sends the form only while it is valid
+function submitForm() {
+  validatedForm.touched = true;
+  submitted.value = validatedForm.valid ? JSON.stringify(validatedForm.value, null, 2) : '';
 }
 
-// Optional: react to any value change in the form
-validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
-  console.log('Form value has changed');
-  return supr(field, newValue, oldValue);
-}));
+// Back to the declared values; rebind() also resets touched, so no error shows until a field is left again
+function resetForm() {
+  validatedForm.rebind(validatedForm.originalValue);
+  submitted.value = '';
+}
 </script>
 
 <style scoped>

@@ -74,9 +74,9 @@ const roundTemplate = new List(new Field({ value: 0, validators: [new Validators
 
 const rounds = new List(roundTemplate, { value: [[3, 5], [4]] });
 
-// a round's value is an array of numbers, or null while the round holds none
+// a round's value is an array of numbers, [] while the round holds none
 function total(round) {
-  return (round.value ?? []).reduce((sum, score) => sum + (Number(score) || 0), 0);
+  return round.value.reduce((sum, score) => sum + (Number(score) || 0), 0);
 }
 
 // Vuetify's error-messages prop takes strings; the demo shows each error's English detail

@@ -7,7 +7,7 @@
           <!-- Fruit selection -->
           <v-select
             v-model="conditionsForm.fields.fruit.value"
-            :items="['apple', 'orange', 'banana', 'grape', 'blueberry']"
+            :items="Object.keys(fruitColorMap)"
             label="Select a fruit"
             outlined
             hide-details="auto"
@@ -49,96 +49,98 @@
       </v-card-text>
 
       <v-card-actions>
-        <v-btn
-          color="primary"
-          :disabled="!conditionsForm.fields.submitAction.enabled"
-        >
-          Submit
+        <v-btn color="primary" :disabled="!submit.executable" @click="submitForm">
+          {{ submit.label }}
         </v-btn>
-        <v-btn
-          color="secondary"
-          @click="resetForm"
-          class="ml-2"
-        >
-          Reset
-        </v-btn>
+        <v-btn color="secondary" @click="resetForm" class="ml-2">Reset</v-btn>
       </v-card-actions>
     </v-card>
 
     <v-card>
       <v-card-title>Form Output</v-card-title>
       <v-card-text>
+        <p>Form is {{ conditionsForm.isChanged ? 'changed' : 'unchanged' }}</p>
         <pre class="output">{{ conditionsForm.value }}</pre>
+        <template v-if="submitted">
+          <p class="mt-4">Submitted</p>
+          <pre class="output">{{ submitted }}</pre>
+        </template>
       </v-card-text>
     </v-card>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
+import { ref } from 'vue';
 import {
-  Group,
-  Field,
-  Statement,
-  Operator,
-  ConditionalVisibilityAction,
+  Action,
   ConditionalAccessAction,
-  ConditionalValueAction
+  ConditionalValueAction,
+  ConditionalVisibilityAction,
+  ExecuteAction,
+  Field,
+  Group,
+  Operator,
+  Statement,
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
-// Create a form group with conditional fields
-const conditionsForm = new Group({
-  // Field that controls other fields
-  fruit: new Field({value: 'apple'}),
-
-  // Fields with conditional behavior
-  favoriteColor: new Field({value: ''}),
-  detailsToggle: new Field({value: false}),
-  additionalInfo: new Field({value: ''}),
-  submitAction: new Field({ access: 'disabled' }),
-});
-
-
-// Set up conditional actions
-
-// 1. Conditional Value Action - Set color based on fruit selection
-const fruitColorMap = {
-  'apple': 'red',
-  'orange': 'orange',
-  'banana': 'yellow',
-  'grape': 'purple',
-  'blueberry': 'blue'
+const fruitColorMap: Record<string, string> = {
+  apple: 'red',
+  orange: 'orange',
+  banana: 'yellow',
+  grape: 'purple',
+  blueberry: 'blue',
 };
 
-// Set up conditional actions for each fruit
-Object.entries(fruitColorMap).forEach(([fruit, color]) => {
-  const fruitStatement = new Statement(conditionsForm.fields.fruit, Operator.EQUALS, fruit);
-  conditionsForm.fields.favoriteColor.registerAction(
-    new ConditionalValueAction(fruitStatement, color)
-  );
+// The field the conditions read. It is declared before the group so that the other elements' actions can be
+// passed to their constructors, and the form's baseline is recorded after the actions have applied.
+const fruit = new Field({ value: 'apple' });
+
+// 1. Conditional Value Action - Set color based on fruit selection, one action per fruit
+const favoriteColor = new Field({
+  value: '',
+  actions: Object.entries(fruitColorMap).map(
+    ([name, color]) => new ConditionalValueAction(new Statement(fruit, Operator.EQUALS, name), color),
+  ),
 });
 
 // 2. Conditional Visibility Action - Show additional info field only when details toggle is on
-const showDetailsStatement = new Statement(conditionsForm.fields.detailsToggle, Operator.EQUALS, true);
-conditionsForm.fields.additionalInfo.registerAction(
-  new ConditionalVisibilityAction(showDetailsStatement)
-);
+const detailsToggle = new Field({ value: false });
+const additionalInfo = new Field({
+  value: '',
+  actions: [new ConditionalVisibilityAction(new Statement(detailsToggle, Operator.EQUALS, true))],
+});
 
-// 3. Conditional Access Action - Enable submit button only when all required fields are filled
-const fieldsFilledStatement = new Statement(
-  new Statement(conditionsForm.fields.fruit, Operator.NOT_EQUALS, ''),
-  Operator.AND,
-  new Statement(conditionsForm.fields.favoriteColor, Operator.NOT_EQUALS, '')
-);
-conditionsForm.fields.submitAction.registerAction(
-  new ConditionalAccessAction(fieldsFilledStatement)
-);
+// What the last submit sent
+const submitted = ref('');
 
-// Function to reset the form
+// 3. Conditional Access Action - Enable the submit action only when both fields hold a value
+const submit = new Action({
+  value: { label: 'Submit' },
+  actions: [
+    new ConditionalAccessAction(
+      new Statement(
+        new Statement(fruit, Operator.NOT_EQUALS, ''),
+        Operator.AND,
+        new Statement(favoriteColor, Operator.NOT_EQUALS, ''),
+      ),
+    ),
+    new ExecuteAction((action, supr, params) => {
+      submitted.value = JSON.stringify(conditionsForm.value);
+      return supr(action, params);
+    }),
+  ],
+});
+
+const conditionsForm = new Group({ fruit, favoriteColor, detailsToggle, additionalInfo, submit });
+
+async function submitForm() {
+  await submit.execute();
+}
+
+// Back to the baseline: the values the form was built with, after its actions applied
 function resetForm() {
-  conditionsForm.fields.fruit.value = 'apple';
-  conditionsForm.fields.favoriteColor.value = '';
-  conditionsForm.fields.detailsToggle.value = false;
-  conditionsForm.fields.additionalInfo.value = '';
+  conditionsForm.rebind(conditionsForm.originalValue);
 }
 </script>
 

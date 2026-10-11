@@ -3,12 +3,13 @@
     <v-card class="mb-4">
       <v-card-title>Sign-up</v-card-title>
       <v-card-text>
-        <v-form @submit.prevent>
+        <!-- Enter and Escape find the form's submit and cancel actions through confirm() and reject() -->
+        <v-form @submit.prevent @keydown.enter.prevent="confirm" @keydown.esc="reject">
           <v-text-field
             v-model="form.fields.name.value"
             label="Name"
             :error-messages="getErrorMessages(form.fields.name)"
-            outlined
+            :disabled="form.busy"
             hide-details="auto"
           ></v-text-field>
 
@@ -16,104 +17,154 @@
             v-model="form.fields.email.value"
             label="Email"
             :error-messages="getErrorMessages(form.fields.email)"
-            outlined
+            :disabled="form.busy"
+            hint="An @example.com address fails on the server"
+            persistent-hint
             hide-details="auto"
             class="mt-4"
           ></v-text-field>
         </v-form>
       </v-card-text>
 
+      <!-- the actions bar: every action of the group, rendered from its label, icon and executable -->
       <v-card-actions>
         <v-btn
-          color="primary"
-          :prepend-icon="save.icon"
-          :disabled="!save.enabled || save.busy"
-          :loading="save.busy"
-          @click="submit"
+          v-for="(action, name) in form.fields.actions.fields"
+          :key="name"
+          :prepend-icon="action.icon"
+          :disabled="!action.executable"
+          :loading="action.busy"
+          @click="run(action)"
         >
-          {{ save.label }}
+          {{ action.label }}
         </v-btn>
-        <v-btn color="secondary" class="ml-2" :disabled="save.busy" @click="reset">Reset</v-btn>
       </v-card-actions>
     </v-card>
 
     <v-card>
       <v-card-title>Action State</v-card-title>
       <v-card-text>
-        <p>Form is {{ form.valid ? 'valid' : 'invalid' }}, save is
-          {{ save.enabled ? 'enabled' : 'disabled' }}{{ save.busy ? ' and busy' : '' }}</p>
+        <p>
+          Form is {{ form.valid ? 'valid' : 'invalid' }} and {{ form.isChanged ? 'changed' : 'unchanged' }};
+          Submit is {{ submit.executable ? 'executable' : 'not executable' }}{{ submit.busy ? ' and busy' : '' }}
+        </p>
+        <v-btn variant="text" size="small" class="my-2" @click="run(submit)">
+          Call submit.execute() directly
+        </v-btn>
         <pre class="output">{{ log.length ? log.join('\n') : 'Fill both fields, then submit' }}</pre>
       </v-card-text>
     </v-card>
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
 import {
   Action,
-  ConditionalAccessAction,
-  ExecuteAction,
+  type CommandException,
+  type FieldBase,
   Field,
   Group,
-  Operator,
-  Statement,
-  ValidChangedAction,
+  RejectAction,
+  SubmitAction,
+  SubmitFailedException,
+  SubmitRefusedException,
+  type SubmitResult,
+  ValidationError,
+  ValueChangedAction,
   Validators,
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
-const log = ref([]);
+interface Registration {
+  name: string;
+  email: string;
+}
 
-function report(message) {
+const log = ref<string[]>([]);
+
+function report(message: string) {
   log.value = [...log.value, message].slice(-6);
 }
 
-// The form the action submits
+// The submit handler stands in for a server: it stores the record and returns it as stored, or rejects the address
+// and reports the error for the email field
+async function register(value: Registration): Promise<Registration> {
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  if (value.email.endsWith('@example.com')) {
+    const email = form.fields.email;
+    email.errors = [
+      ...email.errors,
+      new ValidationError('email_rejected', {}, 'example.com addresses are not accepted', 'server'),
+    ];
+    throw new Error('the server rejected the address');
+  }
+  return { name: value.name.trim(), email: value.email.toLowerCase() };
+}
+
+// The target of both actions is the form: an action's parent is the actions bar, whose parent is the form
+const target = (action: FieldBase) => action.parent?.parent;
+
 const form = new Group({
   name: new Field({ value: '', validators: [new Validators.Required()] }),
   email: new Field({
     value: '',
-    validators: [new Validators.Pattern(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, 'Please enter a valid email address')],
+    validators: [
+      new Validators.Pattern(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, {
+        code: 'invalid_email',
+        detail: 'Please enter a valid email address',
+      }),
+    ],
+    actions: [
+      // an error the server reported for the address is withdrawn once the address changes
+      new ValueChangedAction((field, supr, newValue, oldValue) => {
+        if (field.errors.some((error) => error.origin === 'server')) {
+          field.errors = field.errors.filter((error) => error.origin !== 'server');
+          field.validate();
+        }
+        return supr(field, newValue, oldValue);
+      }),
+    ],
   }),
-});
-
-// A Statement reads field values, and validity is not a field value, so the form's validity is copied into a
-// field the statement reads.
-const formValid = new Field({ value: false });
-form.registerAction(
-  new ValidChangedAction((field, supr, newValid, oldValid) => {
-    formValid.value = newValid;
-    return supr(field, newValid, oldValid);
-  }),
-);
-
-// The action: a label, an icon, the condition that enables it and the handler that runs
-const save = new Action({
-  value: { label: 'Submit', icon: 'mdi-content-save' },
-  actions: [
-    new ConditionalAccessAction(new Statement(formValid, Operator.EQUALS, true)),
-    new ExecuteAction(async (field, supr, params) => {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      if (params.email.endsWith('@example.com')) throw new Error('example.com addresses are not accepted');
-      return `registered ${params.email}`;
+  actions: new Group({
+    submit: new Action({
+      value: { label: 'Submit', icon: 'mdi-content-save', defaultConfirm: true },
+      actions: [new SubmitAction(target, register)],
     }),
-  ],
+    cancel: new Action({
+      value: { label: 'Cancel', icon: 'mdi-undo', defaultReject: true },
+      actions: [new RejectAction(target)],
+    }),
+  }),
 });
 
-async function submit() {
+const submit = form.fields.actions.fields.submit;
+
+// The text of every outcome a run of either action resolves with
+function describe(result: SubmitResult<Registration> | CommandException | null | undefined): string {
+  if (result === undefined) return 'nothing executed: no executable action';
+  if (result instanceof SubmitRefusedException) return `SubmitRefusedException, reason '${result.reason}'`;
+  if (result instanceof SubmitFailedException) {
+    return `SubmitFailedException: ${result.cause instanceof Error ? result.cause.message : String(result.cause)}`;
+  }
+  if (result === null || !('received' in result)) return 'Cancel: the form is back at its baseline';
+  return `SubmitResult: sent ${JSON.stringify(result.sent)}, received ${JSON.stringify(result.received)}`;
+}
+
+// A run rejects only where something other than the submit fails, such as a target callback that returns nothing
+async function settle(running: Promise<any> | undefined) {
   try {
-    report(await save.execute(form.value));
+    report(describe(await running));
   } catch (error) {
-    report(`submit failed: ${error.message}`);
+    report(`execute() rejected: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
-function reset() {
-  form.value = { name: '', email: '' };
-}
+const run = (action: Action) => settle(action.execute());
+const confirm = () => settle(form.confirm());
+const reject = () => settle(form.reject());
 
 // Vuetify's error-messages prop takes strings; the demo shows each error's English detail
-function getErrorMessages(field) {
+function getErrorMessages(field: FieldBase) {
   return field.errors.map((error) => error.detail);
 }
 </script>
