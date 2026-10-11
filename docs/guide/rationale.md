@@ -40,7 +40,8 @@ This library has in addition:
 - **rules between fields**, declared on the form: visibility, access and value as
   [conditional actions](/api/actions#conditional-actions) over other fields, and `CompareTo` comparing two fields of
   one record, in each row of a list
-- **refusing a write**: a *Changing* action may alter or refuse a value before it is applied
+- **refusing a write**: an `AccessChangingAction`, `EnabledChangingAction` or `VisibilityChangingAction` may alter or
+  refuse a change of access or visibility before it is applied
 - **per-element access and visibility**: [`access`](/api/field-base#access) determines what a container sends and
   what is validated; `visibility` determines how an element is drawn
 
@@ -52,8 +53,8 @@ every action of every store, `storeToRefs()` for destructuring a store into refs
 ([Memory per element](/guide/bindings#memory-per-element)). The [devtools](/api/devtools) of this library have an
 inspector and no timeline, and its [plugins](/api/plugins) observe writes to elements.
 
-Pinia has no validation, no transactions with rollback, no rules between values, no refusal of a write and no
-per-value access or visibility. State that needs none of these fits a Pinia store or a `reactive()` object; state
+Pinia has no validation, no transactions with rollback, no rules between values, no refusal of an access or
+visibility change and no per-value access or visibility. State that needs none of these fits a Pinia store or a `reactive()` object; state
 that needs them fits elements of this library.
 
 ## What the library carries for the interface
