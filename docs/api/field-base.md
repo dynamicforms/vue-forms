@@ -524,7 +524,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but normally managed by validators. A change of the element's value removes its errors of [origin](/api/validators#origin) `'server'`; errors of other origins stay. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
+Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but normally managed by validators. A change of the element's value removes its errors of [origin](/api/validators#origin) `'server'`; on a `Group` or a `List`, so does a member's change of `access` and a member or row added or removed (the [list of cases](/api/validators#origin)). Errors of other origins stay. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-extra"></a>

@@ -199,7 +199,8 @@ new SubmitAction(
 [`Group.field()`](/api/group#field-fieldname-t-k-null) and [`List.get()`](/api/list#get-index-r-undefined). An error
 written into `errors` makes the element and every container above it invalid at once. Its
 [origin](/api/validators#origin) is `'server'`, so the library removes it when the element's value changes: a field
-loses it when the user edits the field, and the form loses its own when any member changes. Until then the form is
+loses it when the user edits the field, and the form loses its own when any member changes its value or its
+`access`, or a member or row is added or removed ([the cases](/api/validators#origin)). Until then the form is
 invalid, so the same values are not sent again. A `SubmitAction` whose handler throws resolves with a
 `SubmitFailedException` whose `cause` is the error.
 

@@ -580,9 +580,20 @@ different one, and the element's validity is recomputed without it. The rules:
 
 - A `Field` loses its `'server'` errors on every write that changes its value: an assignment, a write into the
   value it holds through `PluginContext.changeInPlace()` (the tracking plugin), and `rebind()`.
-- A `Group` or a `List` loses its own `'server'` errors when a member or row changes its value or its `access`, and
-  when a member or row is added or removed. Each container above the changed element loses its own as well; the
-  errors of the other members stay.
+- A `Group` or a `List` loses its own `'server'` errors whenever it is notified that a member or a row changed,
+  which covers more than a change of the value it sends:
+  - a member or a row changes its value;
+  - a member or a row is written a different `access`. This includes a change between `'editable'` and
+    `'readonly'`, which leaves what the member sends as it was, so a `SubmitAction` whose target is a member of a
+    form removes the form's `'server'` errors when it locks and unlocks that member;
+  - `Group.addField()` or `removeField()` adds or removes a member, also one that is `'disabled'` and leaves the
+    group's value as it was;
+  - `List.push()`, `insert()`, `remove()`, `pop()`, `clear()`, a `value` assignment or `rebind()` adds or removes
+    rows.
+
+  Each container above the changed element loses its own `'server'` errors as well; the errors of the other members
+  stay. An error that must outlive these changes is written with another origin, such as `'application'`, and
+  removed by the code that wrote it.
 - Assigning the value the element already holds is not a change and removes nothing.
 - The removal is part of the transaction the change runs in: a rollback restores the errors with the value.
 - Errors of every other origin stay: a validator's are replaced when it runs again, and an `'application'` error,
