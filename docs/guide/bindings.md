@@ -81,7 +81,6 @@ build:
 |---|---|
 | a `Field` | 0.4 KB |
 | a `Group` of three fields, `value` and `valid` read | 6 KB |
-| `reactive({ a, b, c })` | 0.5 KB |
 
 In development the devtools also record where each root element was built, about 2.4 KB per root element; a
 member and a binding, such as a row of a `List`, keep nothing, and a production build leaves the devtools out

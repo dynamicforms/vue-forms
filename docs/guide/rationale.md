@@ -48,14 +48,12 @@ This library has in addition:
 ### Compared with Pinia
 
 Pinia holds application state in stores. It has a devtools timeline of mutations and actions, plugins that observe
-every action of every store, `storeToRefs()` for destructuring a store into refs, and less memory per value: a
-`reactive()` object of three values takes about 0.5 KB, a `Group` of three fields about 6 KB
-([Memory per element](/guide/bindings#memory-per-element)). The [devtools](/api/devtools) of this library have an
-inspector and no timeline, and its [plugins](/api/plugins) observe writes to elements.
+every action of every store, and `storeToRefs()` for destructuring a store into refs. The [devtools](/api/devtools)
+of this library have an inspector and no timeline, and its [plugins](/api/plugins) observe writes to elements.
 
 Pinia has no validation, no transactions with rollback, no rules between values, no refusal of an access or
-visibility change and no per-value access or visibility. State that needs none of these fits a Pinia store or a `reactive()` object; state
-that needs them fits elements of this library.
+visibility change and no per-value access or visibility. State that needs none of these fits a Pinia store or a
+`reactive()` object; state that needs them fits elements of this library.
 
 ## What the library carries for the interface
 
