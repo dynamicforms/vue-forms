@@ -164,7 +164,7 @@ Initial array of item values. When absent, `originalValue` is used; an explicit 
 <table class="members">
 <thead><tr><th>Property</th><th>Type</th><th>Writable</th></tr></thead>
 <tbody>
-<tr class="member-head"><td><a id="prop-fullValue"></a>
+<tr class="member-head"><td><a id="prop-fullvalue"></a>
 
 **`fullValue`**
 

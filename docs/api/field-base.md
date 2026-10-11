@@ -455,7 +455,7 @@ read-only
 The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding, transitively, so a binding of a binding has the same `declaration`. Every row a `List` builds from its item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. An action shared by every row uses it to tell one row's field from another's
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-effectiveAccess"></a>
+<tr class="member-head"><td><a id="prop-effectiveaccess"></a>
 
 **`effectiveAccess`**
 
@@ -473,7 +473,7 @@ read-only
 The access that applies once the containers above are taken into account: `'disabled'` below a container that is `'disabled'` or `'disabled-null'`, `'readonly'` for an `'editable'` element below a `'readonly'` one, and the element's own access otherwise. An element whose `effectiveAccess` is `'disabled'` sends nothing, so its validators produce no result and it has none of their errors
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-effectiveEnabled"></a>
+<tr class="member-head"><td><a id="prop-effectiveenabled"></a>
 
 **`effectiveEnabled`**
 
@@ -545,7 +545,7 @@ read-only
 The [extended properties](#extended-properties) the element holds, `{}` where none were declared. The object is frozen; write through `setExtendedValues()`
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-fieldName"></a>
+<tr class="member-head"><td><a id="prop-fieldname"></a>
 
 **`fieldName`**
 
@@ -563,7 +563,7 @@ read-only
 Key name within the parent `Group`
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-fullValue"></a>
+<tr class="member-head"><td><a id="prop-fullvalue"></a>
 
 **`fullValue`**
 
@@ -581,7 +581,7 @@ read-only
 Identical to `value` on `FieldBase`, and so on `Field` and `Action`. [`Group`](/api/group#prop-fullValue) and [`List`](/api/list#prop-fullValue) override it: there it is what the element holds, while `value` is what it sends
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-isChanged"></a>
+<tr class="member-head"><td><a id="prop-ischanged"></a>
 
 **`isChanged`**
 
@@ -599,7 +599,7 @@ read-only
 `true` when `value` differs from `originalValue` (deep equality)
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-originalValue"></a>
+<tr class="member-head"><td><a id="prop-originalvalue"></a>
 
 **`originalValue`**
 

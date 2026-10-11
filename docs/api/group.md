@@ -174,7 +174,7 @@ read-only
 The typed map of members. It is a guarded view over the group's map: reads return the members themselves, and every write throws a `TypeError`; `addField()` and `removeField()` change the set. The read is tracked, so a template rendering it re-renders when members are added or removed
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-fullValue"></a>
+<tr class="member-head"><td><a id="prop-fullvalue"></a>
 
 **`fullValue`**
 

@@ -609,8 +609,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * announces each of them once.
    *
    * Every value change of an element passes through here, so this is where the element's errors of origin
-   * `'server'` are removed: such an error describes the value the server received, and the element no longer holds
-   * it. The removal is part of the transaction and a rollback restores the errors.
+   * `'server'` are removed: such an error describes the value the server received, and the element holds a different
+   * one. The removal is part of the transaction and a rollback restores the errors.
    *
    * `force` means the caller has established that the value changed (a list with one item more or fewer is a
    * different list whatever the items compare as), so the commit announces it without a comparison.

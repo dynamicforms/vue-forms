@@ -39,7 +39,7 @@ This library has in addition:
   [`tx.rollback()`](/api/transactions#rollback)
 - **rules between fields**, declared on the form: visibility, access and value as
   [conditional actions](/api/actions#conditional-actions) over other fields, and `CompareTo` comparing two fields of
-  the same list row
+  one record, in each row of a list
 - **refusing a write**: a *Changing* action may alter or refuse a value before it is applied
 - **per-element access and visibility**: [`access`](/api/field-base#access) determines what a container sends and
   what is validated; `visibility` determines how an element is drawn

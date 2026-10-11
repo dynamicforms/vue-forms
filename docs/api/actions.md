@@ -679,7 +679,7 @@ Public members of `FieldActionBase`:
 
 | Member | Description |
 |--------|-------------|
-| `new FieldActionBase(executorFn)` | `executorFn(field, supr, ...params)` is the handler; `execute()` calls it |
+| `constructor(executorFn)` | `executorFn(field, supr, ...params)` is the handler; `execute()` calls it. The class is abstract: a subclass passes the handler to `super()` |
 | `classIdentifier` | Instance getter: the static `classIdentifier` of the action's class |
 | `execute(field, supr, ...params)` | Calls the handler with the element, the next handler in the chain and the trigger's parameters, and returns what it returns. `ActionsMap` calls it; a subclass overrides it to run code around the handler |
 
@@ -761,7 +761,8 @@ that it now applies to `owner`. This is how an action registered on an item temp
 
 A handler calls the one before it through `supr`, so a chain runs on the call stack and its depth is limited by
 the call-stack depth of the JavaScript engine: firing a chain under one identifier on one element that is deeper
-than the stack allows throws a `RangeError`. Registrations spread over several identifiers or several elements do not add up.
+than the stack allows throws a `RangeError`. Registrations spread over several identifiers or several elements do
+not add up.
 
 ---
 

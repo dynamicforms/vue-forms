@@ -146,7 +146,7 @@ const form = new Group({
   username: new Field({ value: '' }),
 });
 
-// Fill in the username from the email while the user has not typed one
+// Fill in the username from the email while the username field is not touched
 form.fields.email.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
   if (!form.fields.username.touched) form.fields.username.value = newValue.split('@')[0];
   // calling supr passes the event on to the next handler; not calling it stops the chain
