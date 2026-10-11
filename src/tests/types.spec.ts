@@ -194,6 +194,16 @@ describe('List value types', () => {
     expectTypeOf(new List()).toEqualTypeOf<List<Group>>();
     expectTypeOf(new List(undefined, { value: [{ a: 1 }] })).toEqualTypeOf<List<Group>>();
   });
+
+  it('rebinds to rows or to null, and returns the list', () => {
+    const list = new List(new Field<string>(), { value: ['a'] });
+
+    expectTypeOf(list.rebind(['b'])).toEqualTypeOf<List<Field<string>>>();
+    expectTypeOf(list.rebind(null)).toEqualTypeOf<List<Field<string>>>();
+    expect(list.rebind(null).value).toEqual([]);
+    // @ts-expect-error a row of a list of string fields is a string
+    list.rebind([1]);
+  });
 });
 
 describe('parent typing', () => {

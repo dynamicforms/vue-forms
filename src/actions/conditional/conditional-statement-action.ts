@@ -61,7 +61,10 @@ export class ConditionalStatementAction extends ValueChangedAction {
     this.listen();
   }
 
-  /** The listener on the fields the statement reads; installed while the action is registered on an element. */
+  /**
+   * The listener on the fields the statement reads. The constructor installs it; it is removed when the action is
+   * taken off its last element and installed again when the action is next registered.
+   */
   private readonly relay: ValueChangedAction;
 
   /** The number of elements the action is registered on; the relay is removed when it drops to zero. */

@@ -18,9 +18,10 @@ export function toLength(a: any): number {
 }
 
 /**
- * Whether `value` is empty: `null`, `undefined`, an empty string, an empty array or an empty plain object. Every
- * built-in validator except `Required` passes an empty value, so a field that may stay empty carries only the
- * other validators, and a field that may not adds `Required`.
+ * Whether `value` is empty: `null`, `undefined`, an empty string, an empty array, an empty `Map` or `Set`, or a
+ * plain object (one without a prototype included) with no own keys. Every built-in validator except `Required` and
+ * `CompareTo` passes an empty value, so a field that may stay empty carries only the other validators, and a field
+ * that may not adds `Required`.
  */
 export function isEmptyValue(value: unknown): boolean {
   return toLength(value) === 0 && (value == null || isString(value) || isArray(value) || isObject(value));

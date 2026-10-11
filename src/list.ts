@@ -458,6 +458,11 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
       this.propagateValueChanged(hadItems);
     });
   }
+
+  /** Takes `null` as well as an array of rows: `rebind(null)` empties the list. */
+  rebind(data: ListValueInput<R>): this {
+    return super.rebind(data as ListValue<R>);
+  }
 }
 
 export type NullableList = List | null;

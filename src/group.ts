@@ -514,8 +514,8 @@ export class Group<
   }
 
   /**
-   * A record need not contain every member: a missing key is taken from the declaration, as a member without a
-   * value in the constructor keeps the value it was declared with.
+   * A record need not contain every member: a member whose key is missing takes the `originalValue` of the
+   * corresponding member of the group's declaration, and for a group that is its own declaration, its own baseline.
    */
   rebind(data: GroupValueInput<T>): this {
     return super.rebind(data as GroupValue<T>);

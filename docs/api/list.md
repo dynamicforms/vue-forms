@@ -355,6 +355,12 @@ item template that holds rows of other kinds is declared with its row type: `new
 list.push({ name: 'Charlie', score: 70 });
 ```
 
+### `rebind(data): this`
+
+Overrides [`FieldBase.rebind()`](/api/field-base#rebind-data-this), which has the full description, to take a
+`ListValueInput<R>`: an array of rows, or `null`, which empties the list. Existing rows are reused by position, as
+in a `value` assignment.
+
 ### `remove(index): R | undefined`
 
 Removes the item at `index` and returns it: the row instance itself, which `list.get(index)` returned before the
@@ -397,7 +403,6 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
 | [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
 | [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
-| [`rebind(data)`](/api/field-base#rebind-data-this) | Replaces the data the element holds, in place |
 | [`registerAction(action)`](/api/field-base#registeraction-action-this) | Registers an action on the element; returns `this` |
 | [`registerActionBefore(action, before)`](/api/field-base#registeractionbefore-action-before-this) | Registers `action` inside an existing chain, wrapped by `before` |
 | [`setExtendedValues(values)`](/api/field-base#setextendedvalues-values-void) | Merges extended properties into `extra` |

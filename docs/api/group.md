@@ -272,8 +272,9 @@ const first = form.field('firstName'); // typed as Field<string>
 ### `rebind(data): this`
 
 Overrides [`FieldBase.rebind()`](/api/field-base#rebind-data-this), which has the full description, to take a
-`GroupValueInput<T>` record. The record need not name every member: a member whose key is absent from `data` gets
-its value from the group's `declaration`, not the previous record's value, so a row reused this way ends up in the
+`GroupValueInput<T>` record. The record need not name every member: a member whose key is absent from `data` takes
+the `originalValue` of the corresponding member of the group's `declaration`, and for a group that is its own
+declaration, its own baseline. It never takes the previous record's value, so a row reused this way ends up in the
 same state as a new `bind()` of the item template. See
 [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `rebind(group.originalValue)` (reset)
 and `rebind(null)` (empty). `group.value = null` also empties the group, but only `rebind` resets `touched`, clears

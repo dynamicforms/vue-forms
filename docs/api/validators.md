@@ -8,11 +8,11 @@ All built-in validators are available on the `Validators` namespace:
 import { Validators } from '@dynamicforms/vue-forms';
 ```
 
-The namespace contains the validators and the types used to write one: `Validator`, `ValidationFunction`,
-`ValidationFunctionResult`, `ValidatorBindingState`, `ValidationErrorOptions`, `RequiredOptions`, `AllowedValues`,
-`CompareToTarget`, `Required`, `Pattern`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`,
-`LengthInRange`, `InAllowedValues` and `CompareTo`. They are exported only through the namespace: a validator is
-written `Validators.Required`, never `Required`.
+The namespace contains the validators and the types and the function used to write one: `Validator`,
+`ValidationFunction`, `ValidationFunctionResult`, `ValidatorBindingState`, `ValidationErrorOptions`,
+`RequiredOptions`, `AllowedValues`, `CompareToTarget`, `isEmptyValue`, `Required`, `Pattern`, `MinValue`,
+`MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. They are
+exported only through the namespace: a validator is written `Validators.Required`, never `Required`.
 
 `ValidationError` and the error types describe a field's errors, not its validation, and are exported from the
 package root:
@@ -186,8 +186,9 @@ The options do not change the params. A `{name}` placeholder that names no param
 application renders the error; see [Error messages and translation](/guide/getting-started#error-messages-and-translation).
 
 **Empty values.** Every built-in validator except `Required` and `CompareTo` passes an empty value: `null`,
-`undefined`, an empty string, an empty array or an empty plain object. Refusing an empty value is `Required`'s job, so
-an optional field carries only the other validators and a mandatory one adds `Required`:
+`undefined`, an empty string, an empty array, an empty `Map` or `Set`, or a plain object (one without a prototype
+included) with no own keys. Refusing an empty value is `Required`'s job, so an optional field carries only the other
+validators and a mandatory one adds `Required`:
 
 ```typescript
 new Field({ value: null, validators: [new Validators.MinValue(18)] });                             // valid while empty
@@ -198,6 +199,19 @@ new Field({ value: null, validators: [new Validators.Required(), new Validators.
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
 `new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure any value
 the field holds.
+
+### `Validators.isEmptyValue(value: unknown): boolean`
+
+The test by which every built-in validator except `Required` and `CompareTo` passes an empty value: `true` for the
+values listed under **Empty values** above, `false` for every other value, `0`, `false`, `NaN` and a string of
+spaces included. A validator of the application's own that returns `null` where it is `true` passes an empty value
+as the built-in validators do:
+
+```typescript
+const even = new Validators.Validator<number | null>((value) =>
+  Validators.isEmptyValue(value) || value! % 2 === 0 ? null : [new ValidationError('even', {}, 'Must be even')],
+);
+```
 
 ### `new Validators.Required(options?)`
 
@@ -475,7 +489,8 @@ construction it skips (the one inside `errorFor`), and the paths and patterns of
 
 An error the application builds from a server's response carries the same `code`, `params` and `detail`, so one
 function renders the errors of validators and of the server. The origin is not part of the response: the
-application sets `'server'` when it builds the error.
+application sets `'server'` when it builds the error, and the element drops the error at the next change of its
+value (see [`origin`](#origin)).
 
 ```typescript
 // code, params and detail as the server's response states them for the field
@@ -499,13 +514,29 @@ the application's own code computed and wrote into `errors`. An origin passed as
 is used as is; where none is passed, an error returned by a validator is `'validator'` and any other is
 `'application'`. Any other string is an application-defined origin.
 
-The library does not read the origin. A rendering layer reads it to decide when to show an error, and code reads it
-to withdraw the errors of one origin and leave the others, as
-[Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned) does.
+The library reads the origin in one place: a change of an element's value removes the element's errors of origin
+`'server'`. Such an error describes the value the server received, so it is removed once the element holds a
+different one, and the element's validity is recomputed without it. The rules:
+
+- A `Field` loses its `'server'` errors on every write that changes its value: an assignment, a write into the
+  value it holds through `PluginContext.changeInPlace()` (the tracking plugin), and `rebind()`.
+- A `Group` or a `List` loses its own `'server'` errors when a member or row changes its value or its `access`, and
+  when a member or row is added or removed. Each container above the changed element loses its own as well; the
+  errors of the other members stay.
+- Assigning the value the element already holds is not a change and removes nothing.
+- The removal is part of the transaction the change runs in: a rollback restores the errors with the value.
+- Errors of every other origin stay: a validator's are replaced when it runs again, and an `'application'` error,
+  or one of an application-defined origin, stays until the code that wrote it removes it.
 
 ```typescript
 field.errors.push(new ValidationError('name_taken', {}, 'This name is taken', 'server'));
+field.valid;            // false
+field.value = 'other';  // the 'server' error is removed
+field.valid;            // true, unless a validator fails over 'other'
 ```
+
+A rendering layer reads the origin to decide when to show an error, and code reads it to withdraw the errors of one
+origin and leave the others.
 
 ---
 
