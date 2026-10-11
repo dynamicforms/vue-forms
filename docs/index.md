@@ -2,18 +2,18 @@
 layout: home
 hero:
   name: Vue Forms
-  text: A lightweight, reactive data entry forms library for Vue.js
-  tagline: Manage form data and state without dictating your UI components
+  text: Reactive forms and application state for Vue.js
+  tagline: Validation, rules between fields and transactions, without dictating your UI components
   actions:
     - theme: brand
       text: Get Started
       link: /guide/getting-started
     - theme: alt
+      text: The model
+      link: /guide/model
+    - theme: alt
       text: View on GitHub
       link: https://github.com/dynamicforms/vue-forms
-    - theme: alt
-      text: Changelog
-      link: /guide/changelog
 features:
   - title: UI-agnostic
     details: A logic layer for form state, validation and the behaviour between fields. Any Vue components render it, your own included
@@ -21,28 +21,30 @@ features:
     linkText: What it carries for the interface
   - title: Transactional
     details: Every mutating operation is atomic. Events are announced once, over the net change, and a handler that throws leaves the form unchanged
+  - title: Validation that composes
+    details: Built-in and custom rules, synchronous or asynchronous, comparing fields within a record; errors contain a code and render as text, markdown or your own component
+  - title: Application state, not only forms
+    details: The same elements also hold state that no screen displays, with per-value reactivity, transactions and validation; view() reads it as plain data
+    link: /guide/cookbook#application-state
+    linkText: A shopping cart as application state
   - title: Lists that scale
     details: A list is designed to hold thousands of rows. The cost of an operation depends on the rows it changes, not on the length of the list
   - title: Declared once, bound per record
     details: A list's item template is the declaration every row is built from. One validator instance and one conditional rule serve every row, and each row has its own result
   - title: Extended properties
     details: A field holds the data your UI needs to render it (a label, a hint, a width), declared as a type and checked by the compiler
-  - title: Application state, not only forms
-    details: The same elements also hold state that no screen displays, with per-value reactivity, transactions and validation; view() reads it as plain data
-  - title: Validation that composes
-    details: Built-in and custom rules, synchronous or asynchronous, comparing fields within a record; errors contain a code and render as text, markdown or your own component
 ---
 
 # @dynamicforms/vue-forms
 
-A lightweight, reactive data entry forms library for Vue.js that handles form state management without dictating your
-UI components.
+A reactive library for Vue.js that holds forms and application state without dictating your UI components.
 
 ## Introduction
 
-`@dynamicforms/vue-forms` manages form data, validation and state; rendering is left to the application. Every
-member of a field, group or list is a tracked read, so a template that reads `field.value` re-renders when it is
-written. There is no `ref` to unwrap and no computed mirror to keep in sync.
+`@dynamicforms/vue-forms` manages form data, validation and state; rendering is left to the application. The same
+elements also hold application state that no screen displays, such as a shopping cart or the filters of a list
+view. Every member of a field, group or list is a tracked read, so a template that reads `field.value` re-renders
+when it is written.
 
 In addition to state, the library models the behaviour *between* fields. Visibility, enablement and values are
 declared as conditions over other fields, and every change passes through an action pipeline in which each handler
@@ -75,10 +77,10 @@ cached and a write invalidates the cache. See [Scale](/api/list#scale).
 
 ### One declaration, one rule, every row
 
-The element passed to `new List(template)` is not a row. It is the item template every row is built from, and a
-row is a binding of it. A validator or a conditional action registered on the item template is one instance serving
-every row, and each row has its own result: two rows for which a condition evaluates differently have different
-results, and a `CompareTo` compares that row's own fields. See [The model](/guide/model).
+A list's item template is the declaration every row is built from. A validator or a conditional action registered
+on it is one instance serving every row, and each row has its own result: two rows for which a condition evaluates
+differently have different results, and a `CompareTo` compares that row's own fields. See
+[How a `List` builds rows](/guide/model#how-a-list-builds-rows).
 
 ### A field carries what your UI renders it with
 
@@ -99,8 +101,9 @@ layer builds on it, and a form whose structure comes from a server stores its la
 
 ## Interactive Demo
 
-An interactive person form built with `@dynamicforms/vue-forms` and Vuetify. Toggling the field states changes the
-form output:
+An interactive person form built with `@dynamicforms/vue-forms`. The demo uses Vuetify only to render the inputs;
+[the same form with plain inputs](/guide/getting-started#rendering-a-form) needs no UI library. Toggling the field
+states changes the form output:
 
 <PersonFormDemo />
 

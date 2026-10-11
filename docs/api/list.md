@@ -420,5 +420,6 @@ Type alias for `List | null`.
 ---
 
 > See also: [FieldBase](/api/field-base), [Container](/api/container),
-> [The model](/guide/model#how-a-list-builds-rows) for how a row is built and what a record is,
+> [The model](/guide/model#how-a-list-builds-rows) for how a row is built,
+> [Bindings and records](/guide/bindings#records-how-a-shared-rule-finds-the-right-element) for what a record is,
 > [Actions reference](/api/actions) for `ListItemAddedAction` and `ListItemRemovedAction`

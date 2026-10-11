@@ -183,7 +183,7 @@ falls back to `detail`, so a detail under the validator's own code would not be 
 for that code: `{ detail }` without `code` does not compile.
 
 The options do not change the params. A `{name}` placeholder that names no param stays in the detail unchanged. The
-application renders the error; see [Error messages and translation](/guide/getting-started#error-messages-and-translation).
+application renders the error; see [Error messages and translation](#error-messages-and-translation).
 
 **Empty values.** Every built-in validator except `Required` and `CompareTo` passes an empty value: `null`,
 `undefined`, an empty string, an empty array, an empty `Map` or `Set`, or a plain object (one without a prototype
@@ -448,8 +448,68 @@ substituted again: a value that is an object, such as `newValue` of a group,
 is substituted as `[object Object]`, and `allowedValues` as `admin,user`. A renderer that needs the value reads it
 from `params`.
 
-`newValue`, `oldValue` and `otherValue` are field values and are not escaped. The English detail of `compare_to`
-contains `otherValue` unescaped. Rendering a message as HTML or markdown requires escaping the params and `detail`.
+`newValue`, `oldValue` and `otherValue` are field values and are not escaped, and `detail` of an error built from
+a server's response is the server's string. The English detail of `compare_to` contains `otherValue` unescaped.
+Rendering a message as HTML or markdown requires escaping the params and `detail`. Text interpolation (`{{ }}`) and
+string props escape them.
+
+### Error messages and translation
+
+The library ships no translations, selects no locale and renders nothing. The application converts an error into
+text by its code, here with [vue-i18n](https://vue-i18n.intlify.dev/): `i18n` is the instance `createI18n()`
+returns, and `formatParams` formats numbers and dates for the locale before `t` substitutes them.
+
+```typescript
+import { formatParams } from '@dynamicforms/translatable';
+
+const { t, n, d, te } = i18n.global;
+const tf = formatParams(t, (value) =>
+  typeof value === 'number' ? n(value) : value instanceof Date ? d(value) : value);
+
+const errorText = (error) => (te(`errors.${error.code}`) ? tf(`errors.${error.code}`, error.params) : error.detail);
+```
+
+```json
+{ "errors": { "min_value": "Vrednost mora biti vsaj {minValue}", "required": "Prosimo, vnesite vrednost" } }
+```
+
+`@dynamicforms/translatable` is optional and is not a dependency of this library; an application that uses
+`formatParams` installs it with `npm install @dynamicforms/translatable`. Without it, `t(key, error.params)` alone
+substitutes the params unformatted.
+
+A function called on every render reflects a locale switch without revalidating the field. Falling back to
+`detail` allows an application to use a locale before every code is translated. An error the application builds
+from a server's response as a [`ValidationError`](#validationerror) is rendered by the same function. The
+[validators demo](/examples/validators) renders its errors this way in eight languages, with and without markdown.
+
+A validator takes `{ code, detail }` as its last argument. A field that needs its own text for a failure uses its
+own code, which the application translates like any other:
+
+```typescript
+new Validators.Required({ code: 'role_required', detail: 'Select a role' });
+```
+
+Every code the library raises, with its English detail, as a starting point for a locale's messages:
+
+```json
+{
+  "errors": {
+    "required": "Please enter a value",
+    "pattern": "Value must match pattern \"{pattern}\"",
+    "min_value": "Value must be larger or equal to {minValue}",
+    "max_value": "Value must be less than or equal to {maxValue}",
+    "value_in_range": "Value must be between {minValue} and {maxValue}",
+    "min_length": "Length must be larger or equal to {minLength}",
+    "max_length": "Length must be less than or equal to {maxLength}",
+    "length_in_range": "Length must be between {minLength} and {maxLength}",
+    "in_allowed_values": "Must be one of [{allowedAsText}]",
+    "compare_to": "Value does not match the comparison with {otherValue}",
+    "validation_failed": "Validation could not be completed"
+  }
+}
+```
+
+The codes an application gives its own validators, and those of its server's errors, are added next to these.
 
 ### `ValidationError`
 
@@ -479,7 +539,7 @@ interface ErrorDescription {
 ::: tip A library that raises errors of this shape
 A library that builds on `ErrorDescription` and raises codes of its own documents them for the applications that
 translate them, as this library does with its [error codes](#error-codes) and the message list in
-[Error messages and translation](/guide/getting-started#error-messages-and-translation).
+[Error messages and translation](#error-messages-and-translation).
 [`src/tests/error-codes.spec.ts`](https://github.com/dynamicforms/vue-forms/blob/main/src/tests/error-codes.spec.ts)
 keeps those lists in sync with the source: it reads every `this.errorFor(…)` call and every `new ValidationError(…)`
 in the library source, requires the code and the detail of each to be string literals, and compares the resulting

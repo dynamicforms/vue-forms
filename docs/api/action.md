@@ -7,7 +7,7 @@ do not run, and assigning or rebinding the container does not change it. A conta
 sends nothing either.
 
 `Action` is one of the few members that concern the user interface; [Rationale](/guide/rationale#what-the-library-carries-for-the-interface)
-lists them, and [Why `Action` is not UI-agnostic](/examples/action#why-action-is-not-ui-agnostic) explains this one.
+lists them, and [What `Action` carries for the interface](/examples/action#what-action-carries-for-the-interface) describes this one.
 A UI library extends it: `@dynamicforms/vuetify-inputs` adds render options and per-breakpoint variants
 ([df-actions](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html)).
 
