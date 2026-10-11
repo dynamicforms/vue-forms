@@ -1,6 +1,6 @@
 # Validators Example
 
-This example demonstrates how to use validators with form fields in `@dynamicforms/vue-forms`.
+Fields with [validators](/api/validators), and errors rendered by the application.
 
 ## Demo
 
@@ -50,125 +50,6 @@ validators and the demo's own codes, `invalid_email`, `email_taken` and `emails_
 }
 ```
 
-### Vue Template
-
-```vue
-<template>
-  <div class="validators-form-demo">
-    <v-locale-provider :rtl="text.rtl ?? false">
-      <v-card class="mb-4">
-        <v-card-title>{{ text.title }}</v-card-title>
-        <v-card-subtitle class="intro">{{ text.intro }}</v-card-subtitle>
-        <v-card-text>
-          <div class="settings mb-2">
-            <v-select
-              v-model="locale"
-              :items="locales"
-              density="compact"
-              hide-details
-              class="locale"
-            ></v-select>
-            <v-checkbox v-model="useMarkdown" :label="text.markdown" color="primary" density="compact" hide-details />
-          </div>
-          <v-form @submit.prevent>
-            <!-- Username field (Required) -->
-            <v-text-field
-              v-model="validatedForm.fields.username.value"
-              :label="text.username"
-              :error-messages="getErrorMessages(validatedForm.fields.username)"
-              outlined
-              class="mb-2"
-            >
-              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-            </v-text-field>
-
-            <!-- Email field (Pattern) -->
-            <v-text-field
-              v-model="validatedForm.fields.email.value"
-              :label="text.email"
-              :error-messages="getErrorMessages(validatedForm.fields.email)"
-              :loading="validatedForm.fields.email.validating"
-              outlined
-              class="mb-2"
-              :hint="text.emailHint"
-              persistent-hint
-            >
-              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-            </v-text-field>
-
-            <!-- Age field (ValueInRange) -->
-            <v-text-field
-              v-model.number="validatedForm.fields.age.value"
-              type="number"
-              :label="text.age"
-              :error-messages="getErrorMessages(validatedForm.fields.age)"
-              outlined
-              class="mb-2"
-            >
-              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-            </v-text-field>
-
-            <!-- Role field (InAllowedValues) -->
-            <v-select
-              v-model="validatedForm.fields.role.value"
-              :items="roleItems"
-              :label="text.role"
-              :error-messages="getErrorMessages(validatedForm.fields.role)"
-              outlined
-              class="mb-2"
-            >
-              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-            </v-select>
-
-            <!-- Bio field (LengthInRange) -->
-            <v-textarea
-              v-model="validatedForm.fields.bio.value"
-              :label="text.bio"
-              :error-messages="getErrorMessages(validatedForm.fields.bio)"
-              outlined
-              counter="200"
-              class="mb-2"
-            >
-              <template #message="{ message }"><vue-markdown :source="message" class="demo-message" /></template>
-            </v-textarea>
-          </v-form>
-        </v-card-text>
-
-        <v-card-actions>
-          <v-btn
-            color="primary"
-            :disabled="!formValid || formBusy"
-            :loading="formBusy"
-          >
-            {{ text.submit }}
-          </v-btn>
-          <v-btn
-            color="secondary"
-            @click="resetForm"
-            class="ml-2"
-          >
-            {{ text.reset }}
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-
-      <v-card>
-        <v-card-title>{{ text.status }}</v-card-title>
-        <v-card-text>
-          <v-alert
-            :type="formValid ? 'success' : 'error'"
-            class="mb-3"
-          >
-            {{ formValid ? text.valid : text.invalid }}
-          </v-alert>
-          <pre class="output" dir="ltr">{{ JSON.stringify(validatedForm.value, null, 2) }}</pre>
-        </v-card-text>
-      </v-card>
-    </v-locale-provider>
-  </div>
-</template>
-```
-
 ## Touched Fields and Submitting
 
 A field's errors are shown only where `field.touched` is `true`. The demo sets it when an input loses focus, so a
@@ -181,8 +62,9 @@ not yet shown.
 
 ## Comparing Two Fields
 
-The confirmation field has a [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options)
-validator that names the email field. It runs when either field changes, so editing the email after the
+The confirmation field has a
+[`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options) validator that names the
+email field. It runs when either field changes, so editing the email after the
 confirmation updates the confirmation's error.
 
 ## Asynchronous Validation in This Demo

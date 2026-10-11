@@ -20,14 +20,16 @@ components.
 - **Extended properties.** Each field declares its label, hint and input type as
   [extended properties](/examples/extended-properties) (the second type argument of `Field`), and the template
   renders every field from `extra` in one `v-for` over `personForm.fields`.
-- **Baseline.** `isChanged` is `true` once the form's value differs from `originalValue`. Save calls
+- **Baseline.** `isChanged` is `true` once the form's value differs from `originalValue`, so a change of access that
+  changes what a field sends also makes the form changed. Save calls
   `personForm.rebind(personForm.value)`, which makes what the form sends the new baseline, the way a server's stored
   record would. Reset calls `personForm.rebind(personForm.originalValue)` and puts the data back; access and
   visibility stay as they are.
 - **Events.** The event log shows the actions registered on every field: `ValueChangedAction`,
   `ContributionChangedAction` (what the field sends to the form), `AccessChangingAction` and `AccessChangedAction`,
-  `VisibilityChangingAction` and `VisibilityChangedAction`. A change of access changes what is sent and not the value,
-  so it announces a contribution change and no value change.
+  `VisibilityChangingAction` and `VisibilityChangedAction`. A change of access does not change the value: it
+  announces a contribution change where it changes what the field sends (`'editable'` to `'readonly'` does not), and
+  no value change.
 
 Every read through an element is reactive, so the template binds `field.value` directly, and the output block that
 reads `personForm.value` re-renders on every change. Every element is created with `new`, as are the action classes.

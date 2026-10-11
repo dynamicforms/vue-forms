@@ -60,8 +60,9 @@ eager actions, including its validators; `validate()` alone recomputes validity 
 ### List Validity
 
 `list.valid` is `true` when the list has no errors of its own and every row is valid. The Submit button's `disabled`
-state binds to it, and a submit reports in the event log how many line items the list sends. Emptying a description or clearing a unit price on a row with a
-quantity above zero turns the whole list invalid; removing that row makes it valid again.
+state binds to it, and a submit reports in the event log how many line items the list sends. Emptying a description
+or clearing a unit price on a row with a quantity above zero turns the whole list invalid; removing that row makes it
+valid again.
 
 ### Reading the Value
 

@@ -74,7 +74,15 @@
 
 <script setup lang="ts">
 import { computed, ref, watchEffect } from 'vue';
-import { Field, Group, List, transaction, ValueChangedAction, Validators, view } from '../../src'; // from '@dynamicforms/vue-forms'
+import {
+  Field,
+  Group,
+  List,
+  transaction,
+  ValueChangedAction,
+  Validators,
+  view,
+} from '../../src'; // from '@dynamicforms/vue-forms'
 
 function createCart() {
   const cart = view(new Group({

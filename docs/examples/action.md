@@ -69,7 +69,7 @@ are the per-breakpoint part of the widened value.
 
 `new Action({ value: { label, icon } })` declares an action. `label` and `icon` are accessors over the value,
 so writing either is an ordinary value change: `ValueChangedAction` fires, `isChanged` reflects it, and a disabled
-action takes the write like any other field. `save.label = 'Saving…'` therefore re-renders every template that
+action takes the write like any other field. `submit.label = 'Saving…'` therefore re-renders every template that
 reads it. `defaultConfirm` and `defaultReject` mark the action `confirm()` or `reject()` executes where no
 `SubmitAction` or `RejectAction` targets the container.
 
