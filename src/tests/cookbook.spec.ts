@@ -65,7 +65,7 @@ describe('Cookbook: loading, submitting and resetting', () => {
     expect(form.value).toEqual({ name: 'declared', age: 40 });
   });
 
-  it('submits once validation has settled, keeps the inputs disabled while saving, and rebinds', async () => {
+  it('submits once validation has settled, keeps the form readonly while saving, and rebinds', async () => {
     const pending: ((value: null) => void)[] = [];
     const slow = new Validators.Validator(() => new Promise<null>((resolve) => pending.push(resolve)));
     const form = new Group({ name: new Field({ value: 'Ada', validators: [slow] }) });
@@ -79,16 +79,14 @@ describe('Cookbook: loading, submitting and resetting', () => {
       },
     };
 
-    const saving = ref(false);
-
     async function submit() {
       await form.settled();
       if (!form.valid) return;
-      saving.value = true;
+      form.access = 'readonly';
       try {
         form.rebind(await api.save(form.value));
       } finally {
-        saving.value = false;
+        form.access = 'editable';
       }
     }
 
@@ -96,17 +94,18 @@ describe('Cookbook: loading, submitting and resetting', () => {
     expect(sent).toEqual([]);
     pending.forEach((resolve) => resolve(null));
     await vi.waitFor(() => expect(sent).toEqual([{ name: 'Grace' }]));
-    // busy counts only Action.execute() runs, so the plain submit carries its own flag
-    expect(form.busy).toBe(false);
-    expect(saving.value).toBe(true);
+    expect(form.fields.name.effectiveEnabled).toBe(false);
+    expect(form.enabled).toBe(false);
+    expect(form.value).toEqual({ name: 'Grace' });
+    expect(form.isChanged).toBe(true);
 
     answer({ name: 'Grace' });
     await running;
-    expect(saving.value).toBe(false);
+    expect(form.fields.name.effectiveEnabled).toBe(true);
     expect(form.isChanged).toBe(false);
   });
 
-  it('submits through a SubmitAction, which keeps the form busy while it runs', async () => {
+  it('submits through a SubmitAction, which keeps the form readonly and busy while it runs', async () => {
     let answer: ((saved: { name: string }) => void) | undefined;
     const api = { save: () => new Promise<{ name: string }>((resolve) => (answer = resolve)) };
     const form = new Group({
@@ -136,6 +135,7 @@ describe('Cookbook: loading, submitting and resetting', () => {
     const running = form.confirm();
     expect(form.busy).toBe(true);
     await vi.waitFor(() => expect(answer).toBeDefined());
+    expect(form.fields.name.effectiveEnabled).toBe(false);
     answer!({ name: 'Ada' });
     const result = await running;
 
@@ -262,19 +262,17 @@ describe('Cookbook: errors the server returned', () => {
         throw new FieldErrors({ 'items.1.price': ['Must be positive'], email: ['Taken'], '': ['Try again'] });
       },
     };
-    const saving = ref(false);
-
     async function submit() {
       await form.settled();
       if (!form.valid) return;
-      saving.value = true;
+      form.access = 'readonly';
       try {
         form.rebind(await api.save());
       } catch (error) {
         if (error instanceof FieldErrors) showServerErrors(form, error.errors);
         throw error;
       } finally {
-        saving.value = false;
+        form.access = 'editable';
       }
     }
 
@@ -283,7 +281,7 @@ describe('Cookbook: errors the server returned', () => {
     expect(price.errors.map((error) => [error.origin, error.detail])).toEqual([['server', 'Must be positive']]);
     expect(form.errors.map((error) => error.detail)).toEqual(['Try again']);
     expect(form.valid).toBe(false);
-    expect(saving.value).toBe(false);
+    expect(form.access).toBe('editable');
 
     price.value = 2;
     expect(price.errors).toEqual([]);

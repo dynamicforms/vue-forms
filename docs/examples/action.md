@@ -32,7 +32,8 @@ and `reject()`.
 - **Rebinding.** Otherwise the handler returns the record as stored (name trimmed, email lower-cased), and
   `SubmitAction` rebinds the form to it: the inputs show the stored record and `isChanged` is `false`. Cancel
   rebinds the form to its `originalValue`.
-- **`busy`.** The form is `busy` while the submit runs, and the inputs are disabled for that time.
+- **`busy` and the lock.** `SubmitAction` makes the form `'readonly'` while the submit runs, so the inputs, bound to
+  `effectiveEnabled`, accept no input for that time; the form is `busy` meanwhile.
 
 ## Source Code
 

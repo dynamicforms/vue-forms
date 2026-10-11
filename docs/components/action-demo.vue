@@ -9,7 +9,7 @@
             v-model="form.fields.name.value"
             label="Name"
             :error-messages="getErrorMessages(form.fields.name)"
-            :disabled="form.busy"
+            :disabled="!form.fields.name.effectiveEnabled"
             hide-details="auto"
           ></v-text-field>
 
@@ -17,7 +17,7 @@
             v-model="form.fields.email.value"
             label="Email"
             :error-messages="getErrorMessages(form.fields.email)"
-            :disabled="form.busy"
+            :disabled="!form.fields.email.effectiveEnabled"
             hint="An @example.com address fails on the server"
             persistent-hint
             hide-details="auto"
