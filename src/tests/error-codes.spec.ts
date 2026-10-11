@@ -38,9 +38,9 @@ const raised = () => {
   return { found, unreadable };
 };
 
-/** The messages docs/guide/getting-started.md lists for a locale to start from, by error code. */
-const guideMessages = (): Record<string, string> => {
-  const block = read('docs/guide/getting-started.md').match(/```json\n(\{\n {2}"errors": \{\n[\s\S]*?)\n```/);
+/** The messages docs/api/validators.md lists for a locale to start from, by error code. */
+const localeMessages = (): Record<string, string> => {
+  const block = read('docs/api/validators.md').match(/```json\n(\{\n {2}"errors": \{\n[\s\S]*?)\n```/);
   return JSON.parse(block![1]).errors;
 };
 
@@ -59,8 +59,8 @@ describe('the error codes the documentation lists', () => {
     expect(Object.keys(found).length).toBeGreaterThan(0);
   });
 
-  it('are in the getting started guide, each with the English detail of the source', () => {
-    expect(guideMessages()).toEqual(raised().found);
+  it('are in the locale messages of the validators reference, each with the English detail of the source', () => {
+    expect(localeMessages()).toEqual(raised().found);
   });
 
   it('are in the error code table of the validators reference, each with the English detail of the source', () => {

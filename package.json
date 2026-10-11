@@ -4,7 +4,7 @@
   "version": "3.0.0",
   "type": "module",
   "sideEffects": false,
-  "description": "A Vue.js library for form state management with built-in validation, conditional logic, nested structures, and a rich event system. UI-agnostic and TypeScript-first.",
+  "description": "Reactive forms and application state for Vue.js: validation, rules between fields, transactions and lists. UI-agnostic and TypeScript-first.",
   "author": "Jure Erznožnik",
   "files": [
     "dist/*"
@@ -44,7 +44,9 @@
     "validation",
     "reactive",
     "typescript",
-    "data entry"
+    "data entry",
+    "state",
+    "state-management"
   ],
   "license": "MIT",
   "homepage": "https://docs.velis.si/dynamicforms/vue-forms",

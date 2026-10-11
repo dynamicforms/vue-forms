@@ -8,11 +8,11 @@ All built-in validators are available on the `Validators` namespace:
 import { Validators } from '@dynamicforms/vue-forms';
 ```
 
-The namespace contains the validators and the types used to write one: `Validator`, `ValidationFunction`,
-`ValidationFunctionResult`, `ValidatorBindingState`, `ValidationErrorOptions`, `RequiredOptions`, `AllowedValues`,
-`CompareToTarget`, `Required`, `Pattern`, `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`,
-`LengthInRange`, `InAllowedValues` and `CompareTo`. They are exported only through the namespace: a validator is
-written `Validators.Required`, never `Required`.
+The namespace contains the validators and the types and the function used to write one: `Validator`,
+`ValidationFunction`, `ValidationFunctionResult`, `ValidatorBindingState`, `ValidationErrorOptions`,
+`RequiredOptions`, `AllowedValues`, `CompareToTarget`, `isEmptyValue`, `Required`, `Pattern`, `MinValue`,
+`MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. They are
+exported only through the namespace: a validator is written `Validators.Required`, never `Required`.
 
 `ValidationError` and the error types describe a field's errors, not its validation, and are exported from the
 package root:
@@ -183,11 +183,12 @@ falls back to `detail`, so a detail under the validator's own code would not be 
 for that code: `{ detail }` without `code` does not compile.
 
 The options do not change the params. A `{name}` placeholder that names no param stays in the detail unchanged. The
-application renders the error; see [Error messages and translation](/guide/getting-started#error-messages-and-translation).
+application renders the error; see [Error messages and translation](#error-messages-and-translation).
 
 **Empty values.** Every built-in validator except `Required` and `CompareTo` passes an empty value: `null`,
-`undefined`, an empty string, an empty array or an empty plain object. Refusing an empty value is `Required`'s job, so
-an optional field carries only the other validators and a mandatory one adds `Required`:
+`undefined`, an empty string, an empty array, an empty `Map` or `Set`, or a plain object (one without a prototype
+included) with no own keys. Refusing an empty value is `Required`'s job, so an optional field carries only the other
+validators and a mandatory one adds `Required`:
 
 ```typescript
 new Field({ value: null, validators: [new Validators.MinValue(18)] });                             // valid while empty
@@ -198,6 +199,19 @@ new Field({ value: null, validators: [new Validators.Required(), new Validators.
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
 `new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure any value
 the field holds.
+
+### `Validators.isEmptyValue(value: unknown): boolean`
+
+The test by which every built-in validator except `Required` and `CompareTo` passes an empty value: `true` for the
+values listed under **Empty values** above, `false` for every other value, `0`, `false`, `NaN` and a string of
+spaces included. A validator of the application's own that returns `null` where it is `true` passes an empty value
+as the built-in validators do:
+
+```typescript
+const even = new Validators.Validator<number | null>((value) =>
+  Validators.isEmptyValue(value) || value! % 2 === 0 ? null : [new ValidationError('even', {}, 'Must be even')],
+);
+```
 
 ### `new Validators.Required(options?)`
 
@@ -434,13 +448,73 @@ substituted again: a value that is an object, such as `newValue` of a group,
 is substituted as `[object Object]`, and `allowedValues` as `admin,user`. A renderer that needs the value reads it
 from `params`.
 
-`newValue`, `oldValue` and `otherValue` are field values and are not escaped. The English detail of `compare_to`
-contains `otherValue` unescaped. Rendering a message as HTML or markdown requires escaping the params and `detail`.
+`newValue`, `oldValue` and `otherValue` are field values and are not escaped, and `detail` of an error built from
+a server's response is the server's string. The English detail of `compare_to` contains `otherValue` unescaped.
+Rendering a message as HTML or markdown requires escaping the params and `detail`. Text interpolation (`{{ }}`) and
+string props escape them.
+
+### Error messages and translation
+
+The library ships no translations, selects no locale and renders nothing. The application converts an error into
+text by its code, here with [vue-i18n](https://vue-i18n.intlify.dev/): `i18n` is the instance `createI18n()`
+returns, and `formatParams` formats numbers and dates for the locale before `t` substitutes them.
+
+```typescript
+import { formatParams } from '@dynamicforms/translatable';
+
+const { t, n, d, te } = i18n.global;
+const tf = formatParams(t, (value) =>
+  typeof value === 'number' ? n(value) : value instanceof Date ? d(value) : value);
+
+const errorText = (error) => (te(`errors.${error.code}`) ? tf(`errors.${error.code}`, error.params) : error.detail);
+```
+
+```json
+{ "errors": { "min_value": "Vrednost mora biti vsaj {minValue}", "required": "Prosimo, vnesite vrednost" } }
+```
+
+`@dynamicforms/translatable` is optional and is not a dependency of this library; an application that uses
+`formatParams` installs it with `npm install @dynamicforms/translatable`. Without it, `t(key, error.params)` alone
+substitutes the params unformatted.
+
+A function called on every render reflects a locale switch without revalidating the field. Falling back to
+`detail` allows an application to use a locale before every code is translated. An error the application builds
+from a server's response as a [`ValidationError`](#validationerror) is rendered by the same function. The
+[validators demo](/examples/validators) renders its errors this way in eight languages, with and without markdown.
+
+A validator takes `{ code, detail }` as its last argument. A field that needs its own text for a failure uses its
+own code, which the application translates like any other:
+
+```typescript
+new Validators.Required({ code: 'role_required', detail: 'Select a role' });
+```
+
+Every code the library raises, with its English detail, as a starting point for a locale's messages:
+
+```json
+{
+  "errors": {
+    "required": "Please enter a value",
+    "pattern": "Value must match pattern \"{pattern}\"",
+    "min_value": "Value must be larger or equal to {minValue}",
+    "max_value": "Value must be less than or equal to {maxValue}",
+    "value_in_range": "Value must be between {minValue} and {maxValue}",
+    "min_length": "Length must be larger or equal to {minLength}",
+    "max_length": "Length must be less than or equal to {maxLength}",
+    "length_in_range": "Length must be between {minLength} and {maxLength}",
+    "in_allowed_values": "Must be one of [{allowedAsText}]",
+    "compare_to": "Value does not match the comparison with {otherValue}",
+    "validation_failed": "Validation could not be completed"
+  }
+}
+```
+
+The codes an application gives its own validators, and those of its server's errors, are added next to these.
 
 ### `ValidationError`
 
 ```typescript
-new ValidationError(code: string, params: Record<string, unknown>, detail: string, origin?: ErrorOrigin)
+new ValidationError(code: string, params: Readonly<Record<string, unknown>>, detail: string, statedOrigin?: ErrorOrigin)
 ```
 
 An error a field carries. The library does not render it; a renderer chooses its text from `code` and `params` and
@@ -465,7 +539,7 @@ interface ErrorDescription {
 ::: tip A library that raises errors of this shape
 A library that builds on `ErrorDescription` and raises codes of its own documents them for the applications that
 translate them, as this library does with its [error codes](#error-codes) and the message list in
-[Error messages and translation](/guide/getting-started#error-messages-and-translation).
+[Error messages and translation](#error-messages-and-translation).
 [`src/tests/error-codes.spec.ts`](https://github.com/dynamicforms/vue-forms/blob/main/src/tests/error-codes.spec.ts)
 keeps those lists in sync with the source: it reads every `this.errorFor(…)` call and every `new ValidationError(…)`
 in the library source, requires the code and the detail of each to be string literals, and compares the resulting
@@ -475,7 +549,8 @@ construction it skips (the one inside `errorFor`), and the paths and patterns of
 
 An error the application builds from a server's response carries the same `code`, `params` and `detail`, so one
 function renders the errors of validators and of the server. The origin is not part of the response: the
-application sets `'server'` when it builds the error.
+application sets `'server'` when it builds the error, and the element drops the error at the next change of its
+value (see [`origin`](#origin)).
 
 ```typescript
 // code, params and detail as the server's response states them for the field
@@ -499,13 +574,29 @@ the application's own code computed and wrote into `errors`. An origin passed as
 is used as is; where none is passed, an error returned by a validator is `'validator'` and any other is
 `'application'`. Any other string is an application-defined origin.
 
-The library does not read the origin. A rendering layer reads it to decide when to show an error, and code reads it
-to withdraw the errors of one origin and leave the others, as
-[Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned) does.
+The library reads the origin in one place: a change of an element's value removes the element's errors of origin
+`'server'`. Such an error describes the value the server received, so it is removed once the element holds a
+different one, and the element's validity is recomputed without it. The rules:
+
+- A `Field` loses its `'server'` errors on every write that changes its value: an assignment, a write into the
+  value it holds through `PluginContext.changeInPlace()` (the tracking plugin), and `rebind()`.
+- A `Group` or a `List` loses its own `'server'` errors when a member or row changes its value or its `access`, and
+  when a member or row is added or removed. Each container above the changed element loses its own as well; the
+  errors of the other members stay.
+- Assigning the value the element already holds is not a change and removes nothing.
+- The removal is part of the transaction the change runs in: a rollback restores the errors with the value.
+- Errors of every other origin stay: a validator's are replaced when it runs again, and an `'application'` error,
+  or one of an application-defined origin, stays until the code that wrote it removes it.
 
 ```typescript
 field.errors.push(new ValidationError('name_taken', {}, 'This name is taken', 'server'));
+field.valid;            // false
+field.value = 'other';  // the 'server' error is removed
+field.valid;            // true, unless a validator fails over 'other'
 ```
+
+A rendering layer reads the origin to decide when to show an error, and code reads it to withdraw the errors of one
+origin and leave the others.
 
 ---
 

@@ -5,6 +5,8 @@ describe('package entry point', () => {
     expect(new entry.Field({ value: 1 }).value).toBe(1);
     expect(typeof entry.Validators.Required).toBe('function');
     expect(typeof entry.ValidationError).toBe('function');
+    expect(entry.Validators.isEmptyValue('')).toBe(true);
+    expect(entry.Validators.isEmptyValue(0)).toBe(false);
   });
 
   it('exports no rendering or configuration surface', () => {

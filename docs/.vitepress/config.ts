@@ -3,7 +3,7 @@ import vuetify from 'vite-plugin-vuetify';
 
 export default defineConfig({
   title: 'Vue Forms',
-  description: 'A lightweight, reactive data entry forms library for Vue.js',
+  description: 'Reactive forms and application state for Vue.js: validation, rules between fields and transactions',
   ignoreDeadLinks: [
     /^https?:\/\/localhost/
   ],
@@ -24,6 +24,7 @@ export default defineConfig({
             { text: 'Rationale', link: '/guide/rationale' },
             { text: 'The model', link: '/guide/model' },
             { text: 'Cookbook', link: '/guide/cookbook' },
+            { text: 'Bindings and records', link: '/guide/bindings' },
           ]
         },
         {
@@ -35,12 +36,6 @@ export default defineConfig({
         }
       ],
       '/api/': [
-        {
-          text: 'Concepts',
-          items: [
-            { text: 'The model', link: '/guide/model' },
-          ]
-        },
         {
           text: 'API Reference',
           items: [

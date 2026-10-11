@@ -590,6 +590,13 @@ Enum of supported operators:
 Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`. `Operator.isDefined(value)` returns whether a number or a string is an
 operator, and returns `false` for an unrecognised string.
 
+`Operator.fromAny(mode)` takes an operator or an operator name: a number is returned as is when it is an
+`Operator` value, a string is parsed by `fromString()`. A number that is no operator and an unrecognised string throw
+`Error('Unrecognised operator …')`.
+
+`Operator.isLogicOperator(operator)` returns `true` for the logic operators (`NOT` … `NOR`, the values `>= 0`) and
+`false` for the comparison, membership and substring operators.
+
 ### `ConditionalVisibilityAction(statement, whenTrue?, whenFalse?)`
 
 Sets `field.visibility` to `whenTrue` (default `'full'`) while `statement` is `true` and to `whenFalse` (default
@@ -668,12 +675,21 @@ field.triggerAction(MyAction, 'some param');
 An action must derive from `FieldActionBase`: `registerAction()` checks `instanceof FieldActionBase` and rejects
 anything else with `Error('Invalid action type')`, so a plain object with a matching `execute` method is rejected.
 
+Public members of `FieldActionBase`:
+
+| Member | Description |
+|--------|-------------|
+| `constructor(executorFn)` | `executorFn(field, supr, ...params)` is the handler; `execute()` calls it. The class is abstract: a subclass passes the handler to `super()` |
+| `classIdentifier` | Instance getter: the static `classIdentifier` of the action's class |
+| `execute(field, supr, ...params)` | Calls the handler with the element, the next handler in the chain and the trigger's parameters, and returns what it returns. `ActionsMap` calls it; a subclass overrides it to run code around the handler |
+
 Optional overrides:
 
 | Member | Description |
 |--------|-------------|
 | `boundToBinding(binding)` | Called once for every element this action applies to: the element it is registered on, and every binding of that element when the binding receives the action. Use it to record the elements the action applies to |
 | `get eager()` | Return `true` to have the action run over what the element sends (its [`contribution`](/api/field-base#prop-contribution)) at every point the eager pass runs: registration, construction, `bind()`, `validate(true)`, a write to a leaf's `value` that changes what it sends (inside the write, before any `ValueChangedAction` fires), a change of access, and a container recomputing what it sends, which re-runs a group's eager action when a member changes. [The full list is under `AbortEventHandlingException`](#aborteventhandlingexception). Defaults to `false`, and it is read per instance: the eager pass does not run a non-eager action registered under the same `classIdentifier` as an eager one |
+| `resetBinding(binding)` | Called when `binding` is reset to a new binding of its declaration: a member of a bound group on `rebind()`, or a `List` row reused for another record. Override it to drop what the action keeps about the element's state before the reset; the element's eager actions other than the validators run again once the reset holds every new value, before the baseline is recorded. The conditional actions override it to forget the result they last applied |
 | `unregisterFrom(binding)` | Called by `unregisterAction()` and by `clearValidators()`, with the element the action was removed from. Override it to release what the action installed for that element: `CompareTo` stops validating it, and `Validator` removes the errors it set there. It runs inside the operation that removed the registration, so a rollback restores both the registration and what this method removed |
 
 State an action keeps between runs belongs to the element it ran for, because the instance is shared by every
@@ -713,8 +729,8 @@ every element of a subtree declared as a given element.
 The actions one element has registered, grouped by `classIdentifier`. It is the type of `FieldBase`'s internal
 action store and is exported so that type can be named; `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()` and `clearValidators()` on the field are the supported way to use it. Its
-own members are `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerFor()`, `willTrigger()`,
-`hasEager`, `ofClass()`, `validators` and `bindTo()`.
+own members are `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerRules()`,
+`triggerEagerFor()`, `willTrigger()`, `hasEager`, `ofClass()`, `validators`, `bindTo()` and `resetBinding()`.
 
 Within a group the actions are stored in registration order and run from the last to the first, so the newest
 registration is the outermost handler and calls the ones before it through its `supr`.
@@ -727,7 +743,10 @@ next trigger.
 
 `trigger(ActionClass, field, ...params)` runs the group registered under that class and returns what its outermost
 handler returned. `triggerEager(field, ...params)` runs the eager actions of every identifier, each group
-separately, and `triggerEagerFor(identifier, field, ...params)` runs those of one identifier. `trigger` and
+separately: the eager actions other than the validators first, then the validators, which receive the element's
+`contribution` in place of the first parameter where a rule ran before them. `triggerEagerRules(field, ...params)`
+runs only the eager actions other than the validators, and `triggerEagerFor(identifier, field, ...params)` runs
+those of one identifier. `trigger` and
 `triggerEagerFor` return an `AbortEventHandlingException` a handler threw, or a promise resolving to it where the
 chain ran through an asynchronous handler; `triggerEager` returns nothing, and such an exception ends only the
 group it was thrown in, on the asynchronous path as on the synchronous one.
@@ -738,10 +757,12 @@ validators, both in registration order.
 
 Binding an element uses the declaration's map itself, not a copy, and `bindTo(owner)` notifies each action in it
 that it now applies to `owner`. This is how an action registered on an item template applies to every row.
+`resetBinding(owner)` calls `resetBinding(owner)` on each action in the map.
 
 A handler calls the one before it through `supr`, so a chain runs on the call stack and its depth is limited by
-the stack size: about 1300 handlers under one identifier on one element, beyond which firing it throws a
-`RangeError`. Registrations spread over several identifiers or several elements do not add up.
+the call-stack depth of the JavaScript engine: firing a chain under one identifier on one element that is deeper
+than the stack allows throws a `RangeError`. Registrations spread over several identifiers or several elements do
+not add up.
 
 ---
 

@@ -161,6 +161,12 @@ gone; read `code`, `params` and `detail`.
 `sameAs` compares the class, `code`, `params`, `detail` and the stated origin. A re-run whose params differ, such
 as a changed `newValue`, replaces the error instance on the field.
 
+An error of origin `'server'` is removed from an element when the element's value changes, and the element's
+validity is recomputed. In 2.0 it stayed until code removed it, so a form whose save was refused stayed invalid
+after the user corrected the field. A container's own `'server'` errors go when a member or row below it changes.
+Code that withdrew `'server'` errors on input can drop that step; an error that has to survive an edit takes another
+origin. See [`origin`](/api/validators#origin).
+
 ### Validators take `{ code, detail }` instead of a message
 
 The `message` argument of every built-in validator is replaced by `ValidationErrorOptions`, which sets the error's
@@ -254,6 +260,7 @@ app.use(forms, { useMarkdownInValidators: false });
     a `value` assignment of the list, where the code relied on them being kept.
 18. Check code that reads `isChanged` or `originalValue` of the members of a group constructed with a value.
 19. Remove the `try`/`catch` around `Operator.isDefined()`.
+20. Check code that relies on an error of origin `'server'` staying on a field after its value changes.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

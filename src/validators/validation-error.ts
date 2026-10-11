@@ -4,6 +4,8 @@ import { isEqual } from 'lodash-es';
  * The source of an error. `'validator'` is an error a validator produced, `'server'` one the server returned and
  * `'application'` one the application's code computed and wrote into `errors`. Any other string is an
  * application-defined origin.
+ *
+ * An element removes its `'server'` errors when its value changes; errors of every other origin stay.
  */
 export type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
 

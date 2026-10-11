@@ -180,7 +180,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * count of its container. If an open transaction already has a pending value change for the element, the commit
    * announces it with the value the element had when the transaction opened as the old value.
    *
-   * Keys missing from `data` are taken from the element's `declaration`, not from the previous record.
+   * A member of a `Group` whose key is missing from `data` takes the `originalValue` of the corresponding member of
+   * the group's `declaration`: for a group that is its own declaration, the member's own baseline. A key missing
+   * from the data never takes the value of the previous record.
    *
    * The element keeps its `access` and `visibility`. A member reset from an element other than itself (a member of
    * a bound group, a reused `List` row) takes them from that element, see `resetChild`.
@@ -303,8 +305,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * Restores a captured state. It writes through the tracked view, so an effect that ran on the state the
    * transaction produced runs again on the restored state, for the slots that differ.
    *
-   * The two validation counters are not restored: they count runs in flight, and a rollback does not cancel a run.
-   * Restored counts would not match the endValidating calls still to come.
+   * The two validation counters are not restored: they count runs in flight. A rollback cancels the asynchronous
+   * runs the transaction started, and each cancelled run ends its count when its promise settles; restored counts
+   * would not match the endValidating calls still to come.
    */
   protected [TxRestore](snapshot: TxSnapshot): void {
     const validating = this.#raw.validatingCount;
@@ -401,6 +404,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    *
    * The array and its members are Vue proxies, not the raw instances a validator returned: `field.errors[0] ===
    * myError` is `false` even for the same error. Compare identity with `toRaw()`.
+   *
+   * A change of the element's value removes its errors of origin `'server'`; errors of other origins stay.
    */
   get errors(): ValidationError[] {
     this.touchState();
@@ -603,15 +608,30 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * announced here: at commit the transaction determines which enrolled elements hold a different value and
    * announces each of them once.
    *
+   * Every value change of an element passes through here, so this is where the element's errors of origin
+   * `'server'` are removed: such an error describes the value the server received, and the element holds a different
+   * one. The removal is part of the transaction and a rollback restores the errors.
+   *
    * `force` means the caller has established that the value changed (a list with one item more or fewer is a
    * different list whatever the items compare as), so the commit announces it without a comparison.
    */
   protected propagateValueChanged(force: boolean = false): void {
     transactional((tx) => {
       tx.markValueChanged(this, force);
+      this.dropServerErrors(tx);
       tx.markValidityDirty(this);
       this.parent?.notifyValueChanged();
     });
+  }
+
+  /** Removes this element's errors of origin `'server'`; errors of every other origin stay. */
+  private dropServerErrors(tx: Transaction): void {
+    if (!this.#raw.errors.some((error) => error.origin === 'server')) return;
+    tx.touch(this);
+    const errors = this.#state.errors;
+    for (let i = errors.length - 1; i >= 0; i--) {
+      if (errors[i].origin === 'server') errors.splice(i, 1);
+    }
   }
 
   /**

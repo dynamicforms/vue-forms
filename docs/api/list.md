@@ -164,7 +164,7 @@ Initial array of item values. When absent, `originalValue` is used; an explicit 
 <table class="members">
 <thead><tr><th>Property</th><th>Type</th><th>Writable</th></tr></thead>
 <tbody>
-<tr class="member-head"><td><a id="prop-fullValue"></a>
+<tr class="member-head"><td><a id="prop-fullvalue"></a>
 
 **`fullValue`**
 
@@ -282,9 +282,9 @@ length of the list:
 | reading `value` after a change | one array of the current length, plus a rebuild of the rows that changed |
 | assigning `value`, or `validate(true)` | the whole list (both apply to every row) |
 
-The rows are held outside Vue's reactivity: a reactive array would route every row a `splice()` shifts through its
-proxy. Every change of the set of rows increments a tracked counter, so `length`, `get()`, `items` and a template
-that reads them re-run as before.
+The rows are held outside Vue's reactivity, so a `splice()` does not route the rows it shifts through a proxy.
+Every change of the set of rows increments a tracked counter, so `length`, `get()`, `items` and a template that
+reads them re-run on every such change.
 
 The caches are invalidated by the write itself, so no manual refresh is needed. `value` is rebuilt on the first
 read after a change and reused until the next change, so two consecutive reads return the same object. That object
@@ -303,7 +303,7 @@ conditional actions apply their statements again over the new item. Extended pro
 
 ## Methods
 
-### `bind(data?, overrides?): List<R>`
+### `bind(data?, overrides?): List<R, X>`
 
 Overrides [`FieldBase.bind()`](/api/field-base#bind-data-overrides-fieldbase-t-x), which describes `overrides`
 (an [`IBindParams<ListValueInput<R>, X>`](/api/field-base#ibindparams-t-x)), the construction through
@@ -316,7 +316,7 @@ A subclass whose constructor does not take `(itemTemplate, params)` would ignore
 a list with the declaration's rows; `bind()` throws a `TypeError` in that case. Such a subclass must override
 `bind()` and construct itself.
 
-### `clear()`
+### `clear(): void`
 
 Removes all items and triggers a value-changed notification. Every row is released, exactly as `remove()` releases
 the row it removes. It does not change the list's own `touched`, `errors` or `originalValue`; for a reset that
@@ -354,6 +354,14 @@ item template that holds rows of other kinds is declared with its row type: `new
 ```typescript
 list.push({ name: 'Charlie', score: 70 });
 ```
+
+### `rebind(data): this`
+
+Overrides [`FieldBase.rebind()`](/api/field-base#rebind-data-this), which has the full description, to take a
+`ListValueInput<R>`: an array of rows, or `null`, which empties the list. Existing rows are reused by position, as
+in a `value` assignment. `list.originalValue` holds what the list sends, so a row that was `'disabled'` when the
+baseline was recorded is not in it, and `list.rebind(list.originalValue)` does not restore that row. `list.rebind(null)`
+releases every row as `clear()` does, and also resets the list's `touched`, clears its own errors and revalidates.
 
 ### `remove(index): R | undefined`
 
@@ -397,7 +405,6 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
 | [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
 | [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
-| [`rebind(data)`](/api/field-base#rebind-data-this) | Replaces the data the element holds, in place |
 | [`registerAction(action)`](/api/field-base#registeraction-action-this) | Registers an action on the element; returns `this` |
 | [`registerActionBefore(action, before)`](/api/field-base#registeractionbefore-action-before-this) | Registers `action` inside an existing chain, wrapped by `before` |
 | [`setExtendedValues(values)`](/api/field-base#setextendedvalues-values-void) | Merges extended properties into `extra` |
@@ -415,5 +422,6 @@ Type alias for `List | null`.
 ---
 
 > See also: [FieldBase](/api/field-base), [Container](/api/container),
-> [The model](/guide/model#how-a-list-builds-rows) for how a row is built and what a record is,
+> [The model](/guide/model#how-a-list-builds-rows) for how a row is built,
+> [Bindings and records](/guide/bindings#records-how-a-shared-rule-finds-the-right-element) for what a record is,
 > [Actions reference](/api/actions) for `ListItemAddedAction` and `ListItemRemovedAction`

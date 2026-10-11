@@ -34,7 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Action.executable`, and `ExecuteAction.canExecute()`, which it reads.
 - `pending` on every element: `validating || busy`, reactive. `settled()` resolves when it turns `false`.
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
-- `Validators.ValidationErrorOptions`.
+- `Validators.ValidationErrorOptions`, and `Validators.isEmptyValue()`, the test by which the built-in validators
+  pass an empty value.
 - `ActionsMap.ofClass(identifier)`: the registered actions with that class identifier, in registration order.
 - `params` on every error.
 - `installPlugin(plugin)`: a plugin's `onSetValue` and `onSetOriginalValue` hooks run as a pipeline on every write of
@@ -77,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sends nothing either.
 - `ValidationError` is data: `new ValidationError(code, params, detail, origin?)`. It carries the `code` of what
   failed, the `params` it failed with, an English plain-text `detail` and an `origin`, and implements
-  `ErrorDescription`. The library does not render it.
+  `ErrorDescription`. The library does not render it. An element removes its errors of origin `'server'` when its
+  value changes, within the transaction of the change, and recomputes its validity.
 - Error codes are snake_case and name what failed: `min` is `min_value`, `max` is `max_value`, `range` is
   `value_in_range`, `min-length` is `min_length`, `max-length` is `max_length`, `range-length` is
   `length_in_range`, `in-allowed-values` is `in_allowed_values`, `compare-to` is `compare_to` and

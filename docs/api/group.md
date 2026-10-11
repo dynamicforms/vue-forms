@@ -125,7 +125,7 @@ Initial values applied to matching members; members whose key is absent keep the
 
 The constructor throws if `fields` is not an object of element instances (`Invalid fields object provided`). It also throws a `TypeError` when it receives an element that already belongs to another group or list: an element belongs to one container at a time. Each group needs its own element instances; create one with `field.bind()`. A `List` releases the rows it removes and a `Group` releases the element `removeField()` removes, so both can be added to a container again.
 
-Member names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`, `constructor`, `__proto__`, …) are accepted: the map has no prototype, and `value` and `fullValue` build their result the same way. The value setter assigns only from the object's own keys, so `group.value = {}` leaves a member named `toString` unchanged and does not assign `Object.prototype.toString` to it. A name used twice in the same group throws `Error('Field <name> is already in this form')`.
+Member names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`, `constructor`, `__proto__`, …) are accepted: the map has no prototype, and `value` and `fullValue` build their result the same way. The value setter assigns only from the object's own keys, so `group.value = {}` leaves a member named `toString` unchanged and does not assign `Object.prototype.toString` to it. [`addField()`](#addfield-fieldname-field-this) throws `Error('Field <name> is already in this form')` for a name the group already holds.
 
 `fields` returns a guarded view of the member map, so the set of members cannot be changed through it: `group.fields.name = otherField`, `Object.defineProperty(group.fields, 'name', …)` and `delete group.fields.name` all throw a `TypeError` naming the method to use instead. An element assigned that way would get no `parent`, `fieldName` or change notifications, and the group would keep counting the validity of a member it no longer holds. The set changes only through `addField()` and `removeField()`. Reading through the view is a tracked read of the set of members, so a template rendering `group.fields` re-renders when a member is added or removed.
 
@@ -138,10 +138,10 @@ that is a row of a `List` gets the `List` as its `parent`. Two groups compare by
 | Type | Definition | Purpose |
 |------|-----------|---------|
 | `GenericFieldsInterface` | `Record<string, FieldBase>` | The constraint on `Group`'s and `List`'s type argument. Extend it to declare a form's shape: `interface UserForm extends GenericFieldsInterface { name: Field<string> }` |
-| `FieldsToValues<T>` | `{ [K in keyof T]: T[K]['value'] \| null }` | Maps a fields interface to the value object it sends. A nested `Group` sends its own value object, a nested `List` its row array; every member may be `null`, because a `'disabled-null'` member is sent as `null` |
+| `FieldsToValues<T>` | `{ [K in DataKeys<T>]: T[K]['value'] \| null }` | Maps a fields interface to the value object it sends. `DataKeys<T>` (not exported) is the keys of `T` whose member is not an `Action`, so an action member has no key. A nested `Group` sends its own value object, a nested `List` its row array; every member may be `null`, because a `'disabled-null'` member is sent as `null` |
 | `GroupValue<T>` | `Partial<FieldsToValues<T>>` | The type of `group.value`. The group's value is never `null`. Every key is optional: a `'disabled'` member is left out of the object the group builds, so each one is possibly `undefined` |
 | `GroupValueInput<T>` | `Partial<FieldsToValues<T>> \| null` | What `group.value` and `params.value` accept; `null` writes `null` into every member |
-| `FieldsToFullValues<T>` | `{ [K in keyof T]: T[K]['fullValue'] }` | The type of `group.fullValue`: every member's `fullValue`, regardless of access |
+| `FieldsToFullValues<T>` | `{ [K in DataKeys<T>]: T[K]['fullValue'] }` | The type of `group.fullValue`: every member's `fullValue`, regardless of access; an `Action` member has no key |
 
 ## `Group.createFromFormData(data)`
 
@@ -174,7 +174,7 @@ read-only
 The typed map of members. It is a guarded view over the group's map: reads return the members themselves, and every write throws a `TypeError`; `addField()` and `removeField()` change the set. The read is tracked, so a template rendering it re-renders when members are added or removed
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-fullValue"></a>
+<tr class="member-head"><td><a id="prop-fullvalue"></a>
 
 **`fullValue`**
 
@@ -244,7 +244,7 @@ and sent like any other, but is not part of the type. Declare it in `T` to have 
 - **throws `Error`** (`Field <name> is already in this form`) where the group already holds that name;
 - **throws `TypeError`** where `field` already belongs to a container; pass a `bind()` of it instead.
 
-### `bind(data?, overrides?): Group<T>`
+### `bind(data?, overrides?): Group<T, X>`
 
 Overrides [`FieldBase.bind()`](/api/field-base#bind-data-overrides-fieldbase-t-x), which describes `overrides`,
 the construction through `this.constructor` and the detached result. Returns a new `Group` over `data`: every member
@@ -272,12 +272,18 @@ const first = form.field('firstName'); // typed as Field<string>
 ### `rebind(data): this`
 
 Overrides [`FieldBase.rebind()`](/api/field-base#rebind-data-this), which has the full description, to take a
-`GroupValueInput<T>` record. The record need not name every member: a member whose key is absent from `data` gets
-its value from the group's `declaration`, not the previous record's value, so a row reused this way ends up in the
+`GroupValueInput<T>` record. The record need not name every member: a member whose key is absent from `data` takes
+the `originalValue` of the corresponding member of the group's `declaration`, and for a group that is its own
+declaration, its own baseline. It never takes the previous record's value, so a row reused this way ends up in the
 same state as a new `bind()` of the item template. See
 [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `rebind(group.originalValue)` (reset)
 and `rebind(null)` (empty). `group.value = null` also empties the group, but only `rebind` resets `touched`, clears
-the group's own errors and revalidates.
+the group's own errors and revalidates. `group.value = {}` is not a reset: the setter writes the keys the object
+names and leaves the other members as they are.
+
+Emptying a group writes `null` into every member below it, whatever the member's `T` allows: a `Field<string>`
+inside an emptied group holds `null` at runtime while its type is `string`. A group that is emptied this way declares
+its fields as `T | null`; a group with stricter types is reset member by member.
 
 ### `removeField(fieldName): FieldBase | undefined`
 

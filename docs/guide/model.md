@@ -1,7 +1,8 @@
 # The model
 
-This page describes the whole library in one place. The [API reference](/api/field) documents each symbol: every
-signature, default and thrown error. This page describes how those symbols fit together.
+This page describes how the parts of the library fit together. The [API reference](/api/field-base) documents each
+symbol: every signature, default and thrown error. [Bindings and records](/guide/bindings) describes how one
+declaration serves many elements, for authors of actions and validators.
 
 ## Elements
 
@@ -21,7 +22,7 @@ and is the type of every element's `parent`. Everything below applies at every l
 Every element has the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
 `access`, `effectiveAccess`, `enabled`, `visibility`, `touched`, `validating`, `busy`, `pending`, `settled()`, `isChanged`, `parent`
 and `fieldName`. A container adds its own: `fields`, `field()`, `addField()` and `removeField()` on a `Group`;
-`length`, `items`, `get()`, `push()`, `insert()`, `remove()` and `clear()` on a `List`. Any additional data the
+`length`, `items`, `get()`, `push()`, `insert()`, `remove()`, `pop()` and `clear()` on a `List`. Any additional data the
 application stores on an element goes in `extra`, the element's
 [extended properties](/api/field-base#extended-properties). They are declared once by augmenting
 [`Extras`](/api/field-base#extras) or per element as its second type argument, given at construction, written with
@@ -46,8 +47,8 @@ field detached, and another container can take it.
 
 An element's mutable state is held in a reactive object beside it. Every read through the element
 (`field.value`, `group.valid`, `list.errors`, `field.parent`) is tracked, so a template, a `computed`, a
-`watchEffect` and a getter passed to `watch` all follow it, and an assignment re-renders whatever read it. There is
-no `ref` to unwrap and no computed mirror to maintain.
+`watchEffect` and a getter passed to `watch` all follow it, and an assignment re-renders whatever read it. Members
+are read and assigned directly: `field.value = 'Jane'` in a script, `v-model="field.value"` in a template.
 
 The element itself is not a Vue proxy. `watch(field, cb)` and `readonly(field)` have no effect and raise no error:
 
@@ -114,24 +115,19 @@ template.registerAction(new ValueChangedAction((field, supr, newValue) => {
 }));
 ```
 
-For action authors: state stored on the action instance is shared by every element the action serves. Per-element
-state goes into `protected state(key, init)`, keyed by the element or by its record, and is released together with
-the key. `boundToBinding(binding)` is called once for every element the action is attached to, and
-`unregisterFrom(binding)` once for every element it is removed from. `resetBinding(binding)` is called when a
-binding is reset to a new binding of its declaration (a member of a bound group, a reused `List` row); an override drops the
-state it keeps about the element, which `protected forgetState(key)` does with a rollback restoring it. The
-element's eager actions other than the validators then run again over the new record, before its baseline is
-recorded.
-
 An action belongs to the declaration, and a binding reads the declaration's actions directly. Registering an action
 on one row of a list therefore registers it on the item template, and it applies to every row, existing and added
 later. For the same reason `unregisterAction()` and `clearValidators()` apply to every row. Per row are only the
-data: the value, the errors the rule produces for that row, and the validity.
+data: the value, the errors the rule produces for that row, and the validity. Where an action keeps state of its
+own about each element is described in
+[State an action keeps per element](/guide/bindings#state-an-action-keeps-per-element).
 
 ## How a `List` builds rows
 
 The element passed to `new List(template)` is not a row. It is the item template every row is built from, and
-every row is a binding of it, including its members, validators and actions.
+every row is a binding of it, including its members, validators and actions. A rule that reads a second element of
+a row, such as `CompareTo`, finds it in that row, as described in
+[Records](/guide/bindings#records-how-a-shared-rule-finds-the-right-element).
 
 | Operation | What it does with rows |
 |---|---|
@@ -151,51 +147,30 @@ has the same length, and a keyed `v-for` does not remount. A reused row is reset
 that position would have: a member with no key in the new item takes the item template's value, and
 `originalValue`, `isChanged`, `touched` and `errors` are reset.
 
-## Records: how a shared rule finds the right element
+## Actions and commands
 
-A rule that reads a second element (a `CompareTo`, a `Statement` over another field) is one instance serving every
-row, so it must determine which second element applies to the row it runs over. Two inputs determine it: the
-element the rule was declared against, and the **record** the rule runs in.
-
-A record is the `List` row that holds an element or, where no row holds it, the top of its container chain. A `Group`
-holds every member under a name; a `List` holds rows without a name. A record therefore begins at an element that
-its container holds without a name.
+Behaviour is attached to an element as **actions**: handlers passed as `actions` to the constructor or registered
+with `registerAction()`. Each handles one event (`ValueChangedAction`, `VisibilityChangingAction`,
+`ListItemAddedAction`, …) and receives the next handler of the chain as `supr`: calling it passes the event on, not
+calling it stops the chain. Validators and the conditional actions are actions as well.
 
 ```typescript
-const row = new Group({ password: new Field(), confirmation: new Field() });
-row.fields.confirmation.registerAction(
-  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, 'Passwords must match'),
-);
+import { Field, Group, ValueChangedAction } from '@dynamicforms/vue-forms';
 
-const users = new List(row, { value: [{ password: 'a', confirmation: 'a' }] });
-// row 0's confirmation compares against row 0's password
+const order = new Group({ quantity: new Field({ value: 1 }), total: new Field({ value: 12 }) });
+order.fields.quantity.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
+  order.fields.total.value = newValue * 12;
+  return supr(field, newValue, oldValue);
+}));
 ```
 
-The second element can be given in three ways, all resolved within the record being validated:
-
-- **the element itself**: resolved to the member at the same position in the record. An element that belongs to a
-  different record (for example a form field the rows read) is read where it is, and a change to it applies to every
-  row;
-- **a name** (`CompareTo` only): looked up in the nearest container above the validated field that holds it, so a
-  row is searched before the form the list is in;
-- **a callback** (`CompareTo` only): receives the field being validated and returns the element.
-
-`Statement.evaluate(scope)` takes the record as an argument, so one statement serves every row:
-`statement.evaluate(list.get(1))` reads the second row's fields.
-
-### A rule that runs before its record exists
-
-A row is built member by member: each member is bound separately, the bindings are passed to a `Group`, and the
-group then receives the row's data. A member's eager actions run when the member is bound, before it has siblings
-or a row, so a rule that reads a second element finds nothing at that point.
-
-A rule that finds nothing produces no validation result; this is not the same as valid. An action that finds
-nothing calls `field.markRecordIncomplete()` and returns without a result. The container that completes the record
-runs that element's eager actions again: the `Group` after it has received its members and written its data, the
-`List` after it has inserted the row into the form. If the second run also finds nothing, it calls
-`markRecordIncomplete()` again, and the next container above runs the actions. `CompareTo` and the conditional
-actions do this themselves; a hand-written rule does it as shown in
-[A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record).
+An **`Action`** is an element that represents a command, such as a submit or a cancel button. Its value holds a
+label, an icon and whether it confirms or rejects its form; it sends nothing to its container. `execute()` runs the
+`ExecuteAction` handlers registered on it, and `busy` is `true` until that run settles. `SubmitAction` and
+`RejectAction` submit and reset a form, and a container's `confirm()` and `reject()` execute them. The label and the
+icon are in the library because a form's submit and cancel are attached to an element that a rendering layer draws
+as a button; a UI library extends the value with its own render options. See [Actions](/api/actions) and
+[Action](/api/action).
 
 ## Transactions: when events fire
 
@@ -343,26 +318,25 @@ the nesting, not the size of the tree.
 `originalValue` is the baseline `isChanged` compares against, and assigning it resets that baseline. On a container
 it is a separate copy, not the frozen object `value` returns, so it is writable where the value is not.
 
-## Memory per element
+## Plain data: `view()`
 
-Every value is an element: it holds its state (value, baseline, access, visibility, errors, validity counters), its
-actions and, once read, cached computations of its validity and its value. Approximate heap use in V8, production
-build:
+[`view(element)`](/api/view) reads a group or a list as plain data: a member is a property, a field reads and writes
+its value, a list is an array, and the element itself is `$`. Every read and write goes to the element, so the view
+has the element's reactivity, transactions and validation.
 
-| what | per instance |
-|---|---|
-| a `Field` | 0.4 KB |
-| a `Group` of three fields, `value` and `valid` read | 6 KB |
-| `reactive({ a, b, c })` | 0.5 KB |
+```vue
+<script setup lang="ts">
+import { Field, Group, view } from '@dynamicforms/vue-forms';
 
-In development the devtools also record where each root element was built, about 2.4 KB per root element; a
-member and a binding, such as a row of a `List`, keep nothing, and a production build leaves the devtools out
-([Vue devtools](/api/devtools#what-is-listed)).
+const form = view(new Group({ name: new Field({ value: '' }), age: new Field({ value: 30 }) }));
+</script>
 
-The cost is per element, not per value: a `Field` that holds an array of ten thousand rows is one element. State that
-is read and replaced as a whole, such as rows fetched for a table that is only displayed, fits one `Field` or a
-`shallowRef`. State where each value needs its own rules, validation, access or change tracking fits elements; a
-[`List`](/api/list#scale) is designed to hold thousands of rows.
+<template>
+  <input v-model="form.name" />
+  <input v-model.number="form.age" type="number" />
+  <span v-if="!form.$.valid">The form is invalid</span>
+</template>
+```
 
 ## Comparing elements
 
@@ -384,6 +358,7 @@ arrays has the same limitation as comparing two fields directly. The package's o
 | members, serialization, `fields` | [Group](/api/group) |
 | loading, submitting, resetting, optional sections, type-dependent fields | [Cookbook](/guide/cookbook) |
 | a group or a list read as plain data | [view()](/api/view) |
+| action state per element, records, memory per element | [Bindings and records](/guide/bindings) |
 | rows, mutations, cost | [List](/api/list) |
 | a command: execute, submit, reset, confirm and reject | [Action](/api/action) |
 | every event, the action chain, conditionals | [Actions](/api/actions) |

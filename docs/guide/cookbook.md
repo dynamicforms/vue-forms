@@ -1,6 +1,7 @@
 # Cookbook
 
-Short, standalone recipes for forms with more than a few fields. Each one assumes you know
+Short, standalone recipes for forms and for application state. The form recipes come first; the recipes from
+[Application state](#application-state) on keep state that is not a form on screen. Each one assumes you know
 [the model](/guide/model). The rules for what a form sends are in
 [What a container serializes](/api/container#what-a-container-serializes).
 
@@ -12,19 +13,20 @@ You want the form to show a record the server sent.
 form.value = record;
 ```
 
-Every member is written, whatever its access or visibility at that moment. A disabled field is written like any
-other, so the order in which the form's rules switch fields does not matter. A key missing from the record keeps
-what the member held; `null` for a container empties it.
+Every member is written, whatever its [access or visibility](/api/field-base#access) at that moment, so the order in
+which the form's rules switch fields does not matter. A key missing from the record keeps what the member held;
+`null` for a container empties it.
 
-Where the record should also become the baseline for `isChanged` (the form is freshly loaded, not edited), use
-`rebind()`:
+Where the record should also become the baseline for [`isChanged`](/api/field-base#prop-isChanged) (the form is
+freshly loaded, not edited), use [`rebind()`](/api/field-base#rebind-data-this):
 
 ```typescript
 form.rebind(record);
 ```
 
-It writes the record, starts the change history over and re-runs validation. A key missing from the record takes
-its value from the form's declaration.
+It writes the record, starts the change history over and re-runs validation. A member whose key is missing from the
+record takes its baseline: the `originalValue` of the corresponding member of the form's declaration, which for a
+form that is its own declaration is the member's own baseline.
 
 Loading does not change what is sent or shown. `{ billing: null }` empties the billing address and leaves its access
 as the form's rule sets it. Where access should follow the data, the rule must read the data; see
@@ -36,24 +38,31 @@ You want a submit that waits for asynchronous validation, sends only a valid for
 once the server has saved it.
 
 ```typescript
+const saving = ref(false);
+
 async function submit() {
   await form.settled();
   if (!form.valid) return;
-  const saved = await api.save(form.value);
-  form.rebind(saved);
+  saving.value = true;
+  try {
+    form.rebind(await api.save(form.value));
+  } finally {
+    saving.value = false;
+  }
 }
 ```
 
 ```vue
-<button :disabled="!form.valid || form.pending" @click="submit">Save</button>
+<input v-model="form.fields.name.value" :disabled="saving" />
+<button :disabled="!form.valid || form.pending || saving" @click="submit">Save</button>
 ```
 
-[`settled()`](/api/field-base#settled-promise-void) resolves once no validation and no `Action.execute()` is running at
-or below the form. The handler awaits it although the button is disabled on `pending`: the click can start a
-validation in the same event, when the blur of an input commits its value. `form.value` is the payload: `'disabled'` members are left out and `'disabled-null'` ones are
-`null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is `false` again. It also
-replaces what the form holds, so an edit made while the request runs is lost; the inputs are disabled until the
-request returns.
+[`settled()`](/api/field-base#settled-promise-void) resolves once no validation and no `Action.execute()` is running
+at or below the form; a click can start a validation in the same event, when the blur of an input commits its value.
+[`form.value`](/api/container#reading-the-values) is the payload: `'disabled'` members are left out and
+`'disabled-null'` ones are `null`. `rebind(saved)` makes what the server stored the new baseline, so `isChanged` is
+`false` again. It also replaces what the form holds, so an edit made while the request runs would be lost; `saving`
+disables the inputs until the request returns.
 
 The same submit as an action of the form, with a cancel beside it in a bar of actions:
 
@@ -78,58 +87,145 @@ const form = new Group({
 <button :disabled="!form.fields.actions.fields.save.executable" @click="form.confirm()">Save</button>
 ```
 
-[`SubmitAction`](/api/action#submitaction-target-handler-options) does what `submit()` above does and resolves with
+[`SubmitAction`](/api/action#submitaction-target-handler-options) differs from `submit()` above in three points: it
+waits until `validating` is `false` instead of awaiting `settled()`, it refuses a second run while one is running,
+and it rebinds the form only where the handler's result is not `undefined`. It resolves with
 `{ action, sent, received }`, or with a `CommandException` where nothing was saved: a `SubmitFailedException` where
-the handler failed, a `SubmitRefusedException` where the submit was refused before the handler ran. `executable` is `false` while the form is
-invalid, a validation is running or the submit is running. `form.busy` is `true` while the submit runs, so the input
-above is disabled until the form is rebound to the result. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
+the handler failed, a `SubmitRefusedException` where the submit was refused before the handler ran. `executable` is
+`false` while the form is invalid, a validation is running or the submit is running. The submit is an
+`Action.execute()` run, so [`form.busy`](/api/container#prop-busy) is `true` while it runs and the input above needs
+no flag of its own. `form.confirm()` and `form.reject()` find the two actions by their targets, so a dialog binds
 Enter and Escape to them. The bar of actions sends nothing, so `form.value` is `{ name: … }`.
+
+## Showing every error when the user submits an invalid form
+
+You want the errors of the fields the user has not visited yet to appear when the user tries to submit.
+
+```typescript
+async function submit() {
+  await form.settled();
+  if (!form.valid) {
+    form.touched = true;
+    return;
+  }
+  form.rebind(await api.save(form.value));
+}
+```
+
+```vue
+<input v-model="form.fields.email.value" @blur="form.fields.email.touched = true" />
+<p v-if="form.fields.email.touched">{{ form.fields.email.errors[0]?.detail }}</p>
+<button :disabled="form.pending" @click="submit">Save</button>
+```
+
+Validators run from the moment a field is built, so the template shows a field's errors only once the field is
+[`touched`](/api/field-base#prop-touched). Assigning `touched` on a [container](/api/container#prop-touched) assigns
+every element below it, the rows of a list included, so one assignment shows every error. `rebind()` resets
+`touched` to `false`. With a [`SubmitAction`](/api/action#submitaction-target-handler-options), the same assignment
+goes where the submit resolves with a `SubmitRefusedException` whose `reason` is `'invalid'`.
 
 ## Showing errors the server returned
 
-You want a field to show an error the server reported for it, and the error to go away on the next submit.
+You want the field the server rejected to show the server's message until the user changes it, in nested groups
+and list rows as well.
+
+The server answers a rejected save with its messages keyed by the dotted path of the field, such as
+`{ "email": ["…"], "items.0.price": ["…"] }`. The application's API client turns that answer into an error the save
+throws, and `elementAt()` finds the element a path names, given as a string or as an array (`['items', 0, 'price']`):
 
 ```typescript
-function showServerErrors(form: Group, errors: Record<string, string>) {
-  Object.entries(errors).forEach(([name, message]) => {
-    const field = form.field(name);
-    if (field) field.errors = [...field.errors, new ValidationError('server_error', {}, message, 'server')];
-  });
+class FieldErrors extends Error {
+  constructor(readonly errors: Record<string, string[]>) {
+    super('The server rejected the values');
+  }
 }
 
-function clearServerErrors(form: Group) {
-  Object.values(form.fields).forEach((field) => {
-    field.errors = field.errors.filter((error) => error.origin !== 'server');
+function elementAt(root: FieldBase, path: string | readonly (string | number)[]): FieldBase | undefined {
+  const keys = typeof path === 'string' ? path.split('.') : path;
+  let element: FieldBase | null | undefined = root;
+  for (const key of keys) {
+    if (element instanceof Group) element = element.field(String(key));
+    else if (element instanceof List) element = element.get(Number(key));
+    else return undefined;
+  }
+  return element ?? undefined;
+}
+
+function showServerErrors(root: FieldBase, errors: Record<string, string[]>) {
+  Object.entries(errors).forEach(([path, messages]) => {
+    // a message for a path the form does not hold is shown on the form itself
+    const element = elementAt(root, path) ?? root;
+    element.errors = [
+      ...element.errors,
+      ...messages.map((message) => new ValidationError('server_error', {}, message, 'server')),
+    ];
   });
-  form.validate();
 }
 ```
 
-An error written into `errors` makes the field and the form invalid immediately, and it stays: a validator removes
-only the errors it produced, so neither a new value nor `validate(true)` removes it. `clearServerErrors()` filters
-on the [origin](/api/validators#origin) `'server'`, so it removes exactly those errors and keeps the validators'
-errors and any other errors the application wrote. Call `clearServerErrors(form)` before sending again. Both
-functions take the form as a `Group`, so they work for every form of the application.
+The submit catches the error, writes the messages and throws it again:
+
+```typescript
+async function submit() {
+  await form.settled();
+  if (!form.valid) return;
+  saving.value = true;
+  try {
+    form.rebind(await api.save(form.value));
+  } catch (error) {
+    if (error instanceof FieldErrors) showServerErrors(form, error.errors);
+    throw error;
+  } finally {
+    saving.value = false;
+  }
+}
+
+// the same in the handler of a SubmitAction, which receives the form as its second argument
+new SubmitAction(
+  (action) => action.parent?.parent,
+  async (value, target) => {
+    try {
+      return await api.save(value);
+    } catch (error) {
+      if (error instanceof FieldErrors) showServerErrors(target, error.errors);
+      throw error;
+    }
+  },
+);
+```
+
+`form.field('addr.city')` reads a member named `addr.city`, not a path, so `elementAt()` walks the path through
+[`Group.field()`](/api/group#field-fieldname-t-k-null) and [`List.get()`](/api/list#get-index-r-undefined). An error
+written into `errors` makes the element and every container above it invalid at once. Its
+[origin](/api/validators#origin) is `'server'`, so the library removes it when the element's value changes: a field
+loses it when the user edits the field, and the form loses its own when any member changes. Until then the form is
+invalid, so the same values are not sent again. A `SubmitAction` whose handler throws resolves with a
+`SubmitFailedException` whose `cause` is the error.
 
 ## Warning before leaving a changed form
 
-You want to ask before the user navigates away from unsaved changes.
+You want to ask before the user navigates away from unsaved changes, by closing the page or through the router.
 
 ```typescript
-window.addEventListener('beforeunload', (event) => {
+import { onBeforeUnmount, onMounted } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
+
+const warn = (event: BeforeUnloadEvent) => {
   if (form.isChanged) event.preventDefault();
-});
+};
+onMounted(() => window.addEventListener('beforeunload', warn));
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warn));
+
+onBeforeRouteLeave(() => !form.isChanged || window.confirm('Leave without saving the changes?'));
 ```
 
-`isChanged` compares the form's value with `originalValue`, the baseline `rebind()` sets. For a form loaded with
-`rebind(record)` and saved with `rebind(saved)`, as above, `isChanged` is `false` exactly while nothing has been
-edited since.
+[`isChanged`](/api/field-base#prop-isChanged) compares the form's value with `originalValue`, the baseline `rebind()`
+sets. For a form loaded with `rebind(record)` and saved with `rebind(saved)`, as above, `isChanged` is `false`
+exactly while nothing has been edited since.
 
 ## Clearing and resetting a form
 
-You want to put a form back to its declared values, or empty it. `Group` and `Field` have no `clear()` method: a
-`Group` and a `List` have their own empty state, and a `Field`'s empty value (an empty string, a zero, `false`)
-depends on its `T`. [`rebind()`](/api/field-base#rebind-data-this) does both:
+You want to put a form back to its declared values, or empty it.
 
 ```typescript
 group.rebind(group.originalValue);   // back to what the group was declared with
@@ -140,29 +236,9 @@ list.rebind(list.originalValue);     // back to the rows the list was declared w
 list.rebind(null);                   // empty: every row released
 ```
 
-Each call sets `originalValue` to the new data, resets `touched` to `false`, clears the element's own errors and
-re-runs validation, so the validation result matches the new data. A reset restores data, not state: `access` and
-`visibility` stay as they are. `group.originalValue` leaves a `'disabled'` member out, and the member is put back to
-its own baseline. A `'disabled'` row of a list is not in `list.originalValue`, so `list.rebind(list.originalValue)`
-does not restore it. `List.clear()` releases the rows and changes none
-of that state; use `list.rebind(null)` where a new validation result is needed. `group.value = {}` is not a reset:
-the setter patches by key, and a key missing from the object keeps its value.
-
-Emptying a `Group` writes `null` into every member below it, whatever the member's `T` allows: a `Field<string>`
-inside a cleared group holds `null` at runtime while its type is `string`. A form that is cleared this way declares
-its fields as `T | null`; a form with stricter types resets field by field.
-A field can carry its own empty value as an [extended property](/api/field-base#extended-properties):
-
-```typescript
-interface Emptyable<T> { emptyValue: T }
-
-const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 });
-amount.rebind(amount.extra.emptyValue!);   // 0, with the usual reset
-```
-
-`extra` is typed `Readonly<Partial<X>>`, so `emptyValue` is `number | undefined` to the type checker; the `!`
-asserts what the field's parameters guarantee. To clear a whole group this way, iterate over `group.fields` and
-rebind each member that declares `extra.emptyValue`.
+Each call also resets `touched`, clears the element's own errors and re-runs validation; what it restores and what
+it keeps is described under [`rebind()`](/api/field-base#rebind-data-this),
+[`Group.rebind()`](/api/group#rebind-data-this) and [`List.rebind()`](/api/list#rebind-data-this).
 
 ## Fields that depend on a type
 
@@ -170,19 +246,33 @@ You want a form whose fields depend on a kind (a label element that is text or a
 transfer) to show and send only the fields that apply.
 
 ```typescript
-watchEffect(() => {
-  const image = form.fields.kind.value === 'image';
-  form.fields.src.access = image ? 'editable' : 'disabled';
-  form.fields.text.access = image ? 'disabled' : 'editable';
-  form.fields.src.visibility = image ? 'full' : 'suppress';
-  form.fields.text.visibility = image ? 'suppress' : 'full';
+const kind = new Field({ value: 'text' });
+const isImage = new Statement(kind, Operator.EQUALS, 'image');
+const isText = new Statement(kind, Operator.NOT_EQUALS, 'image');
+
+const appliesWhen = (statement: Statement) => [
+  new ConditionalAccessAction(statement),
+  new ConditionalVisibilityAction(statement),
+];
+
+const label = new Group({
+  kind,
+  text: new Field({ value: '', actions: appliesWhen(isText) }),
+  src: new Field({ value: '', actions: appliesWhen(isImage) }),
 });
 ```
 
-`access` controls what is sent and `visibility` what is rendered, so the rule sets both. A `'disabled'` field is not
-sent and its validators do not run, so a required field that does not apply does not block the submit. It keeps its
-value, so switching the kind back restores it. Where the server should clear the value of a field that does not
-apply, use `'disabled-null'`: the field is sent as `null`.
+`access` controls what is sent and `visibility` what is rendered, so the rule sets both: while the statement is
+false, a field is `'disabled'` and `'suppress'`. A `'disabled'` field is not sent and its validators do not run, so a
+required field that does not apply does not block the submit. It keeps its value, so switching the kind back
+restores it. Where the server should clear the value of a field that does not apply, pass `'disabled-null'` as the
+action's third argument: the field is sent as `null`.
+
+A [conditional action](/api/actions#conditional-actions) applies its statement within the write of `kind`, so
+`label.value` read right after the write already follows the new kind. Declared on a `List`'s item template, it
+applies to each row over that row's fields, and it needs no effect scope. A rule that is not a statement over field
+values is a `watchEffect()` that sets `access` and `visibility`; it applies on the next flush after the write and
+does not reach the rows of a list.
 
 ## An optional section
 
@@ -191,24 +281,34 @@ a company that may or may not be named on the order) to be sent as `null` while 
 entered.
 
 ```typescript
-const billing = new Group({
-  street: new Field({ value: '', validators: [new Validators.Required()] }),
-  city: new Field({ value: '', validators: [new Validators.Required()] }),
-});
-const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
+const separateBilling = new Field({ value: false });
+const billingEnabled = new Statement(separateBilling, Operator.EQUALS, true);
 
-const separateBilling = ref(false);
-watchEffect(() => {
-  billing.access = separateBilling.value ? 'editable' : 'disabled-null';
-  billing.visibility = separateBilling.value ? 'full' : 'hidden';
-});
+const billing = new Group(
+  {
+    street: new Field({ value: '', validators: [new Validators.Required()] }),
+    city: new Field({ value: '', validators: [new Validators.Required()] }),
+  },
+  {
+    actions: [
+      new ConditionalAccessAction(billingEnabled, 'editable', 'disabled-null'),
+      new ConditionalVisibilityAction(billingEnabled, 'full', 'hidden'),
+    ],
+  },
+);
+const form = new Group({ customer: new Field({ value: 'Ada' }), billing });
 
 form.value;   // { customer: 'Ada', billing: null } while separateBilling is false
 ```
 
-A section sent as `null` sends none of its fields, so their validators do not run: the required street does not
-block the submit while the section is off, and it is validated again when the section is switched on. Where the
-section should follow a loaded record, set the switch from the record:
+```vue
+<input v-model="separateBilling.value" type="checkbox" />
+```
+
+The switch is a field outside the form, so it is not sent. A section sent as `null` sends none of its fields, so
+their validators do not run: the required street does not block the submit while the section is off, and it is
+validated again when the section is switched on. Where the section should follow a loaded record, set the switch
+from the record:
 
 ```typescript
 form.value = record;
@@ -216,88 +316,188 @@ separateBilling.value = record.billing != null;
 ```
 
 Where there is no switch and the section is optional as a whole (an empty section is sent as `null`, a partly
-filled section must be complete), the rule reads the section's fields:
+filled section must be complete), the rule tests every field of the section with
+[`isEmptyValue()`](/api/validators#validators-isemptyvalue-value-unknown-boolean), which is not a comparison a
+`Statement` makes, so it is a `watchEffect()`:
 
 ```typescript
 watchEffect(() => {
-  const started = Object.values(billing.fields).some((field) => !isEmpty(field.value));
+  const started = Object.values(billing.fields).some((field) => !Validators.isEmptyValue(field.value));
   billing.access = started ? 'editable' : 'disabled-null';
 });
 ```
 
+A section that drops out while none of its fields is enabled is in
+[A container that follows its children](/api/container#a-container-that-follows-its-children).
+
 ## A field or a section that is shown but not editable
 
-You want something the user sees but cannot change. Two access values do that, and they differ in what is sent: a
-`'readonly'` field is sent with its value, like a submitted `<input readonly>`, and a `'disabled'` field is left out,
-like an `<input disabled>`. Code can still write to both, so loading a record fills them.
+You want something the user sees but cannot change, sent with its value (`'readonly'`) or left out (`'disabled'`).
 
-A container's access applies to everything inside it. Below a `'readonly'` group an `'editable'` field is
-`'readonly'`, and below a `'disabled'` or `'disabled-null'` group nothing is sent and nothing is validated. The
-member keeps its own `access`; the access that applies is `effectiveAccess`. A rendering layer binds
-`effectiveEnabled` to disable every input of such a section; it is `true` where `effectiveAccess` is `'editable'`:
+```typescript
+address.access = 'readonly';
+```
 
 ```vue
 <df-input :disabled="!field.effectiveEnabled" :control="field" />
 ```
 
-The read is reactive like every other read through an element, so switching a group re-renders the inputs of every
-member below it without walking the tree.
-
-## A section that follows its members
-
-You want a section to drop out of the payload, or to be sent as `null`, while none of its fields is enabled. A
-container is not disabled automatically when all its children are, so an effect sets its access. The access value
-depends on what the payload should contain:
-
-```typescript
-// the key is left out while no member is enabled
-watchEffect(() => {
-  address.access = Object.values(address.fields).some((field) => field.enabled) ? 'editable' : 'disabled';
-});
-
-// the key is sent as null while no member is enabled
-watchEffect(() => {
-  address.access = Object.values(address.fields).some((field) => field.enabled) ? 'editable' : 'disabled-null';
-});
-```
+A container's access applies to every element below it through
+[`effectiveEnabled`](/api/field-base#prop-effectiveEnabled), which a rendering layer binds; the four values are in
+[`Access`](/api/field-base#access).
 
 ## A rule that reads another field of the record
 
-You want a validator on one field that reads a second field of the same record: the unit price is required while
-the quantity in the same `List` row is above zero.
+You want a validator on one field that reads a second field of the same record, such as a date range whose end may
+not be before its start.
 
 ```typescript
-lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, oldValue, field) => {
+const booking = new Group({
+  from: new Field({ value: '' }),
+  to: new Field({
+    value: '',
+    validators: [
+      new Validators.CompareTo<string>('from', (to, from) => !to || !from || to >= from, {
+        code: 'range_reversed',
+        detail: 'The end is before the start',
+      }),
+    ],
+  }),
+});
+```
+
+[`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options) resolves the other
+field by name in the record of the validated field and validates again when that field changes. The dates are ISO
+strings (`'2026-10-11'`), which compare in date order, and the comparison passes while either is empty, so the
+range is checked once both are filled. On a `List`'s item template the rule compares the two fields of each row:
+
+```typescript
+const lineItem = new Group({
+  quantity: new Field({ value: 1 }),
+  unitPrice: new Field<number | null>({
+    value: null,
+    validators: [
+      new Validators.CompareTo<number | null>('quantity', (price, quantity) => !(quantity! > 0 && price == null), {
+        code: 'unit_price_required',
+        detail: 'Unit price is required when quantity is above zero',
+      }),
+    ],
+  }),
+});
+```
+
+A rule over three or more fields is a validator that reads the record, and an action on each field it reads that
+validates it again:
+
+```typescript
+const line = new Group({
+  quantity: new Field({ value: 1 }),
+  unitPrice: new Field({ value: 0 }),
+  discount: new Field({ value: 0 }),
+});
+
+line.fields.discount.registerAction(new Validators.Validator((discount, oldValue, field) => {
   const row = field.parent;
   if (!(row instanceof Group)) {
     field.markRecordIncomplete();
     return null;
   }
-  return row.fields.quantity.value > 0 && newValue == null
-    ? [new ValidationError('unit_price_required', {}, 'Unit price is required when quantity is above zero')]
+  return discount > row.fields.quantity.value * row.fields.unitPrice.value
+    ? [new ValidationError('discount_too_high', {}, 'The discount exceeds the line total')]
     : null;
 }));
 
-// the rule spans two fields, so a new quantity sends the unit price of the same row through its validators again
-lineItem.fields.quantity.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
+// a new quantity or unit price sends the discount of the same row through its validators again
+const validateDiscount = new ValueChangedAction((field, supr, newValue, oldValue) => {
   const result = supr(field, newValue, oldValue);
-  if (field.parent instanceof Group) field.parent.fields.unitPrice.validate(true);
+  if (field.parent instanceof Group) field.parent.fields.discount.validate(true);
   return result;
-}));
+});
+line.fields.quantity.registerAction(validateDiscount);
+line.fields.unitPrice.registerAction(validateDiscount);
 ```
 
 The field's `parent` is typed [`Container`](/api/container#parent), so the check narrows it to a `Group` before
 reading `fields`. The check also tests whether the row exists yet: a row is built member by member, and a member's
 first validation runs before it has a row. In that case the validator has no result;
-[`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) records this, and the row runs the validator again
-once it holds its members and the data it was built with.
+[`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) records this, and the row runs the validator
+again once it holds its members and the data it was built with. A validator runs when its own field changes, so the
+`ValueChangedAction` validates the discount again when another field it reads is edited. The
+[List example](/examples/list#reaching-a-sibling-field) runs a validator of this kind in a form.
 
-A validator runs when its own field changes. The second action re-validates the unit price when the quantity is
-edited after the row exists.
+## Asynchronous validation with a debounce
 
-A rule comparing two fields by name needs none of this: [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options)
-resolves the other field in its record and re-validates when that field changes. The
-[List example](/examples/list#reaching-a-sibling-field) runs these two actions in a form.
+You want a check against the server, such as whether a user name is free, to run once the user stops typing.
+
+```typescript
+function delay(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    }, { once: true });
+  });
+}
+
+const available = new Validators.Validator<string>(async (name, oldName, field, signal) => {
+  if (Validators.isEmptyValue(name)) return null;
+  await delay(300, signal);
+  const response = await fetch(`/api/available?${new URLSearchParams({ name })}`, { signal });
+  return (await response.json()).free ? null : [new ValidationError('name_taken', {}, 'This name is taken')];
+});
+
+const username = new Field({ value: '', validators: [new Validators.Required(), available] });
+```
+
+Every change of the value starts a run of the validator and aborts the
+[signal](/api/validators#cancelling-a-run) of the run before it, so the earlier run's delay rejects and that run
+produces no result: neither an error nor a log entry. Only a value that stays unchanged for 300 ms reaches the
+server, and a request already sent is aborted by the next change. `validating` is `true` from the first change, so
+a submit that awaits `settled()` waits for the request.
+
+## A multi-step form
+
+You want a form filled in over several steps, each shown on its own, with Next enabled once the current step is
+valid.
+
+```typescript
+const step = new Field({ value: 0 });
+const onStep = (index: number) => new ConditionalVisibilityAction(new Statement(step, Operator.EQUALS, index));
+
+const signup = new Group({
+  account: new Group(
+    {
+      email: new Field({ value: '', validators: [new Validators.Required()] }),
+      password: new Field({ value: '', validators: [new Validators.Required(), new Validators.MinLength(12)] }),
+    },
+    { actions: [onStep(0)] },
+  ),
+  address: new Group(
+    {
+      street: new Field({ value: '', validators: [new Validators.Required()] }),
+      city: new Field({ value: '', validators: [new Validators.Required()] }),
+    },
+    { actions: [onStep(1)] },
+  ),
+});
+const steps = [signup.fields.account, signup.fields.address];
+const current = computed(() => steps[step.value]);
+```
+
+```vue
+<fieldset v-if="signup.fields.account.visibility === 'full'">…</fieldset>
+<fieldset v-if="signup.fields.address.visibility === 'full'">…</fieldset>
+<button :disabled="step.value === 0" @click="step.value--">Back</button>
+<button v-if="step.value < steps.length - 1" :disabled="!current.valid || current.pending" @click="step.value++">
+  Next
+</button>
+<button v-else :disabled="!signup.valid || signup.pending" @click="submit">Sign up</button>
+```
+
+Each step is a `Group`, so its `valid` and `pending` cover exactly that step's fields. Visibility does not change
+what is sent or validated: every step stays editable, so `signup.valid` covers every step and `signup.value` is the
+whole record. The step counter is a field outside the form, so it is not sent.
 
 ## A list of plain values
 
@@ -313,6 +513,59 @@ Every row is a `Field` bound from the item template, so every tag has the `Requi
 an input through `tag.value`. A list of lists is `new List(new List(...))`. The
 [List example](/examples/list) shows both in a running form.
 
+## Moving a row
+
+You want the user to move a row of a [`List`](/api/list) to another position, as a drag and drop does.
+
+```typescript
+function move(list: List, from: number, to: number) {
+  transaction(() => {
+    list.insert(list.remove(from)!, to);
+  });
+}
+```
+
+`remove()` returns the row element and `insert()` takes an element, so the row keeps its values, errors and
+`touched`. In a [transaction](/api/transactions) the list announces its new value once. A `sort()` or `reverse()` of
+the list's [view](/api/view#lists) reorders every row the same way.
+
+## Unit-testing a form
+
+You want to test a form's rules without rendering it. Build the form in a function that takes what it calls, write
+values, and await [`settled()`](/api/field-base#settled-promise-void) before asserting:
+
+```typescript
+import { describe, expect, it } from 'vitest';
+
+import { createSignupForm } from './signup-form';
+
+describe('signup form', () => {
+  it('rejects a taken user name', async () => {
+    const form = createSignupForm({ isTaken: async (name) => name === 'ada' });
+
+    form.fields.username.value = 'ada';
+    await form.settled();
+
+    expect(form.fields.username.errors.map((error) => error.code)).toEqual(['name_taken']);
+    expect(form.valid).toBe(false);
+  });
+
+  it('sends what the user entered', async () => {
+    const form = createSignupForm({ isTaken: async () => false });
+
+    form.value = { username: 'grace', email: 'grace@example.com' };
+    await form.settled();
+
+    expect(form.valid).toBe(true);
+    expect(form.value).toEqual({ username: 'grace', email: 'grace@example.com' });
+  });
+});
+```
+
+A synchronous validator has its result as soon as the value is written; `settled()` waits for the asynchronous ones.
+A rule that a [conditional action](/api/actions#conditional-actions) applies is in place when the write returns; a
+rule in a `watchEffect()` applies after `await nextTick()`.
+
 ## Application state
 
 You want state that is not a form on screen (for example a shopping cart with its items, a coupon and a delivery
@@ -320,11 +573,14 @@ address) with the same reactivity, transactions and validation a form has. Build
 [`view()`](/api/view):
 
 ```typescript
-import { computed, watchEffect } from 'vue';
-import { Field, Group, List, Validators, view } from '@dynamicforms/vue-forms';
+import { computed } from 'vue';
+import {
+  ConditionalAccessAction, Field, Group, List, Operator, Statement, Validators, view,
+} from '@dynamicforms/vue-forms';
 
 export function createCart() {
-  const cart = view(new Group({
+  const pickup = new Field({ value: false });
+  return view(new Group({
     items: new List(new Group({
       sku: new Field({ value: '' }),
       name: new Field({ value: '' }),
@@ -332,40 +588,74 @@ export function createCart() {
       quantity: new Field({ value: 1, validators: [new Validators.MinValue(1)] }),
     })),
     coupon: new Field<string | null>({ value: null }),
-    pickup: new Field({ value: false }),
-    delivery: new Group({
-      street: new Field({ value: '', validators: [new Validators.Required()] }),
-      city: new Field({ value: '', validators: [new Validators.Required()] }),
-    }),
+    pickup,
+    delivery: new Group(
+      {
+        street: new Field({ value: '', validators: [new Validators.Required()] }),
+        city: new Field({ value: '', validators: [new Validators.Required()] }),
+      },
+      // a cart collected in the shop sends no delivery address, and keeps the one typed in
+      {
+        actions: [
+          new ConditionalAccessAction(new Statement(pickup, Operator.EQUALS, true), 'disabled-null', 'editable'),
+        ],
+      },
+    ),
   }));
-  // a cart collected in the shop sends no delivery address, and keeps the one typed in
-  watchEffect(() => {
-    cart.$.fields.delivery.access = cart.pickup ? 'disabled-null' : 'editable';
-  });
-  return cart;
 }
 
 const cart = createCart();
-const total = computed(() =>
-  (cart.items ?? []).reduce((sum, item) => sum + (item?.price ?? 0) * (item?.quantity ?? 0), 0));
+const total = computed(() => cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0));
 
-cart.items!.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 2 });
-cart.items!.sort((a, b) => a!.name!.localeCompare(b!.name!));
+cart.items.push({ sku: 'm-1', name: 'Mug', price: 12, quantity: 2 });
+cart.items.sort((a, b) => a.name.localeCompare(b.name));
 cart.coupon = 'SPRING';
 ```
 
 The list's view is an array whose mutating methods are the list's own, so a sort moves the rows themselves. Every
 read is tracked on the field it reaches: `watch(() => cart.coupon, …)` runs when the coupon changes and not when a
-quantity changes, and `total` recomputes when prices and quantities change. While the cart is collected in the shop,
-`cart.$.value` contains `delivery: null` and the address is not validated, so it does not make `cart.$.valid`
-`false`. Switching back to delivery restores the address as it was typed and validates it.
+quantity changes, and `total` recomputes when prices and quantities change. The view types each row as the view
+of its element, so a row is never `null`; the rows of `cart.$.value.items` are typed `| null`
+([`ListValue`](/api/list#prop-value)), because a `'disabled-null'` row is sent as `null`. While the cart is
+collected in the shop, `cart.$.value` contains `delivery: null` and the address is not validated, so it does not
+make `cart.$.valid` `false`. Switching back to delivery restores the address as it was typed and validates it.
 
-`createCart()` builds a new cart on each call, so the caller decides where the state lives (a module, a `provide()`
-in the owning component, or elsewhere), and a test builds its own cart.
+`createCart()` builds a new cart on each call, so the caller decides where the state lives (a module, a component
+that provides it, or elsewhere), and a test builds its own cart.
 
 A value derived from the state, such as `total`, is a `computed` beside it, and a function that changes the state is
 a plain function; neither is a member of an element. Where they belong to the state, the factory builds them and
 returns them with it: `return { cart, total, addItem }`.
+
+## Sharing state between components
+
+You want a component and its descendants to use one instance of the state, without passing it through props.
+
+```typescript
+// cart.ts
+import { inject, type InjectionKey } from 'vue';
+
+export type Cart = ReturnType<typeof createCart>;
+export const cartKey: InjectionKey<Cart> = Symbol('cart');
+
+export function useCart(): Cart {
+  const cart = inject(cartKey);
+  if (!cart) throw new Error('useCart() is called below a component that provides the cart');
+  return cart;
+}
+```
+
+```typescript
+// the component that owns the cart
+provide(cartKey, createCart());
+
+// any component below it
+const cart = useCart();
+```
+
+The `InjectionKey` carries the type, so `inject(cartKey)` returns `Cart | undefined` and `useCart()` returns `Cart`.
+Each component that provides a cart gives the components below it their own instance; an application-wide cart is
+provided once with `app.provide(cartKey, createCart())`.
 
 ## Keeping state across a hot module replacement
 
@@ -373,7 +663,14 @@ You want state a module builds to keep what it held when the module is replaced 
 baseline and what the state holds when the old module is disposed, and put both into the new instance:
 
 ```typescript
-export const cart = createCart();
+import { computed, effectScope } from 'vue';
+
+const scope = effectScope();
+export const { cart, total } = scope.run(() => {
+  const cart = createCart();
+  const total = computed(() => cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0));
+  return { cart, total };
+})!;
 
 if (import.meta.hot) {
   const saved = import.meta.hot.data.cart;
@@ -383,18 +680,21 @@ if (import.meta.hot) {
   }
   import.meta.hot.dispose((data) => {
     data.cart = { original: cart.$.originalValue, full: cart.$.fullValue };
+    scope.stop();
   });
 }
 ```
 
 `rebind(original)` makes the old baseline the new one, and the assignment writes every member, so the new instance
 holds what the old one held and reports the same `isChanged`. `access` and `visibility` are not data: the new
-instance has the ones its construction and its rules give it.
+instance has the ones its construction and its rules give it. The module's effects (`computed`, `watch`,
+`watchEffect`) are created in the [`effectScope()`](https://vuejs.org/api/reactivity-advanced.html#effectscope), and
+`scope.stop()` stops them with the old module, so they do not keep running over the old instance.
 
 ## Carrying server-rendered state to the client
 
-You want state built during server-side rendering to start the client with the same data. Serialize `fullValue`
-into the page and rebind the client's instance to it:
+You want state built during server-side rendering to start the client with the same data. Serialize
+[`fullValue`](/api/field-base#prop-fullValue) into the page and rebind the client's instance to it:
 
 ```typescript
 // server
@@ -452,11 +752,17 @@ const save = new Action({
     return saved;
   })],
 });
+
+function discard() {
+  if (data.value) form.rebind(data.value);
+}
 ```
 
 The query library holds the server's copy: fetching, caching, invalidation and refetching. The form holds the edit.
-A refetch that arrives while the form holds edits leaves the form as it is. `SubmitAction` rebinds the form to what
-the server saved, and `setQueryData` puts the same record into the cache.
+A refetch that arrives while the form holds edits leaves the form and its baseline as they are. `discard()` rebinds
+the form to the cache's latest record; a `RejectAction` or `form.rebind(form.originalValue)` restores the record the
+form was last rebound to, which is older where a refetch arrived during the edit. `SubmitAction` rebinds the form to
+what the server saved, and `setQueryData` puts the same record into the cache.
 
 Where the shape of the data is not known in advance, build the element tree from the first result and rebind it to
 the following ones:
@@ -489,9 +795,7 @@ watch(() => form.fields.postcode.value, async (postcode, _, onCleanup) => {
 ```
 
 The result is an ordinary write: it is validated, announced and part of `isChanged`. `onCleanup` runs when the
-postcode changes again before the answer arrives, so the answer for an older postcode is dropped. The library has
-no asynchronous derived value; a component that should not render before the first answer awaits it in an `async
-setup()` inside `<Suspense>`.
+postcode changes again before the answer arrives, so the answer for an older postcode is dropped.
 
 ## Reacting to every change below an element
 
@@ -504,11 +808,12 @@ state.registerAction(new ValueChangedAction((element, supr, newValue, oldValue) 
 }));
 ```
 
-`ValueChangedAction` on a `Group` or a `List` fires once per transaction for any change of what it holds, at any
-depth, with its `fullValue`. `ContributionChangedAction` fires when what the container sends changes, a change of a
-member's `access` included, with its `value`; use it where the payload is what you store. Both run at the commit, so
-a transaction that writes several fields saves once. A `watch(() => state.fullValue, …)` observes the same change
-after the transaction; see [Actions and `watch()`](/api/actions#actions-and-watch).
+[`ValueChangedAction`](/api/actions#valuechangedaction) on a `Group` or a `List` fires once per transaction for any
+change of what it holds, at any depth, with its `fullValue`.
+[`ContributionChangedAction`](/api/actions#contributionchangedaction) fires when what the container sends changes, a
+change of a member's `access` included, with its `value`; use it where the payload is what you store. Both run at the
+commit, so a transaction that writes several fields saves once. A `watch(() => state.fullValue, …)` observes the
+same change after the transaction; see [Actions and `watch()`](/api/actions#actions-and-watch).
 
 ## An optimistic update
 
@@ -526,9 +831,11 @@ async function rename(field: Field<string>, name: string) {
     if (field.value === name) field.value = previous;
     throw error;
   }
+  // the server holds the name: it becomes the baseline, so isChanged is false
+  if (field.value === name) field.rebind(name);
 }
 ```
 
-A [transaction](/api/transactions) cannot stay open across an `await`: `transaction()` with an asynchronous callback
-throws a `TypeError` and rolls back. The previous value is therefore held by the caller, and the check before
-restoring keeps a write the user made while the request was out.
+The previous value is held by the caller, because a [transaction](/api/transactions) does not stay open across an
+`await`. The checks before restoring and before rebinding keep a write the user made while the request was out.
+Where the state does not mirror the server, leave out the `rebind()`: `isChanged` then stays `true` after the save.

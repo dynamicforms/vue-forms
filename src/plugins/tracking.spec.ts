@@ -350,3 +350,20 @@ describe('edge cases of the copy and the tracked collections', () => {
     expect(date.getTime()).toBe(5);
   });
 });
+
+describe('a write into the value a field holds', () => {
+  it("removes the field's errors of origin server and keeps the others", () => {
+    const field = new Field({ value: { city: 'Ljubljana' } });
+    const form = new Group({ address: field });
+    field.errors.push(
+      new ValidationError('unknown_city', {}, 'Unknown city', 'server'),
+      new ValidationError('checked', {}, 'checked'),
+    );
+    form.errors.push(new ValidationError('duplicate', {}, 'Duplicate', 'server'));
+
+    field.value.city = 'Bled';
+
+    expect(field.errors.map((error) => error.code)).toEqual(['checked']);
+    expect(form.errors).toEqual([]);
+  });
+});

@@ -29,6 +29,8 @@ re-renders whatever read it. The element itself is not a proxy, so `toRaw(field)
 `watch(field, cb)` with a bare element as the source never fires. Watch the members you read:
 `watch(() => field.value, cb)`.
 
+The default export of `@dynamicforms/vue-forms` is a namespace object holding every named export.
+
 The state is held in private class fields, which `Object.keys(field)`, `Object.getOwnPropertySymbols(field)` and
 `JSON.stringify(field)` do not see. None of the three reaches the `parent` link, so a walk over a group does not
 follow its descendants' back-references and terminates.
@@ -210,7 +212,7 @@ element sends. `Field`, `Action`, `Group` and `List` all apply their parameters 
 
 A parameter object containing `enabled` throws a `TypeError`: `enabled` is derived from `access` and cannot be
 assigned. The check is made at runtime as well as by the type, so a parameter object parsed from JSON or typed `any`
-also throws; the key is not silently dropped.
+also throws.
 
 These are the only accepted parameters, and they are exactly the writable members of an element. Derived members
 (`valid`, `validating`, `busy`, `pending`, `fullValue`, `isChanged`) and the container back-references (`parent`,
@@ -357,9 +359,8 @@ The exported type of the parameter object itself, taken by `new Field`, `new Act
 type IFieldParams<T = any, X extends object = Extras> = Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>;
 ```
 
-The two halves are made partial separately because `T` is inferred through this type. With
-`Partial<IFieldConstructorParams<T> & X>`, inference through a mapped type over an intersection yields one
-constituent of a union instead of the union, and `new Field({ value: stringOrNumber })` would be a `Field<string>`.
+The two halves are made partial separately, so `T` is inferred as the full type of `value`:
+`new Field({ value: stringOrNumber })` is a `Field<string | number>`.
 
 ### `IBindParams<T, X>`
 
@@ -454,7 +455,7 @@ read-only
 The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding, transitively, so a binding of a binding has the same `declaration`. Every row a `List` builds from its item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. An action shared by every row uses it to tell one row's field from another's
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-effectiveAccess"></a>
+<tr class="member-head"><td><a id="prop-effectiveaccess"></a>
 
 **`effectiveAccess`**
 
@@ -472,7 +473,7 @@ read-only
 The access that applies once the containers above are taken into account: `'disabled'` below a container that is `'disabled'` or `'disabled-null'`, `'readonly'` for an `'editable'` element below a `'readonly'` one, and the element's own access otherwise. An element whose `effectiveAccess` is `'disabled'` sends nothing, so its validators produce no result and it has none of their errors
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-effectiveEnabled"></a>
+<tr class="member-head"><td><a id="prop-effectiveenabled"></a>
 
 **`effectiveEnabled`**
 
@@ -523,7 +524,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but normally managed by validators. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
+Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but normally managed by validators. A change of the element's value removes its errors of [origin](/api/validators#origin) `'server'`; errors of other origins stay. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-extra"></a>
@@ -544,7 +545,7 @@ read-only
 The [extended properties](#extended-properties) the element holds, `{}` where none were declared. The object is frozen; write through `setExtendedValues()`
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-fieldName"></a>
+<tr class="member-head"><td><a id="prop-fieldname"></a>
 
 **`fieldName`**
 
@@ -562,7 +563,7 @@ read-only
 Key name within the parent `Group`
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-fullValue"></a>
+<tr class="member-head"><td><a id="prop-fullvalue"></a>
 
 **`fullValue`**
 
@@ -580,7 +581,7 @@ read-only
 Identical to `value` on `FieldBase`, and so on `Field` and `Action`. [`Group`](/api/group#prop-fullValue) and [`List`](/api/list#prop-fullValue) override it: there it is what the element holds, while `value` is what it sends
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-isChanged"></a>
+<tr class="member-head"><td><a id="prop-ischanged"></a>
 
 **`isChanged`**
 
@@ -598,7 +599,7 @@ read-only
 `true` when `value` differs from `originalValue` (deep equality)
 
 </td></tr>
-<tr class="member-head"><td><a id="prop-originalValue"></a>
+<tr class="member-head"><td><a id="prop-originalvalue"></a>
 
 **`originalValue`**
 
@@ -749,8 +750,8 @@ How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or 
 
 ### `bind(data?, overrides?): FieldBase<T, X>`
 
-Abstract on `FieldBase`; [`Field`](/api/field#bind-data-overrides-this), [`Group`](/api/group#bind-data-overrides-group-t)
-and [`List`](/api/list#bind-data-overrides-list-r) implement it, and `Action` inherits `Field`'s. It returns a new
+Abstract on `FieldBase`; [`Field`](/api/field#bind-data-overrides-this), [`Group`](/api/group#bind-data-overrides-group-t-x)
+and [`List`](/api/list#bind-data-overrides-list-r-x) implement it, and `Action` inherits `Field`'s. It returns a new
 element over `data`, with the same registered actions and the same extended properties. It applies a declared
 element to a record. The new element's `declaration` is the element `bind()` was called on.
 
@@ -847,6 +848,18 @@ row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
 `rebind(field.originalValue)` or an explicit `rebind('')` (or `rebind(null)` where `T` allows it). See
 [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `Group` and `List`, which do have a
 structural "empty": `rebind(element.originalValue)` resets them and `rebind(null)` empties them.
+
+A field can carry its own empty value as an [extended property](#extended-properties):
+
+```typescript
+interface Emptyable<T> { emptyValue: T }
+
+const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 });
+amount.rebind(amount.extra.emptyValue!);   // 0, with the usual reset
+```
+
+`extra` is typed `Readonly<Partial<X>>`, so `emptyValue` is `number | undefined` to the type checker; the `!`
+asserts what the field's parameters guarantee.
 
 ### `registerAction(action): this`
 
@@ -1059,10 +1072,9 @@ value is one of them.
 ## Comparing elements
 
 A structural comparison of two elements (lodash `isEqual(fieldA, fieldB)`) compares identity. The element state is
-in private class fields, which a structural comparison does not read, so without further measures it would return
-`true` for any two instances of the same class. `FieldBase` has a `Symbol.toStringTag` accessor returning the
-element's class name; a structural comparison reads the tag first and returns `false` for two distinct objects with a
-tag it does not know.
+in private class fields, which a structural comparison does not read. `FieldBase` has a `Symbol.toStringTag`
+accessor returning the element's class name; a structural comparison reads the tag first and returns `false` for two
+distinct objects with a tag it does not know.
 Two elements are therefore equal only where they are the same element; compare their contents with
 `isEqual(a.value, b.value)`. The accessor is defined on the prototype, so it adds nothing to each instance, and
 `Object.prototype.toString.call(field)` returns `[object Field]`, not `[object Object]`. See
