@@ -278,7 +278,12 @@ declaration, its own baseline. It never takes the previous record's value, so a 
 same state as a new `bind()` of the item template. See
 [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `rebind(group.originalValue)` (reset)
 and `rebind(null)` (empty). `group.value = null` also empties the group, but only `rebind` resets `touched`, clears
-the group's own errors and revalidates.
+the group's own errors and revalidates. `group.value = {}` is not a reset: the setter writes the keys the object
+names and leaves the other members as they are.
+
+Emptying a group writes `null` into every member below it, whatever the member's `T` allows: a `Field<string>`
+inside an emptied group holds `null` at runtime while its type is `string`. A group that is emptied this way declares
+its fields as `T | null`; a group with stricter types is reset member by member.
 
 ### `removeField(fieldName): FieldBase | undefined`
 

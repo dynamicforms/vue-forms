@@ -750,8 +750,8 @@ How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or 
 
 ### `bind(data?, overrides?): FieldBase<T, X>`
 
-Abstract on `FieldBase`; [`Field`](/api/field#bind-data-overrides-this), [`Group`](/api/group#bind-data-overrides-group-t)
-and [`List`](/api/list#bind-data-overrides-list-r) implement it, and `Action` inherits `Field`'s. It returns a new
+Abstract on `FieldBase`; [`Field`](/api/field#bind-data-overrides-this), [`Group`](/api/group#bind-data-overrides-group-t-x)
+and [`List`](/api/list#bind-data-overrides-list-r-x) implement it, and `Action` inherits `Field`'s. It returns a new
 element over `data`, with the same registered actions and the same extended properties. It applies a declared
 element to a record. The new element's `declaration` is the element `bind()` was called on.
 
@@ -848,6 +848,18 @@ row.rebind({ name: 'Jane', age: 25 });   // same instance, next record
 `rebind(field.originalValue)` or an explicit `rebind('')` (or `rebind(null)` where `T` allows it). See
 [Clearing and resetting](/guide/cookbook#clearing-and-resetting-a-form) for `Group` and `List`, which do have a
 structural "empty": `rebind(element.originalValue)` resets them and `rebind(null)` empties them.
+
+A field can carry its own empty value as an [extended property](#extended-properties):
+
+```typescript
+interface Emptyable<T> { emptyValue: T }
+
+const amount = new Field<number, Emptyable<number>>({ value: 10, emptyValue: 0 });
+amount.rebind(amount.extra.emptyValue!);   // 0, with the usual reset
+```
+
+`extra` is typed `Readonly<Partial<X>>`, so `emptyValue` is `number | undefined` to the type checker; the `!`
+asserts what the field's parameters guarantee.
 
 ### `registerAction(action): this`
 

@@ -253,7 +253,7 @@ describe('a subclass naming a parameter after one of its own members', () => {
   });
 });
 
-describe('an emptyValue extended property, as the recipe in the cookbook', () => {
+describe('an emptyValue extended property, as the rebind() reference shows it', () => {
   interface Emptyable<T> {
     emptyValue: T;
   }

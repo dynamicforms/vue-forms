@@ -359,7 +359,9 @@ list.push({ name: 'Charlie', score: 70 });
 
 Overrides [`FieldBase.rebind()`](/api/field-base#rebind-data-this), which has the full description, to take a
 `ListValueInput<R>`: an array of rows, or `null`, which empties the list. Existing rows are reused by position, as
-in a `value` assignment.
+in a `value` assignment. `list.originalValue` holds what the list sends, so a row that was `'disabled'` when the
+baseline was recorded is not in it, and `list.rebind(list.originalValue)` does not restore that row. `list.rebind(null)`
+releases every row as `clear()` does, and also resets the list's `touched`, clears its own errors and revalidates.
 
 ### `remove(index): R | undefined`
 
