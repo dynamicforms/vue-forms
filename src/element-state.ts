@@ -40,7 +40,8 @@ export interface ElementSlots<T = any> {
   announcedContribution: unknown;
   /**
    * What a container's own validators last ran over (what it sends); the next transaction runs them again if that
-   * changed. A leaf's validators run at the write and at an access change, and do not use this slot.
+   * changed. A leaf's validators run at the write and at an access change that changes what it sends, and do not
+   * use this slot.
    */
   validatedValue: unknown;
   errors: ValidationError[];

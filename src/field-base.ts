@@ -68,6 +68,9 @@ const describe = (value: unknown) => (typeof value === 'string' ? `'${value}'` :
 /** formats the accepted values as a list for an error message */
 const listOf = (values: readonly string[]) => values.map(describe).join(', ');
 
+/** What an element with `access` sends: its value, `null` or nothing. `'editable'` and `'readonly'` send the same. */
+const sendsAs = (access: Access) => (access === 'disabled' ? 'omit' : access === 'disabled-null' ? 'null' : 'value');
+
 /**
  * Throws a TypeError for a parameter object that contains `enabled`. `enabled` is read from `access` and has no
  * setter. Without this check, a parameter object that bypasses the type system (parsed from JSON, typed `any`)
@@ -865,8 +868,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   /**
    * What this element accepts and what it sends: `'editable'` and `'readonly'` send its value, `'disabled'` sends
    * nothing and `'disabled-null'` sends `null`, and only `'editable'` accepts input. The validators run over what
-   * the element sends, and only where it is sent at all (see `effectiveAccess`), so a change of access runs them
-   * again on this element and below it.
+   * the element sends, and only where it is sent at all (see `effectiveAccess`), so a change of access that changes
+   * what an element sends runs them again on that element, this one and the ones below it. A change between
+   * `'editable'` and `'readonly'` changes what the element accepts, not what it sends, and runs nothing.
    */
   get access(): Access {
     return this.#state.access;
@@ -904,9 +908,11 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       this.revalidateWhereChanged(below);
       // a leaf's validators run here, over what it now sends; a container's run at the commit, where what it sends
       // is composed
-      if (!this.composesValue) this.boundActions?.triggerEager(this, this.contribution, oldContribution);
-      // what the element sends changed, so the commit compares its contribution and that of every container above
-      // it again; what any of them holds did not change
+      if (!this.composesValue && sendsAs(oldValue) !== sendsAs(written)) {
+        this.boundActions?.triggerEager(this, this.contribution, oldContribution);
+      }
+      // the commit compares the element's contribution and that of every container above it again; what any of
+      // them holds did not change
       this.contributionChanged(tx, counted);
       if (this.#raw.announcedAccess === undefined) this.#raw.announcedAccess = oldValue;
       tx.markFlagsDirty(this);
@@ -983,12 +989,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Runs the validators again on every element whose effective access changed since `before` was read: an element
-   * that is no longer sent loses their errors, and one that is now sent is validated over what it sends.
+   * Runs the validators again on every element whose effective access changed what it sends since `before` was
+   * read: an element that is no longer sent loses their errors, and one that is now sent is validated over what it
+   * sends.
    */
   private revalidateWhereChanged(before: Map<FieldBase, Access>): void {
     before.forEach((access, element) => {
-      if (element.effectiveAccess !== access) element.rerunEagerActions();
+      if (sendsAs(element.effectiveAccess) !== sendsAs(access)) element.rerunEagerActions();
     });
   }
 

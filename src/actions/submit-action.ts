@@ -29,6 +29,11 @@ export interface SubmitOptions {
    * baseline: `isChanged` is false, `touched` is false and the errors are revalidated. Defaults to true.
    */
   rebind?: boolean;
+  /**
+   * Whether an `'editable'` target is `'readonly'` while the handler runs, so no input reaches it during the
+   * submit. Defaults to true.
+   */
+  lock?: boolean;
 }
 
 /** What `execute()` of an action with a `SubmitAction` resolves with after a successful submit. */
@@ -91,9 +96,12 @@ export class SubmitRefusedException extends CommandException {
  *    await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
  * 2. where `target.valid` is false, ends with a `SubmitRefusedException` with `reason` `'invalid'`, which
  *    `execute()` resolves with;
- * 3. calls `handler(target.value, target)` and awaits it;
- * 4. where the result is not `undefined` and `rebind` is not false, calls `target.rebind(result)`;
- * 5. calls the next handler in the chain and returns a `SubmitResult`: the action, the value sent and the value
+ * 3. where the target's `access` is `'editable'` and `lock` is not false, sets it to `'readonly'`;
+ * 4. calls `handler(target.value, target)` and awaits it;
+ * 5. where the result is not `undefined` and `rebind` is not false, calls `target.rebind(result)`;
+ * 6. sets the target's `access` back to `'editable'` where step 3 set it and it is still `'readonly'`, whether the
+ *    handler succeeded or failed;
+ * 7. calls the next handler in the chain and returns a `SubmitResult`: the action, the value sent and the value
  *    `handler` returned.
  *
  * A second `execute()` while a submit of the same action is running is refused with a `SubmitRefusedException`
@@ -106,9 +114,11 @@ export class SubmitRefusedException extends CommandException {
  * The resolved value is `SubmitResult<R> | CommandException`. `execute()` is typed `Promise<any>`, because the
  * chain may hold other handlers; the caller states the type where it awaits the result.
  *
- * The rebind in step 4 replaces the target's value with the result, so a change written to the target while the
- * handler runs is lost and `isChanged` is false afterwards. The target is not locked: `busy` and `pending` report
- * the running submit, and the rendering layer disables the inputs while they are true.
+ * `'readonly'` sends and validates the target as `'editable'` does, so its `value`, `valid` and `isChanged` do not
+ * change and no validator runs because of the lock; the members inherit it through `effectiveAccess`, so every
+ * input below the target is not enabled while the handler runs. The rebind in step 5 replaces the target's value
+ * with the result, so a change written to the target by code while the handler runs is lost and `isChanged` is
+ * false afterwards. `busy` and `pending` report the running submit.
  *
  * `canExecute()` is true while the target is valid and not `pending`, so `Action.executable` disables a submit
  * button while the form is invalid or a validation is running.
@@ -132,12 +142,20 @@ export class SubmitAction<R = any> extends TargetedExecuteAction {
         if (!element.valid) throw new SubmitRefusedException('invalid');
         const sent = element.value;
         let received: R;
+        const locking = options.lock !== false && element.access === 'editable';
+        if (locking) element.access = 'readonly';
+        // an AccessChangingAction may refuse the lock, and an access written while the handler runs is kept
+        const locked = locking && element.access === 'readonly';
         try {
-          received = await handler(sent, element);
-        } catch (error) {
-          throw new SubmitFailedException(error);
+          try {
+            received = await handler(sent, element);
+          } catch (error) {
+            throw new SubmitFailedException(error);
+          }
+          if (received !== undefined && options.rebind !== false) element.rebind(received);
+        } finally {
+          if (locked && element.access === 'readonly') element.access = 'editable';
         }
-        if (received !== undefined && options.rebind !== false) element.rebind(received);
         await supr(action, params);
         return { action, sent, received };
       } finally {
