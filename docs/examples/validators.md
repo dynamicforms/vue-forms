@@ -4,169 +4,22 @@ This example demonstrates how to use validators with form fields in `@dynamicfor
 
 ## Demo
 
-Here's a live demo of form validation using various validators. It also shows the application rendering the
-validators' errors itself: [translated](#translated-messages-in-this-demo) into eight languages and with or without
-markdown. The errors already on the fields follow either choice without revalidating.
+A form validated by the built-in validators, an asynchronous validator and a `CompareTo` between two fields. A field
+shows its errors once it is touched. The application renders the errors itself:
+[translated](#translated-messages-in-this-demo) into eight languages and with or without markdown. The errors already
+on the fields follow either choice without revalidating.
 
 <ValidatorsFormDemo />
 
 ## Source Code
 
-Here's the source code for the demo above:
-
-### JavaScript/TypeScript
-
-```js
-import { formatParams, interpolate } from '@dynamicforms/translatable';
-import { computed, ref } from 'vue';
-import {
-  Group,
-  Field,
-  ValueChangedAction,
-  Validators,
-  ValidationError,
-} from '@dynamicforms/vue-forms';
-
-import messages from './validators-demo.messages.json';
-
-const locales = [
-  { value: 'en', title: '🇬🇧 English' },
-  { value: 'sl', title: '🇸🇮 Slovenščina' },
-  { value: 'de', title: '🇩🇪 Deutsch' },
-  { value: 'es', title: '🇪🇸 Español' },
-  { value: 'ja', title: '🇯🇵 日本語' },
-  { value: 'zh', title: '🇨🇳 中文' },
-  { value: 'fa', title: '🇮🇷 فارسی' },
-  { value: 'bn', title: '🇧🇩 বাংলা' },
-];
-const locale = ref('en');
-const useMarkdown = ref(false);
-
-// The demo's own text: labels, hints and the messages it gives its own validators
-const text = computed(() => messages[locale.value].ui);
-
-// A role is stored as its code and shown by its name in the current language
-const roles = ['admin', 'user', 'guest'];
-const roleName = (role) => messages[locale.value].roles[role];
-const roleItems = computed(() => roles.map((value) => ({ value, title: roleName(value) })));
-
-// The demo's translation function: the message for an error code with the params substituted, or the code
-// unchanged where the current language has none
-const t = (code, params) => {
-  const template = messages[locale.value].errors[code];
-  return template ? interpolate(template, params) : code;
-};
-
-// formatParams formats every param before t substitutes it: numbers in the language's digits, and in bold where the
-// demo shows markdown
-const translate = formatParams(t, (value) => {
-  const shown = typeof value === 'number' ? new Intl.NumberFormat(locale.value).format(value) : String(value);
-  return useMarkdown.value ? `**${shown}**` : shown;
-});
-
-// The text of an error: the demo's message for its code in the current language, with the params substituted. The
-// only list of allowed values in the demo is the roles, shown by their translated names. A code the demo has no
-// message for shows the error's English detail. The function is called on every render, so the errors already on
-// the fields follow the language and the checkbox without revalidating.
-function errorText(error) {
-  const params =
-    error.code === 'in_allowed_values'
-      ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
-      : error.params;
-  const message = translate(error.code, params);
-  return message === error.code ? error.detail : message;
-}
-
-// Vuetify's error-messages prop takes strings; the message slot renders each one as markdown
-const getErrorMessages = (field) => field.errors.map(errorText);
-
-// Create a form group with validated fields
-const validatedForm = new Group({
-  // Required field - cannot be empty
-  username: new Field({
-    value: '',
-    validators: [new Validators.Required()]
-  }),
-
-  // Email field with pattern validation
-  email: new Field({
-    value: '',
-    validators: [
-      new Validators.Pattern(
-        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        { code: 'invalid_email', detail: 'Please enter a valid email address' },
-      ),
-      // Async validator to simulate email availability check
-      new Validators.Validator(async (newValue) => {
-        // Only validate if email format is correct
-        if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(newValue)) {
-          return null; // Let pattern validator handle format errors
-        }
-
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        // Check if email is "taken"
-        if (newValue.endsWith('@taken.com')) {
-          return [new ValidationError('email_taken', {}, 'This email address is already taken')];
-        }
-
-        return null; // Email is available
-      })
-    ]
-  }),
-
-  // Number field with range validation
-  age: new Field({
-    value: null,
-    validators: [
-      new Validators.ValueInRange(18, 100)
-    ]
-  }),
-
-  // Field with allowed values validation
-  role: new Field({
-    value: '',
-    validators: [
-      new Validators.InAllowedValues(roles)
-    ]
-  }),
-
-  // Text field with length validation
-  bio: new Field({
-    value: '',
-    validators: [
-      new Validators.LengthInRange(10, 200)
-    ]
-  })
-});
-
-// A group's validity is computed over its members. pending is true while an asynchronous validation or an
-// Action.execute() runs anywhere below the group. Both reads are reactive.
-const formValid = computed(() => validatedForm.valid);
-const formBusy = computed(() => validatedForm.pending);
-
-// Function to reset the form
-function resetForm() {
-  validatedForm.fields.username.value = '';
-  validatedForm.fields.email.value = '';
-  validatedForm.fields.age.value = null;
-  validatedForm.fields.role.value = '';
-  validatedForm.fields.bio.value = '';
-}
-
-// Optional: react to any value change in the form
-validatedForm.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
-  console.log('Form value has changed');
-  return supr(field, newValue, oldValue);
-}));
-```
+<<< @/components/validators-demo.vue
 
 ### Translations
 
 The demo's text lives in `validators-demo.messages.json`, one block per language: `errors` keyed by error code,
 `roles` keyed by the stored role, and `ui` for the demo's own labels. `errors` holds the codes of the built-in
-validators and the demo's own codes, `invalid_email` and `email_taken`. An excerpt:
+validators and the demo's own codes, `invalid_email`, `email_taken` and `emails_differ`. An excerpt:
 
 ```json
 {
@@ -177,6 +30,7 @@ validators and the demo's own codes, `invalid_email` and `email_taken`. An excer
       "in_allowed_values": "Mora biti ena od [{allowedAsText}]",
       "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}",
       "invalid_email": "Vnesite veljaven e-poštni naslov",
+      "emails_differ": "E-poštna naslova se ne ujemata",
       …
     },
     "roles": {
@@ -315,6 +169,22 @@ validators and the demo's own codes, `invalid_email` and `email_taken`. An excer
 </template>
 ```
 
+## Touched Fields and Submitting
+
+A field's errors are shown only where `field.touched` is `true`. The demo sets it when an input loses focus, so a
+field the user has not left yet shows no error. Submit sets `validatedForm.touched = true`, which a container passes
+to every member, so every error shows, and the demo sends the form only where it is valid. Reset calls
+`validatedForm.rebind(validatedForm.originalValue)`, which puts the declared values back and resets `touched`.
+
+Validation runs whether or not a field is touched: the status panel reports the form invalid while the errors are
+not yet shown.
+
+## Comparing Two Fields
+
+The confirmation field has a [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options)
+validator that names the email field. It runs when either field changes, so editing the email after the
+confirmation updates the confirmation's error.
+
 ## Asynchronous Validation in This Demo
 
 The email field has an asynchronous validator with a one-second delay, which is longer than the interval between
@@ -323,9 +193,8 @@ newest run for the field: results for intermediate values are discarded, the fie
 for its current text, and `field.validating` (bound to the input's `loading` prop) is `false` again once the last
 run has settled.
 
-The submit button reads `validatedForm.valid` and `validatedForm.pending`. `pending` is `true` while a validation run
-or an `Action.execute()` is pending anywhere below the group, so the button is disabled for the duration of the
-check.
+The submit button reads `validatedForm.pending`, which is `true` while a validation run or an `Action.execute()` is
+pending anywhere below the group, so the button is disabled for the duration of the check.
 
 The validation function receives an `AbortSignal` as its fourth argument. The signal aborts when the run's result
 is no longer used (a newer keystroke, the validator removed from the field, a transaction rolled back). A real
@@ -334,7 +203,7 @@ cancel and ignores the signal.
 
 The validator in this demo always resolves, because the delay it awaits cannot fail. A real availability check
 calls a server and can reject. A rejected run puts a single `Validation could not be completed` error on the field,
-so the field is invalid and the submit button disabled, and the reason is logged with
+so the field is invalid and a submit sends nothing, and the reason is logged with
 `console.error('Validation failed', reason)`. Catch the network error inside the validation function only when the
 user should see a more specific message.
 
@@ -347,8 +216,9 @@ demo's `errorText` function converts it into the text Vuetify's `error-messages`
 - **Messages.** `errorText` looks the error's code up under `errors` in the current language and substitutes the
   params with `interpolate` from `@dynamicforms/translatable`. A code the language has no message for shows the
   error's `detail`.
-- **The demo's own codes.** The email pattern validator is given `{ code: 'invalid_email', detail: … }`, and the
-  asynchronous validator returns an error with the code `email_taken`. Both are translated like the built-in codes.
+- **The demo's own codes.** The email pattern validator is given `{ code: 'invalid_email', detail: … }`, the
+  `CompareTo` validator `{ code: 'emails_differ', detail: … }`, and the asynchronous validator returns an error with
+  the code `email_taken`. All three are translated like the built-in codes.
 - **Numbers.** `formatParams`, from the same package, formats the params before they are substituted: numbers go
   through `Intl.NumberFormat` for the language, so Persian and Bengali show the age range in their own digits.
 - **Role names.** A role is stored as its code, `guest`, and the error's params carry the codes in `allowedValues`.
@@ -371,23 +241,24 @@ the Persian message for `in_allowed_values` isolates the list with U+2068 and U+
 ## Key Features Demonstrated
 
 - **Required Validator**: Ensures a field is not empty
-- **Pattern Validator**: Validates content against a regular expression (email format)  
+- **Pattern Validator**: Validates content against a regular expression (email format)
+- **CompareTo Validator**: Compares the confirmation with the email field
 - **ValueInRange Validator**: Ensures a numeric value is within specified bounds
 - **InAllowedValues Validator**: Restricts input to a predefined set of values
 - **LengthInRange Validator**: Validates that the input length is within specified bounds
 - **Asynchronous Validation**: A promise-returning validator, `field.validating` as the loading state, the newest
   run determining the validation result, and `form.pending` disabling submit while validation is pending
+- **Touched**: Errors shown after a field is left, and on every field after a submit
 - **Translated Messages**: Errors rendered by the application from their code and params, in eight languages,
   numbers in the language's digits, following a language switch on screen
 - **Markdown**: The application rendering its messages as markdown
 - **Form-level Validation**: Tracking overall form validity based on individual field states
-- **Error Display**: Showing validation errors to the user
 
 ## Try It Yourself
 
 Experiment with the validators by:
-1. Leaving fields empty
-2. Entering an invalid email address
+1. Leaving fields empty, then submitting
+2. Entering an invalid email address, or a confirmation that differs from it
 3. Setting age outside the valid range
 4. Selecting different role values
 5. Entering text that's too short or too long in the bio field

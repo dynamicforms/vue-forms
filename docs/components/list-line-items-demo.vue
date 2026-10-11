@@ -58,7 +58,7 @@
 
       <v-card-actions>
         <v-btn color="primary" prepend-icon="mdi-plus" @click="addLine">Add Line</v-btn>
-        <v-btn color="primary" class="ml-2" :disabled="!lineItems.valid">Submit</v-btn>
+        <v-btn color="primary" class="ml-2" :disabled="!lineItems.valid" @click="submit">Submit</v-btn>
       </v-card-actions>
     </v-card>
 
@@ -74,9 +74,10 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref } from 'vue';
 import {
+  type FieldBase,
   Group,
   Field,
   List,
@@ -92,7 +93,7 @@ import {
 const lineItem = new Group({
   description: new Field({ value: '', validators: [new Validators.Required()] }),
   quantity: new Field({ value: 1 }),
-  unitPrice: new Field({ value: null })
+  unitPrice: new Field<number | null>({ value: null })
 });
 
 // A validator on a field of the item template runs in every row. Inside a row, field.parent is that row's Group, so
@@ -119,9 +120,9 @@ lineItem.fields.quantity.registerAction(new ValueChangedAction((field, supr, new
 }));
 
 // The last few list events, newest last
-const events = ref([]);
+const events = ref<string[]>([]);
 
-function logEvent(message) {
+function logEvent(message: string) {
   events.value = [...events.value, message].slice(-6);
 }
 
@@ -151,12 +152,17 @@ function addLine() {
   lineItems.push({ description: '', quantity: 1, unitPrice: null });
 }
 
-function insertAbove(index) {
+function insertAbove(index: number) {
   lineItems.insert({ description: '', quantity: 1, unitPrice: null }, index);
 }
 
+// Submit reports, in the event log, how many line items the list sends
+function submit() {
+  logEvent(`submitted ${lineItems.value.length} line items`);
+}
+
 // Vuetify's error-messages prop takes strings; the demo shows each error's English detail
-function getErrorMessages(field) {
+function getErrorMessages(field: FieldBase) {
   return field.errors.map((error) => error.detail);
 }
 </script>

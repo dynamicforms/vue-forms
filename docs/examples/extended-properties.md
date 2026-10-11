@@ -72,6 +72,14 @@ const props = defineProps<{ field: Field<string, Presentation> }>();
 Every read in that template is reactive, including `extra`: `setExtendedValues({ label: 'Given name' })`
 re-renders the label without any further call.
 
+## Demo
+
+The [person form](/examples/basic-form) declares a label, a hint and an input type for each field as extended
+properties, and its template renders every field from `extra` in one `v-for` over the group's fields. The source is
+on the [Basic Form](/examples/basic-form#source-code) page.
+
+<PersonFormDemo />
+
 ## A form whose shape arrives from a server
 
 Extended properties are an open set, not a fixed one: a form built at runtime holds whatever properties its
@@ -143,3 +151,7 @@ list.get(0)!.fields.amount.extra.label;   // 'Amount', copied from the item temp
 
 - [`FieldBase` API reference](/api/field-base#extended-properties): the full rules, including subclasses
 - [The model](/guide/model): where extended properties sit among the other pieces
+
+<script setup>
+import PersonFormDemo from '../components/person-form-demo.vue';
+</script>

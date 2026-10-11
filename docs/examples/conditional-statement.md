@@ -1,182 +1,51 @@
-# Conditional Actions Example
+# Conditional statements
 
-This example demonstrates how to use conditional actions with form fields in `@dynamicforms/vue-forms`. Conditional actions allow you to dynamically control field properties based on other field values.
+This example uses conditional actions in `@dynamicforms/vue-forms` to set a field's value, visibility and access
+from the values of other fields.
 
 ## Demo
 
-Here's a live demo showing how conditional actions can be used to create dynamic forms:
-
 <conditional-statement-demo />
+
+## What the demo shows
+
+- **`ConditionalValueAction`**: one action per fruit sets the colour field's value when its statement becomes
+  `true`. It applies on the transition from `false` to `true` only, so a colour typed by hand stays until another
+  fruit is selected.
+- **`ConditionalVisibilityAction`**: the additional information field is `'full'` while the details switch is on and
+  `'suppress'` otherwise, and the template does not render a suppressed field. Visibility affects only rendering:
+  the suppressed field is still sent.
+- **`ConditionalAccessAction`**: Submit is an [`Action`](/api/action) whose access is `'editable'` while both the
+  fruit and the colour hold a value and `'disabled'` otherwise. The statement combines two `NOT_EQUALS` statements
+  with `AND`. The button is disabled while the action is not `executable`, and a submit shows what the form sends.
+- **Construction order**: the conditional actions are passed to the constructors, and the group is built from the
+  finished elements, so the actions have applied before the group records its baseline. The form starts with the
+  colour `red` for `apple`, and `isChanged` is `false`.
+- **Reset**: `rebind(originalValue)` puts every value back to the baseline, including the colour.
+
+::: tip
+To also leave a suppressed field out of what the form sends, register a `ConditionalAccessAction` on it as well;
+see [What a container serializes](/api/container#what-a-container-serializes).
+:::
 
 ## Source Code
 
-Here's a simplified version of the demo above:
-
-### JavaScript/TypeScript
-
-```js
-import { Group, Field, Operator, Statement,
-         ConditionalVisibilityAction, ConditionalAccessAction, ConditionalValueAction } from '@dynamicforms/vue-forms';
-
-// Create a form group with conditional fields
-const conditionsForm = new Group({
-  // Field that controls other fields
-  fruit: new Field({ value: 'apple' }),
-  
-  // Fields with conditional behavior
-  favoriteColor: new Field({ value: '' }),
-  detailsToggle: new Field({ value: false }),
-  additionalInfo: new Field({ value: '' }),
-  submitAction: new Field({ access: 'disabled' }),
-});
-
-
-// Set up conditional actions
-
-// 1. Conditional Value Action - Set color based on fruit selection
-const fruitColorStatement = new Statement(conditionsForm.fields.fruit, Operator.EQUALS, 'apple');
-conditionsForm.fields.favoriteColor.registerAction(
-  new ConditionalValueAction(fruitColorStatement, 'red')
-);
-
-// Set up different conditional actions for different fruits
-const orangeStatement = new Statement(conditionsForm.fields.fruit, Operator.EQUALS, 'orange');
-conditionsForm.fields.favoriteColor.registerAction(
-  new ConditionalValueAction(orangeStatement, 'orange')
-);
-
-const bananaStatement = new Statement(conditionsForm.fields.fruit, Operator.EQUALS, 'banana');
-conditionsForm.fields.favoriteColor.registerAction(
-  new ConditionalValueAction(bananaStatement, 'yellow')
-);
-
-const grapeStatement = new Statement(conditionsForm.fields.fruit, Operator.EQUALS, 'grape');
-conditionsForm.fields.favoriteColor.registerAction(
-  new ConditionalValueAction(grapeStatement, 'purple')
-);
-
-const blueberryStatement = new Statement(conditionsForm.fields.fruit, Operator.EQUALS, 'blueberry');
-conditionsForm.fields.favoriteColor.registerAction(
-  new ConditionalValueAction(blueberryStatement, 'blue')
-);
-
-// 2. Conditional Visibility Action - Show additional info field only when details toggle is on
-const showDetailsStatement = new Statement(conditionsForm.fields.detailsToggle, Operator.EQUALS, true);
-conditionsForm.fields.additionalInfo.registerAction(
-  new ConditionalVisibilityAction(showDetailsStatement)
-);
-
-// 3. Conditional Access Action - Enable submit button only when all required fields are filled
-const fieldsFilledStatement = new Statement(
-  new Statement(conditionsForm.fields.fruit, Operator.NOT_EQUALS, ''),
-  Operator.AND,
-  new Statement(conditionsForm.fields.favoriteColor, Operator.NOT_EQUALS, '')
-);
-conditionsForm.fields.submitAction.registerAction(
-  new ConditionalAccessAction(fieldsFilledStatement)
-);
-```
-
-::: tip
-`visibility` affects only rendering: a suppressed field is not rendered and is still sent. To also leave a field out of what the form sends, register a `ConditionalAccessAction` on it as well; see [What a container serializes](/api/container#what-a-container-serializes).
-:::
-
-### Vue Template
-
-```vue
-<template>
-  <div>
-    <v-card class="mb-4">
-      <v-card-title>Conditional statements Demo</v-card-title>
-      <v-card-text>
-        <v-form @submit.prevent>
-          <!-- Fruit selection -->
-          <v-select
-            v-model="conditionsForm.fields.fruit.value"
-            :items="['apple', 'orange', 'banana', 'grape', 'blueberry']"
-            label="Select a fruit"
-            outlined
-            hide-details="auto"
-            class="mb-4"
-          ></v-select>
-          
-          <!-- Color field that updates based on fruit -->
-          <v-text-field
-            v-model="conditionsForm.fields.favoriteColor.value"
-            label="Fruit color"
-            outlined
-            hide-details="auto"
-            :color="conditionsForm.fields.favoriteColor.value"
-            class="mb-4"
-          ></v-text-field>
-          
-          <!-- Details toggle -->
-          <v-switch
-            v-model="conditionsForm.fields.detailsToggle.value"
-            label="Show additional details"
-            color="primary"
-            hide-details="auto"
-            class="mb-4"
-          ></v-switch>
-          
-          <!-- Additional info field (conditionally visible) -->
-          <v-text-field
-            v-if="conditionsForm.fields.additionalInfo.visibility === 'full'"
-            v-model="conditionsForm.fields.additionalInfo.value"
-            label="Additional Information"
-            outlined
-            hide-details="auto"
-            class="mb-4"
-          ></v-text-field>
-        </v-form>
-      </v-card-text>
-      
-      <v-card-actions>
-        <v-btn
-          color="primary"
-          :disabled="!conditionsForm.fields.submitAction.enabled"
-        >
-          Submit
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-
-    <v-card>
-      <v-card-title>Form Output</v-card-title>
-      <v-card-text>
-        <pre class="output">{{ conditionsForm.value }}</pre>
-      </v-card-text>
-    </v-card>
-  </div>
-</template>
-```
+<<< @/components/conditional-statement-demo.vue
 
 ## API Reference
 
 - [Actions → Conditional actions](/api/actions#conditional-actions): `Statement`, `Operator`,
   `ConditionalVisibilityAction`, `ConditionalAccessAction`, `ConditionalValueAction`
 - [FieldBase → Visibility](/api/field-base#visibility)
-
-## Key Features Demonstrated
-
-- **ConditionalValueAction**: Automatically sets a field's value based on another field's value
-- **ConditionalVisibilityAction**: Shows or hides a field based on a condition
-- **ConditionalAccessAction**: Sets a field's access based on a condition: by default `'editable'` while the condition is true, `'disabled'` otherwise
-- **Statement**: Creates logical conditions that can be evaluated
-- **Logical Operators**: Using AND, OR, EQUALS, and other operators to create complex conditions
-
-## How It Works
-
-1. **Fruit-Color Relationship**: When you select a fruit, the color field automatically updates to show that fruit's typical color
-2. **Conditional Visibility**: The additional information field only appears when you toggle "Show additional details"
-3. **Conditional Button State**: The submit button is only enabled when all required fields contain values
+- [Action](/api/action): `executable`, `execute()`
 
 ## Try It Yourself
 
-You can experiment with the conditional actions by:
-1. Selecting different fruits to see the color change
-2. Toggling the details switch to show/hide the additional information field
-3. Clearing field values to see how it affects the submit button's enabled state
+1. Select different fruits to see the colour change
+2. Type a colour by hand, then select another fruit
+3. Toggle the details switch to show and hide the additional information field
+4. Clear the colour: Submit is disabled
+5. Change a few fields, then Reset
 
 <script setup>
 import ConditionalStatementDemo from '../components/conditional-statement-demo.vue'

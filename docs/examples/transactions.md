@@ -4,6 +4,30 @@ Every mutating operation is a transaction. Where no transaction is open, the ope
 write announces once and cannot be observed half-applied. `transaction()` groups several writes into one
 transaction.
 
+## Demo
+
+The [Application state](/guide/cookbook#application-state) cart from the cookbook: a `Group` read through
+[`view()`](/api/view), with a list of items, a coupon, a pickup flag and a delivery address that is a `Group` inside
+the cart's `Group`.
+
+<CartDemo />
+
+- **One announcement per transaction.** The counter counts `ValueChangedAction` on the cart. Each write of a
+  quantity announces once. Fill address writes the pickup flag, the street and the city in one `transaction()`, and the
+  counter goes up by one.
+- **Rollback.** Edit, then cancel sets every quantity to 10 and a coupon, reads the `computed` total inside the
+  transaction, and calls `tx.rollback()`. The cart is as it was, and the counter does not change.
+- **Sorting through the view.** Sort by name calls `sort()` on the list's view, which moves the rows themselves;
+  a sort that changes the order announces once.
+- **Access from state.** A `watchEffect` sets the delivery address to `'disabled-null'` while the cart is collected
+  in the shop: the output shows `delivery: null`, the address is not validated, and the cart is valid with an empty
+  address. Switching back restores the address as it was typed.
+- **Derived state.** The total is a `computed` over the view and recomputes when a quantity changes.
+
+::: details Source code
+<<< @/components/cart-demo.vue
+:::
+
 ## Several writes, one announcement
 
 Without a transaction each write announces separately, and a handler on the form runs once per write. Inside a
@@ -66,7 +90,10 @@ const booking = new Group({
   to: new Field<string>({
     value: '',
     validators: [
-      new Validators.CompareTo<string>('from', (to, from) => !from || !to || to >= from, 'must not precede the start'),
+      new Validators.CompareTo<string>('from', (to, from) => !from || !to || to >= from, {
+        code: 'date_order',
+        detail: 'The end must not precede the start',
+      }),
     ],
   }),
 });
@@ -195,3 +222,7 @@ it settles, and if the transaction that started it was rolled back, its result i
 
 - [`transaction()` API reference](/api/transactions): the full contract, including what a snapshot covers
 - [The model](/guide/model): where transactions sit among the other pieces
+
+<script setup>
+import CartDemo from '../components/cart-demo.vue';
+</script>
