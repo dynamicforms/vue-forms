@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [3.0.0-alpha.1] - 2026-10-12
 
+3.0.0 makes the library a state layer for forms and for application state alike, and moves rendering out of it:
+
+- **Application state, not only forms.** Fields, groups and lists also hold application state, such as a shopping
+  cart or the filters of a list view, with the validation, transactions and actions of a form. The devtools
+  inspector lists every root element by the file or component that constructed it, and plugins, with the tracking
+  plugin, make a write into an object a field holds a change of the field.
+- **No UI in the library.** The package ships no components, styles, configuration or translations and no longer
+  depends on `@dynamicforms/translatable`. An error is data (`code`, `params`, an English `detail`, `origin`); the
+  application, or `@dynamicforms/vuetify-inputs`, renders and translates it.
+- **`Action` is a command.** An action executes in the library: `SubmitAction` validates a container, sends its
+  value to a handler and rebinds it to the result, `RejectAction` reverts it, and `Container.confirm()` and
+  `reject()` execute them. An action holds no data: it is left out of its container's value, `isChanged` and
+  validity. `ErrorPolicy` decides whether errors from origins other than validators, such as the server, count
+  toward `valid` and when they are removed.
+- **Stricter semantics.** The built-in validators other than `Required` and `CompareTo` pass an empty value, access
+  and visibility events fire once at commit, and `originalValue` and `isChanged` hold at every level of a bound
+  group or list.
+
+Most of the breaking changes keep compiling. The
+[migration guide](https://docs.velis.si/dynamicforms/vue-forms/guide/migration#upgrading-to-v3-0-0-from-v2-0-x)
+lists them first.
+
 ### Added
 - Vue devtools support in development: a "vue-forms" inspector listing every root element, grouped by the file or
   the component that constructed it, with its members and state, and the state a component constructed shown in
