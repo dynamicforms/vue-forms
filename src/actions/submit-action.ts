@@ -1,5 +1,6 @@
 import { watch } from 'vue';
 
+import { RemoveErrorsOnSubmit } from '../element-state';
 import type { FieldBase } from '../field-base';
 import { AbortEventHandlingException } from '../field.interface';
 
@@ -96,12 +97,14 @@ export class SubmitRefusedException extends CommandException {
  *    await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
  * 2. where `target.valid` is false, ends with a `SubmitRefusedException` with `reason` `'invalid'`, which
  *    `execute()` resolves with;
- * 3. where the target's `access` is `'editable'` and `lock` is not false, sets it to `'readonly'`;
- * 4. calls `handler(target.value, target)` and awaits it;
- * 5. where the result is not `undefined` and `rebind` is not false, calls `target.rebind(result)`;
- * 6. sets the target's `access` back to `'editable'` where step 3 set it and it is still `'readonly'`, whether the
+ * 3. removes, from the target and every element below it, the errors whose rule removes them on `'submit'` (see
+ *    `ErrorPolicy`);
+ * 4. where the target's `access` is `'editable'` and `lock` is not false, sets it to `'readonly'`;
+ * 5. calls `handler(target.value, target)` and awaits it;
+ * 6. where the result is not `undefined` and `rebind` is not false, calls `target.rebind(result)`;
+ * 7. sets the target's `access` back to `'editable'` where step 4 set it and it is still `'readonly'`, whether the
  *    handler succeeded or failed;
- * 7. calls the next handler in the chain and returns a `SubmitResult`: the action, the value sent and the value
+ * 8. calls the next handler in the chain and returns a `SubmitResult`: the action, the value sent and the value
  *    `handler` returned.
  *
  * A second `execute()` while a submit of the same action is running is refused with a `SubmitRefusedException`
@@ -116,7 +119,7 @@ export class SubmitRefusedException extends CommandException {
  *
  * `'readonly'` sends and validates the target as `'editable'` does, so its `value`, `valid` and `isChanged` do not
  * change and no validator runs because of the lock; the members inherit it through `effectiveAccess`, so every
- * input below the target is not enabled while the handler runs. The rebind in step 5 replaces the target's value
+ * input below the target is not enabled while the handler runs. The rebind in step 6 replaces the target's value
  * with the result, so a change written to the target by code while the handler runs is lost and `isChanged` is
  * false afterwards. `busy` and `pending` report the running submit.
  *
@@ -140,6 +143,7 @@ export class SubmitAction<R = any> extends TargetedExecuteAction {
         if (!element) throw new Error('SubmitAction: the target callback returned no element');
         await validated(element);
         if (!element.valid) throw new SubmitRefusedException('invalid');
+        element[RemoveErrorsOnSubmit]();
         const sent = element.value;
         let received: R;
         const locking = options.lock !== false && element.access === 'editable';

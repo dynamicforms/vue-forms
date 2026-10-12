@@ -857,3 +857,43 @@ receive the events of a commit that a later handler rolls back.
 **Rejected: copy-on-write state with the announcement after the swap.** A handler's write would be a new
 transaction instead of joining the one it reacts to, so a cascade of rules would no longer commit, announce and
 roll back as one change.
+
+## D-050 — The rules over an error's origin are an action, with a default per origin
+
+**Version:** 3.0.0
+
+Every origin other than `'validator'` has a rule of two independent parts: `validEffect`, whether its errors count
+toward `valid`, and `removeOn`, when the element removes them (`'change'`, `'edit'`, `'submit'`, `'never'`). An
+`ErrorPolicy` registered on an element states the rules of the origins it names for that element and everything
+below it; the nearest policy naming an origin applies, and `setDefaultErrorPolicies()` sets the rule where none does.
+By default `'server'` is `{ validEffect: true, removeOn: 'edit' }` and every other origin `{ validEffect: true,
+removeOn: 'never' }`.
+
+**What forced it.** No single rule fits every form. A server error removed at every change of the value is removed
+while the user is still typing, and on a container by changes that send the same value, such as a member's
+`access` going from `'editable'` to `'readonly'` and back while a `SubmitAction` locks it. A login refusal has
+to stay until the next attempt and must not block it; a form-level conflict has to block the submit until the user
+has changed something. The two concerns are independent, so they are two parameters, and a form chooses its rule
+without the rest of the application.
+
+**`'edit'` as the default for `'server'`.** The rendering layer writes `touched = true` when the user leaves an input,
+so the event exists without a new API. The comparison against the value the error was written for keeps an error
+the user did not act on, including one whose field was changed and changed back.
+
+**An action, not a plugin.** A plugin is installed for every element in the module instance; the rule is per form or
+per subtree. An action is registered on an element, is shared by its bindings (a policy on an item template rules
+every row), is undone by a rollback and is found by walking `parent`, which the validity already tracks.
+
+**A function for the default, not a configuration object.** The configuration was removed with the rendering
+(D-037); the rule of an origin is the only global setting, and a function returning its undo matches
+`installPlugin()`.
+
+**Rejected: a list of removals per origin.** `'never'` combined with anything is meaningless, and every other
+combination is expressed by choosing the earlier event.
+
+**Rejected: `SubmitAction` ignoring the `'submit'` errors that count.** `validEffect: true` with `removeOn: 'submit'`
+would make `valid` false on a form that can still be submitted, so `valid` would no longer state whether the submit
+runs. The combination throws a `TypeError`.
+
+**Rejected: a rule for `'validator'`.** A validator replaces its own errors at every run, so a removal rule has no
+event to act on, and a validator whose errors should not count writes them with an origin of its own.

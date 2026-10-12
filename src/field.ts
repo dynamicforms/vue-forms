@@ -112,9 +112,15 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
     return this.state.touched;
   }
 
+  /**
+   * Whether the user has interacted with the field. A rendering layer writes `true` when the user leaves the input;
+   * the write removes the errors whose rule removes them on `'edit'` from the field and the containers above it,
+   * where their values changed since those errors were written (see `ErrorPolicy`).
+   */
   set touched(touched: boolean) {
     this.touchState();
     this.state.touched = touched;
+    if (touched) this.editConcluded();
   }
 
   bind(data?: T, overrides?: IBindParams<T, X>): this {

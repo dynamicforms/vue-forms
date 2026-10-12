@@ -161,11 +161,15 @@ gone; read `code`, `params` and `detail`.
 `sameAs` compares the class, `code`, `params`, `detail` and the stated origin. A re-run whose params differ, such
 as a changed `newValue`, replaces the error instance on the field.
 
-An error of origin `'server'` is removed from an element when the element's value changes, and the element's
-validity is recomputed. In 2.0 it stayed until code removed it, so a form whose save was refused stayed invalid
-after the user corrected the field. A container's own `'server'` errors go when a member or row below it changes.
-Code that withdrew `'server'` errors on input can drop that step; an error that has to survive an edit takes another
-origin. See [`origin`](/api/validators#origin).
+Every origin other than `'validator'` has a rule stating whether its errors count toward `valid` and when an
+element removes them ([`ErrorPolicy`](/api/validators#errorpolicy)). In 2.0 every error counted and stayed until
+code removed it, so a form whose save was refused stayed invalid after the user corrected the field. The default
+rule of `'server'` removes the error when `touched = true` is written on the element, or on an element below it,
+after the element's value changed: a field loses it when the user leaves it after correcting it, and the form loses
+its own when the user leaves any field after a change of the form's value. `'application'` and the
+application-defined origins keep the 2.0 behaviour. Code that withdrew `'server'` errors on input can drop that step
+where the rendering layer writes `touched` on blur. An `ErrorPolicy` registered on a form states other rules for
+it, and `setDefaultErrorPolicies()` for the application.
 
 ### Validators take `{ code, detail }` instead of a message
 
@@ -260,7 +264,8 @@ app.use(forms, { useMarkdownInValidators: false });
     a `value` assignment of the list, where the code relied on them being kept.
 18. Check code that reads `isChanged` or `originalValue` of the members of a group constructed with a value.
 19. Remove the `try`/`catch` around `Operator.isDefined()`.
-20. Check code that relies on an error of origin `'server'` staying on a field after its value changes.
+20. Check code that relies on an error of origin `'server'` staying on a field after the user edits it, or on it
+    being removed while the user types, and register an `ErrorPolicy` where another rule applies.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

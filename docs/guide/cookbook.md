@@ -127,7 +127,7 @@ goes where the submit resolves with a `SubmitRefusedException` whose `reason` is
 
 ## Showing errors the server returned
 
-You want the field the server rejected to show the server's message until the user changes it, in nested groups
+You want the field the server rejected to show the server's message until the user corrects it, in nested groups
 and list rows as well.
 
 The server answers a rejected save with its messages keyed by the dotted path of the field, such as
@@ -198,11 +198,49 @@ new SubmitAction(
 `form.field('addr.city')` reads a member named `addr.city`, not a path, so `elementAt()` walks the path through
 [`Group.field()`](/api/group#field-fieldname-t-k-null) and [`List.get()`](/api/list#get-index-r-undefined). An error
 written into `errors` makes the element and every container above it invalid at once. Its
-[origin](/api/validators#origin) is `'server'`, so the library removes it when the element's value changes: a field
-loses it when the user edits the field, and the form loses its own when any member changes its value or its
-`access`, or a member or row is added or removed ([the cases](/api/validators#origin)). Until then the form is
-invalid, so the same values are not sent again. A `SubmitAction` whose handler throws resolves with a
-`SubmitFailedException` whose `cause` is the error.
+[origin](/api/validators#origin) is `'server'`, whose default rule is `{ validEffect: true, removeOn: 'edit' }`
+([`ErrorPolicy`](/api/validators#errorpolicy)): a field loses the error when the user leaves it after changing it,
+and the form loses its own when the user leaves any field after a change of the form's value. The rendering layer
+writes `touched = true` when the user leaves an input. Until then the form is invalid, so the same values are not
+sent again. A `SubmitAction` whose handler throws resolves with a `SubmitFailedException` whose `cause` is the
+error.
+
+## Keeping a server error until the next submit
+
+You want a refused login to keep its message until the user tries again, and the user to be able to try again
+without changing anything.
+
+```typescript
+const login = new Group(
+  {
+    user: new Field({ value: '', validators: [new Validators.Required()] }),
+    password: new Field({ value: '', validators: [new Validators.Required()] }),
+    actions: new Group({
+      submit: new Action({
+        value: { label: 'Log in', defaultConfirm: true },
+        actions: [
+          new SubmitAction(
+            (action) => action.parent?.parent,
+            async (value, target) => {
+              const answer = await api.login(value);
+              if (!answer.ok) {
+                target.errors = [new ValidationError('invalid_credentials', {}, answer.detail, 'server')];
+                throw new Error(answer.detail);
+              }
+            },
+          ),
+        ],
+      }),
+    }),
+  },
+  { actions: [new ErrorPolicy({ server: { validEffect: false, removeOn: 'submit' } })] },
+);
+```
+
+`validEffect: false` leaves the form valid while it shows the message, so the submit action stays executable, and
+`removeOn: 'submit'` removes the message when the next attempt is sent. The policy applies to the form and every
+element below it; another form keeps the default rule. `validEffect: true` with `removeOn: 'submit'` throws a
+`TypeError`, since the message would make the form invalid and keep the submit that removes it from running.
 
 ## Warning before leaving a changed form
 

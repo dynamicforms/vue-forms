@@ -14,8 +14,9 @@ The namespace contains the validators and the types and the function used to wri
 `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. They are
 exported only through the namespace: a validator is written `Validators.Required`, never `Required`.
 
-`ValidationError` and the error types describe a field's errors, not its validation, and are exported from the
-package root:
+`ValidationError`, the error types and the rules over errors (`ErrorPolicy`, `setDefaultErrorPolicies`,
+`ErrorPolicyRule`, `ErrorPolicies`, `ErrorRemoval`, `errorRemovals`) describe a field's errors, not its validation,
+and are exported from the package root:
 
 ```typescript
 import { ValidationError } from '@dynamicforms/vue-forms';
@@ -549,12 +550,12 @@ construction it skips (the one inside `errorFor`), and the paths and patterns of
 
 An error the application builds from a server's response carries the same `code`, `params` and `detail`, so one
 function renders the errors of validators and of the server. The origin is not part of the response: the
-application sets `'server'` when it builds the error, and the element drops the error at the next change of its
-value (see [`origin`](#origin)).
+application sets `'server'` when it builds the error, and the rule of that origin decides whether the error makes
+the element invalid and when the element removes it (see [`ErrorPolicy`](#errorpolicy)).
 
 ```typescript
 // code, params and detail as the server's response states them for the field
-field.errors.push(new ValidationError(code, params, detail, 'server'));
+field.errors = [...field.errors, new ValidationError(code, params, detail, 'server')];
 ```
 
 #### `sameAs(other): boolean`
@@ -574,40 +575,117 @@ the application's own code computed and wrote into `errors`. An origin passed as
 is used as is; where none is passed, an error returned by a validator is `'validator'` and any other is
 `'application'`. Any other string is an application-defined origin.
 
-The library reads the origin in one place: a change of an element's value removes the element's errors of origin
-`'server'`. Such an error describes the value the server received, so it is removed once the element holds a
-different one, and the element's validity is recomputed without it. The rules:
-
-- A `Field` loses its `'server'` errors on every write that changes its value: an assignment, a write into the
-  value it holds through `PluginContext.changeInPlace()` (the tracking plugin), and `rebind()`.
-- A `Group` or a `List` loses its own `'server'` errors whenever it is notified that a member or a row changed,
-  which covers more than a change of the value it sends:
-  - a member or a row changes its value;
-  - a member or a row is written a different `access`. This includes a change between `'editable'` and
-    `'readonly'`, which leaves what the member sends as it was, so a `SubmitAction` whose target is a member of a
-    form removes the form's `'server'` errors when it locks and unlocks that member;
-  - `Group.addField()` or `removeField()` adds or removes a member, also one that is `'disabled'` and leaves the
-    group's value as it was;
-  - `List.push()`, `insert()`, `remove()`, `pop()`, `clear()`, a `value` assignment or `rebind()` adds or removes
-    rows.
-
-  Each container above the changed element loses its own `'server'` errors as well; the errors of the other members
-  stay. An error that must outlive these changes is written with another origin, such as `'application'`, and
-  removed by the code that wrote it.
-- Assigning the value the element already holds is not a change and removes nothing.
-- The removal is part of the transaction the change runs in: a rollback restores the errors with the value.
-- Errors of every other origin stay: a validator's are replaced when it runs again, and an `'application'` error,
-  or one of an application-defined origin, stays until the code that wrote it removes it.
-
-```typescript
-field.errors.push(new ValidationError('name_taken', {}, 'This name is taken', 'server'));
-field.valid;            // false
-field.value = 'other';  // the 'server' error is removed
-field.valid;            // true, unless a validator fails over 'other'
-```
+The library reads the origin to find the rule an error falls under: every error of origin `'validator'` counts
+toward `valid` and is replaced when its validator runs again, and every other origin has a rule stating whether its
+errors count and when the element removes them. See [`ErrorPolicy`](#errorpolicy).
 
 A rendering layer reads the origin to decide when to show an error, and code reads it to withdraw the errors of one
 origin and leave the others.
+
+### `ErrorPolicy`
+
+```typescript
+type ErrorRemoval = 'change' | 'edit' | 'submit' | 'never';
+
+interface ErrorPolicyRule {
+  readonly validEffect: boolean;
+  readonly removeOn: ErrorRemoval;
+}
+
+type ErrorPolicies = Readonly<Partial<Record<Exclude<ErrorOrigin, 'validator'>, ErrorPolicyRule>>>;
+
+new ErrorPolicy(policies: ErrorPolicies)
+```
+
+The rules of the error origins for the element it is registered on and every element below it. A rule states two
+things about the errors of its origin:
+
+- `validEffect`: whether such an error makes its element, and every container above it, invalid. An error that does
+  not count is still in `errors` and is still shown by a rendering layer that shows it.
+- `removeOn`: when the element removes such an error by itself.
+
+| `removeOn` | The element removes the error |
+|---|---|
+| `'change'` | when the element's value changes; see below for what changes a container's value |
+| `'edit'` | when `touched = true` is written on the element or on an element below it, and the element's value differs from the value it held when the error was written |
+| `'submit'` | when a [`SubmitAction`](/api/action#submitaction-target-handler-options) whose target is the element or a container above it sends the target's value |
+| `'never'` | never; the code that wrote the error removes it |
+
+Where no `ErrorPolicy` names an origin, its rule is the default one: `{ validEffect: true, removeOn: 'edit' }` for
+`'server'` and `{ validEffect: true, removeOn: 'never' }` for `'application'` and every application-defined origin.
+`setDefaultErrorPolicies()` changes the defaults.
+
+```typescript
+// the login form: a refused login stays until the next attempt, which it does not block
+login.registerAction(new ErrorPolicy({ server: { validEffect: false, removeOn: 'submit' } }));
+
+// one policy can state the rules of several origins
+form.registerAction(
+  new ErrorPolicy({
+    server: { validEffect: true, removeOn: 'change' },
+    warning: { validEffect: false, removeOn: 'edit' },
+  }),
+);
+```
+
+**Which rule applies.** An element takes the rule of an origin from the nearest `ErrorPolicy` that names that origin,
+registered on the element itself or on a container above it; an origin the nearest policy does not name is looked
+up further up. Where no policy names it, the default applies. A policy is registered like any action, so it is
+shared by the element's bindings: registered on a `List`'s item template, it rules every row. An element taken into
+another container, or released from one, falls under the rules above its new position.
+
+Registering or unregistering a policy recomputes the validity of the elements below it, and `ValidChangedAction`
+announces each change. It removes nothing at that moment: an error a new rule removes stays until the event that
+removes it.
+
+**`'change'`.** A `Field`'s value changes on every write that changes it: an assignment, a write into the value it
+holds through `PluginContext.changeInPlace()` (the tracking plugin), and `rebind()`. A `Group` or a `List` is
+notified of a change whenever a member or a row changes its value or is written a different `access` (also between
+`'editable'` and `'readonly'`, which leaves what it sends as it was), when `Group.addField()` or `removeField()` adds
+or removes a member, and when `List.push()`, `insert()`, `remove()`, `pop()`, `clear()`, a `value` assignment or
+`rebind()` adds or removes rows. Each container above the changed element is notified as well. Assigning the value
+the element already holds is not a change.
+
+**`'edit'`.** A rendering layer writes `touched = true` when the user leaves an input, so the error goes when the user
+leaves an input after changing it, and stays while the user is still typing. The write reaches the field and every
+container above it: each of them removes its `'edit'` errors where its value differs from the one recorded when
+they were written. A form's own error therefore goes when the user leaves any field after a change of the form's
+value, and an error of a field the user did not change stays. A value changed and changed back is the value the
+error was written for, and the error stays. `form.touched = true` writes every member, and removes the errors
+wherever the value changed.
+
+The value is recorded when `errors` is assigned; for the errors given to the constructor it is the value the element
+is built with. For an error added to the array in place
+(`field.errors.push(error)`), it is the value at the next read of `errors` outside a transaction, or at the next
+`touched = true` where there was no such read; a change of the element's value before either counts as a change.
+
+**`'submit'`.** A `SubmitAction` removes these errors from its target and every element below it once the target is
+validated and valid, before it sends the value. A submit refused as invalid or as running removes nothing. Errors of
+the containers above the target stay.
+
+**Every rule.** `rebind()` removes every error of the element and of the elements below it, whatever its rule, and
+runs the validators again: the element then holds a new record. A removal is part of the transaction it runs in, and
+a rollback restores the errors.
+
+The constructor throws a `TypeError` for a rule of `'validator'`, for a `validEffect` that is not a boolean, for a
+`removeOn` that is not an `ErrorRemoval`, and for `validEffect: true` with `removeOn: 'submit'`: such an error makes
+the target invalid, and an invalid target refuses the submit that would remove it. Registering a policy on an
+element that already has a policy naming one of its origins throws a `TypeError` and registers nothing.
+
+`policies` is readable, frozen, on the instance. `errorRemovals` lists the values of `ErrorRemoval`.
+
+#### `setDefaultErrorPolicies(policies: ErrorPolicies): () => void`
+
+Sets the rules of the origins in `policies` for every element without an `ErrorPolicy` that names them; an origin not
+in `policies` keeps its rule. It returns a function that restores the rules in force before the call. It throws a
+`TypeError` for a rule the `ErrorPolicy` constructor refuses.
+
+`valid` reflects the new rules at once. The validity an element announces through `ValidChangedAction` is
+recomputed at the element's next validity change, so the defaults are set before the forms are built.
+
+```typescript
+setDefaultErrorPolicies({ server: { validEffect: true, removeOn: 'change' } });
+```
 
 ---
 

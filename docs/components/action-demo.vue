@@ -11,6 +11,7 @@
             :error-messages="getErrorMessages(form.fields.name)"
             :disabled="!form.fields.name.effectiveEnabled"
             hide-details="auto"
+            @update:focused="(focused) => focused || (form.fields.name.touched = true)"
           ></v-text-field>
 
           <v-text-field
@@ -22,6 +23,7 @@
             persistent-hint
             hide-details="auto"
             class="mt-4"
+            @update:focused="(focused) => focused || (form.fields.email.touched = true)"
           ></v-text-field>
         </v-form>
       </v-card-text>
@@ -71,7 +73,6 @@ import {
   SubmitRefusedException,
   type SubmitResult,
   ValidationError,
-  ValueChangedAction,
   Validators,
 } from '../../src'; // from '@dynamicforms/vue-forms'
 
@@ -112,16 +113,6 @@ const form = new Group({
       new Validators.Pattern(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, {
         code: 'invalid_email',
         detail: 'Please enter a valid email address',
-      }),
-    ],
-    actions: [
-      // an error the server reported for the address is withdrawn once the address changes
-      new ValueChangedAction((field, supr, newValue, oldValue) => {
-        if (field.errors.some((error) => error.origin === 'server')) {
-          field.errors = field.errors.filter((error) => error.origin !== 'server');
-          field.validate();
-        }
-        return supr(field, newValue, oldValue);
       }),
     ],
   }),

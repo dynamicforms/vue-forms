@@ -54,7 +54,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child
+Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child, so assigning `true` removes the `'edit'` errors wherever a value changed since they were written
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-valid"></a>
@@ -72,7 +72,7 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where the container's own errors are empty and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well
+Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where none of the container's own errors counts toward validity and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well
 
 </td></tr>
 </tbody>

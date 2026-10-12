@@ -524,7 +524,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but normally managed by validators. A change of the element's value removes its errors of [origin](/api/validators#origin) `'server'`; on a `Group` or a `List`, so does a member's change of `access` and a member or row added or removed (the [list of cases](/api/validators#origin)). Errors of other origins stay. The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
+Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but normally managed by validators. Whether an error of an [origin](/api/validators#origin) other than `'validator'` counts toward `valid`, and when the element removes it by itself, is the rule of its origin: see [`ErrorPolicy`](/api/validators#errorpolicy). The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-extra"></a>
@@ -668,7 +668,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Interaction flag. The library does not set it in response to input; your UI must assign `field.touched = true` (e.g. on blur). Abstract on `FieldBase`: [`Field`](/api/field#prop-touched) stores it, and [`Container`](/api/container#prop-touched) aggregates it from the children of a `Group` or `List` and propagates an assignment down
+Interaction flag. The library does not set it in response to input; your UI must assign `field.touched = true` (e.g. on blur). Assigning `true` removes the errors whose rule removes them on `'edit'` from the field and the containers above it, where their values changed since the errors were written ([`ErrorPolicy`](/api/validators#errorpolicy)). Abstract on `FieldBase`: [`Field`](/api/field#prop-touched) stores it, and [`Container`](/api/container#prop-touched) aggregates it from the children of a `Group` or `List` and propagates an assignment down
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-valid"></a>
@@ -686,7 +686,7 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` when `errors` is empty. It is computed from the live array, so it reflects an error pushed in by hand without any call. `ValidChangedAction` fires only when `validate()` is called. [`Container.valid`](/api/container#prop-valid) also requires every child it counts to be valid
+`true` when no error in `errors` counts toward validity: every error of origin `'validator'` counts, and an error of another origin counts where the `validEffect` of its rule is `true` ([`ErrorPolicy`](/api/validators#errorpolicy)). It is computed from the live array, so it reflects an error pushed in by hand without any call. `ValidChangedAction` fires only when `validate()` is called. [`Container.valid`](/api/container#prop-valid) also requires every child it counts to be valid
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-validating"></a>
