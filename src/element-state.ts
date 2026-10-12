@@ -85,7 +85,19 @@ export interface ElementSlots<T = any> {
   valid: boolean;
   /** the number of direct children whose last announced validity was invalid */
   invalidChildren: number;
+  /**
+   * What the element held when its errors of an origin other than `'validator'` were written, which a `touched`
+   * write compares against for the errors removed on `'edit'`. `NoErrorsBaseline` while there is none to compare
+   * against, and `ChangedSinceErrors` where the value changed before one was recorded.
+   */
+  errorsBaseline: unknown;
 }
+
+/** `errorsBaseline` of an element with nothing recorded to compare against */
+export const NoErrorsBaseline = Symbol('FieldBase.noErrorsBaseline');
+
+/** `errorsBaseline` of an element whose value changed after its errors were written, before a baseline was recorded */
+export const ChangedSinceErrors = Symbol('FieldBase.changedSinceErrors');
 
 /** the initial extended properties: one frozen object shared by all elements, since a write replaces it */
 const noExtra = Object.freeze({});
@@ -111,6 +123,7 @@ export function elementSlots<T = any>(): ElementSlots<T> {
     extra: noExtra,
     valid: true,
     invalidChildren: 0,
+    errorsBaseline: NoErrorsBaseline,
   };
 }
 
@@ -188,3 +201,16 @@ export const BeginValidating = Symbol('FieldBase.beginValidating');
 
 /** Key of the `FieldBase` getter for the generation counter of its validators; the package does not export it. */
 export const ValidationEpoch = Symbol('FieldBase.validationEpoch');
+
+/**
+ * Key of the `FieldBase` method that recomputes the validity of every element in its subtree that holds an error
+ * of an origin other than `'validator'`, after the rules over those errors may have changed. `ErrorPolicy` calls
+ * it; the package does not export it.
+ */
+export const ErrorPoliciesChanged = Symbol('FieldBase.errorPoliciesChanged');
+
+/**
+ * Key of the `FieldBase` method that removes, in its subtree, the errors whose rule removes them on `'submit'`.
+ * `SubmitAction` calls it; the package does not export it.
+ */
+export const RemoveErrorsOnSubmit = Symbol('FieldBase.removeErrorsOnSubmit');

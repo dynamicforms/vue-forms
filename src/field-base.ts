@@ -1,5 +1,5 @@
 import { isEmpty, isEqual } from 'lodash-es';
-import { reactive, watch } from 'vue';
+import { reactive, toRaw, watch } from 'vue';
 
 import { type Access, accessValues, isAccess } from './access';
 import { AccessChangedAction, AccessChangingAction } from './actions/access-actions';
@@ -14,7 +14,15 @@ import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
 import { type Container } from './container';
-import { BeginValidating, type ElementSlots, ValidationEpoch } from './element-state';
+import {
+  BeginValidating,
+  ChangedSinceErrors,
+  type ElementSlots,
+  ErrorPoliciesChanged,
+  NoErrorsBaseline,
+  RemoveErrorsOnSubmit,
+  ValidationEpoch,
+} from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
 import { elementAdopted, elementCreated, pipeOriginalValue } from './plugins';
 import {
@@ -30,7 +38,15 @@ import {
   type TxStructuralEvent,
   transactional,
 } from './transaction';
-import { ValidationError } from './validators/validation-error';
+import {
+  defaultRule,
+  ErrorPolicy,
+  type ErrorPolicyRule,
+  readRulesVersion,
+  ruleIn,
+  rulesArePositional,
+} from './validators/error-policy';
+import { type ErrorOrigin, ValidationError } from './validators/validation-error';
 import { Validator } from './validators/validator';
 import { isVisibility, type Visibility, visibilityValues } from './visibility';
 
@@ -67,6 +83,9 @@ const describe = (value: unknown) => (typeof value === 'string' ? `'${value}'` :
 
 /** formats the accepted values as a list for an error message */
 const listOf = (values: readonly string[]) => values.map(describe).join(', ');
+
+/** Whether a rule governs `error`: every origin but `'validator'` has one. */
+const ruled = (error: ValidationError) => error.origin !== 'validator';
 
 /** What an element with `access` sends: its value, `null` or nothing. `'editable'` and `'readonly'` send the same. */
 const sendsAs = (access: Access) => (access === 'disabled' ? 'omit' : access === 'disabled-null' ? 'null' : 'value');
@@ -408,16 +427,140 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * The array and its members are Vue proxies, not the raw instances a validator returned: `field.errors[0] ===
    * myError` is `false` even for the same error. Compare identity with `toRaw()`.
    *
-   * A change of the element's value removes its errors of origin `'server'`; errors of other origins stay.
+   * Whether an error of an origin other than `'validator'` counts toward `valid`, and when the element removes it
+   * by itself, is the rule of its origin: see `ErrorPolicy`. An `'edit'` rule compares the value the element holds
+   * against the one it held when the error was written: the value at the assignment of `errors`. For an error added
+   * to the array in place it is the value at the next read of `errors` outside a transaction, and a change of the
+   * element's value before that read counts as a change.
    */
   get errors(): ValidationError[] {
     this.touchState();
+    // a validator reads the errors while a write is in progress, after the value changed: the value recorded there
+    // would be the changed one. A read inside a transaction records nothing, and a change before the next read
+    // outside one is recorded as a change (errorsAfterChange)
+    if (!currentTransaction()) this.noteErrorsBaseline();
     return this.#state.errors;
   }
 
   set errors(newValue: ValidationError[]) {
     this.touchState();
     this.#state.errors = newValue;
+    this.#raw.errorsBaseline = NoErrorsBaseline;
+    this.noteErrorsBaseline();
+  }
+
+  /** Records the value the element holds as `errorsBaseline` where it holds a ruled error and has none recorded. */
+  private noteErrorsBaseline(): void {
+    const raw = this.#raw;
+    if (raw.errorsBaseline !== NoErrorsBaseline || !raw.errors.some(ruled)) return;
+    raw.errorsBaseline = toRaw(this.value);
+  }
+
+  /**
+   * The rule of `origin` for this element: the one stated by the nearest `ErrorPolicy` naming it, on this element or
+   * on a container above it, and otherwise the default. The walk reads `parent` through the tracked view, so a
+   * validity computed over it follows the element into another container.
+   */
+  private ruleOf(origin: ErrorOrigin): ErrorPolicyRule {
+    for (const element of this.selfAndAbove()) {
+      const actions = element.boundActions;
+      if (!actions?.willTrigger(ErrorPolicy.classIdentifier)) continue;
+      const policies = actions.ofClass(ErrorPolicy.classIdentifier);
+      for (let index = policies.length - 1; index >= 0; index--) {
+        const rule = ruleIn(policies[index] as ErrorPolicy, origin);
+        if (rule) return rule;
+      }
+    }
+    return defaultRule(origin);
+  }
+
+  /** This element and every container above it, nearest first. */
+  private selfAndAbove(): FieldBase[] {
+    const chain: FieldBase[] = [this];
+    for (let above = this.parent; above; above = above.parent) chain.push(above);
+    return chain;
+  }
+
+  /** Whether `errors`, held by this element, leave it valid: none of them counts toward validity. */
+  protected ownErrorsValid(errors: readonly ValidationError[]): boolean {
+    if (errors.length === 0) return true;
+    return !errors.some((error) => {
+      if (!ruled(error)) return true;
+      readRulesVersion();
+      return this.ruleOf(error.origin).validEffect;
+    });
+  }
+
+  /**
+   * Removes the ruled errors whose rule `removes` accepts and returns whether it removed any. The caller has added
+   * the element to the transaction and recomputes its validity.
+   */
+  private removeErrors(removes: (rule: ErrorPolicyRule) => boolean): boolean {
+    const errors = this.#state.errors;
+    let removed = false;
+    for (let i = errors.length - 1; i >= 0; i--) {
+      if (ruled(errors[i]) && removes(this.ruleOf(errors[i].origin))) {
+        errors.splice(i, 1);
+        removed = true;
+      }
+    }
+    if (!this.#raw.errors.some(ruled)) this.#raw.errorsBaseline = NoErrorsBaseline;
+    return removed;
+  }
+
+  /**
+   * Called when `touched = true` is written on this element: on it and on every container above it, the errors whose
+   * rule removes them on `'edit'` are removed where the element's value differs from the one recorded when they
+   * were written.
+   */
+  protected editConcluded(): void {
+    const holds = (element: FieldBase) =>
+      element.#raw.errors.some((error) => ruled(error) && element.ruleOf(error.origin).removeOn === 'edit');
+    const chain = this.selfAndAbove().filter(holds);
+    if (chain.length === 0) return;
+    transactional((tx) => {
+      for (const element of chain) {
+        const raw = element.#raw;
+        const baseline = raw.errorsBaseline;
+        tx.touch(element);
+        if (baseline === NoErrorsBaseline) {
+          // nothing recorded and no change since the errors were written: the value they describe is this one
+          raw.errorsBaseline = toRaw(element.value);
+          continue;
+        }
+        if (baseline !== ChangedSinceErrors && isEqual(element.value, baseline)) continue;
+        element.removeErrors((rule) => rule.removeOn === 'edit');
+        tx.markValidityDirty(element);
+      }
+    });
+  }
+
+  /** Removes, on this element and every element below it, the errors whose rule removes them on `'submit'`. */
+  [RemoveErrorsOnSubmit](): void {
+    transactional((tx) => {
+      const visit = (element: FieldBase) => {
+        if (element.#raw.errors.some(ruled)) {
+          tx.touch(element);
+          if (element.removeErrors((rule) => rule.removeOn === 'submit')) tx.markValidityDirty(element);
+        }
+        element.members.forEach(visit);
+      };
+      visit(this);
+    });
+  }
+
+  /**
+   * Recomputes the validity of every element at or below this one that holds a ruled error, after the rules over
+   * those errors may have changed.
+   */
+  [ErrorPoliciesChanged](): void {
+    transactional((tx) => {
+      const visit = (element: FieldBase) => {
+        if (element.#raw.errors.some(ruled)) tx.markValidityDirty(element);
+        element.members.forEach(visit);
+      };
+      visit(this);
+    });
   }
 
   /**
@@ -611,9 +754,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * announced here: at commit the transaction determines which enrolled elements hold a different value and
    * announces each of them once.
    *
-   * Every value change of an element passes through here, so this is where the element's errors of origin
-   * `'server'` are removed: such an error describes the value the server received, and the element holds a different
-   * one. The removal is part of the transaction and a rollback restores the errors.
+   * Every value change of an element passes through here, so this is where the element removes the errors whose
+   * rule removes them on `'change'`, and records that its value changed where it holds a ruled error with no value
+   * recorded to compare against. The removal is part of the transaction and a rollback restores the errors.
    *
    * `force` means the caller has established that the value changed (a list with one item more or fewer is a
    * different list whatever the items compare as), so the commit announces it without a comparison.
@@ -621,20 +764,19 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected propagateValueChanged(force: boolean = false): void {
     transactional((tx) => {
       tx.markValueChanged(this, force);
-      this.dropServerErrors(tx);
+      this.errorsAfterChange(tx);
       tx.markValidityDirty(this);
       this.parent?.notifyValueChanged();
     });
   }
 
-  /** Removes this element's errors of origin `'server'`; errors of every other origin stay. */
-  private dropServerErrors(tx: Transaction): void {
-    if (!this.#raw.errors.some((error) => error.origin === 'server')) return;
+  /** What a change of the element's value does to its ruled errors; see `propagateValueChanged`. */
+  private errorsAfterChange(tx: Transaction): void {
+    const raw = this.#raw;
+    if (!raw.errors.some(ruled)) return;
     tx.touch(this);
-    const errors = this.#state.errors;
-    for (let i = errors.length - 1; i >= 0; i--) {
-      if (errors[i].origin === 'server') errors.splice(i, 1);
-    }
+    this.removeErrors((rule) => rule.removeOn === 'change');
+    if (raw.errorsBaseline === NoErrorsBaseline && raw.errors.some(ruled)) raw.errorsBaseline = ChangedSinceErrors;
   }
 
   /**
@@ -674,7 +816,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * limitation of writing errors by hand.
    */
   protected get countedValid(): boolean {
-    return this.#raw.errors.length === 0 && this.#raw.invalidChildren === 0;
+    return this.ownErrorsValid(this.#raw.errors) && this.#raw.invalidChildren === 0;
   }
 
   /**
@@ -698,6 +840,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // the containers above now determine what the child sends, so elements whose effective access changed are
       // validated again
       if (detached) child.revalidateWhereChanged(detached);
+      // and the error policies above it now state the rules over its errors
+      if (rulesArePositional()) child[ErrorPoliciesChanged]();
       this.adoptChild(child);
       elementAdopted(tx, child);
     });
@@ -742,6 +886,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // the name is cleared with the link, so the element is as detached as one bind() returns
       child.#state.fieldName = undefined;
       if (attached) child.revalidateWhereChanged(attached);
+      if (rulesArePositional()) child[ErrorPoliciesChanged]();
       tx.markValidityDirty(this);
     });
   }
@@ -1161,6 +1306,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     if (actions?.willTrigger(ContributionChangedActionClassIdentifier))
       this.#raw.announcedContribution = this.contribution;
     if (this.composesValue && actions?.hasEager) this.#raw.validatedValue = this.contribution;
+    // errors given as a construction parameter are assigned before the value is in place: the value they describe
+    // is the one the element ends with, recorded at the next read of its errors
+    this.#raw.errorsBaseline = NoErrorsBaseline;
   }
 
   /**
@@ -1222,10 +1370,14 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     });
   }
 
+  /**
+   * True while no error of the element counts toward validity: every error of origin `'validator'` counts, and an
+   * error of another origin counts where its rule's `validEffect` is true (see `ErrorPolicy`).
+   */
   get valid() {
     // reads the slot directly: the errors getter adds the element to an open transaction, and reading validity
     // changes nothing a rollback has to restore
-    return this.#state.errors.length === 0;
+    return this.ownErrorsValid(this.#state.errors);
   }
 
   get fullValue(): T {

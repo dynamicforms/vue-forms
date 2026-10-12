@@ -1,5 +1,6 @@
 import { type FieldBase } from '../field-base';
 import { AbortEventHandlingException } from '../field.interface';
+import { checkRegistration } from '../validators/error-policy';
 import { Validator } from '../validators/validator';
 
 import FieldActionBase, { Outermost } from './field-action-base';
@@ -24,12 +25,13 @@ export default class ActionsMap {
    * Registers `action`. It becomes the outermost handler of its identifier, or, if `before` is given, is inserted
    * at the position of `before`, so `before` wraps it and calls it through `supr`. This adds an action to an
    * existing chain inside a handler that is already registered. Throws if `before` is not registered here under the
-   * same identifier.
+   * same identifier, and a TypeError for an `ErrorPolicy` naming an origin another one registered here names.
    */
   register(action: FieldActionBase, before?: FieldActionBase): void {
     if (!(action instanceof FieldActionBase)) throw new Error('Invalid action type');
     // read here, so a class without a classIdentifier is refused at registration, before it is in the chain
     void action.classIdentifier;
+    checkRegistration(action, this.actions);
     const at = before ? this.actions.indexOf(before) : -1;
     if (before && (before.classIdentifier !== action.classIdentifier || at < 0)) {
       throw new Error('Action to register before is not registered under the same identifier');

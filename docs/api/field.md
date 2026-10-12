@@ -90,7 +90,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.touched`](/api/field-base#prop-touched): the field stores the flag and returns the value last assigned, or `params.touched`
+Overrides [`FieldBase.touched`](/api/field-base#prop-touched): the field stores the flag and returns the value last assigned, or `params.touched`. Assigning `true` removes the errors whose rule removes them on `'edit'`, as described there
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-value"></a>

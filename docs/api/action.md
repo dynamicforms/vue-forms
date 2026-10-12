@@ -163,12 +163,14 @@ On `execute()` it:
    await `target.settled()`: the action is `busy` while it runs, so the target is `pending` until it returns;
 2. where `target.valid` is `false`, ends with a `SubmitRefusedException` whose `reason` is `'invalid'`, which
    `execute()` resolves with;
-3. where `target.access` is `'editable'` and `options.lock` is not `false`, sets it to `'readonly'`;
-4. calls `handler(target.value, target)` and awaits it;
-5. where the result is not `undefined` and `options.rebind` is not `false`, calls `target.rebind(result)`;
-6. sets `target.access` back to `'editable'` where step 3 set it and it is still `'readonly'`, whether `handler`
+3. removes, from the target and every element below it, the errors whose rule removes them on `'submit'`
+   ([`ErrorPolicy`](/api/validators#errorpolicy));
+4. where `target.access` is `'editable'` and `options.lock` is not `false`, sets it to `'readonly'`;
+5. calls `handler(target.value, target)` and awaits it;
+6. where the result is not `undefined` and `options.rebind` is not `false`, calls `target.rebind(result)`;
+7. sets `target.access` back to `'editable'` where step 4 set it and it is still `'readonly'`, whether `handler`
    succeeded or failed;
-7. calls the next handler in the chain and resolves with a `SubmitResult`:
+8. calls the next handler in the chain and resolves with a `SubmitResult`:
 
 ```typescript
 interface SubmitResult<R = any> {
@@ -183,10 +185,11 @@ or `isChanged`, and runs no validator. The members inherit it through
 [`effectiveAccess`](/api/field-base#prop-effectiveaccess): every input and every action below the target has
 `effectiveEnabled` `false` while `handler` runs, and an access the target is given meanwhile is kept. The lock is an
 `access` write, so it fires `AccessChangedAction` and `EnabledChangedAction` on the target, and an
-`AccessChangingAction` can refuse it. `busy` and `pending` report the running submit; a rendering layer that draws a
+`AccessChangingAction` can refuse it; as a change of access it also removes the errors whose rule removes them on
+`'change'` from the containers above the target. `busy` and `pending` report the running submit; a rendering layer that draws a
 form differently while it submits reads them.
 
-The rebind in step 5 replaces the target's value with the result. A change written to the target by code while
+The rebind in step 6 replaces the target's value with the result. A change written to the target by code while
 `handler` runs is lost, and `isChanged` is `false` afterwards.
 
 A second `execute()` while a submit of the same action is running resolves with a `SubmitRefusedException` whose
@@ -195,7 +198,8 @@ it writes them to `field.errors` before it throws, as in
 [Showing errors the server returned](/guide/cookbook#showing-errors-the-server-returned).
 
 `canExecute()` is `true` while the target is valid and not `pending`, so `Action.executable` is `false` while the
-form is invalid, a validation is running or the submit itself is running.
+form is invalid, a validation is running or the submit itself is running. An error whose rule removes it on
+`'submit'` does not count toward `valid`, so it never keeps the submit that removes it from running.
 
 Every outcome of a submit is the resolved value of `execute()` (and of `Container.confirm()`), of the type
 `SubmitResult<R> | CommandException`:

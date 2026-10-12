@@ -27,8 +27,9 @@ and `reject()`.
   `'invalid'`, and a second call during a run with the reason `'running'`.
 - **A server error on a field.** The handler waits 1.2 seconds, as a request would. For an `@example.com` address it
   writes a [`ValidationError`](/api/validators#validationerror) with the origin `'server'` to the email field and
-  throws, so the submit ends with a `SubmitFailedException` and the field shows the error. A `ValueChangedAction` on
-  the email field withdraws the errors of that origin when the address changes.
+  throws, so the submit ends with a `SubmitFailedException` and the field shows the error. The default rule of
+  that origin ([`ErrorPolicy`](/api/validators#errorpolicy)) removes the error when the user leaves the email field
+  after changing the address: the field writes `touched = true` when it loses focus.
 - **Rebinding.** Otherwise the handler returns the record as stored (name trimmed, email lower-cased), and
   `SubmitAction` rebinds the form to it: the inputs show the stored record and `isChanged` is `false`. Cancel
   rebinds the form to its `originalValue`.

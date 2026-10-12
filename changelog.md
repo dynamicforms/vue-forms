@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removed by the bundler. `DevtoolsOptions`, `DevtoolsRegistration` and `StateDescription` type the API.
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
   target or a concurrent run with a `SubmitRefusedException` whose `reason` (`SubmitRefusalReason`) says which,
-  sends the target's value to `handler` with an `'editable'` target `'readonly'` until it returns (`lock`),
+  removes the errors at and below the target whose rule removes them on `'submit'`, sends the target's value to
+  `handler` with an `'editable'` target `'readonly'` until it returns (`lock`),
   resolves with a `SubmitFailedException` (`cause`: the error) where the handler fails, rebinds the target to the
   result and resolves with `{ action, sent, received }` (`SubmitResult`).
   Both exceptions extend the abstract `CommandException`, the base of the exceptions a `TargetedExecuteAction` ends
@@ -35,6 +36,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Action.executable`, and `ExecuteAction.canExecute()`, which it reads.
 - `pending` on every element: `validating || busy`, reactive. `settled()` resolves when it turns `false`.
 - `ErrorDescription`, the interface of an error: `code`, `params`, `detail` and `origin`.
+- `ErrorPolicy`: the rules of the error origins other than `'validator'` for an element and every element below it.
+  A rule (`ErrorPolicyRule`) states whether an error of its origin counts toward `valid` (`validEffect`) and when
+  the element removes it (`removeOn`, an `ErrorRemoval`): when its value changes (`'change'`), when `touched = true`
+  is written after its value changed (`'edit'`), when a `SubmitAction` sends it (`'submit'`) or never (`'never'`).
+  The nearest policy naming an origin applies. `setDefaultErrorPolicies()` sets the rules where no policy names an
+  origin; by default `'server'` errors count and are removed on `'edit'`, and every other origin counts and is
+  never removed. `ErrorPolicies` types the rules and `errorRemovals` lists the removals.
 - `Validators.ValidationErrorOptions`, and `Validators.isEmptyValue()`, the test by which the built-in validators
   pass an empty value.
 - `ActionsMap.ofClass(identifier)`: the registered actions with that class identifier, in registration order.
@@ -79,8 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   sends nothing either.
 - `ValidationError` is data: `new ValidationError(code, params, detail, origin?)`. It carries the `code` of what
   failed, the `params` it failed with, an English plain-text `detail` and an `origin`, and implements
-  `ErrorDescription`. The library does not render it. An element removes its errors of origin `'server'` when its
-  value changes, within the transaction of the change, and recomputes its validity.
+  `ErrorDescription`. The library does not render it.
 - Error codes are snake_case and name what failed: `min` is `min_value`, `max` is `max_value`, `range` is
   `value_in_range`, `min-length` is `min_length`, `max-length` is `max_length`, `range-length` is
   `length_in_range`, `in-allowed-values` is `in_allowed_values`, `compare-to` is `compare_to` and

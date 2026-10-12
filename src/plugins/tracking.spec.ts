@@ -352,7 +352,7 @@ describe('edge cases of the copy and the tracked collections', () => {
 });
 
 describe('a write into the value a field holds', () => {
-  it("removes the field's errors of origin server and keeps the others", () => {
+  it("is a change: the field's errors of origin server go once the user leaves it, and the others stay", () => {
     const field = new Field({ value: { city: 'Ljubljana' } });
     const form = new Group({ address: field });
     field.errors.push(
@@ -362,6 +362,7 @@ describe('a write into the value a field holds', () => {
     form.errors.push(new ValidationError('duplicate', {}, 'Duplicate', 'server'));
 
     field.value.city = 'Bled';
+    field.touched = true;
 
     expect(field.errors.map((error) => error.code)).toEqual(['checked']);
     expect(form.errors).toEqual([]);

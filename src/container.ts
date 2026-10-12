@@ -177,7 +177,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
     if (!read) {
       read = computed(
         () =>
-          this.state.errors.length === 0 &&
+          this.ownErrorsValid(this.state.errors) &&
           // a child that sends nothing does not affect the container's validity
           this.children.every((child) => child.valid || this.childSerializesAs(child, 'value') === 'omit'),
       );

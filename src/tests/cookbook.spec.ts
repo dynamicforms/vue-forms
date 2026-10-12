@@ -22,6 +22,7 @@ import {
   ConditionalAccessAction,
   ConditionalVisibilityAction,
   ContributionChangedAction,
+  ErrorPolicy,
   Field,
   FieldBase,
   Group,
@@ -255,7 +256,7 @@ describe('Cookbook: errors the server returned', () => {
     expect(elementAt(form, 'items.7.price')).toBeUndefined();
   });
 
-  it('writes the errors from the plain submit, rethrows, and drops each one when its element changes', async () => {
+  it('writes the errors from the plain submit, rethrows, and drops each one as the user leaves its edit', async () => {
     const form = createOrder();
     const api = {
       save: async (): Promise<any> => {
@@ -284,11 +285,14 @@ describe('Cookbook: errors the server returned', () => {
     expect(form.access).toBe('editable');
 
     price.value = 2;
+    expect(price.errors).toHaveLength(1);
+    price.touched = true;
     expect(price.errors).toEqual([]);
-    // the form's own message goes with the first change below it
+    // the form's own message goes when the user leaves the first field changed below it
     expect(form.errors).toEqual([]);
     expect(form.fields.email.valid).toBe(false);
     form.fields.email.value = 'c@d.e';
+    form.fields.email.touched = true;
     expect(form.valid).toBe(true);
   });
 
@@ -319,7 +323,61 @@ describe('Cookbook: errors the server returned', () => {
     expect(form.fields.address.fields.city.errors[0].detail).toBe('Not delivered to');
     expect(form.valid).toBe(false);
     form.fields.address.fields.city.value = 'Bled';
+    form.fields.address.fields.city.touched = true;
     expect(form.valid).toBe(true);
+  });
+});
+
+describe('Cookbook: keeping a server error until the next submit', () => {
+  it('keeps the message through edits, leaves the submit executable, and removes it on the next attempt', async () => {
+    const answers = [
+      { ok: false, detail: 'Invalid user name or password' },
+      { ok: true, detail: '' },
+    ];
+    const sent: unknown[] = [];
+    const api = {
+      login: async (value: unknown) => {
+        sent.push(value);
+        return answers.shift()!;
+      },
+    };
+    const login = new Group(
+      {
+        user: new Field({ value: '', validators: [new Validators.Required()] }),
+        password: new Field({ value: '', validators: [new Validators.Required()] }),
+        actions: new Group({
+          submit: new Action({
+            value: { label: 'Log in', defaultConfirm: true },
+            actions: [
+              new SubmitAction(
+                (action) => action.parent?.parent,
+                async (value, target) => {
+                  const answer = await api.login(value);
+                  if (!answer.ok) {
+                    target.errors = [new ValidationError('invalid_credentials', {}, answer.detail, 'server')];
+                    throw new Error(answer.detail);
+                  }
+                },
+              ),
+            ],
+          }),
+        }),
+      },
+      { actions: [new ErrorPolicy({ server: { validEffect: false, removeOn: 'submit' } })] },
+    );
+    login.fields.user.value = 'ada';
+    login.fields.password.value = 'wrong';
+
+    expect(await login.confirm()).toBeInstanceOf(SubmitFailedException);
+    login.fields.password.value = 'right';
+    login.touched = true;
+    expect(login.errors.map((error) => error.code)).toEqual(['invalid_credentials']);
+    expect(login.valid).toBe(true);
+    expect(login.fields.actions.fields.submit.executable).toBe(true);
+
+    await login.confirm();
+    expect(login.errors).toEqual([]);
+    expect(sent).toHaveLength(2);
   });
 });
 
