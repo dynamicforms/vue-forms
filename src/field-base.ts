@@ -135,7 +135,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * The tag that a structural comparison of two elements uses. An element keeps its state in private class fields,
    * so a walk over own keys reaches none of it. lodash reads this tag through Object.prototype.toString before it
    * compares anything and stops at a tag it does not recognise, so two elements are equal only if they are the
-   * same element. To compare what they hold, use isEqual(a.value, b.value).
+   * same element. The package's own `isEqual` compares an element by the value it holds.
    *
    * It is an accessor on the prototype, so it adds no own property to an element, and `Object.prototype.toString`
    * returns `[object Field]` instead of `[object Object]`. Each class declares its name as a literal, because a

@@ -1075,19 +1075,17 @@ A structural comparison of two elements (lodash `isEqual(fieldA, fieldB)`) compa
 in private class fields, which a structural comparison does not read. `FieldBase` has a `Symbol.toStringTag`
 accessor returning the element's class name; a structural comparison reads the tag first and returns `false` for two
 distinct objects with a tag it does not know.
-Two elements are therefore equal only where they are the same element; compare their contents with
-`isEqual(a.value, b.value)`. The accessor is defined on the prototype, so it adds nothing to each instance, and
+Two elements are therefore equal only where they are the same element. The package's own
+[`isEqual(a, b)`](#isequal-a-b-boolean) compares them by the value they hold. The accessor is defined on the prototype, so it adds nothing to each instance, and
 `Object.prototype.toString.call(field)` returns `[object Field]`, not `[object Object]`. See
-[Comparing elements](/guide/model#comparing-elements) for the package's own `isEqual`, the pitfalls it avoids and
-the cases it does not cover.
+[Comparing elements](/guide/model#comparing-elements).
 
 ### `isEqual(a, b): boolean`
 
 Structural equality that treats a `FieldBase` anywhere in `a` or `b` as the value it holds. Two `FieldBase`
 operands compare `a.value` against `b.value` directly; anything else is passed to lodash's `isEqual`, with a
-`FieldBase` found at any depth unwrapped the same way. See
-[Comparing elements](/guide/model#comparing-elements) for when to use it instead of `isEqual(a.value,
-b.value)`.
+`FieldBase` found at any depth unwrapped the same way: `isEqual(new Field({ value: 1 }), new Field({ value: 1 }))`
+is `true`, and `isEqual(list.items, other.items)` compares the rows by their values.
 
 ---
 

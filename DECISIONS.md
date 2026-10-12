@@ -1,899 +1,594 @@
 # Decision record
 
-Settled decisions, with the alternatives that were weighed and the reason for the one chosen. History belongs
-here and nowhere else: the source states what the code does, the changelog states what changed for a consumer,
-and this file states why the shape is what it is. An open question — something not yet decided — belongs in
-`TODO.md`, not here.
+The decisions currently in force: what the library does, why, and which alternatives were rejected. A decision that
+no longer holds is deleted or rewritten; `git log` holds the history. An open question belongs in `TODO.md`.
 
-Entries are append-only. A decision that is later reversed keeps its entry and gains a successor.
+Numbers are permanent. A deleted decision leaves a gap, and a number is never reused.
+
+Each entry states:
+
+- **Since:** the first release carrying the decision in its current form (a release tag where one exists, otherwise
+  the version `package.json` names), the commit that introduced it, and its date.
+- **Tests:** the spec ranges that assert the behaviour. **Checked by:** a non-test mechanism, where no unit test
+  can assert the decision. A decision about what the library does not provide has neither.
 
 ---
 
-## D-001 — Element state lives in private class fields, and lodash `isEqual` over two elements is meaningless
+## D-001 — Element state lives in private class fields; elements compare by identity under lodash `isEqual`
 
-**Version:** 0.7.0
+**Since:** 1.1.0 · `a18f801` (#35) · 2026-09-05\
+**Tests:** `src/field-base.spec.ts:652–698`, `src/is-equal.spec.ts`, `src/group.spec.ts:551–658`
 
-An element's mutable state is held in ECMAScript private class fields (`#state`, `#raw` on `FieldBase`).
-Nothing outside the class can reach it: not `Object.keys`, not `Object.getOwnPropertySymbols`, not
-`JSON.stringify`, not lodash's `getAllKeys`.
+An element's mutable state, including the link to its parent, is in ECMAScript private class fields (`#state`,
+`#raw` on `FieldBase`). `Object.keys`, `Object.getOwnPropertySymbols`, `JSON.stringify` and lodash do not reach it.
 
-The consequence, which is broader than the problem it solves: `isEqual` over two elements reads nothing
-either of them holds. Since 0.15.0 a `Symbol.toStringTag` accessor on `FieldBase` gives lodash a tag to check
-before it looks at own keys, so a mismatched tag makes `isEqual` answer `false` for two distinct instances —
-**two elements compare equal only where they are the same instance** —
-`isEqual(new Field({ value: 1 }), new Field({ value: 2 }))` is `false`, and `isEqual(field, field)` is `true`.
+- lodash `isEqual(new Field({ value: 1 }), new Field({ value: 1 }))` is `false`; `isEqual(field, field)` is `true`.
+  A `Symbol.toStringTag` accessor on the prototype gives lodash a tag it does not recognise, so it compares
+  identity.
+- The package's own `isEqual` (`src/is-equal.ts`, exported from the root) compares a `FieldBase` by its `value`,
+  at any depth: `isEqual(new Field({ value: 1 }), new Field({ value: 1 }))` is `true`, and
+  `isEqual(list.items, other.items)` compares the rows' values.
 
-**What forced it.** The back-reference to the container must be invisible to any walker, or `JSON.stringify`
-and `isEqual` recurse from a child into its parent and back. Three shapes were tried:
+**Reason.** The parent link has to be invisible to any walker, or `JSON.stringify` and `isEqual` recurse from a child
+into its parent. Private fields hide it at no per-instance cost.
 
-- *Non-enumerable accessor per instance* (the shape before 0.7.0). Correct, and `isEqual` over elements
-  worked — but it costs one `Object.defineProperty` per element, which converts the object to dictionary
-  mode: measured at ~765 bytes per field for the first such property, ~40 % of an element's retained size.
-- *Enumerable symbol keys.* Cheap, but wrong: lodash compares own string keys **plus own enumerable
-  symbols**, so two structurally identical fields in different parents compared unequal, and every element
-  was walked twice.
-- *Private class fields.* Cheap and correct about the parent link, at the cost above.
-
-**Why the cost is acceptable.** Nothing in the library compares elements structurally — every internal `isEqual`
-is over a value (`isChanged`, the announced-value guards) or over a `ValidationError`. No documented behaviour
-promises a structural comparison between elements; identity is what `isEqual` answers now, and comparing two
-form elements structurally is an odd thing to want in the first place. Comparing what they hold is the meaningful
-question, and `isEqual(a.value, b.value)` answers it.
-
-**Rejected alternative worth naming.** Splitting the state in two — links private, values reachable — would
-restore element comparison. It was rejected because `parent` has to be a *tracked* read, so the links half
-would need its own reactive proxy, doubling the proxy count per element and undoing the reason this step
-exists.
-
-Documented in `docs/api/group.md`, `docs/guide/migration.md` and `changelog.md`, with `isEqual(a.value,
-b.value)` as the replacement.
+**Rejected.**
+- A non-enumerable accessor per instance: `Object.defineProperty` puts the object into dictionary mode, about 765
+  bytes per field, 40 % of an element's retained size.
+- Enumerable symbol keys: lodash compares own enumerable symbols, so two equal fields in different parents compare
+  unequal, and every element is walked twice.
+- Private links with reachable values: `parent` is a tracked read, so the links would need a second reactive proxy
+  per element.
 
 ---
 
 ## D-003 — `transaction` is a free function, and rollback is reachable only from inside the callback
 
-**Version:** 0.8.0
+**Since:** 0.11.0 · `5ee4127` · 2026-08-17\
+**Tests:** `src/transaction.spec.ts:182–207`, `src/tests/validity-events.spec.ts:697–809`,
+`src/tests/design-fixes.spec.ts:80–95`
 
-`transaction(fn)` is exported from the package root and exists nowhere else. It is not a method on `FieldBase`.
+`transaction(fn)` is exported from the package root and is not a method of any element. It returns the callback's
+result, typed `R | undefined`. The callback receives a control object with `rollback()`, which unwinds immediately and
+makes `transaction` return `undefined`. A throw in the callback rolls back and rethrows.
 
-**Why not a method.** There is one open transaction at a time, held in a module-level variable, and any mutating
-operation anywhere joins it. `form.transaction(() => …)` would read as *this element's* transaction and would be
-wrong the first time the callback touched something outside `form` — which is the ordinary case, since a
-cross-field rule is why a caller opens one. A free function says what is true: the transaction is ambient.
+**Reason.** There is one open transaction at a time, held in a module-level variable, and every mutating operation
+anywhere joins it. A method `form.transaction()` would suggest a transaction scoped to `form`.
 
-**What it returns.** Whatever the callback returned, typed `R | undefined`. The union is what a rollback costs:
-a transaction that did not commit has no result to hand back. Every internal call site that needs a value out of
-an operation — `List.insert` returning the position — writes it into a local rather than returning it through
-`transaction`, so no library signature gained the union.
-
-**Rollback.** `transaction(fn)` passes the callback a control object with one member, `rollback()`, which unwinds
-from the point of the call by throwing a signal the outermost `transaction()` catches. Rollback is therefore
-reachable in exactly two ways, and both unwind immediately: an ordinary throw, which rolls back and rethrows, and
-`tx.rollback()`, which rolls back and answers `undefined`.
-
-**Rejected: a rollback-only flag.** `tx.setRollbackOnly()` in the JDBC sense would keep the return type as `R`,
-but the code after the call would go on running and mutating a transaction already condemned. Unwinding at the
-point of the decision is what a caller means by "undo this".
-
-**Rejected: rollback from outside the callback.** Handing out a transaction handle that outlives `transaction()`
-would allow `tx.rollback()` after the commit, which would have to un-announce events. The one use case that
-wants it — edit a row in a dialog, cancel — is asynchronous, and a transaction cannot cross an `await` anyway;
-that case is a snapshot of the row's value, restored by assignment, not a transaction.
+**Rejected.**
+- `tx.setRollbackOnly()` (JDBC): code after the call keeps mutating a transaction that will be rolled back.
+- A handle usable after `transaction()` returns: a rollback after the commit would have to retract announced
+  events. A transaction cannot span an `await`; cancelling an edit in a dialog restores a snapshot of the value by
+  assignment.
 
 ---
 
 ## D-005 — Copy-on-first-write snapshots are not optional
 
-**Version:** 0.8.0
+**Since:** 0.11.0 · `5ee4127` · 2026-08-17\
+**Tests:** `src/tests/validity-events.spec.ts:697–809`, `src/tests/extended-properties.spec.ts:128–148`,
+`src/tests/bind.spec.ts:121–335`
 
-Every element a transaction modifies is recorded once, and there is no way to switch the recording off.
+A transaction records the state of every element it modifies at the element's first write, and a rollback restores
+it. Recording cannot be switched off.
 
-**What it costs.** Measured on the step-1 fixture, 1000 rows of 8 fields, same machine and session as the 0.7.0
-numbers: a whole-list assignment 19.1 ms to 26.4 ms, of which the record itself is 1.7 ms — the other 5.6 ms is
-the transaction's own bookkeeping, one participant per element and two ordered passes over them. One field write
-in row 500 goes 0.0082 ms to 0.0114 ms, of which 0.0024 ms is the record.
+**Reason.** An operation that can half-apply is the defect transactions exist to prevent, and the bulk paths an
+opt-out would serve are where a half-applied state does the most damage. The record costs about 0.2 µs per element.
 
-**Why no opt-out.** A partial guarantee is worth less than the mechanism costs to explain: an operation that can
-half-apply is exactly the defect this step exists to close, and an opt-out would put it back under a flag whose
-users would be the bulk paths, which are where a half-applied state is worst. At 0.19 µs per element the record
-is not what a bulk assignment spends its time on.
-
-**If it ever has to become optional**, the shape is `transaction(fn, { rollback: false })` — a per-transaction
-opt-out rather than a global one, refused when a transaction is already open, and documented as making a throw
-inside it leave the form in an undefined state. Nothing in the current implementation stands in the way: `touch`
-would return without recording and `rollback` would find no snapshots.
+**Rejected.** A global opt-out flag.
 
 ---
 
-## D-006 — What a rollback does not put back
+## D-006 — A rollback restores registrations, and leaves validation runs in flight
 
-**Version:** 0.8.0
+**Since:** 0.12.0 · `4e85904` · 2026-08-18\
+**Tests:** `src/actions/actions-map.spec.ts:184–231`, `src/transaction.spec.ts:19–77`,
+`src/transaction.spec.ts:145–180`, `src/tests/validator-async.spec.ts:174–265`
 
-The snapshot a transaction takes covers an element's state slots, which is everything an ordinary write touches.
-One thing stays outside it.
+`registerAction`, `registerActionBefore`, `unregisterAction` and `clearValidators()` each register an undo with the
+transaction, so a rollback reverses them.
 
-**Registering or unregistering an action is transactional.** `ActionsMap` holds a flat array rather than a
-composed chain (D-030), so adding or dropping one entry needs no rebuild of the rest. `registerAction`,
-`registerActionBefore`, `unregisterAction` and `clearValidators()` each hand the transaction a `whenRolledBack`
-undo that reverses exactly what they did — re-registering what was dropped, or dropping what was added.
-`clearValidators()` no longer replaces the whole map; it unregisters each validator individually, through the
-same mechanism as any other registration.
+`validatingCount` is not restored. A run started in a rolled-back transaction has its `AbortSignal` aborted, runs to
+completion, and its verdict is discarded: the validator's `isCurrent()` reads the unwound transaction, the run
+counter and the validation epoch.
 
-**A validation run already in flight is left to finish.** `validatingCount` is the one slot a rollback does not
-restore: it counts runs that are in flight, and restoring it would put the count out of step with the
-`endValidating` calls still to come, so `validating` would read `false` with a run pending and then go negative
-when it settled. A run is called off rather than undone — the `AbortSignal` its `ValidationFunction` was handed
-aborts, and work that honours it stops — so it is allowed to settle and its verdict is dropped: the transaction it started
-in is marked as unwound, and the validator's `isCurrent()` check reads that flag alongside the run counter and
-the validation epoch. The alternative, letting the verdict land, leaves a field invalid over a value the form
-never held, which is worse than a check that answers nothing.
+**Reason.** Restoring the count would desynchronise it from the `endValidating` calls still pending: `validating`
+would read `false` with a run in flight and then go negative.
+
+**Rejected.** Applying the verdict of such a run: the field would be invalid over a value the form no longer holds.
 
 ---
 
-## D-012 — `execute()` rejects, and the contract is documented rather than softened
+## D-012 — `execute()` rejects when a handler fails, and resolves with an abort
 
-**Version:** 0.9.0
+**Since:** 0.17.1 · `7e2f19c` · 2026-08-21\
+**Tests:** `src/action.spec.ts:165–248`, `src/actions/actions-map.spec.ts:276–561`,
+`src/tests/action-commands.spec.ts:223–485`
 
-A handler that throws rejects the promise `execute()` answers. Nothing catches it inside the library.
+A handler that throws rejects the promise `execute()` returns; the library catches nothing. An
+`AbortEventHandlingException` is an answer, not a failure: the trigger resolves with it on the synchronous and on the
+asynchronous path, and `triggerEager()` ends only the identifier group it was raised in. A handler's answer is
+treated as a promise when it is `instanceof Promise`.
 
-**What it costs.** A caller that neither awaits the answer nor attaches a `.catch()` leaves an unhandled
-rejection, which under node's default settings ends the process, where the same handler used to throw
-synchronously into the caller's `try`. Vue's event path is not affected: it attaches its own catch to the promise
-a handler returns, so a template `@click="save.execute()"` reaches `app.config.errorHandler` as before.
+A caller that neither awaits `execute()` nor attaches `.catch()` gets an unhandled rejection. Vue attaches its own
+catch to a promise an event handler returns, so `@click="save.execute()"` reaches `app.config.errorHandler`.
 
-**Rejected: catching inside `execute()`.** Swallowing a submit failure is worse than an unhandled rejection, and
-routing it to a library-configured handler invents a second error channel next to the one Vue already has, for
-the one caller shape that is outside a template.
-
-**Rejected: keeping `execute()` synchronous and exposing the promise separately.** `busy` has to be cleared when
-the run settles, so the method already awaits the chain; a synchronous wrapper around it would answer before the
-value it is supposed to carry exists.
-
----
-
-## D-014 — Actions per record ship before the declaration/binding split, and 0.10.0 carries them
-
-**Version:** 0.10.0
-
-The plan pairs step 5 (actions per binding) with step 4 (the declaration/binding split) and says step 5 must ship
-with it. It ships first instead, against a tree that still builds rows by cloning.
-
-**Why it does not wait.** The three defects step 5 closes — a conditional action dead in every row, `CompareTo`
-comparing against the item template, `clearValidators()` on one row silencing the validator in every row — are
-defects of the *clone* model as it stands, and every one of them is reachable today. They need what the split was
-going to provide, which is a way for a shared action to tell one row's field from another's, but they do not need
-the whole of it: **a clone recording the element it was made from is enough**, and that is one slot and one
-accessor rather than `BindingScope`, slot arrays and a new construction path.
-
-**What replaces the binding.** `field.declaration` is the canonical element a clone was made from, and the *record*
-an element belongs to is derived from the container chain: the `List` row that holds it, or the top of the chain
-where no row does — a container names every member it holds except a row, so the element its container gave no name
-to is where a record begins. An action resolves a second element by walking that element's path down from the
-record, and confirms the answer by its declaration. When the split lands, the record becomes the `BindingScope` and
-the path walk becomes a slot offset; what the actions ask for does not change.
-
-**What it costs against doing both together.** The resolution is a short path walk per evaluation rather than an
-index lookup, and the one case that has no cheap answer — an element declared in one record whose copies live in
-records below it, which is a form field every row of a list reads — is a walk of the subtree. Both are on the path
-of a value change of a field a rule reads, not of every write.
-
-**Rejected: implementing step 4 first.** It is the largest step in the plan and it cannot be verified in halves.
-Holding three reachable defects behind it buys nothing, and the work here is not thrown away by it.
+**Rejected.**
+- Catching inside `execute()`: a swallowed submit failure is worse than an unhandled rejection, and a
+  library-configured error handler would duplicate Vue's.
+- A synchronous `execute()` with the promise exposed separately: `busy` is cleared when the run settles, so the
+  method awaits the chain anyway.
+- A `then` member as the promise test: a handler may answer with a value object that has one, and calling it
+  replaces the answer. Consequence: an abort raised under a promise from another realm or library still rejects.
+- Catching the abort in `supr`: inside the chain the abort stays an exception, so handlers that do not handle it
+  are unwound instead of receiving the exception as a return value.
 
 ---
 
-## D-016 — An eager pass that reaches nothing is run again when the record is complete
+## D-014 — An element knows its declaration, and its record is derived from the container chain
 
-**Version:** 0.10.0
+**Since:** 0.11.0 · `5948e4a` · 2026-08-17\
+**Tests:** `src/list.spec.ts:792–814`, `src/actions/conditional/conditional-statement-action.spec.ts:201–325`,
+`src/validators/validator-compare-to.spec.ts:12–371`
 
-A `List` row is built by cloning the item template: every member is cloned on its own, the clones are handed to a
-`Group`, and the group is then handed the row's data. A member's eager actions run at the moment it is cloned, when
-it holds neither its siblings nor its row, so a rule reading a second element of the record reaches nothing there.
-Where that happens, the element records it — `markRecordIncomplete()` — and the container that completes the record
-runs its eager actions again: the `Group` once it has written its members, and the `List` once it has taken the row
-into the form. A pass that still reaches nothing records it again, so the next container above answers for it.
+`field.declaration` is the element a binding was made from, and a declared element answers with itself. The record
+an element belongs to is the `List` row that holds it, or the top of the container chain where no row does. An action
+that reads a second element resolves it by walking that element's path down from the record and checks the result
+by its declaration, so an action shared by every row reads the row it runs for.
 
-**What forced it.** Reaching nothing has to read as *no verdict*, not as a pass, and the pass that would have
-corrected it never comes: the value setter drops an assignment of the value the field already holds, so a row
-holding exactly what its template holds is never validated a second time. That is not a corner case — an item the
-list builds to fill a gap and the group `remove()` hands back carry the template's values by construction, and a
-list of default rows is ordinary.
+**Consequence.** Resolution is a path walk per evaluation. An element declared in one record and read from the
+records below it (a form field every row reads) is resolved by walking the subtree.
 
-**Rejected: revalidate every member at the end of the clone.** One line in the `Group` constructor, and it doubles
-the validator runs of every row of every list, which is the path the whole performance plan is about. Measured at
-about 3 % of building a 1000-row list for the pass as it stands, where it runs only for the elements that asked.
-
-**Rejected: a static "this action needs the record" flag on the action class.** It cannot tell the pass that
-answered from the pass that did not — a rule comparing against a field the form above holds resolves at clone time
-and would be run twice for nothing — and it makes every author of a cross-field action declare a property that only
-matters in one construction path.
-
-**Rejected: leaving it to the next write.** It is what the state before this release did, and the verdict a form
-reports until the user touches a row is exactly the verdict that matters: a submit button reads `form.valid`.
-
-**What it costs.** A process-wide counter of elements waiting for a record, read before any walk, so a form built
-out of elements that answer for themselves alone pays nothing. An element whose record never completes — a field
-cloned out of its group, a name nothing in the tree answers to — stays counted, and every container completed after
-it therefore walks its own subtree. The walk is bounded by the construction it is part of, so it is a constant
-factor on a path that is already linear in the same subtree.
+**Rejected.** A shared declaration object with a slot array per row; see D-027.
 
 ---
 
-## D-018 — The model is written down as one page, ahead of the reference
+## D-016 — An eager pass that reaches nothing runs again when the record is complete
 
-**Version:** 0.10.1
+**Since:** 0.11.0 · `5948e4a` · 2026-08-17\
+**Tests:** `src/tests/record-completion.spec.ts:28–74`, `src/validators/validator-compare-to.spec.ts:12–371`
 
-`docs/guide/model.md` states the whole design in one place: elements, declarations and clones, how a `List`
-builds rows, what a record is, when events fire, where validity comes from and where a value comes from. It is
-listed first in the API sidebar's Concepts section, and second in the guide sidebar's Introduction — after
-Getting Started — so a reader who arrives at the reference meets it before the first symbol.
+A row is built member by member, so a member's eager actions run before it has siblings or a row. An action that
+reaches nothing calls `markRecordIncomplete()`. The `Group` runs the eager actions of such members again once it has
+written its members, and the `List` once it has taken the row. A pass that still reaches nothing marks again, and
+the next container above runs it.
 
-**What forced it.** Six releases added six mechanisms — value version counters, a validity computed beside a
-validity tally, transactions, declarations, records, per-element action state — and each was documented where it
-belonged, on the page of the symbol it touched. A reader assembling the shape from those pages has to read all
-of them and infer what they have in common. Complexity that arrives one release at a time is complexity nobody
-reviews as a whole, and the page is what makes it reviewable.
+**Reason.** Reaching nothing is no verdict, not a pass, and the value setter drops an assignment of the value the
+field already holds, so a row equal to its template would never be validated again.
 
-**What it is not allowed to be.** The reference pages carry the per-symbol truth — every signature, default,
-unit and thrown error — and the model page carries none of it. A duplicated signature is a signature that goes
-stale on one of the two pages, and the one it goes stale on is the one nobody edits when the code changes.
+**Consequence.** A process-wide counter of waiting elements is read before any walk; a form whose actions all
+resolve pays nothing. An element whose record never completes stays counted, and every container completed after it
+walks its own subtree.
 
-**Rejected: growing `getting-started.md` instead.** That page has a different job — install, bind an input,
-render an error — and it is read once, in a hurry. The model is read when a form does something the reader did
-not expect, which is a different moment and a different length.
-
-**Rejected: a concepts section at the top of each reference page.** It puts the same explanation in five places
-and still never states what the five have in common, which is the whole content of the page.
+**Rejected.**
+- Revalidating every member at the end of row construction: doubles the validator runs of every row.
+- A static "needs the record" flag on the action class: it cannot tell a pass that resolved from one that did not,
+  and every cross-field action author has to set it.
+- Waiting for the next write: `form.valid` is wrong until the user edits the row.
 
 ---
 
-## D-020 — `Action`'s exception to UI-agnosticism is stated, not hedged
+## D-023 — Extended properties live in one tracked slot, are merged on write, and are routed by accessor
 
-**Version:** 0.10.1
+**Since:** 0.11.0 · `87e703b` · 2026-08-18\
+**Tests:** `src/tests/extended-properties.spec.ts:15–254`, `src/tests/reactivity.spec.ts:183–197`,
+`src/tests/defects.spec.ts:21–33`, `src/tests/extras-augmentation.spec.ts:94–110`, `src/tests/types.spec.ts:78–148`
 
-The documentation says outright that `Action` is the one part of the library that is not UI-agnostic, on the
-design-goal line in `readme.md` and `getting-started.md`, in a callout in `docs/api/actions.md`, and at length
-in `docs/examples/action.md`. The cross-link points at `@dynamicforms/vuetify-inputs`'s `df-actions` and
-responsive-render-options pages, which is where that package documents what an action renders as; it has no page
-for the `Action` subclass itself, so there is nothing closer to link to.
+`FieldBase<T, X extends object = {}>` carries properties a consumer declares beyond the class's members. `extra`
+reads them, `setExtendedValues(values)` writes them, and the constructor takes them in the same parameter object.
+`Field`, `Action`, `Group` and `List` pass `X` through. The default `{}` makes an undeclared property an
+excess-property error.
 
-**Why it is said rather than left alone.** "UI-agnostic" is the first design goal on both front pages, and
-`{ label, icon }` contradicts it in the reader's eyes. An unexplained inconsistency reads as an oversight, and a
-reader who takes it for one designs around it — reimplementing the label on their own class rather than widening
-the value the way the shape invites.
+- **Reactive.** The set is one slot of the element's state, so a render effect that reads `extra` re-runs on a write.
+  An element without extended properties shares one frozen empty object.
+- **Merged.** `setExtendedValues` takes `Partial<X>` and installs a new frozen object holding the merge. A rollback
+  restores the previous object, and a caller cannot write through the object `extra` returned.
+- **Routing.** A parameter key that names an accessor on the element's prototype chain below `Object.prototype` is
+  assigned to the element; every other key, method names included, is an extended property. A getter-only accessor
+  (`valid`, `parent`) throws a `TypeError`. `Action` declares `label` and `icon`, so they cannot be extended properties
+  of an `Action`.
+- **Subclass fields.** Parameters are applied inside the base constructor, before a subclass's class fields exist
+  (`useDefineForClassFields` is `true`). A parameter named like a subclass class field becomes an extended property;
+  a subclass member that parameters must reach is declared as an accessor.
+- **Registrations.** `validators` and `actions` are taken out of the parameter object before routing.
+  `IBindParams<T, X>` excludes `validators`, `actions`, `value`, `errors` and `touched`, so `bind()` rejects them at
+  compile time.
+- **`__proto__`.** The accumulator is prototype-less and ownership is tested with `Object.hasOwn`, so a `__proto__`
+  key from parsed JSON becomes an extended property instead of replacing the accumulator's prototype.
+- **Type.** The parameter type is `Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>`.
 
-**Why it is not softened into a general-purpose name.** Renaming the members to something domain-neutral would
-hide the exception rather than remove it, and would take away the affordance that makes `Action` a concept
-instead of a `Field` with extra steps.
-
----
-
-## D-023 — Extended properties live in one tracked slot, are merged on write, and are routed by declaration
-
-**Version:** 0.10.2
-
-`FieldBase<T, X extends object = {}>` carries whatever a consumer declares beyond the members of the class:
-`extra` reads them, `setExtendedValues(values)` writes them, the constructor takes them in the same parameter
-object as everything else and `bind()` takes them through the narrower `IBindParams<T, X>`, and `Field`,
-`Action`, `Group` and `List` thread `X` through. The default
-`{}` is what keeps every existing annotation compiling and what makes `new Field({ value: 1, label: 'x' })` an
-excess-property error for an element that declared none.
-
-**They are reactive.** The properties are one slot of the element's state object, so a read inside a render
-effect subscribes to it and a write re-runs the effect: a template binding `field.extra.label` follows a label
-that arrives with the form's description or changes later. The alternative weighed was a plain untracked
-property, which costs nothing and makes exactly the case the feature exists for — a UI layer rendering off the
-field — silently stale. One slot in an object every element already carries is the whole cost; nothing per
-element is allocated, because the empty set is one frozen object shared by every element that has none.
-
-**A write merges, and replaces the object rather than writing into it.** `setExtendedValues` takes a `Partial<X>`,
-so a call naming one property must leave the rest standing — replacing would leave the properties `X` declares as
-required holding `undefined` while the type says they are there. The merged set is frozen and installed as a new
-object: that is what the transaction snapshot captured, so a rollback puts the previous set back, and a caller
-cannot write behind the element's back through the object `extra` handed out.
-
-**What counts as an extended property is what the class does not declare.** A parameter key is assigned to the
-element when the element answers for it (`key in this`, minus what only `Object.prototype` answers for) and
-becomes an extended property otherwise. This keeps `valid`, `parent` and the other derived members throwing a
-`TypeError` for a caller that types them away, and it needs no list of member names to be kept in step with the
-classes. Its one consequence is that a property named after a member of the class it is declared on reaches that
-member: `Action` declares `label` and `icon`, so an `Action`'s extended properties may not use those two names.
-The alternative — an explicit set of base parameter names — would have made the collision legal at the price of a
-list that every subclass has to extend, and a subclass's own members would then be silently shadowed instead.
-
-What the element answers for is read where the parameters are applied, which is inside the base constructor, and
-`useDefineForClassFields` is pinned true: a class field a subclass declares is defined on the instance only once
-that constructor has returned. A parameter named after one is therefore an extended property and the field keeps
-its initializer, while a parameter named after an accessor the subclass declares reaches the accessor. Nothing
-readable at that moment names a field that does not exist yet, so the rule a subclass follows is that a member
-the parameters may reach is declared as an accessor.
-
-`validators` and `actions` are named explicitly rather than routed. They state what to register on the element
-instead of what it carries; a constructor takes them out of the parameter object before it applies the rest.
-`bind()`'s overrides are typed narrower still — `IBindParams<T, X>` excludes `validators`, `actions`, `value`,
-`errors` and `touched` altogether, since a binding carries them from the declaration rather than accepting new
-ones — so `bind(data, { validators: [v] })` is a compile error rather than a parameter the type accepts and the
-method silently ignores.
-
-The set the routing accumulates into is prototype-less, and ownership in it is tested with `Object.hasOwn`. A
-parameter object parsed out of JSON — the case the feature exists for — can carry a `__proto__` key, and a plain
-`{}` accumulator would take that key through the setter `Object.prototype` holds: the accumulator's prototype
-would be replaced instead of a property created, and the ownership test would then answer for keys nothing put
-there, leaving an explicitly supplied `enabled` or `visibility` unassigned. `Group` already builds its fields map
-the same way, for the same key.
-
-**The parameter type is `Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>`.** The shape planned in
-`todo.md` was `Partial<IFieldConstructorParams<T> & X>`. Both accept the same objects, but `T` is inferred
-through this type, and inference through a mapped type over an intersection answers with one constituent of a
-union rather than the union: `new Field({ value: stringOrNumber })` came out a `Field<string>`, which the
-`Required` validator's spec caught. `NoInfer` is what keeps `X` out of inference, so an element that declared no
-extended properties rejects one instead of inferring it from the parameter object. Whether `X` should also reach
-a validator's or an action's own callback is not decided here — see `TODO.md`.
+**Rejected.**
+- A plain untracked property: a UI layer rendering from `extra` would not update.
+- Replacing the set on write: properties `X` declares as required would read `undefined`.
+- An explicit list of base parameter names: every subclass has to extend it, and a subclass member of the same name
+  is shadowed silently.
+- `Partial<IFieldConstructorParams<T> & X>`: inference through the mapped intersection infers one constituent of a
+  union, so `new Field({ value: stringOrNumber })` becomes `Field<string>`.
 
 ---
 
-## D-025 — `clone()` becomes `bind(data, overrides)`, and `rebind(data)` is the in-place half of it
+## D-025 — `bind(data, overrides)` creates a binding, and `rebind(data)` reuses one in place
 
-**Version:** 0.11.0
+**Since:** 0.11.0 · `ab7dcf5` · 2026-08-18\
+**Tests:** `src/tests/bind.spec.ts:22–335`, `src/tests/consumer-subclass.spec.ts`
 
-The operation is unchanged: a new element of the same class, carrying the action and validator instances the
-source holds and its extended properties, detached, with `originalValue` baselined to the data it was given. What
-changes is the name and where the data goes. `clone` named the mechanism — a copy — while what the library does
-with it is put a declaration to work over one record, which is what every `List` row is and what `declaration`,
-`bindingsOf()` and `boundToBinding()` already called a binding. The vocabulary is now one word throughout.
+`bind(data?, overrides?)` creates an element of the same class carrying the source's actions, validators and extended
+properties, detached, with `originalValue` set to `data`. `undefined` data keeps the source's value; `null` is data
+and clears it. `overrides` is `IBindParams<T, X>`; `originalValue` in it is read by key presence.
 
-**The data is an argument of its own rather than a key of the override object.** `bind(data?, overrides?)` reads
-`data` positionally and `IBindParams<T, X>` — `IFieldParams<T, X>` without `value` — for the rest. Two things a
-caller can state that mean the same thing are one too many, and the data is what nearly every call site passes:
-`template.bind(record)` against `template.clone({ value: record })`. The overload semantics the specs pin are
-carried over whole onto the argument: `undefined` is no data supplied and the source's value stands, an explicit
-`null` is data and clears, and `originalValue` in the overrides is read by key presence.
+`rebind(data)` writes `data` into the element as `resetTo(this.declaration, data)` and sets its announcement baseline
+to the result. Data is measured against `declaration`: a key the record leaves out takes the declaration's value, so
+a reused row equals a fresh `bind()` of the template.
 
-**Rejected: `bind(params)` with the data still inside the object.** It is a rename and nothing else, and it keeps
-the shape that made `clone({ value: null })` read as an override of a value rather than as the data a binding is
-over. **Rejected: `bind(data)` alone.** The overrides carry `enabled`, `visibility`, `originalValue` and the
-extended properties a caller writes over the ones carried across, all of which the specs and the documented
-surface use.
+- `rebind` announces no value change for the element it is called on.
+- The members of a rebound group announce their new values, and a validity change is announced.
+- Inside an open transaction, a change already owed is still announced from the state at the start of the
+  transaction.
 
-**`rebind(data)` announces nothing for the element it is called on.** It is `resetTo(this.declaration, data)` —
-the primitive a `List` already uses to recycle a row through a whole-value assignment — plus the element's
-announcement baseline being set to what it ends up holding, which is what a constructor does with the value it
-finishes on. A recycled row is not an edit of the record it held before, so a `ValueChangedAction` on it would
-report a change nothing made.
+**Reason.** A recycled row is not an edit. Members announce because handlers derive state from them and because
+`list.value = rows` reuses rows the same way. A container's `valid` is composed from its children's announced
+verdicts, so a verdict change cannot be silenced.
 
-The one announcement it does not swallow is a change already owed. Inside an open transaction the element may
-have been written to before the exchange, and the commit is enrolled to report that write; the exchange keeps
-that baseline and the commit announces from where the element stood when the transaction opened. Moving the
-baseline unconditionally would leave the element holding a record it never announced — silently on a leaf, and
-as a pair reporting no change at all where a structural operation had already forced the announcement.
-
-What does still fire is stated rather than suppressed: the members of a rebound group announce the values they
-took on, and a verdict that moves is announced as always. Silencing the members would leave anything a handler
-derives from them stale, and it would make `rebind` differ from the row reuse `list.value = rows` performs, which
-is the same operation reached through the list. Silencing the verdict is not available at all: a container's
-tally of invalid children is what `valid` is composed from, so a rebound row that turns invalid has to say so.
-
-**The data is measured against `declaration`, not against the element itself.** A record that leaves a key out
-leaves that member to the declaration, so a recycled row is indistinguishable from a fresh `bind()` of the item
-template rather than carrying a remnant of the record before it. An element that was declared rather than bound
-answers `declaration` with itself, so the rule reads the same on both.
+**Rejected.**
+- `bind(params)` with the data inside the object: `value` would read as an override, not as the record.
+- `bind(data)` without overrides: `access`, `visibility`, `originalValue` and extended properties are overridden
+  per binding.
 
 ---
 
-## D-027 — Rows go on being built element by element; the declaration/binding split is dropped
+## D-027 — A row is a group of elements bound from the item template
 
-**Version:** 0.11.0
+**Since:** 0.11.0 · `ab7dcf5` · 2026-08-18\
+**Tests:** `src/list.spec.ts:710–814`, `src/list.spec.ts:941–986`
 
-A `List` row is a `Group` of elements bound from the item template, each holding its own state, and it stays that
-way. The alternative the plan carried — a shared definition object holding the validators, actions and defaults,
-with a row holding only mutable state — is not taken, and neither is the shared slot array that went with it.
+A `List` row is a `Group` of elements bound from the item template, each holding its own state. A row is an object
+with its own identity, so `v-for` keys and component reuse need nothing extra, and property access is direct.
 
-**What decided it.** The correctness the split was wanted for is already answered on this model: `declaration`
-names what an element was declared as, a record is derived from the container chain, and `markRecordIncomplete()`
-covers the pass that runs before a record exists (D-014). What was left was cost, and the cost the slot array
-bought was about 11% of an element's memory in exchange for rewriting every state accessor from a named property
-(`this.#state.originalValue`) into an indexed lookup. Readability beat it.
-
-**What the model keeps.** A row has an identity of its own, so `v-for` keying and component reuse need no
-machinery, and per-element property access is direct.
-
-**What it leaves standing.** Resolving a second element of a record is a path walk per evaluation rather than an
-index lookup. `bind()` names the operation the model rests on (D-025), and `rebind()` covers what the split was
-reached for last — recycling one row across records — without moving where state lives.
+**Rejected.** A shared definition object holding validators, actions and defaults, with a row holding only state in
+a slot array: it saves about 11 % of an element's memory and replaces every named state access
+(`this.#state.originalValue`) with an indexed lookup.
 
 ---
 
 ## D-028 — The package ships one format: ESM
 
-**Version:** 0.12.0
+**Since:** 0.12.0 · `6e45f87` · 2026-08-18\
+**Checked by:** `package.json` (`"type": "module"`, `exports` with `types` and `default` only, `engines.node` `>=22`),
+`vite.config.ts` (`format: 'es'`), the `build` job of `.github/workflows/ci.yml` (`scripts/verify-artifact.mjs`)
 
-`exports` resolves a single build with a single set of declarations. The `require` condition, `main`, the UMD
-artifact and its map, and the `index.d.cts` copy the build script produced with `copyFileSync` are all gone,
-together with the `paths: { 'lodash-es': 'lodash' }` and `globals` mapping the UMD output needed. `lodash` leaves
-`dependencies`; `lodash-es` remains as the only runtime dependency. `engines.node` moves from `>=18` to `>=22`.
+There is no CJS or UMD build. `lodash-es` is the only runtime dependency. A CJS consumer uses `require()` of an ES
+module, available from Node 20.19 and 22.12.
 
-**What forced it.** The library establishes identity two ways that a duplicated module graph breaks: 24
-`instanceof` sites, and 15 module-level `Symbol()` calls without `Symbol.for`. A program that loads both the ESM
-and the CJS build — an ESM application whose test runner or SSR path requires the CJS one — holds two of every
-class and two of every symbol, so a `Field` built by one half fails the `instanceof` in the other and surfaces as
-`Invalid fields object provided` on a value that is correct. The message names nothing that would lead a consumer
-to the duplication. Making the two builds interchangeable would mean routing every identity check through
-`Symbol.for` keys and a registry, which is a permanent tax on the hot path of a library whose whole job is
-identity between elements.
+**Reason.** The library relies on `instanceof` and on module-level `Symbol()` values. A program that loads an ESM and a
+CJS build holds two copies of every class and symbol, and a correct value fails with `Invalid fields object
+provided`. The CJS build was 327 kB of 731 kB, and the UMD build required `lodash` (1.4 MB) as a dependency.
 
-The price of carrying it was also visible without the failure: the `require` half was 327 kB of the package's
-731 kB, and `lodash` sat in `dependencies` — 1.4 MB installed for every consumer — only because the UMD artifact
-cannot `require()` the ESM-only `lodash-es`.
-
-**What the CJS consumer does now.** `require()` of an ES module, which Node supports from 20.19 and 22.12. That
-is why the `engines` floor moves in the same change: `>=18` claimed support for a Node that neither has
-`require(esm)` nor is maintained — Node 18 reached end of life in April 2025 — so leaving it would have been a
-claim the package cannot honour.
-
-**Alternative not taken.** Keeping CJS and dropping only the UMD global would have kept the duplication hazard,
-which is the reason the change exists; the size is the lesser half of it.
+**Rejected.**
+- Interchangeable builds via `Symbol.for` and a registry: a cost on every identity check.
+- Keeping CJS and dropping only UMD: keeps the duplication.
 
 ---
 
-## D-029 — The Vue peer floor is 3.5.2, and CI type-checks the declarations against it
+## D-029 — The Vue peer floor is the version CI type-checks the declarations against
 
-**Version:** 0.12.0
+**Since:** 0.12.0 · `6e45f87` · 2026-08-18\
+**Checked by:** the `vue-floor` job of `.github/workflows/ci.yml`
 
-`peerDependencies.vue` is `^3.5.2`, narrowed from `^3.4`. A CI job installs exactly that version — read out of
-`package.json`, so the job and the declared range cannot drift — and type-checks the built `dist/index.d.ts` with
-`skipLibCheck: false`.
+`peerDependencies.vue` is `^3.5.2`. The CI job reads the floor from `package.json`, installs exactly that version and
+type-checks `dist/index.d.ts` with `skipLibCheck: false`.
 
-**Where the floor comes from.** Not the source. Every Vue API the library imports (`reactive`, `computed`, `ref`,
-`unref`, `toRaw`, `h`, `watchEffect`, `effectScope`, `isReactive`, `isRef`, `nextTick`, `readonly`,
-`resolveComponent`, `Ref`, and the `__v_skip` flag) is Vue 3.0. The floor comes from one emitted line: `vue-tsc`
-writes `MessagesWidget` as a `DefineComponent` with 20 type arguments, and `DefineComponent` takes 19 parameters
-through Vue 3.5.1 and 20 from 3.5.2, which added `TypeEl`. Below the floor a consumer compiling with
-`skipLibCheck: false` gets `TS2707` on that line; runtime is unaffected at any 3.x.
+**Reason.** The test suite runs on Vue 3.5, and the declared range starts in that minor. The runtime uses APIs from
+3.2.0 (`getCurrentScope`, `onScopeDispose`), and the declarations compile from a 3.2 patch release (3.2.0 fails on
+an error in Vue's own `runtime-core.d.ts`, 3.2.47 passes); nothing is run below 3.5.
 
-**How 3.5.2 was established.** Empirically, one version at a time: the built `index.d.ts` plus a file importing
-`Field`, `Group`, `List`, `Validators` and `MessagesWidget` from it, compiled under `skipLibCheck: false` against
-each candidate Vue. 3.5.0 and 3.5.1 report `TS2707`; 3.5.2 and every version tested above it compile clean. The
-`DefineComponent` signature in `@vue/runtime-core` confirms the boundary.
+**Rejected.** `^3.2`: a range that no test runs against.
 
-**Alternative not taken.** Hand-writing the type of `MessagesWidget` to keep a `^3.0` range. It is the only export
-that pulls `DefineComponent`, `ComponentOptionsMixin`, `PublicProps` and `ComponentProvideOptions` into the public
-declarations, so one hand-written type would free the whole range — at the cost of prop inference on that
-component, and of a range spanning releases nothing has been run against. A declared range is a promise, not a
-mechanism; the narrow one is the promise CI can keep.
+---
 
-## D-030 — one list of actions, walked from the end
+## D-030 — Actions are one list, walked from the end
 
-**Decision.** `ActionsMap` holds one `FieldActionBase[]` in registration order and walks it from the end backwards,
-passing over the actions registered under another identifier and handing each of the rest a `supr` that continues at
-the index before it. The composed closure chain — every registration wrapping the handler already there — is gone.
-The order is the whole index: an element carries a handful of actions, and the walk is measured at about twice the
-speed of `Map.get` over three of them, with the keyed maps costing about 500 bytes per declaration.
+**Since:** 0.12.0 · `4e85904` · 2026-08-18\
+**Tests:** `src/actions/actions-map.spec.ts:21–274`
 
-**What forced it.** A composed chain cannot be taken apart: the successor closure holds its predecessor, and
-`registeredActions` was only a record for copying. Every consequence followed from that. `clearValidators()` had to
-replace the whole map, which is why it needed a rollback hook of its own. `triggerChain()` existed so a transaction
-could run handlers without a second eager pass, because `trigger()` ran one on the quiet. `willTrigger()` carried a
-special case for the value-change identifier for the same reason. `eager` was tracked per identifier, so one eager
-action made every action under that identifier eager. And `unregisterAction` could not exist at all.
+`ActionsMap` holds one `FieldActionBase[]` in registration order. A trigger walks it from the end, skips actions
+registered under another identifier, and hands each handler a `supr` that continues at the previous index.
+`unregister()`, `triggerEagerFor()` and `hasEager` are walks of the same array. `registerActionBefore(action, before)`
+inserts inside a named action and throws when `before` is not registered under the same identifier.
 
-**What went away.** `triggerChain()`, `cloneWithoutValidators()`, `willTrigger()`'s special case and the
-`eagerActions: Set<symbol>`. **What arrived.** `unregister()`, `triggerEagerFor()` and `hasEager`, each a walk of
-the one array under a predicate of its own. Net about flat, and one concept — a chain that composes itself — is
-gone.
+`Validator.unregisterFrom` runs inside the operation and withdraws the errors the validator put on the element, so a
+rollback restores them along with the registration. Abandoning a run in flight is deferred to commit through
+`Transaction.whenCommitted()`.
 
-`Transaction.whenCommitted()` stands. `Validator.unregisterFrom` defers one step through it — abandoning a run
-already in flight, which is not something a rollback can put back — while the registration itself is released
-inside the operation.
+**Reason.** Registrations can be removed and rolled back individually, and eagerness is per action, not per
+identifier. Over three actions the walk is about twice as fast as `Map.get`; keyed maps cost about 500 bytes per
+declaration.
 
-**`unregisterFrom` moved into the operation.** It used to run at commit, because releasing what an action installed
-elsewhere was held to be beyond a rollback's reach. With the list it is not: the rollback re-registers the action
-and announces it to it again, so the release is as reversible as the registration. Moving it also made
-`Validator.unregisterFrom` possible — it withdraws the errors that validator put on the element, which has to happen
-inside the transaction so the snapshot can put them back. Deferring it to commit would have written into elements
-after the commit's announcement passes had finished, and nothing would have announced the result.
+**Consequence.** `supr` recurses on the call stack: about 1300 handlers under one identifier on one element raise
+`RangeError`.
 
-**Ordering: `registerActionBefore(action, before)`, not an index.** An index is measured against a list the caller
-cannot see, and the off-by-one lands as a handler in the wrong layer of the onion rather than as an error. Naming
-the action to sit inside says what the caller means, and a `before` that is not registered under the same identifier
-throws instead of quietly appending.
+**Rejected.**
+- A composed closure chain: a registration cannot be removed, eagerness is per identifier, and each registration holds
+  a closure for the element's lifetime.
+- An index argument for ordering: an off-by-one places a handler in the wrong layer without an error.
 
-**What did not go away: the recursion limit.** A handler reaches the next one by calling `supr`, so a group is
-walked on the call stack whichever way it is stored. Measured on this repo: a single identifier on one element fires
-about 1300 deep before `RangeError`, against about 1560 for the composed chain — the walk adds one frame per level.
-The claim that the array retires the `RangeError` was wrong. What it does remove is the closure per registration
-held for the element's lifetime: closures are now made at trigger time and only as deep as the run reaches.
+---
 
-**Cost.** S2a — one field write in a 1000-row list, the keystroke path — is unchanged: 0.0100 ms before, 0.0101 ms
-after (plain), 0.0091 ms both (conditional), taking the minimum as the least noisy statistic. The closures moved
-from registration time to trigger time and the write does not notice.
+## D-034 — `access` decides what is sent and validated, and `visibility` is presentation only
 
-## D-033 — an abort is answered with on the asynchronous path too, and D-012 stands for everything else
+**Since:** 2.0.2 · `1d720be` · 2026-10-01\
+**Tests:** `src/tests/serialization.spec.ts:57–168`, `src/tests/serialization.spec.ts:239–255`,
+`src/tests/serialization.spec.ts:354–404`, `src/tests/effective-enabled.spec.ts:18–163`,
+`src/field-base.spec.ts:757–880`
 
-**Version:** 0.17.1
+`access` is `'editable'`, `'readonly'`, `'disabled'` or `'disabled-null'`:
 
-`ActionsMap.run()` answers an `AbortEventHandlingException` with itself where the chain answered with a `Promise`:
-the trigger's answer is a promise resolving to the exception rather than one rejecting with it, so
-`Action.execute()` resolves with it. `triggerEager()` ends only the identifier group an abort was raised in on that
-path as on the synchronous one.
+| `access` | accepts input | contributes to the container's `value` |
+|---|---|---|
+| `'editable'` | yes | its value |
+| `'readonly'` | no | its value |
+| `'disabled'` | no | nothing |
+| `'disabled-null'` | no | `null` |
 
-**What forced it.** An abort is an answer, and one of the three the documented table names — a run a handler ended,
-a run that reached no handler, a run whose handler answered `null`. The conversion sat in a synchronous `catch`, so
-a single asynchronous handler anywhere in the chain took the answer out of that table and made it a rejection, and
-the `*Changed*` setters discard what the trigger answers with, so on those paths it reached nothing but the
-runtime's unhandled-rejection reporting.
+Validators run over what the element sends and not at all where `effectiveAccess` is `'disabled'`. `enabled` and
+`effectiveEnabled` are derived from `access`. `EnabledChangingAction` can refuse a write of `access` that changes
+`enabled`. `fullValue` holds every element. A container's `ValueChangedAction` reports held values, so a switch of
+`access` alone does not fire it; `ContributionChangedAction` reports what an element sends. `visibility` is a
+`Visibility` string for the rendering layer and affects nothing else.
 
-**This does not reverse D-012.** That
-entry decided that a handler that *fails* rejects the promise `execute()` answers, and that swallowing a submit
-failure is worse than an unhandled rejection. It still holds: every exception but this one rejects, and nothing
-routes a failure to a library-configured handler. What changed is only which of the two an abort is counted as.
-Its sentence "nothing catches it inside the library" reads at the width the library then had, where the abort was
-caught for the synchronous chain and not the asynchronous one.
+**Reason.** A rendering layer reads `visibility` as presentation; an input rendered hidden stays mounted and can write
+into a field. What an element sends needs a member of its own. The values follow HTML: `<input readonly>` is
+submitted, `<input disabled>` is not. A required section sent as `null` fails, and the fields inside a disabled
+section are not checked, so an optional section with required fields needs no conditional validators.
 
-**Rejected: a `then` member as the test for a promise.** A handler may answer with a value object that carries one,
-and calling `then` on such an object replaces the answer with whatever that call returns — a `*Changing*` handler
-answering with `{ then: () => 5 }` would have had `5` written as a `DisplayMode` where the setter previously threw.
-The test is `value instanceof Promise`, which costs a promise from another realm or another promise library: an
-abort raised under one of those still leaves as a rejection.
+**Rejected.**
+- `contribution` as the name: it names half of what the values decide.
+- String values on `enabled`: `if (field.enabled)` keeps compiling and treats `'disabled'` as truthy.
+- Validating an element that sends nothing over `undefined`: a `Required` inside a disabled optional section would
+  block the form.
+- A container's `ValueChangedAction` carrying `value`: an access switch would be a value change.
 
-**Rejected: catching in `supr` as well as at the trigger.** Inside the chain the abort stays an exception, so a
-handler that does not ask about it is unwound rather than handed an exception object as if it were the answer the
-chain reached. A handler that means to observe one catches it, which is what the middle of a chain has to do for
-any exception.
+---
 
-Documented in `docs/api/actions.md`, `docs/guide/migration.md` and `changelog.md`.
+## D-037 — An error is data, and the library renders nothing
 
-## D-034 — `access` decides what is sent and validated, and `visibility` is presentation alone
+**Since:** 3.0.0-alpha.1 · `0e08414` (#50) · 2026-10-08\
+**Tests:** `src/validators/validation-error.spec.ts:6–60`, `src/validators/validator.spec.ts:286–308`,
+`src/index.spec.ts`
 
-**Version:** 2.0.2
+`ValidationError` carries a snake_case `code`, `params`, an English plain-text `detail` and an `origin`, and nothing to
+render. A built-in validator takes `{ code?, detail? }`. The application chooses the text from `code` and `params`
+and falls back to `detail`; a validator error and an error built from a server response take the same path. The
+library has no component, markdown, stylesheet, translations or configuration object; `@dynamicforms/vuetify-inputs`
+holds the rendering primitives. `sameAs` compares errors over their data, params included.
 
-An element's `access` — `'editable'`, `'readonly'`, `'disabled'`, `'disabled-null'` — states whether it accepts input
-and what it contributes to its container's `value`, and with it whether its validators run: they run over what the
-element sends, and not at all where its `effectiveAccess` is `'disabled'`. `enabled` and `effectiveEnabled` are reads
-of it. `EnabledChangingAction` and `EnabledChangedAction` are asked and told about a write of `access` that changes
-`enabled`; since the answer cannot set a derived value, the changing action lets that write through or refuses it. `visibility` is a `Visibility` string and states how a rendering layer draws the element, nothing else.
-`fullValue` carries every element whatever its access, and a container's `ValueChangedAction` reports it, while
-`ContributionChangedAction` reports what an element sends. 2.0.0 and 2.0.1 were withdrawn from npm and 2.0.2 is the
-first 2.0 release.
+**Reason.** The library is UI-agnostic. The application owns the locale, number and date formats, code translations
+and markup. Every package that renders errors already depends on `vuetify-inputs`. snake_case codes are plain
+identifiers in JavaScript and Python dictionaries.
 
-**What forced it.** 2.0.0 made `visibility` decide serialization and validity: `HIDDEN` sent `null`, `SUPPRESS` left
-the element out. A rendering layer reads the same member as presentation and acts on it as presentation — an input
-drawn `HIDDEN` stays mounted and may write a default into a field that sends `null` — so the two readings of one
-member contradicted each other in the libraries built on it. What an element sends belongs on a member named for
-that, and the member that already said something about it was `enabled`.
+**Rejected.**
+- Translation inside the library (`@dynamicforms/translatable`): needs markdown and plain variants of every message
+  and a way to name each validator's values.
+- A `message` option beside `code`: a second text channel that bypasses translation.
+- An opaque `message: unknown` passed to the renderer: duplicates `detail` and puts render data on a data object.
+- `RenderableValue` as a base class of errors: every grid cell and title would carry an error code.
 
-**The values follow HTML.** `<input readonly>` is submitted with its value and `<input disabled>` is left out, so
-`'readonly'` and `'disabled'` mean what a developer already expects them to mean; `'disabled-null'` is the one value
-HTML has no counterpart for. Four values carry two things — input and contribution — but only four combinations
-exist, since an element that accepts input sends its value.
-
-**Validation follows what is sent.** A required section that is sent as `null` is refused, and the fields inside a
-section that is switched off are not checked, so an optional section with required fields needs no conditional
-validators: the rule that switches the section switches its validation with it.
-
-**Rejected: `contribution` as the member's name.** It names half of what the values decide — input is the other
-half — and repeats the mismatch that forced this decision.
-
-**Rejected: `enabled` taking the four values as strings.** Every `if (field.enabled)` in consuming code would go on
-compiling and read `'disabled'` as enabled, since a non-empty string is truthy. A new member with `enabled` as its
-read makes every write a compile error and leaves every read meaning what it meant.
-
-**Rejected: validating an element that sends nothing over `undefined`.** It keeps the rule uniform, but a `Required`
-inside an optional section would block the form while the section is off, and every such field would need a
-validator conditional on the section.
-
-**Rejected: a container's `ValueChangedAction` carrying its `value`.** A switch of a member's access would then be a
-change of value, which is the reading of `enabled` 2.0.0 had and the one this decision separates out.
-
-Documented in `docs/api/container.md`, `docs/api/field.md`, `docs/api/actions.md`, `docs/guide/cookbook.md`,
-`docs/guide/migration.md` and `changelog.md`.
-
-## D-035 — A built-in validator states a failure as data, and the application renders it
-
-**Version:** 3.0.0
-
-A built-in validator given no `message` reports a `ValidationErrorDescription`: a snake_case `code`, the `params` it
-failed with and an English `detail`. It reads as what `errorText` in the configuration answers for it, and as the
-detail where there is no answer. The library ships no translations, depends on no translation package and renders
-no markdown of its own.
-
-**What forced it.** A message the library translates has to be phrased by the library: in which language, with
-which markup, with the values formatted how. Each of those questions came back as one more mechanism in the library
-— a translation dictionary, a markdown and a plain variant of every message, a hook naming the allowed values — and
-each mechanism answered for one case. The application already owns the locale, the number and date formats, the
-names of its own codes and whether it renders markdown, so the error carries what failed and the application says
-it.
-
-**One path for every error.** A validator's error and an error built from a server's response carry the same
-`code`, `params` and `detail`, so both reach the same `errorText`. The origin is a client-side convention: the
-application sets `'server'` when it builds the error, and the server does not send it.
-
-**Codes are snake_case.** A code is the key an application looks its translation up by, and snake_case is the one
-form that is a plain identifier in JavaScript and in Python alike, so a dictionary of translations needs no quoted
-keys on either side.
-
-**`MdString` stays.** It is a general rendering primitive that `@dynamicforms/vuetify-inputs` and
-`@dynamicforms/vue-grid` render labels and cells with; only the markdown the validators produced on their own is
-gone. An application that wants markdown answers an `MdString` from `errorText`.
-
-**Rejected: translating inside the library through `@dynamicforms/translatable`.** It needs a markdown and a plain
-variant of every message, or stripping markdown from text whose values may carry markdown characters, and a way to
-name each validator's values; all of it is the application's knowledge.
-
-**Rejected: a `text` option on `InAllowedValues`.** It names the values for the one validator that lists them, and
-leaves the rest of the message's phrasing in the library.
-
-## D-036 — An error is renderable content with a code, and rendering primitives live apart from errors
-
-**Version:** 3.0.0
-
-`RenderableValue` is content rendered as plain text, markdown or a component, with its CSS classes, and it lives in
-`render-content.ts` with `MdString`, `SimpleComponentDef`, the `RenderContent` types and their guards.
-`ValidationError` extends it with a `code`, `params` and an `origin`; `ValidationErrorDescription` extends that.
-`ValidationErrorText` and `ValidationErrorRenderContent` are gone.
-
-**What forced it.** `RenderableValue` was a subclass of an error class, so every grid cell, header and modal title
-built from it carried an error code, params and an origin it had no use for, and `MessagesWidget` was typed for
-errors while it rendered all of them. The rendering primitives sat in `validation-error.ts`, which `@dynamicforms/
-vuetify-inputs` labels and `@dynamicforms/vue-grid` cells import for reasons unrelated to errors. Content is the
-general notion and an error is content with something to say about a failure, so the inheritance runs that way.
-
-**One error class.** `ValidationErrorText` rendered a string, which `ValidationErrorRenderContent` rendered as well,
-and the base `ValidationError` rendered as an unresolvable `<Comment>` component. A single class taking any content
-covers all three; a custom error class overrides the same getters on it.
-
-**Rejected: keeping the two classes as aliases.** 3.0.0 is already a major release, and aliases would leave three
-names for one thing in every listing of the exports.
-
-## D-037 — The library does not render; an error is data
-
-**Version:** 3.0.0. Supersedes D-036 and the `errorText` configuration of D-035.
-
-`ValidationError` carries `code`, `params`, an English plain-text `detail` and an `origin`, and nothing to render.
-`MessagesWidget`, `RenderableValue`, `MdString`, `SimpleComponentDef`, the `RenderContent` types and guards, the
-stylesheet and the configuration (`forms`, `getConfig`, `setConfig`) are removed; `@dynamicforms/vuetify-inputs`
-takes the rendering primitives. A built-in validator takes `{ code?, detail? }` instead of a message.
-
-**What forced it.** The library calls itself UI-agnostic, and the rendering primitives were the one part of it that
-was not: a Vue component, markdown, `innerHTML` bodies and CSS classes. Every consumer that renders them
-(`vuetify-inputs`, `vue-grid`, `vuetify-modal-form-kit`) already depends on `vuetify-inputs`, so moving them adds no
-dependency edge. Questions about how content is rendered, such as when `componentVHtml` is safe, belong to the
-package that renders it.
-
-**One text channel.** A validator's `message` was a second way to set the text of an error, beside `errorText`, and
-it bypassed translation unless the application wrapped it in a reference. With the message reduced to `detail`, the
-renderer chooses the text from `code` and `params` and falls back to `detail`, for validator and server errors
-alike. A field that needs its own text gets its own code.
-
-**`sameAs` over params.** An error is compared over its data, params included, so the params on the field always
-state the value the field holds. Comparing over rendered output kept an instance whose `params.newValue` named an
-earlier value.
-
-**Rejected: an opaque `message: unknown` passed through to the renderer.** It duplicates `detail` and keeps a
-render-specific value on a data object.
+---
 
 ## D-038 — An action is a command: it sends nothing, and a container finds its confirm and reject actions
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `d607431` (#54) · 2026-10-08\
+**Tests:** `src/tests/action-commands.spec.ts:28–503`
 
-An `Action` sends nothing to its container's `value` or `fullValue`; a container of actions only sends nothing
-either. `SubmitAction` and `RejectAction` are `ExecuteAction` handlers that work on a required target.
-`Container.confirm()` and `reject()` execute the action whose handler targets the container, else a
-`defaultConfirm` / `defaultReject` action among the direct members, else the only one below; two candidates in one
-step execute nothing. `Action.executable` combines `effectiveEnabled`, `visibility`, `busy` and the handlers'
-`canExecute()`.
+An `Action` contributes nothing to `value` or `fullValue`, and neither does a container holding only actions.
+`SubmitAction` and `RejectAction` are `ExecuteAction` handlers with a required target. `Container.confirm()` and
+`reject()` execute the action whose handler targets the container, else a `defaultConfirm` / `defaultReject` action
+among the direct members, else the only flagged one below; two candidates at one step execute nothing.
+`Action.executable` combines `effectiveEnabled`, `visibility`, `busy` and the handlers' `canExecute()`. A refused
+submit and a failed handler resolve `execute()` with `SubmitRefusedException` and `SubmitFailedException`, both
+`AbortEventHandlingException` (D-012).
 
-**What forced it.** An action in a group was sent with the form: `{ save: { label: 'Save' } }` reached the server.
-`defaultConfirm` and `defaultReject` were defined by `@dynamicforms/vuetify-inputs`, and every dialog searched for
-the action itself; which action a confirm gesture runs is a property of the form, not of its rendering.
+**Reason.** Which action a confirm gesture runs is a property of the form, not of the rendering layer. An action in a
+bar has the bar as its `parent`, so a default target of `parent` would submit the bar. With several candidates the
+form has not chosen one.
 
-**Required target.** An action in a bar of actions has the bar as its `parent`; a default of `parent` would submit
-the bar.
+**Rejected.** A `name` member on `Action`: the container key (`fieldName`) names it.
 
-**Ambiguity executes nothing.** A form with sub-forms that each carry a confirm action does not know which of them
-Enter means; running the first one found would run code the form did not choose.
-
-**Every outcome of a submit resolves.** A refused submit and a failed handler end with `SubmitRefusedException` and
-`SubmitFailedException`, both `AbortEventHandlingException`, which `execute()` resolves with (D-033). A caller reads
-one resolved value; `execute()` rejects only where something other than the submit fails.
-
-**Rejected: `name` on `Action`.** An action in a container is named by its key (`fieldName`).
+---
 
 ## D-039 — `isChanged` measures what is sent; `rebind` restores data, not state
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `80dde19` (#57) · 2026-10-08\
+**Tests:** `src/tests/bind.spec.ts:337–479`, `src/tests/defects.spec.ts:85–107`, `src/group.spec.ts:880–899`
 
-`originalValue` of a container is a snapshot of its `value`, and `isChanged` compares `value` with it. `rebind(data)`
-restores data: `access`, `visibility` and the extended properties stay as they are. A `Group` member whose key is
-missing from `data` takes the `originalValue` of the declaration's member, so `group.rebind(group.originalValue)`
-restores a `'disabled'` member, which `value` leaves out, to its own baseline.
+A container's `originalValue` is a snapshot of its `value`, and `isChanged` compares `value` with it. `rebind(data)`
+keeps the `access`, `visibility` and extended properties of the element it is called on and of declared members;
+bindings below it (list rows, members of a bound group) take those of their declaration. A `Group` member whose key
+is missing from `data` takes the `originalValue` of the declaration's member, so `group.rebind(group.originalValue)`
+restores a `'disabled'` member, which `value` leaves out.
 
-**Rejected: `originalValue` as a snapshot of `fullValue`.** It restores a `'disabled'` row of a `List` as well, but
-`isChanged` would then compare `fullValue`, and an edit of a field that is not sent would count as a change of the
-form, while a change of `access` alone would not. Keeping both snapshots doubles the data every element holds.
+**Rejected.** `originalValue` as a snapshot of `fullValue`: an edit of a field that is not sent would count as a change,
+and a change of `access` alone would not. Keeping both snapshots doubles the stored data.
+
+---
 
 ## D-040 — An action registered on a binding is registered on its declaration
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `80dde19` (#57) · 2026-10-08\
+**Tests:** `src/list.spec.ts:1441–1483`, `src/field-base.spec.ts:131–185`,
+`src/actions/conditional/conditional-statement-action.spec.ts:201–325`
 
-`registerAction()` on any binding registers the action in the map the declaration and all its bindings share, so a
-rule registered on one row of a list applies to every row. An element cannot take a rule of its own. A rule is part
-of a form's definition, and the rows of a list are instances of one definition; a rule for a single row is a rule
-that reads the row (a conditional action, or a validator that reads `field.parent`).
+`registerAction()` on any binding registers in the map the declaration and all its bindings share, so a rule
+registered on one row applies to every row, and `clearValidators()` on one row clears every row. A rule for a single
+row reads the row (a conditional action, or a validator that reads `field.parent`).
+
+**Reason.** A rule is part of a form's definition, and the rows of a list are instances of one definition.
+
+---
 
 ## D-041 — Methods the library calls between its own classes are keyed by unexported symbols
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `80dde19` (#57) · 2026-10-08\
+**Tests:** `src/tests/design-fixes.spec.ts:65–78`
 
-A method one class of the library calls on another, where `protected` cannot reach (`Validator` on a field,
-`view()` on a list), is keyed by a symbol the package does not export: `BeginValidating`, `ValidationEpoch`,
-`ReorderRows`, `SentNowhere`, `ExecuteHandlers`, and `Outermost` on an action. `beginValidating()`,
-`endValidating()` and `validationEpoch` were public, and an extra `endValidating()` resolved `settled()` while a
-run was in flight; `[BeginValidating]()` returns a function that ends that run once.
+A method one class calls on another where `protected` does not reach is keyed by a symbol the package does not
+export: `BeginValidating`, `ValidationEpoch`, `ReorderRows`, `SentNowhere`, `ExecuteHandlers`, and `Outermost` on an
+action. `[BeginValidating]()` returns a function that ends that run once; a second call does nothing.
+
+**Reason.** A public end method can be called more often than runs were started, and an extra call resolves
+`settled()` while a run is in flight.
+
+---
 
 ## D-042 — A derived value is a `computed` beside the state, not a member of an element
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `2029bfe` · 2026-10-09
 
-A value derived from state and a function that changes it live beside the element, as `computed` and plain
-functions, and a factory that builds the state returns them with it. A subscription to every change in a subtree
-is a `ValueChangedAction` registered on the container.
+Values derived from state, and functions that change it, are `computed` and plain functions beside the element; a
+factory that builds the state returns them with it. A subscription to every change in a subtree is a
+`ValueChangedAction` on the container.
 
-**Rejected: derived values carried by an element** (`new Group(fields, { computed: … })`, as Pinia getters). Vue's
-`computed` already tracks what it reads through the element, and a second mechanism on the element would duplicate
-it.
+**Rejected.** Derived values on an element (`new Group(fields, { computed: … })`, as Pinia getters): Vue's `computed`
+already tracks reads through the element.
+
+---
 
 ## D-043 — The cost of an element is documented, not reduced
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `2029bfe` · 2026-10-09
 
-Every value is an element with its state, its actions and its cached validity, which costs several times a plain
-reactive value (`docs/guide/model.md`, "Memory per element"). State read and replaced as a whole is held in one
-`Field` or outside the library.
+Every value is an element with its state, actions and cached validity, several times the cost of a plain reactive
+value (`docs/guide/model.md`, "Memory per element"). State read and replaced as a whole is held in one `Field` or
+outside the library.
+
+---
 
 ## D-044 — Server state belongs to a query library; the form rebinds to it
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `2029bfe` · 2026-10-09
 
-The library does not fetch, cache, invalidate or refetch. A query library holds the server's copy, and the form
-rebinds to each result while it holds no edits, or is built from the first one with `Group.createFromFormData()`
+The library does not fetch, cache, invalidate or refetch. A query library holds the server's copy; the form is built
+from the first result with `Group.createFromFormData()` and rebinds to each later one while it holds no edits
 (cookbook, "Data from a server cache").
+
+---
 
 ## D-045 — No asynchronous derived value
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `2029bfe` · 2026-10-09
 
-A value loaded for another value is a `watch` that writes the answer into a field, so it is validated, announced
-and part of `isChanged` like any other write (cookbook, "A value loaded for another value"). A derived value that
-is a promise, with components suspending on it (Jotai and Recoil async atoms), is not part of the library.
+A value loaded for another value is a `watch` that writes the result into a field, so it is validated, announced and
+part of `isChanged` (cookbook, "A value loaded for another value"). A derived value that is a promise, with components
+suspending on it (Jotai and Recoil async atoms), is not provided.
+
+---
 
 ## D-046 — A field's value is one unit; tracking writes into it is an opt-in plugin
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `f1323ea` · 2026-10-09\
+**Tests:** `src/plugins/tracking.spec.ts`, `src/plugins.spec.ts:62–77`
 
-A change of a field is an assignment to `value`, and a write into an object the field holds is outside that
-contract. The tracking plugin, exported from its own entry point (`@dynamicforms/vue-forms/plugins/tracking`) and
-installed with `installPlugin()`, makes such a write a change of the field. An application that does not import it
-does not bundle it.
+A change of a field is an assignment to `value`; a write into an object the field holds is not. The tracking plugin
+(`@dynamicforms/vue-forms/plugins/tracking`, installed with `installPlugin()`) makes such a write a change. An
+application that does not import it does not bundle it.
 
-**Plugins are a pipeline on the value slot.** `onSetValue` runs where the value is stored, after the decision to
-write, on every path that stores it; `ValueChangedAction` and `field.value` receive the stored value. A plugin that
-changes the value therefore cannot be bypassed by the construction or by `rebind()`.
+- `onSetValue` runs where the value is stored, on every path that stores it (construction, assignment, `rebind()`).
+  `ValueChangedAction` and `field.value` receive the stored value.
+- A write goes into the object, so a row read from the value stays the row in the value after a reorder, and a
+  rollback restores the writes into the same objects.
+- The field copies a value on assignment, and every `originalValue` is an untracked deep copy, so a write into the
+  value does not move the baseline.
 
-**The write goes into the object, the old value is copied.** A row read from the value stays the row in the value,
-so a reference read from the field keeps working after a reorder. A rollback puts the writes back into the same
-objects. The field takes a copy on assignment, so a reference the application kept is not the field's, and every
-`originalValue` is a deep copy without tracking, so a write into the value does not move the baseline.
+**Rejected.**
+- A strict mode (`Object.freeze` or a warning): it does not stop writes into a `Map`, `Set`, `Date` or private field.
+- Copy on write: a row read from the value would no longer be in the value after the first write.
+- A deep `watch`: it sees a write after it happened, and misses writes through a non-proxy reference.
 
-**Rejected: a strict mode** (a frozen value, or a warning on a write into it). `Object.freeze` does not stop a write
-into a `Map`, a `Set`, a `Date` or a private class field, so it does not cover the values a plugin cannot track
-either.
-
-**Rejected: a copy on write** (a write produces a new object assigned through the setter). A row read from the
-value would no longer be in the value after the first write into it.
-
-**Rejected: a deep `watch` on the value.** It sees a write after it happened, and does not see a write into the
-object through a reference that is not Vue's proxy.
+---
 
 ## D-047 — The devtools are a plugin the library installs in development
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `e29aea6` (#63) · 2026-10-09\
+**Tests:** `src/tests/devtools.spec.ts:73–114`, `src/tests/devtools.spec.ts:167–224`, `src/plugins.spec.ts:3–21`,
+`src/plugins.spec.ts:79–94`
 
-The devtools use the plugin hooks `onElementCreated`, `onElementAdopted` and `onCommit`, and the library installs the plugin on the
-first element built in development, so the core calls no devtools code. The devtools are listed without the
-application installing anything, as an inspector in a store library is.
+The devtools use the plugin hooks `onElementCreated`, `onElementAdopted` and `onCommit`, and the library installs the
+plugin on the first element built in development; the core calls no devtools code. `bind()` constructs inside
+`asBinding()`, so a binding is never listed and no stack or component is captured for it. An element built directly
+is captured, and the capture is dropped when a container adopts it.
 
-**A binding records nothing.** `bind()` constructs its element inside `asBinding()`, so `onElementCreated` knows a
-binding at construction. A binding is never listed, so the stack and the component are not captured for it; a list
-of 1000 rows of 8 fields is 9000 bindings and one root. An element built directly is captured, since its
-construction does not know whether a container will take it, and the captured stack is dropped when a container
-does.
+**Reason.** Modules that build global state are evaluated before the entry module's code, so a plugin the application
+installs would miss that state. A list of 1000 rows of 8 fields is 9000 bindings and one root.
 
-**Rejected: the devtools as a plugin the application installs.** The modules that build global state are imported,
-and run, before the entry module's own code, so a plugin installed there would not see that state.
+**Rejected.** A devtools plugin the application installs.
+
+---
 
 ## D-048 — An element has one parent; a record shown in several places is several elements
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `483dbfa` · 2026-10-10\
+**Tests:** `src/group.spec.ts:901–1128`, `src/list.spec.ts:988–1109`
 
-An element belongs to one container at a time, and a container that takes an element with a parent throws a
-TypeError. `parent`, `fieldName`, the access and visibility a member inherits, the invalid count of a container,
-what a container serializes and the order of the commit (deepest first) are each defined over the one path from the
-root to the element.
+A container that takes an element with a parent throws a `TypeError`. `parent`, `fieldName`, inherited access and
+visibility, a container's invalid count, serialization and the commit order (deepest first) are defined over the one
+path from the root. A record shown in several places is an element in each, and their values are kept equal by
+writing one into the other in the same transaction; a handler that writes during the commit joins it, so the linked
+writes commit and roll back together.
 
-A record that application state shows in several places (normalized entities, references by id) is an element in
-each place, each with its own parent and its own access, visibility and errors, and the values are kept equal by
-writing one into the other inside the same transaction. A handler that writes during the commit joins the
-transaction, so the linked writes commit and roll back together.
+**Rejected.**
+- Several parents (MobX-State-Tree references, an Apollo cache entry): inherited access, visibility, depth and name
+  have no single value, and dependent packages read `parent` as one container.
+- The number of parents chosen by a plugin: plugins are per module instance, so it would change `parent` for every
+  package sharing it.
 
-**Rejected: several parents** (MobX-State-Tree references, an Apollo cache entry held by several queries). The
-inherited access and visibility, the depth and the name of an element held by two containers have no single value,
-and the packages built on the library read `parent` as one container.
-
-**Rejected: the number of parents chosen by a plugin.** Plugins are installed per module instance, so the choice
-would change the meaning of `parent` for every package that shares it, and the core would have to define every
-derived property for several parents for the plugin that restricts it to one.
+---
 
 ## D-049 — A plugin observes committed transactions, not events
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `483dbfa` · 2026-10-10\
+**Tests:** `src/plugins.spec.ts:23–41`, `src/group.spec.ts:813–899`, `src/list.spec.ts:1245–1264`
 
-A plugin that observes changes (the devtools timeline, a history, patches, persistence, sync) is told once per
-committed transaction, after the commit has announced everything and the handlers that wrote during it have run.
-A rolled-back transaction tells it nothing. The value hooks are a pipeline on the write, not observers: a rollback
-restores the stored value without calling them.
+An observing plugin (devtools timeline, history, patches, persistence, sync) is called once per committed
+transaction, after the commit has announced everything and the handlers that wrote during it have run. A rolled-back
+transaction calls nothing. The value hooks are a pipeline on the write, not observers; a rollback restores the stored
+value without calling them. The observer receives each modified element with its state before and after, and the rows
+added and removed. A container's composed value is frozen and keeps its identity while nothing below it changes.
 
-The element's own actions run during the commit, may write, and a throw from one of them rolls the transaction back
-after part of it has been announced to the other handlers. An observer that is told only of committed transactions
-never sees such a partial change.
+**Reason.** A handler that throws during the commit rolls back a transaction that is already partly announced; an
+observer of committed transactions never sees that partial change.
 
-What the observer needs is the change itself: each element the transaction modified with its state before and
-after, and the rows added and removed. The transaction holds the state before, as the snapshot taken at the first
-write of each element, and the composed value of a container is frozen and keeps its identity while nothing below
-it changes, so a value from one commit is shared by the next where it did not change.
+**Rejected.**
+- A hook per event: the observer would receive events of a commit that a later handler rolls back.
+- Copy-on-write state with the announcement after the swap: a handler's write would start a new transaction instead
+  of joining the one it reacts to.
 
-**Rejected: a hook per event** (value, access and visibility changes, execute, validation runs). An observer would
-receive the events of a commit that a later handler rolls back.
-
-**Rejected: copy-on-write state with the announcement after the swap.** A handler's write would be a new
-transaction instead of joining the one it reacts to, so a cascade of rules would no longer commit, announce and
-roll back as one change.
+---
 
 ## D-050 — The rules over an error's origin are an action, with a default per origin
 
-**Version:** 3.0.0
+**Since:** 3.0.0-alpha.1 · `1e1e7ac` · 2026-10-12\
+**Tests:** `src/tests/error-origin.spec.ts:29–526`
 
 Every origin other than `'validator'` has a rule of two independent parts: `validEffect`, whether its errors count
 toward `valid`, and `removeOn`, when the element removes them (`'change'`, `'edit'`, `'submit'`, `'never'`). An
-`ErrorPolicy` registered on an element states the rules of the origins it names for that element and everything
-below it; the nearest policy naming an origin applies, and `setDefaultErrorPolicies()` sets the rule where none does.
-By default `'server'` is `{ validEffect: true, removeOn: 'edit' }` and every other origin `{ validEffect: true,
-removeOn: 'never' }`.
+`ErrorPolicy` registered on an element sets the rules for the origins it names, for that element and everything below
+it; the nearest policy naming an origin applies, and `setDefaultErrorPolicies()` sets the rule where none does. The
+default for `'server'` is `{ validEffect: true, removeOn: 'edit' }`, for every other origin
+`{ validEffect: true, removeOn: 'never' }`.
 
-**What forced it.** No single rule fits every form. A server error removed at every change of the value is removed
-while the user is still typing, and on a container by changes that send the same value, such as a member's
-`access` going from `'editable'` to `'readonly'` and back while a `SubmitAction` locks it. A login refusal has
-to stay until the next attempt and must not block it; a form-level conflict has to block the submit until the user
-has changed something. The two concerns are independent, so they are two parameters, and a form chooses its rule
-without the rest of the application.
+**Reason.** Forms need different rules: a server error removed on every change disappears while the user types, a
+login refusal stays until the next attempt without blocking it, and a form-level conflict blocks the submit until the
+user changes something. `'edit'` uses the `touched = true` the rendering layer writes when the user leaves an input,
+and compares against the value the error was written for, so an error stays when the field is changed and changed
+back.
 
-**`'edit'` as the default for `'server'`.** The rendering layer writes `touched = true` when the user leaves an input,
-so the event exists without a new API. The comparison against the value the error was written for keeps an error
-the user did not act on, including one whose field was changed and changed back.
-
-**An action, not a plugin.** A plugin is installed for every element in the module instance; the rule is per form or
-per subtree. An action is registered on an element, is shared by its bindings (a policy on an item template rules
-every row), is undone by a rollback and is found by walking `parent`, which the validity already tracks.
-
-**A function for the default, not a configuration object.** The configuration was removed with the rendering
-(D-037); the rule of an origin is the only global setting, and a function returning its undo matches
-`installPlugin()`.
-
-**Rejected: a list of removals per origin.** `'never'` combined with anything is meaningless, and every other
-combination is expressed by choosing the earlier event.
-
-**Rejected: `SubmitAction` ignoring the `'submit'` errors that count.** `validEffect: true` with `removeOn: 'submit'`
-would make `valid` false on a form that can still be submitted, so `valid` would no longer state whether the submit
-runs. The combination throws a `TypeError`.
-
-**Rejected: a rule for `'validator'`.** A validator replaces its own errors at every run, so a removal rule has no
-event to act on, and a validator whose errors should not count writes them with an origin of its own.
+**Rejected.**
+- A plugin: plugins apply to every element in the module instance; a rule applies per form or subtree. An action is
+  shared by bindings, undone by a rollback and found by walking `parent`.
+- A configuration object for the default: the configuration was removed (D-037); a function returning its undo
+  matches `installPlugin()`.
+- A list of removal events per origin: `'never'` with anything else is meaningless, and every other combination is the
+  earliest event.
+- `validEffect: true` with `removeOn: 'submit'`: `valid` would be `false` on a form that can be submitted. The
+  combination throws a `TypeError`.
+- A rule for `'validator'`: a validator replaces its own errors on every run; a validator whose errors should not
+  count uses an origin of its own.
