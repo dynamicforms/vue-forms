@@ -277,7 +277,11 @@ provided`. The CJS build was 327 kB of 731 kB, and the UMD build required `lodas
 `peerDependencies.vue` is `^3.5.2`. The CI job reads the floor from `package.json`, installs exactly that version and
 type-checks `dist/index.d.ts` with `skipLibCheck: false`.
 
-**Reason.** The declared range covers only versions CI type-checks against.
+**Reason.** The test suite runs on Vue 3.5, and the declared range starts in that minor. The runtime uses APIs from
+3.2.0 (`getCurrentScope`, `onScopeDispose`), and the declarations compile from a 3.2 patch release (3.2.0 fails on
+an error in Vue's own `runtime-core.d.ts`, 3.2.47 passes); nothing is run below 3.5.
+
+**Rejected.** `^3.2`: a range that no test runs against.
 
 ---
 

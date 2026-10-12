@@ -340,14 +340,23 @@ const form = view(new Group({ name: new Field({ value: '' }), age: new Field({ v
 
 ## Comparing elements
 
-An element's state is private, so a structural comparison of two elements cannot read it: `isEqual(fieldA,
-fieldB)` is `false` unless the two are the same element. Compare `isEqual(fieldA.value, fieldB.value)` instead.
-`value` unwraps a container fully, so plain lodash `isEqual(list.value, other.value)` needs nothing further.
+An element's state is private, so lodash's structural comparison cannot read it: lodash
+`isEqual(new Field({ value: 1 }), new Field({ value: 1 }))` is `false`, and two elements are equal only where they
+are the same element.
 
-`items`, unlike `value`, returns the rows themselves (live `Group` instances, not their data), so comparing two such
-arrays has the same limitation as comparing two fields directly. The package's own `isEqual(a, b)`, built on
-`lodash-es` (already a dependency), handles this case: it treats a `FieldBase` anywhere in `a` or `b` as its
-`value`, so `isEqual(list.items, other.items)` compares row by row without a loop.
+The package exports its own `isEqual(a, b)`, built on `lodash-es`, which treats a `FieldBase` anywhere in `a` or `b`
+as its `value`:
+
+```ts
+import { Field, isEqual } from '@dynamicforms/vue-forms';
+
+isEqual(new Field({ value: 1 }), new Field({ value: 1 })); // true
+isEqual(list.items, other.items); // compares the rows by their values
+```
+
+`value` unwraps a container fully, so lodash `isEqual(list.value, other.value)` gives the same answer as the
+package's `isEqual(list, other)`. `items` returns the rows themselves (`Group` instances, not their data), which only
+the package's `isEqual` compares by value.
 
 ## Where to read next
 
