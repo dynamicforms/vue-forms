@@ -25,6 +25,20 @@ fail or be refused. It would take a handler, as `SubmitAction` does, and end wit
 handler is an option of `RejectAction` or a separate action, and whether a refused and a failed reject are two
 classes, as for a submit.
 
+## Memory footprint of application state (before 3.0.0)
+
+A field retains about 2.6 KiB of heap, and a 1000-row list of eight fields about 20 MiB (`bench/BASELINE.md`,
+"Memory and structure"). For a form this is not a constraint. For application state held in fields, groups and
+lists it limits how much state an application can hold this way. Undecided, before 3.0.0 is released:
+
+- whether the documentation states application state as a supporting role, for state of the size of a form,
+  with the limit given in numbers, or
+- whether the per-field footprint is reduced first: what a field allocates (the `ActionsMap`, the action
+  instances, the reactive proxies, the per-field state of validators and conditional actions) and which of it can
+  be shared through the declaration or allocated on first use.
+
+The decision determines the wording of the positioning in "Making the library a state library as well" below.
+
 ## What application state asks of the library beyond what a form does
 
 Application state is a design goal (`docs/guide/rationale.md`). Each item below belongs in 3.x, and each is added
