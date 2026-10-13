@@ -37,7 +37,8 @@ lists them first.
   section of an element shows that file and the frames of the construction stack outside the library. Values,
   access, visibility, touched and extended properties are editable in the inspector; an edit is a write through the
   element's setter. The devtools are a plugin the library installs in development; a binding, such as a list row,
-  records nothing, and a member keeps no captured stack. In a production build everything devtools-related is
+  records nothing, a member keeps no captured stack, and nothing is recorded where there is no `window`, as on a
+  server that renders pages. In a production build everything devtools-related is
   removed by the bundler. `DevtoolsOptions`, `DevtoolsRegistration` and `StateDescription` type the API.
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
   target or a concurrent run with a `SubmitRefusedException` whose `reason` (`SubmitRefusalReason`) says which,
