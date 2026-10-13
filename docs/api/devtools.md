@@ -61,7 +61,8 @@ four, changes nothing and is reported in the console.
 An element is listed while it is a root: a member is shown inside its container, and an element a container
 releases is listed again. An element a component's `setup()` constructed is listed while the component is mounted, and
 is removed when it is unmounted; an element the component hands on to outlive it is listed again with
-`describeState()`. These are never listed:
+`describeState()`. The record of an element, with its captured stack, is dropped when the element is
+garbage-collected. These are never listed:
 
 - the bindings an element is bound to (`bind()`, the rows of a `List`);
 - a `List`'s item template;
@@ -148,6 +149,7 @@ devtools install in the page (`__VUE_DEVTOOLS_GLOBAL_HOOK__`), which every versi
 ## Several apps and server-side rendering
 
 The inspector is added to every Vue app the devtools know of, and to the app of a component that constructs an
-element; global state is shown in each of them. A module that builds global state is loaded once per process, so
+element; global state is shown in each of them. Where there is no `window`, as on a server that renders pages, the
+devtools are not installed and record nothing. A module that builds global state is loaded once per process, so
 on a server that renders pages every request shares it: build state per request there, as in
 [Carrying server-rendered state to the client](/guide/cookbook#carrying-server-rendered-state-to-the-client).

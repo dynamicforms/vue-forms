@@ -29,6 +29,8 @@ export interface Entry {
 
 const entries = new Map<string, Entry>();
 const byElement = new WeakMap<FieldBase, Entry>();
+// drops the entry, and the stack it holds, of a collected element whether or not the devtools ever list it
+const collected = new FinalizationRegistry<string>((id) => entries.delete(id));
 let nextId = 1;
 let registration: DevtoolsRegistration = 'opt-out';
 let enabled = true;
@@ -69,6 +71,7 @@ export function noteElement(element: FieldBase, location: boolean): void {
   };
   entries.set(entry.id, entry);
   byElement.set(element, entry);
+  collected.register(element, entry.id);
   // state a component constructs is listed while the component is mounted: an element is collected only when the
   // garbage collector runs, which can be long after the component was unmounted
   if (instance && getCurrentScope()) {
