@@ -27,8 +27,8 @@ classes, as for a submit.
 
 ## Memory footprint of application state (before 3.0.0)
 
-A field retains about 2.6 KiB of heap, and a 1000-row list of eight fields about 20 MiB (`bench/BASELINE.md`,
-"Memory and structure"). For a form this is not a constraint. For application state held in fields, groups and
+A field retains about 1.5 KiB of heap, and a 1000-row list of eight fields about 11.8 MiB (`bench/RESULTS.md`,
+"Memory and structure", the 0.10.x column). For a form this is not a constraint. For application state held in fields, groups and
 lists it limits how much state an application can hold this way. Undecided, before 3.0.0 is released:
 
 - whether the documentation states application state as a supporting role, for state of the size of a form,
@@ -37,7 +37,7 @@ lists it limits how much state an application can hold this way. Undecided, befo
   instances, the reactive proxies, the per-field state of validators and conditional actions) and which of it can
   be shared through the declaration or allocated on first use.
 
-The decision determines the wording of the positioning in "Making the library a state library as well" below.
+The decision determines what the guide page "Application state" (below) states about the size of state.
 
 ## What application state asks of the library beyond what a form does
 
@@ -71,10 +71,10 @@ without a change to what 3.0 publishes; what the 3.0 surface has to hold for the
    validators from a JSON Schema or a Zod schema, in its own entry point or package. It uses the published
    constructors only.
 
-## Making the library a state library as well
+## The guide for application state
 
-The library holds application state as well as forms; the documentation presents it as a forms library. What the
-change of positioning needs, in order:
+`readme.md`, the home page and `package.json` present the library as holding forms and application state. The guide
+has no page for application state. What it needs, in order:
 
 1. **The commit record first** (item 2 above). The guide below can only describe what it settles. Where state
    lives is decided: wherever the application builds it; the devtools list it by file and by component
@@ -86,5 +86,35 @@ change of positioning needs, in order:
 3. **A page "Compared with Pinia"**: a factual table of what each library has and does not have — on this side
    transactions, validation, rules between fields and refusing a write; on Pinia's side the devtools timeline, plugins on every action, SSR
    support and `storeToRefs` — and when each fits. No ratings.
-4. **The positioning itself**: design goals in `readme.md` and `docs/guide/rationale.md`, the home page
-   (`docs/index.md`), and `description` and `keywords` in `package.json`, changed once 1–3 are done.
+
+## Bindings recorded on a long-lived declaration
+
+A declaration records each binding made from it as a `WeakRef` (`bindingsMade` in `src/field-base.ts`). A dead
+reference is removed only when `boundElements` is read, which a registration, an unregistration and
+`clearValidators()` do. A declaration that makes and drops bindings without a registration, such as a form declaration
+bound for every record a dialog opens, keeps one `WeakRef` object per binding it has made. The size is not measured.
+Undecided: whether the set is pruned when a binding is recorded, or by a `FinalizationRegistry`.
+
+## `CompareTo` keeps its listener after removal
+
+`CompareTo` registers a `ValueChangedAction` on the compared element and adds the declarations it is registered on to
+a `Set`. `unregisterFrom()` removes neither: the listener stays on the compared element and the `Set` keeps the
+declarations reachable. The listener applies nothing after removal, because it revalidates only the elements the
+validator is still registered on. The size is not measured.
+
+## A test of the packed package
+
+`scripts/verify-artifact.mjs` imports the built `dist/` from the repository. A test that installs the output of
+`npm pack` into a separate project would also check `files`, `exports`, the tracking entry point and the type
+declarations as a consumer resolves them.
+
+## Size of the documentation chunks
+
+`npm run docs:build` reports chunks larger than 500 kB after minification. The initial download of a page with the
+Vuetify examples is not measured. Undecided: whether the examples are loaded lazily.
+
+## Validator registration and runs in `FieldBase`
+
+`FieldBase` holds the element state, the parent links, errors, access, bindings, the registration of actions and the
+transaction protocol. Undecided: whether the registration of actions and the bookkeeping of validator runs move into
+a module of their own.

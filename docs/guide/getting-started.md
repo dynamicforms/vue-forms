@@ -101,6 +101,23 @@ trims a string before measuring it, so a value of only spaces counts as empty;
 
 `@dynamicforms/vuetify-inputs` renders `field.errors` in its inputs.
 
+## Rules apply to every row of a list
+
+A list builds its rows from an item template, and a row shares the template's validators and actions. Registering
+one on a row registers it on the template, so it applies to every row, existing and added later:
+
+```typescript
+import { Field, Group, List, Validators } from '@dynamicforms/vue-forms';
+
+const lines = new List(new Group({ sku: new Field({ value: '' }) }), { value: [{ sku: 'a-1' }, { sku: '' }] });
+
+lines.get(0)!.field('sku')!.registerAction(new Validators.Required());
+lines.get(1)!.field('sku')!.valid; // false: the second row has the validator too
+```
+
+`unregisterAction()` and `clearValidators()` on a row likewise remove the rule from every row. Values, errors and
+validity are per row. [Declarations and bindings](/guide/model#declarations-and-bindings) describes the model.
+
 ## Error messages
 
 An error is data: a `code` identifying the failure, `params` holding the values it failed with, and an English
@@ -135,7 +152,11 @@ The package follows Semantic Versioning: breaking changes are released only in a
 | Vue | `^3.5.2` |
 | Node | 22 or newer; 22.12 or newer for `require()` from CommonJS |
 | Module formats | ESM, with type definitions |
-| Browsers | whatever your bundler targets; the build is `es2022` and uses no browser API of its own |
+| Browsers | ES2022 with `WeakRef` and `AbortController`; in development also `FinalizationRegistry` |
+| Bundler | replaces `process.env.NODE_ENV`, as Vite and webpack do by default |
+
+The package reads `process.env.NODE_ENV` to leave the devtools out of a production build. Where the bundler does not
+replace it, a browser has no `process`, and building the first element throws a `ReferenceError`.
 
 ## Next Steps
 
