@@ -179,6 +179,26 @@ describe('List', () => {
     expect(indexes).toEqual([1, 0]);
   });
 
+  it('refuses an index that is not an integer', () => {
+    const list = new List(new Field({ value: 0 }), { value: [10, 20, 30] });
+    const announced: string[] = [];
+    list.registerAction(
+      new ListItemAddedAction((field, supr, item, index: number) => {
+        announced.push(`added@${index}`);
+      }),
+    );
+
+    expect(() => list.insert(99, 1.5)).toThrow(RangeError);
+    expect(() => list.insert(99, Infinity)).toThrow(RangeError);
+    expect(() => list.remove(NaN)).toThrow(RangeError);
+    expect(() => list.remove(0.5)).toThrow(RangeError);
+    expect(list.value).toEqual([10, 20, 30]);
+    expect(announced).toEqual([]);
+    // an integer outside the list removes nothing
+    expect(list.remove(-1)).toBeUndefined();
+    expect(list.remove(3)).toBeUndefined();
+  });
+
   it('handles insert at higher index than length', () => {
     const list = new List();
 

@@ -20,7 +20,8 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        node-version: ['lts/*', 'latest']
+        # 22 is the lowest Node the package declares in engines
+        node-version: ['22', 'lts/*', 'latest']
 
     steps:
       - uses: actions/checkout@v7
@@ -63,18 +64,19 @@ jobs:
         uses: velis74/incremental-coverage-check@v3
         with:
           coverage-files: coverage/coverage-final.json
-          # docs/ holds the VitePress site and its demo components, and scripts/ the checks run against the built
-          # artifact: neither is library code, and vitest's coverage is scoped to src/
+          # docs/ holds the VitePress site and its demo components, scripts/ the checks run against the built
+          # artifact, and src/tests/ the test fixtures: none is library code
           extra-ignore-patterns: |
             docs/**
             scripts/**
+            src/tests/**
           log-level: INFO
           base-ref: ${{ github.base_ref }}
           head-ref: HEAD
           github-token: ${{ secrets.GITHUB_TOKEN }}
           pr-number: ${{ github.event.pull_request.number }}
         # One report per pull request: the graded diff and the coverage file are the
-        # same on both Node versions, so the second run would only repeat the first.
+        # same on every Node version, so another run would only repeat the first.
         if: github.event_name == 'pull_request' && matrix.node-version == 'lts/*'
 
   vue-floor:

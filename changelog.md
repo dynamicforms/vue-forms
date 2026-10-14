@@ -5,6 +5,36 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-alpha.2] - Unreleased
+
+### Added
+- `ActionsMap.registrations` and `ActionsMap.restore(registrations)`: the array of registered actions, which is not
+  modified later, and its reinstatement with the order of the handlers and every duplicate registration.
+
+### Changed
+- `onCommit` and `onElementAdopted` run after the transaction is closed. A write they make opens a transaction of its
+  own and is announced; an exception they throw does not roll back the committed change and is rethrown once every
+  hook of the commit has run.
+- `List.insert()` and `List.remove()` throw a `RangeError` for an index that is not an integer (a fraction, `NaN`,
+  `Infinity`).
+- A list view's `splice()` reads its arguments as `Array.prototype.splice` does: with none it removes nothing, and an
+  explicit `undefined` count removes nothing. Setting a list view's `length` to a value an array refuses throws a
+  `RangeError`.
+
+### Fixed
+- Removing a validator cancels its runs on every element it is removed from, the rows of a `List` included, and no
+  other validator's: a run on a row no longer adds its errors after the validator was removed from the item template,
+  and removing one validator no longer discards the result of another the field keeps.
+- A registration whose eager run throws is rolled back with its transaction, so the action is no longer left
+  registered.
+- A rolled-back `unregisterAction()` or `clearValidators()` restores the actions in their previous order.
+- A container throws a `TypeError` when it is to take itself or a container above it, which made `addField()` and
+  `push()` loop without end.
+- `installPlugin()` leaves a plugin whose `setup()` throws uninstalled.
+- Once a group has a view, `addField()` refuses the member names a view reserves (`$`, `then`, `__v_*`).
+- The devtools record nothing where there is no `window`, as on a server that renders pages, and drop the entry of
+  an element that has been garbage-collected.
+
 ## [3.0.0-alpha.1] - 2026-10-12
 
 3.0.0 makes the library a state layer for forms and for application state alike, and moves rendering out of it:
@@ -37,8 +67,7 @@ lists them first.
   section of an element shows that file and the frames of the construction stack outside the library. Values,
   access, visibility, touched and extended properties are editable in the inspector; an edit is a write through the
   element's setter. The devtools are a plugin the library installs in development; a binding, such as a list row,
-  records nothing, a member keeps no captured stack, and nothing is recorded where there is no `window`, as on a
-  server that renders pages. In a production build everything devtools-related is
+  records nothing, and a member keeps no captured stack. In a production build everything devtools-related is
   removed by the bundler. `DevtoolsOptions`, `DevtoolsRegistration` and `StateDescription` type the API.
 - `SubmitAction(target, handler, options?)`: an `ExecuteAction` that waits for validation, refuses an invalid
   target or a concurrent run with a `SubmitRefusedException` whose `reason` (`SubmitRefusalReason`) says which,

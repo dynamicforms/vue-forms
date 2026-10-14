@@ -114,6 +114,10 @@ and `reverse()` of `view(list)` reorder the rows in place and fire neither.
 
 **`Operator.isDefined()` returns `false`** for a string that names no operator. In 2.0 it threw.
 
+**`List.insert()` and `remove()` throw a `RangeError` for an index that is not an integer.** In 2.0 a fraction
+inserted the row at the truncated position and announced the fraction, `NaN` removed the first row, and `Infinity`
+added padding rows without end.
+
 ### Types the checker finds for you
 
 - `List.push()` and `insert()` take `ListItemInput<R>` (`R['value'] | R`) instead of `any`. A list without an item
@@ -266,6 +270,7 @@ app.use(forms, { useMarkdownInValidators: false });
 19. Remove the `try`/`catch` around `Operator.isDefined()`.
 20. Check code that relies on an error of origin `'server'` staying on a field after the user edits it, or on it
     being removed while the user types, and register an `ErrorPolicy` where another rule applies.
+21. Round an index computed for `List.insert()` or `remove()` to an integer.
 
 ## Upgrading to v2.0.2 (from v1.x)
 

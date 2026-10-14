@@ -81,6 +81,7 @@ export default defineConfig({
       ],
       exclude: [
         '**/index.ts',
+        'src/tests/**',
       ],
     },
     server: {

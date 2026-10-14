@@ -51,7 +51,10 @@ operations, so every row keeps its element, its errors and its `touched`, and `L
 | `sort()`, `reverse()` | the rows put in the new order in place: the set of rows does not change, so no `ListItemAddedAction` or `ListItemRemovedAction` fires; `ValueChangedAction` does |
 | writing an index | the row's value |
 
-`fill()` and `copyWithin()` throw a `TypeError`, and so does setting `length` higher. An item may be the data a row
+`fill()` and `copyWithin()` throw a `TypeError`, and so does setting `length` higher. Setting `length` to a value an
+array refuses (negative, a fraction, `NaN`) throws a `RangeError`, as on an array. `splice()` reads its arguments as
+`Array.prototype.splice` does: with none it removes nothing, with `start` alone it removes to the end, and an explicit
+`undefined` count removes nothing. An item may be the data a row
 is built from, an element, or the view of one. Every row the list holds has an index in the view, whatever its
 access.
 
@@ -76,7 +79,7 @@ items, typed to take row data, an element or a view. `$` is typed as the element
 
 A group with a member named `$` or `then`, or with a name that starts with `__v_`, cannot be viewed: `view()` throws
 a `TypeError`. `$` is the element, a `then` member would make `await` treat the view as a promise, and `__v_` names
-are reserved by Vue.
+are reserved by Vue. Once a group has a view, `addField()` with such a name throws the same `TypeError`.
 
 ## What stays with elements
 

@@ -4,6 +4,7 @@ import { FieldBase } from './field-base';
 import { type GenericFieldsInterface, Group } from './group';
 import { List } from './list';
 import { transaction } from './transaction';
+import { refuseReservedName, viewedGroups } from './view-names';
 
 /** the type a view returns for a member: the view of a container, the value of any other element */
 type Slot<E> = E extends Container ? View<E> : E extends FieldBase ? E['value'] : never;
@@ -46,6 +47,12 @@ const listMutations = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sor
 
 function isIndex(key: string | symbol): key is string {
   return typeof key === 'string' && /^(0|[1-9]\d*)$/.test(key);
+}
+
+/** an argument read as an integer, as array methods read it: NaN is 0, a fraction is truncated toward 0 */
+function toInteger(value: unknown): number {
+  const number = Math.trunc(Number(value));
+  return Number.isNaN(number) ? 0 : number;
 }
 
 /** the element of a view, or the argument itself if it is not a view */
@@ -154,13 +161,17 @@ function listView(list: List<any, any>): unknown[] {
       });
       return shown().length;
     },
-    splice: (start: number, deleteCount?: number, ...items: unknown[]) => {
+    // the arguments are read as Array.prototype.splice reads them: no argument removes nothing, a start alone
+    // removes to the end, and an explicit undefined count is 0
+    splice: (...args: unknown[]) => {
+      const [start, deleteCount, ...items] = args;
       const removed: unknown[] = [];
       transaction(() => {
         const rows = shown();
-        const from = clamp(Math.trunc(start) || 0, rows.length);
-        const count =
-          deleteCount === undefined ? rows.length - from : Math.max(0, Math.min(deleteCount, rows.length - from));
+        const from = clamp(toInteger(start), rows.length);
+        let count = 0;
+        if (args.length === 1) count = rows.length - from;
+        else if (args.length > 1) count = Math.max(0, Math.min(toInteger(deleteCount), rows.length - from));
         rows.slice(from, from + count).forEach((row) => {
           removed.push(slotOf(row));
           list.remove(list.items.indexOf(row));
@@ -215,6 +226,9 @@ function listView(list: List<any, any>): unknown[] {
       if (key === '$') throw new TypeError('$ is the element a view stands for, and cannot be replaced');
       if (key === 'length') {
         const length = Number(value);
+        // the lengths an array accepts: an integer from 0 to 2^32 - 1
+        if (!Number.isInteger(length) || length < 0 || length > 2 ** 32 - 1)
+          throw new RangeError('Invalid array length');
         const rows = shown();
         if (length > rows.length) throw new TypeError('a list view grows by push(), not by its length');
         transaction(() => rows.slice(length).forEach((row) => list.remove(list.items.indexOf(row))));
@@ -273,18 +287,6 @@ function fieldHandler(field: FieldBase): ProxyHandler<object> {
   };
 }
 
-/** throws for a group member whose name a view cannot expose as a data key */
-function refuseReservedNames(group: Group<any, any>): void {
-  Object.keys(group.fields).forEach((name) => {
-    if (name === '$' || name === 'then' || name.startsWith('__v_')) {
-      throw new TypeError(
-        `A view cannot hold a member named ${name}: $ is the element the view stands for, and then and __v_* ` +
-          'are read by the language and by Vue',
-      );
-    }
-  });
-}
-
 /**
  * Returns the element presented as its data. A group's members and a list's rows are plain properties of the view
  * (a field as its value, a container as its own view), and `$` is the element itself: `view.$.valid`,
@@ -310,7 +312,9 @@ export function view<E extends FieldBase>(element: E): View<E> {
 
   let proxy: object;
   if (element instanceof Group) {
-    refuseReservedNames(element);
+    Object.keys(element.fields).forEach(refuseReservedName);
+    // a member added later is checked by addField()
+    viewedGroups.add(element);
     proxy = new Proxy({}, groupHandler(element));
   } else if (element instanceof List) {
     proxy = listView(element);

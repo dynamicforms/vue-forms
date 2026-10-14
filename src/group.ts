@@ -10,6 +10,7 @@ import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { List } from './list';
 import { asBinding } from './plugins';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
+import { refuseReservedName, viewedGroups } from './view-names';
 
 export type GenericFieldsInterface = Record<string, FieldBase>;
 
@@ -237,6 +238,7 @@ export class Group<
       if (Object.hasOwn(this._fields, fieldName)) {
         throw new Error(`Field ${fieldName} is already in this form`);
       }
+      if (viewedGroups.has(this)) refuseReservedName(fieldName);
       // takeChild throws for an element another group or list already holds, and sets the back-reference and the
       // name together
       this.takeChild(field, fieldName);

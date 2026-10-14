@@ -15,6 +15,7 @@ installPlugin(tracking);
 
 Installs `plugin` for every element, the ones already built included: a hook runs on the element's next write.
 Returns a function that uninstalls it. A value stored while the plugin was installed stays as the plugin stored it.
+Where `setup` throws, the plugin is not installed and the exception is rethrown.
 
 A plugin is installed for the module instance of the package, so for every Vue app on the page, and on a server
 that renders pages, for every request. A plugin installed twice runs twice.

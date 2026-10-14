@@ -94,18 +94,24 @@ function collect() {
 /**
  * Installs `plugin` for every element, including the ones already built: a hook runs on the next write. A plugin
  * installed twice runs twice. Returns a function that uninstalls it; values stored while it was installed are kept
- * as they are.
+ * as they are. Where `setup` throws, the plugin is not installed and the exception is rethrown.
  */
 export function installPlugin(plugin: Plugin): () => void {
   installed.push(plugin);
   collect();
-  plugin.setup?.(context);
-  return () => {
-    const index = installed.indexOf(plugin);
+  const uninstall = () => {
+    const index = installed.lastIndexOf(plugin);
     if (index < 0) return;
     installed.splice(index, 1);
     collect();
   };
+  try {
+    plugin.setup?.(context);
+  } catch (error) {
+    uninstall();
+    throw error;
+  }
+  return uninstall;
 }
 
 /** The value a `Field` stores for `value`: the result of the installed `onSetValue` pipeline. */

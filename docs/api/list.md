@@ -335,7 +335,8 @@ Returns the row at `index`, or `undefined` if out of range.
 Inserts `item` at `index` and returns its resulting position. A negative `index` counts back from the end and is
 clamped at the front, as in `Array.prototype.splice`: on a three-item list `-1` inserts before the
 last item and returns `2`, and `-100` inserts at the front and returns `0`. A non-negative `index` is the position
-itself, so the return value equals the argument. If `index` is beyond the current length, the gap is filled with
+itself, so the return value equals the argument. An `index` that is not an integer (a fraction, `NaN`, `Infinity`)
+throws a `RangeError`. If `index` is beyond the current length, the gap is filled with
 bindings of the item template, which hold the item template's own values, not empty ones. Without an item template
 the padding items are empty elements of the kind `item` is built into: empty groups for a plain object, empty lists
 for an array, fields holding `undefined` for anything else.
@@ -373,7 +374,9 @@ releases every row as `clear()` does, and also resets the list's `touched`, clea
 ### `remove(index): R | undefined`
 
 Removes the item at `index` and returns it: the row instance itself, which `list.get(index)` returned before the
-call and which is passed to `ListItemRemovedAction`. Triggers `ListItemRemovedAction`.
+call and which is passed to `ListItemRemovedAction`. Triggers `ListItemRemovedAction`. An `index` outside the list,
+negative included, removes nothing and returns `undefined`; an `index` that is not an integer (a fraction, `NaN`,
+`Infinity`) throws a `RangeError`.
 
 The removed row is released: its `parent` is cleared, it no longer counts towards the list's validity, and it can
 be pushed into another list or back into this one. It keeps its state: a row edited before removal has `isChanged`
