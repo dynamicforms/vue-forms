@@ -111,6 +111,17 @@ describe('view() of a group', () => {
     expect(() => view(new Group({ then: new Field() }))).toThrow(TypeError);
   });
 
+  it('refuses a reserved member name added after the view was made', () => {
+    const group = new Group({ a: new Field({ value: 1 }) });
+    view(group);
+
+    expect(() => group.addField('then', new Field({ value: 2 }))).toThrow(TypeError);
+    expect(() => group.addField('__v_raw', new Field({ value: 2 }))).toThrow(TypeError);
+    expect(group.value).toEqual({ a: 1 });
+    // a group without a view accepts the name
+    expect(new Group({}).addField('then', new Field({ value: 2 })).value).toEqual({ then: 2 });
+  });
+
   it('refuses a key that is not a member', () => {
     const s = view(order()) as any;
 
@@ -232,6 +243,32 @@ describe('view() of a list', () => {
     t.push(view(row));
 
     expect(list.get(0)).toBe(row);
+  });
+
+  it('splices and sets length as an array does', () => {
+    const operations: [string, (rows: any) => unknown][] = [
+      ['splice()', (rows) => rows.splice()],
+      ['splice(1)', (rows) => rows.splice(1)],
+      ['splice(1, undefined)', (rows) => rows.splice(1, undefined)],
+      ['splice(-2, 1)', (rows) => rows.splice(-2, 1)],
+      ['splice(NaN, 1.7)', (rows) => rows.splice(NaN, 1.7)],
+      ['splice(1, Infinity)', (rows) => rows.splice(1, Infinity)],
+      ['length = 1', (rows) => (rows.length = 1)],
+      ['length = NaN', (rows) => (rows.length = NaN)],
+      ['length = 1.5', (rows) => (rows.length = 1.5)],
+      ['length = -1', (rows) => (rows.length = -1)],
+    ];
+    const outcome = (rows: any, operation: (rows: any) => unknown) => {
+      try {
+        return { result: operation(rows), rows: [...rows] };
+      } catch (error) {
+        return { threw: (error as Error).constructor, rows: [...rows] };
+      }
+    };
+
+    operations.forEach(([name, operation]) => {
+      expect(outcome(view(tags(['a', 'b', 'c'])), operation), name).toEqual(outcome(['a', 'b', 'c'], operation));
+    });
   });
 
   it('refuses fill() and copyWithin(), which have no rows to move', () => {

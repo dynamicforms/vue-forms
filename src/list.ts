@@ -26,6 +26,15 @@ const emptyListValue: readonly any[] = Object.freeze([]);
 /** What `push()` and `insert()` take: the data a row is built from, or an element. */
 export type ListItemInput<R extends FieldBase> = R['value'] | R;
 
+/**
+ * Throws a RangeError for an index that is not an integer. A fraction, NaN or an infinite index has no row position:
+ * the row array would place it at one position while the announced index names another, and an infinite index
+ * would add padding rows without end.
+ */
+function refuseIndex(index: number, method: string): void {
+  if (!Number.isInteger(index)) throw new RangeError(`List.${method}(): the index must be an integer, got ${index}`);
+}
+
 export class List<R extends FieldBase = Group, X extends object = Extras> extends Container<ListValue<R>, X> {
   get [Symbol.toStringTag](): string {
     return 'List';
@@ -365,6 +374,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   remove(index: number): R | undefined {
+    refuseIndex(index, 'remove');
     let removedItem: R | undefined;
     transactional((tx) => {
       const rows = this.raw.rows;
@@ -393,6 +403,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   insert(item: ListItemInput<R>, index: number): number {
+    refuseIndex(index, 'insert');
     let position = 0;
     transactional((tx) => {
       tx.touch(this);

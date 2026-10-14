@@ -29,6 +29,28 @@ describe('the onElementCreated hook', () => {
   });
 });
 
+describe('installPlugin', () => {
+  it('leaves a plugin whose setup throws uninstalled, and rethrows', () => {
+    let calls = 0;
+    expect(() =>
+      installPlugin({
+        setup: () => {
+          throw new Error('setup failed');
+        },
+        onSetValue: (value) => {
+          calls++;
+          return value;
+        },
+      }),
+    ).toThrow('setup failed');
+
+    const field = new Field({ value: 0 });
+    field.value = 1;
+
+    expect(calls).toBe(0);
+  });
+});
+
 describe('the onCommit hook', () => {
   it('runs once per committed transaction and not after a rollback', () => {
     let commits = 0;
