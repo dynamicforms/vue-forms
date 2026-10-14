@@ -16,10 +16,27 @@ import FieldActionBase, { Outermost } from './field-action-base';
  */
 export default class ActionsMap {
   /**
-   * Every action registered here, in registration order. Unregistering replaces the array instead of modifying it,
-   * so a run in progress finishes on the array it started with and the removal takes effect from the next trigger.
+   * Every action registered here, in registration order. Registering and unregistering replace the array instead of
+   * modifying it, so a run in progress finishes on the array it started with, the change takes effect from the next
+   * trigger, and an array read through `registrations` never changes.
    */
-  private actions: FieldActionBase[] = [];
+  private actions: readonly FieldActionBase[] = [];
+
+  /**
+   * The registered actions, in registration order. The array is not modified later, so it records the
+   * registrations at the time of the read; `restore()` reinstates them.
+   */
+  get registrations(): readonly FieldActionBase[] {
+    return this.actions;
+  }
+
+  /**
+   * Replaces the registered actions with `registrations`, an array `registrations` returned earlier. The order of
+   * the handlers and every duplicate registration are restored with it.
+   */
+  restore(registrations: readonly FieldActionBase[]): void {
+    this.actions = registrations;
+  }
 
   /**
    * Registers `action`. It becomes the outermost handler of its identifier, or, if `before` is given, is inserted
@@ -37,7 +54,7 @@ export default class ActionsMap {
       throw new Error('Action to register before is not registered under the same identifier');
     }
     if (at >= 0) {
-      this.actions.splice(at, 0, action);
+      this.actions = ActionsMap.inserted(this.actions, at, action);
       return;
     }
     // an action marked Outermost goes on top of the chain; any other goes directly below the outermost ones of its
@@ -47,8 +64,12 @@ export default class ActionsMap {
       : this.actions.findIndex(
           (registered) => (registered as any)[Outermost] && registered.classIdentifier === action.classIdentifier,
         );
-    if (pinned < 0) this.actions.push(action);
-    else this.actions.splice(pinned, 0, action);
+    this.actions = ActionsMap.inserted(this.actions, pinned < 0 ? this.actions.length : pinned, action);
+  }
+
+  /** A copy of `actions` with `action` inserted at `index`. */
+  private static inserted(actions: readonly FieldActionBase[], index: number, action: FieldActionBase) {
+    return [...actions.slice(0, index), action, ...actions.slice(index)];
   }
 
   /** Unregisters `action` and returns whether it was registered here. */
@@ -154,7 +175,7 @@ export default class ActionsMap {
   }
 
   /** True if no eager action of the same identifier follows `index`, so `index` is the group's entry point. */
-  private static outermostEager(actions: FieldActionBase[], index: number): boolean {
+  private static outermostEager(actions: readonly FieldActionBase[], index: number): boolean {
     const identifier = actions[index].classIdentifier;
     for (let above = actions.length - 1; above > index; above--) {
       if (actions[above].eager && actions[above].classIdentifier === identifier) return false;
@@ -205,7 +226,7 @@ export default class ActionsMap {
    * a closure is created only for each level the run reaches and lives only for the run.
    */
   private walk(
-    actions: FieldActionBase[],
+    actions: readonly FieldActionBase[],
     index: number,
     identifier: symbol,
     eagerOnly: boolean,

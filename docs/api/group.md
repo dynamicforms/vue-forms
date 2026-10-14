@@ -244,6 +244,7 @@ and sent like any other, but is not part of the type. Declare it in `T` to have 
 
 - **throws `Error`** (`Field <name> is already in this form`) where the group already holds that name;
 - **throws `TypeError`** where `field` already belongs to a container; pass a `bind()` of it instead.
+- **throws `TypeError`** where `field` is the group itself or a container above it.
 
 ### `bind(data?, overrides?): Group<T, X>`
 

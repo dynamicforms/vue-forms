@@ -731,16 +731,21 @@ The actions one element has registered, grouped by `classIdentifier`. It is the 
 action store and is exported so that type can be named; `registerAction()`, `registerActionBefore()`,
 `unregisterAction()`, `triggerAction()` and `clearValidators()` on the field are the supported way to use it. Its
 own members are `register()`, `unregister()`, `trigger()`, `triggerEager()`, `triggerEagerRules()`,
-`triggerEagerFor()`, `willTrigger()`, `hasEager`, `ofClass()`, `validators`, `bindTo()` and `resetBinding()`.
+`triggerEagerFor()`, `willTrigger()`, `hasEager`, `ofClass()`, `validators`, `registrations`, `restore()`,
+`bindTo()` and `resetBinding()`.
 
 Within a group the actions are stored in registration order and run from the last to the first, so the newest
 registration is the outermost handler and calls the ones before it through its `supr`.
 
 `register(action, before?)` appends `action` to its group, or, where `before` is given, inserts it at that action's
 position, so `before` wraps it. `before` must be registered under the same identifier; anything else throws.
-`unregister(action)` removes it and returns whether the map contained it. The group array is replaced, not
-modified, so a run already in progress finishes on the array it started with and the removal takes effect from the
-next trigger.
+`unregister(action)` removes it and returns whether the map contained it. Both replace the array of
+registrations instead of modifying it, so a run already in progress finishes on the array it started with and the
+change takes effect from the next trigger.
+
+`registrations` returns that array. It is not modified later, so it records the registrations at the time of the
+read, and `restore(registrations)` reinstates them, with the order of the handlers and every duplicate registration
+of an instance.
 
 `trigger(ActionClass, field, ...params)` runs the group registered under that class and returns what its outermost
 handler returned. `triggerEager(field, ...params)` runs the eager actions of every identifier, each group

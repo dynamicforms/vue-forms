@@ -81,6 +81,58 @@ describe('Action registration', () => {
 
     expect(() => field.registerAction({ execute: () => null } as any)).toThrow(/Invalid action type/);
   });
+
+  it('undoes a registration whose eager run throws', () => {
+    const field = new Field({ value: 1 });
+    const failing = new Validators.Validator(() => {
+      throw new Error('failing validator');
+    });
+
+    expect(() => field.registerAction(failing)).toThrow('failing validator');
+
+    field.value = 2;
+    expect(field.value).toBe(2);
+    expect(field.unregisterAction(failing)).toBe(false);
+  });
+
+  it('restores the order of the handlers when an unregistration is rolled back', () => {
+    const calls: string[] = [];
+    const recording = (name: string) =>
+      new ValueChangedAction((field, supr, newValue, oldValue) => {
+        calls.push(name);
+        return supr(field, newValue, oldValue);
+      });
+    const a = recording('a');
+    const b = recording('b');
+    const field = new Field({ value: 0 }).registerAction(a).registerAction(b).registerAction(a);
+
+    transaction((tx) => {
+      field.unregisterAction(a);
+      tx.rollback();
+    });
+    field.value = 1;
+
+    expect(calls).toEqual(['a', 'b', 'a']);
+  });
+
+  it('restores the order of the validators when clearValidators() is rolled back', () => {
+    const calls: string[] = [];
+    const recording = (name: string) =>
+      new Validators.Validator(() => {
+        calls.push(name);
+        return null;
+      });
+    const field = new Field({ value: 0, validators: [recording('a'), recording('b')] });
+    calls.length = 0;
+
+    transaction((tx) => {
+      field.clearValidators();
+      tx.rollback();
+    });
+    field.value = 1;
+
+    expect(calls).toEqual(['b', 'a']);
+  });
 });
 
 describe('Action ordering', () => {

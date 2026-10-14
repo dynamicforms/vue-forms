@@ -168,7 +168,7 @@ export class Transaction {
   /**
    * Registers work that runs after the transaction commits, and not at all if it is rolled back. An operation uses
    * it to defer a step that cannot be undone (for example, cancelling work in flight) until its change is
-   * committed.
+   * committed. The work runs after the transaction is closed, so a write it makes opens a transaction of its own.
    */
   whenCommitted(work: () => void): void {
     this.settled.push(work);
@@ -219,10 +219,28 @@ export class Transaction {
       if (this.settleValidity()) continue;
       break;
     }
-    // everything is announced and the change is committed, so the work registered with whenCommitted runs here
-    for (let index = 0; index < this.settled.length; index++) this.settled[index]();
+  }
+
+  /**
+   * Runs the work registered with whenCommitted, then the `onCommit` hooks. It is called after the transaction is
+   * closed, so a write made here opens a transaction of its own and is announced, and an exception does not roll
+   * back the committed change. Every step runs; the first exception thrown is rethrown after the last one.
+   */
+  settle(): void {
+    let failed = false;
+    let failure: unknown;
+    const attempt = (work: () => void) => {
+      try {
+        work();
+      } catch (error) {
+        if (!failed) failure = error;
+        failed = true;
+      }
+    };
+    for (let index = 0; index < this.settled.length; index++) attempt(this.settled[index]);
     this.settled.length = 0;
-    committed();
+    attempt(committed);
+    if (failed) throw failure;
   }
 
   /**
@@ -395,12 +413,12 @@ export function transaction<R>(fn: (tx: TransactionControl) => R): R | undefined
   const handle = new TransactionHandle();
   current = tx;
   currentHandle = handle;
+  let result: R;
   try {
-    const result = fn(handle);
+    result = fn(handle);
     rejectThenable(result);
     if (handle.rollbackRequested) throw new RollbackSignal();
     tx.commit();
-    return result;
   } catch (error) {
     // the commit may have announced part of the change before the throw; the state is restored regardless, and
     // what a handler did with the events it already received is a side effect no snapshot covers
@@ -412,6 +430,8 @@ export function transaction<R>(fn: (tx: TransactionControl) => R): R | undefined
     currentHandle = undefined;
     handle.close();
   }
+  tx.settle();
+  return result;
 }
 
 /**

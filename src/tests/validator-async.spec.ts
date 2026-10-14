@@ -4,6 +4,7 @@ import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
 import { transaction } from '../transaction';
+import { Validators } from '../validators';
 import { ValidationError } from '../validators/validation-error';
 import { ValidationFunctionResult, Validator } from '../validators/validator';
 
@@ -261,6 +262,66 @@ describe('Cancellation of asynchronous validation', () => {
     expect(messageOf(field.errors[0])).toBe('second is refused');
     expect(reported).not.toHaveBeenCalled();
     reported.mockRestore();
+  });
+  /** a validator whose runs settle when the test resolves them; each run records its signal and its resolver */
+  const controlled = () => {
+    const signals: AbortSignal[] = [];
+    const resolvers: ((result: ValidationFunctionResult) => void)[] = [];
+    const validator = new Validator(
+      (newValue: unknown, oldValue: unknown, field: unknown, signal: AbortSignal) =>
+        new Promise<ValidationFunctionResult>((resolve) => {
+          signals.push(signal);
+          resolvers.push(resolve);
+        }),
+    );
+    const refuseAll = () => resolvers.forEach((resolve) => resolve([new ValidationError('late', {}, 'late')]));
+    return { validator, signals, resolvers, refuseAll };
+  };
+
+  it('cancels the runs on every row when the validator is removed from the item template', async () => {
+    const { validator, signals, refuseAll } = controlled();
+    const template = new Group({ cell: new Field({ value: 'a', validators: [validator] }) });
+    const list = new List(template, { value: [{ cell: 'x' }, { cell: 'y' }] });
+
+    template.fields.cell.unregisterAction(validator);
+    refuseAll();
+    await vi.waitFor(() => expect(list.validating).toBe(false));
+
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+    expect(list.get(0)!.fields.cell.errors.length).toBe(0);
+    expect(list.get(1)!.fields.cell.errors.length).toBe(0);
+    expect(list.valid).toBe(true);
+  });
+
+  it('applies the result of a validator the field keeps when another one is removed', async () => {
+    const { validator, signals, resolvers } = controlled();
+    const required = new Validators.Required();
+    const field = new Field({ value: 'a', validators: [validator, required] });
+
+    field.unregisterAction(required);
+    resolvers[0]([new ValidationError('invalid', {}, 'refused')]);
+    await settled(field);
+
+    expect(signals[0].aborted).toBe(false);
+    expect(field.errors.map(messageOf)).toEqual(['refused']);
+    expect(field.valid).toBe(false);
+  });
+
+  it('keeps the run of a validator registered again in the transaction that removed it', async () => {
+    const { validator, signals, resolvers } = controlled();
+    const field = new Field({ value: 'a', validators: [validator] });
+
+    transaction(() => {
+      field.unregisterAction(validator);
+      field.registerAction(validator);
+    });
+    resolvers[0](null);
+    resolvers[1]([new ValidationError('invalid', {}, 'refused')]);
+    await settled(field);
+
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
+    expect(field.errors.map(messageOf)).toEqual(['refused']);
   });
 });
 

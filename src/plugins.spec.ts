@@ -1,4 +1,13 @@
-import { Field, Group, installPlugin, List, transaction, type FieldBase, type PluginContext } from './index';
+import {
+  Field,
+  Group,
+  installPlugin,
+  List,
+  transaction,
+  ValueChangedAction,
+  type FieldBase,
+  type PluginContext,
+} from './index';
 
 describe('the onElementCreated hook', () => {
   it('reports every construction, with binding true for an element bind() builds and for list rows', () => {
@@ -37,6 +46,47 @@ describe('the onCommit hook', () => {
     uninstall();
 
     expect(commits).toBe(1);
+  });
+
+  it('announces a write the hook makes in a transaction of its own', () => {
+    const field = new Field({ value: 0 });
+    const seen: number[] = [];
+    field.registerAction(
+      new ValueChangedAction((element, supr, newValue, oldValue) => {
+        seen.push(newValue);
+        return supr(element, newValue, oldValue);
+      }),
+    );
+    let corrected = false;
+    const uninstall = installPlugin({
+      onCommit: () => {
+        if (corrected) return;
+        corrected = true;
+        field.value = 2;
+      },
+    });
+
+    field.value = 1;
+    uninstall();
+
+    expect(field.value).toBe(2);
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it('keeps the committed change when the hook throws, and rethrows', () => {
+    const field = new Field({ value: 0 });
+    const uninstall = installPlugin({
+      onCommit: () => {
+        throw new Error('hook failed');
+      },
+    });
+
+    expect(() => {
+      field.value = 1;
+    }).toThrow('hook failed');
+    uninstall();
+
+    expect(field.value).toBe(1);
   });
 });
 

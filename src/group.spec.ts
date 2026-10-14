@@ -618,6 +618,16 @@ describe('Group field storage', () => {
     expect(() => group.addField('y', new Field({ value: 2 }))).toThrow(/already in this form/);
   });
 
+  it('refuses the group itself and a container above it', () => {
+    const inner = new Group({ x: new Field({ value: 1 }) });
+    const outer = new Group({ inner });
+
+    expect(() => inner.addField('self', inner)).toThrow(TypeError);
+    expect(() => inner.addField('outer', outer)).toThrow(TypeError);
+    expect(Object.keys(inner.fields)).toEqual(['x']);
+    expect(outer.parent).toBeUndefined();
+  });
+
   it('keeps the parent back-reference out of enumeration so cyclic structures still serialize', () => {
     const inner = new Group({ x: new Field({ value: 1 }) });
     const list = new List(new Group({ z: new Field({ value: 0 }) }));
