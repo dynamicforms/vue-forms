@@ -1,5 +1,5 @@
 import { ValueChangedAction } from '../actions/value-changed-action';
-import { BeginValidating, ValidationEpoch } from '../element-state';
+import { BeginValidating } from '../element-state';
 import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
 import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
@@ -76,17 +76,14 @@ export class Validator<T = any> extends ValueChangedAction {
       // the pending run over this field, which this run replaces
       const superseded = runs.abandon;
       const run = ++runs.run;
-      const epoch = field[ValidationEpoch];
       // the transaction this run started in: if it is rolled back, the run's result is not applied, because the
       // value it examined was rolled back
       const startedIn = currentTransaction();
-      // a result is applied only if no newer run has started for this field, the field still has the validators it
-      // had when the run started, the change that started it was not rolled back, and the run was not cancelled.
-      // Cancellation is the only condition that does not read the field: the run's work has been aborted, so its
-      // result is discarded
+      // a result is applied only if no newer run has started for this field, the validator was not removed from the
+      // field (a committed removal advances the run number), the change that started it was not rolled back, and the
+      // run was not cancelled
       let abandoned = false;
-      const isCurrent = () =>
-        !abandoned && runs.run === run && field[ValidationEpoch] === epoch && !startedIn?.rolledBack;
+      const isCurrent = () => !abandoned && runs.run === run && !startedIn?.rolledBack;
 
       // the work a validation function starts is cancelled when isCurrent becomes false; a run for which isCurrent
       // is still true is not cancelled
@@ -195,12 +192,17 @@ export class Validator<T = any> extends ValueChangedAction {
    * remaining validators. Otherwise the field would stay invalid on an error no validator removes.
    *
    * A run in flight over the field is cancelled when the removal is committed, not earlier: a rollback restores the
-   * validator and its epoch, and the run, still active, then applies its result. Cancelling at the removal would
-   * leave the field valid over an unchecked value after a rollback.
+   * validator, and the run, still active, then applies its result. Cancelling at the removal would leave the field
+   * valid over an unchecked value after a rollback. A run started after the removal, by registering the validator
+   * again in the same transaction, is not cancelled.
    */
   unregisterFrom(field: FieldBase) {
     transactional((tx) => {
-      tx.whenCommitted(() => this.abandonRun(field));
+      const runs = this.bindingState(field);
+      const removedAt = runs.run;
+      tx.whenCommitted(() => {
+        if (runs.run === removedAt) this.abandonRun(field);
+      });
       for (let i = field.errors.length - 1; i >= 0; i--) {
         if ((field.errors[i] as ValidationError & SourceProp).source === this.source) field.errors.splice(i, 1);
       }
@@ -209,11 +211,14 @@ export class Validator<T = any> extends ValueChangedAction {
   }
 
   /**
-   * Cancels the asynchronous run in flight over `field`, if any. It is called after the validator is removed from
-   * the field: the field's validation epoch has changed, so the run's result is discarded and its signal aborts.
+   * Cancels the asynchronous run in flight over `field`, if any. It is called once the validator's removal from the
+   * field is committed: the run number advances, so the run's result is discarded and its signal aborts. The other
+   * validators of the field keep their runs.
    */
   protected abandonRun(field: FieldBase): void {
-    this.bindingState(field).abandon?.();
+    const runs = this.bindingState(field);
+    runs.run++;
+    runs.abandon?.();
   }
 
   /**

@@ -352,6 +352,9 @@ Removes the last item and returns it (`undefined` if the list is empty). Trigger
 
 Appends an item to the end of the list. `item` is either the data a row is built from (bound to the item template, or built into an element by its type where the list has no item template) or an existing element, which becomes the row itself. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
 
+An existing element that already belongs to a container throws a `TypeError`, as does the list itself or a container
+above it. The same applies to `insert()`.
+
 `item` is typed `ListItemInput<R>` (`R['value'] | R`). The row type `R` defaults to `Group`, so a list without an
 item template that holds rows of other kinds is declared with its row type: `new List<FieldBase>()`.
 

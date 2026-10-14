@@ -21,7 +21,6 @@ import {
   ErrorPoliciesChanged,
   NoErrorsBaseline,
   RemoveErrorsOnSubmit,
-  ValidationEpoch,
 } from './element-state';
 import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
 import { elementAdopted, elementCreated, pipeOriginalValue } from './plugins';
@@ -47,7 +46,6 @@ import {
   rulesArePositional,
 } from './validators/error-policy';
 import { type ErrorOrigin, ValidationError } from './validators/validation-error';
-import { Validator } from './validators/validator';
 import { isVisibility, type Visibility, visibilityValues } from './visibility';
 
 /**
@@ -823,12 +821,17 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * Makes this element the container of `child`: it sets the back-reference, records the name a Group holds the
    * child under, and adds the child to the invalid count. An element belongs to one container at a time, so a
    * child that already has a parent throws a TypeError; releaseChild() removes the link, after which the element
-   * can be taken by another container. The child's state is private to FieldBase, so a container writes the two
-   * slots through this method.
+   * can be taken by another container. A container cannot take itself or a container above it, which also throws a
+   * TypeError: the parent links would form a cycle, and a walk up them would not end. The child's state is private
+   * to FieldBase, so a container writes the two slots through this method.
    */
   protected takeChild(child: FieldBase, fieldName?: string): void {
     transactional((tx) => {
       if (child.parent) throw new TypeError('This element already belongs to a container - pass a bind() of it');
+      if (child === this) throw new TypeError('A container cannot hold itself or a container above it');
+      for (let ancestor = this.parent; ancestor; ancestor = ancestor.parent) {
+        if (ancestor === child) throw new TypeError('A container cannot hold itself or a container above it');
+      }
       tx.touch(child);
       child.#state.fieldName = fieldName;
       // below an editable container every element keeps its own effective access, so only a container that narrows
@@ -1431,8 +1434,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // the baseline of a change the transaction has yet to announce is kept: the element is already enrolled to
       // announce that change, and moving the baseline to the current value would cancel the announcement
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
-      this.actions.register(action);
-      this.registered(tx, action);
+      this.register(tx, action);
     });
     return this;
   }
@@ -1445,8 +1447,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   registerActionBefore(action: FieldActionBase, before: FieldActionBase): this {
     transactional((tx) => {
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
-      this.actions.register(action, before);
-      this.registered(tx, action);
+      this.register(tx, action, before);
     });
     return this;
   }
@@ -1462,15 +1463,15 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     transactional((tx) => {
       const actions = this.boundActions;
       if (!actions) return;
+      const previous = actions.registrations;
       dropped = actions.unregister(action);
       if (!dropped) return;
-      tx.touch(this);
-      // a run still in flight may belong to the removed validator, and its result must not be applied
-      if (action instanceof Validator) this.#state.validationEpoch++;
-      // the action served the declaration and every binding made from it, so it is released from all of them
+      // the action served the declaration and every binding made from it, so it is released from all of them. The
+      // undo restores the registrations as they were, so the handlers keep their order and a duplicate registration
+      // of the instance is restored too
       const elements = this.boundElements;
       tx.whenRolledBack(() => {
-        actions.register(action);
+        actions.restore(previous);
         elements.forEach((element) => action.boundToBinding(element));
       });
       elements.forEach((element) => action.unregisterFrom(element));
@@ -1479,24 +1480,32 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Binds a newly registered `action` to the existing bindings and registers an undo for a rollback. The
-   * registration is not in the state slots the snapshot covers, so it registers its own undo.
+   * Registers `action` on the declaration, binds it to the existing bindings and registers an undo for a rollback.
+   * The registration is not in the state slots the snapshot covers, so it registers its own undo, before any call
+   * that can throw: a registration that fails part way is undone with the transaction.
    */
-  private registered(tx: Transaction, action: FieldActionBase): void {
+  private register(tx: Transaction, action: FieldActionBase, before?: FieldActionBase): void {
+    const actions = this.actions;
+    const previous = actions.registrations;
+    const elements = this.boundElements;
+    tx.whenRolledBack(() => {
+      // only a registration that was made is released: one the map refused added nothing, and an instance that was
+      // already registered keeps what it put on the elements
+      const added = actions.registrations.includes(action) && !previous.includes(action);
+      actions.restore(previous);
+      if (added) elements.forEach((element) => action.unregisterFrom(element));
+    });
+    actions.register(action, before);
     // the action is registered on the declaration, so it applies to every binding made from it, existing and future.
     // An eager action runs over each existing binding's value immediately; its whole handler chain runs, because
     // actions registered before it may wrap it and its own `supr` calls them.
-    const elements = this.boundElements;
     elements.forEach((element) => {
       action.boundToBinding(element);
       if (action.eager) {
         // records the value the action runs over as the one a container's validators last ran over
         element.#raw.validatedValue = element.contribution;
-        this.actions.triggerEagerFor(action.classIdentifier, element, element.contribution, element.originalValue);
+        actions.triggerEagerFor(action.classIdentifier, element, element.contribution, element.originalValue);
       }
-    });
-    tx.whenRolledBack(() => {
-      if (this.boundActions?.unregister(action)) elements.forEach((element) => action.unregisterFrom(element));
     });
   }
 
@@ -1509,33 +1518,22 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return actions ? actions.trigger(actionClass, this, ...params) : null;
   }
 
-  /**
-   * Generation counter of the validators attached to this field. A Validator reads it when a run starts and drops
-   * a result whose epoch no longer matches, so a validation still in flight when clearValidators() is called
-   * cannot push an error onto a field that no longer has the validator that produced it.
-   */
-  get [ValidationEpoch](): number {
-    return this.#state.validationEpoch;
-  }
-
   clearValidators(): void {
     transactional((tx) => {
       tx.touch(this);
-      this.#state.validationEpoch++;
       const actions = this.boundActions;
       if (actions) {
-        // each release names the element, because the same instance stays registered on elements of other
-        // declarations
+        const previous = actions.registrations;
+        const validators = actions.validators;
         const elements = this.boundElements;
-        actions.validators.forEach((validator) => {
-          actions.unregister(validator);
-          tx.whenRolledBack(() => {
-            actions.register(validator);
-            elements.forEach((element) => validator.boundToBinding(element));
-          });
-          // each validator removes the errors it put on every element it validated
-          elements.forEach((element) => validator.unregisterFrom(element));
+        validators.forEach((validator) => actions.unregister(validator));
+        tx.whenRolledBack(() => {
+          actions.restore(previous);
+          validators.forEach((validator) => elements.forEach((element) => validator.boundToBinding(element)));
         });
+        // each validator removes the errors it put on every element it validated. Each release names the element,
+        // because the same instance stays registered on elements of other declarations
+        validators.forEach((validator) => elements.forEach((element) => validator.unregisterFrom(element)));
       }
       this.errors = [];
       // the errors are cleared before the recomputation, so the commit computes validity over the cleared state and

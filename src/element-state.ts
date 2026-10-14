@@ -57,8 +57,6 @@ export interface ElementSlots<T = any> {
   parent: Container | undefined;
   /** the name the containing Group holds this element under; undefined for a List row */
   fieldName: string | undefined;
-  /** generation of the validators attached to the element; clearValidators() raises it */
-  validationEpoch: number;
   /**
    * The element's extended properties, typed by the element's X parameter. A write replaces the object instead of
    * modifying it, so an effect that read the slot re-runs on the write, and a rollback restores the object the
@@ -118,7 +116,6 @@ export function elementSlots<T = any>(): ElementSlots<T> {
     validatingChildren: 0,
     parent: undefined,
     fieldName: undefined,
-    validationEpoch: 0,
     declaration: undefined,
     extra: noExtra,
     valid: true,
@@ -198,9 +195,6 @@ export const ReorderRows = Symbol('List.reorderRows');
  * ends it. A validator calls it; the package does not export it.
  */
 export const BeginValidating = Symbol('FieldBase.beginValidating');
-
-/** Key of the `FieldBase` getter for the generation counter of its validators; the package does not export it. */
-export const ValidationEpoch = Symbol('FieldBase.validationEpoch');
 
 /**
  * Key of the `FieldBase` method that recomputes the validity of every element in its subtree that holds an error

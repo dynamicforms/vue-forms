@@ -136,11 +136,11 @@ specific message, catch inside the validation function and return a custom error
 [`clearValidators()`](/api/field-base#clearvalidators-void) also cancels pending validation: it removes the validators, empties
 `field.errors` and recomputes validity over the empty list, and a run that settles afterwards (resolved or rejected)
 does not add errors to the field. A field that was invalid therefore fires `ValidChangedAction`, and the `Group` or
-`List` holding it recomputes its own validity. An internal counter of the field's validators implements the
-cancellation: `clearValidators()` increments it, a run reads it when it starts, and a result whose counter value no
-longer matches is discarded. The cancelled run's signal aborts, so work that checks it stops; the run still completes its
-own bookkeeping, and `validating` returns to `false` when its promise settles. Inside a transaction, a rollback
-restores both the counter and the cancelled run, and the run's result is applied to the field.
+`List` holding it recomputes its own validity. The cancellation applies to the removed validators on every element
+they are removed from, the rows of a `List` included; a validator the element keeps applies its result. The
+cancelled run's signal aborts, so work that checks it stops; the run still completes its own bookkeeping, and
+`validating` returns to `false` when its promise settles. Inside a transaction, a rollback restores the validators
+and the run, and the run's result is applied to the field.
 
 ### Cancelling a run
 
@@ -150,7 +150,8 @@ longer be applied:
 - a newer run of the same validator over the same field has started, so this one is superseded;
 - the field no longer has this validator: `unregisterAction()` or `clearValidators()` removed it and the removal
   is committed. Inside a [transaction](/api/transactions) the cancellation runs at commit, so a rollback that
-  restores the validator leaves the run going and its result applies;
+  restores the validator leaves the run going and its result applies. Removing one validator does not cancel the
+  runs of the others;
 - the transaction the run started in was rolled back, so the value it examines was never committed.
 
 Pass it to the work the function starts, so that work stops when its result is no longer needed:

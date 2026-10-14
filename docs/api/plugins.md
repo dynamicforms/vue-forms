@@ -32,6 +32,10 @@ Every member is optional.
 | `onElementAdopted(element)` | when a container takes `element` as its member, once the transaction that took it commits; not where it is rolled back |
 | `onCommit()` | after every committed transaction, once its changes are announced; not after a rollback |
 
+`onElementAdopted` and `onCommit` run after the transaction is closed: a write they make opens a transaction of its
+own and is announced, and an exception they throw does not roll back the committed change. The other hooks of the
+same commit still run, and the first exception is rethrown to the code that started the transaction.
+
 Every hook runs in the order of installation. The value hooks run as a pipeline: the first receives the value being
 written, each following one receives the previous one's result, and the last result is stored.
 

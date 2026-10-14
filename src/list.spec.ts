@@ -1078,6 +1078,15 @@ describe('List membership of the rows it counts', () => {
     expect(list.value).toEqual([{ a: 'ok' }]);
   });
 
+  it('refuses the list itself and a container above it', () => {
+    const list = new List<FieldBase>();
+    const form = new Group({ list });
+
+    expect(() => list.push(list)).toThrow(TypeError);
+    expect(() => list.push(form)).toThrow(TypeError);
+    expect(list.length).toBe(0);
+  });
+
   it('hands a released row on to another list', () => {
     const { list } = listWithOneRow();
     const other = new List(new Group({ a: new Field({ value: 'x' }) }));

@@ -87,7 +87,8 @@ transaction(() => {
 The first time a transaction modifies an element, it records every state slot of the element, extended properties
 included: `value`, `originalValue`, `touched`, `errors`, `access`, `visibility`, `extra`, for a `Group` the names
 of its members and for a `List` its row array. A rollback restores all of it, together with the actions the
-transaction registered or unregistered (including the validators removed by `clearValidators()`), and **announces
+transaction registered or unregistered (including the validators removed by `clearValidators()`, and a registration
+whose eager run threw) in their previous order, and **announces
 nothing**: to an observer, the transaction did not happen. An asynchronous validation that the unregistration would
 have cancelled is restored as well: the cancellation runs only at commit, so a run in flight when the transaction
 opened continues and its result applies.
