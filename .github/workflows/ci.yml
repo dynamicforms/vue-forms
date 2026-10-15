@@ -64,9 +64,10 @@ jobs:
         uses: velis74/incremental-coverage-check@v3
         with:
           coverage-files: coverage/coverage-final.json
-          # docs/ holds the VitePress site and its demo components, scripts/ the checks run against the built
-          # artifact, and src/tests/ the test fixtures: none is library code
+          # bench/ holds the benchmarks and their harnesses, docs/ the VitePress site and its demo components,
+          # scripts/ the checks run against the built artifact, and src/tests/ the test fixtures: none is library code
           extra-ignore-patterns: |
+            bench/**
             docs/**
             scripts/**
             src/tests/**
