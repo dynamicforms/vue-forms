@@ -65,7 +65,8 @@ jobs:
         with:
           coverage-files: coverage/coverage-final.json
           # bench/ holds the benchmarks and their harnesses, docs/ the VitePress site and its demo components,
-          # scripts/ the checks run against the built artifact, and src/tests/ the test fixtures: none is library code
+          # scripts/ the lint runner and the checks run against the built artifact, and src/tests/ the test
+          # fixtures: none is library code
           extra-ignore-patterns: |
             bench/**
             docs/**
