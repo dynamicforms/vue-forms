@@ -1,7 +1,7 @@
 {
   "name": "@dynamicforms/vue-forms",
   "private": false,
-  "version": "3.0.0-alpha.1",
+  "version": "3.0.0-alpha.2",
   "type": "module",
   "sideEffects": false,
   "description": "Reactive forms and application state for Vue.js: validation, rules between fields, transactions and lists. UI-agnostic and TypeScript-first.",
