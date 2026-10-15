@@ -783,7 +783,7 @@ removed, including ones no validator added, such as server-side errors pushed in
 published as any other: an element that was invalid fires `ValidChangedAction` and its container re-evaluates its
 own validity. A validation still in flight is cancelled, so it cannot add an error to an element that no longer has
 the validator that produced it. A validator that installed a listener elsewhere (`CompareTo`, on the field it
-compares against) has that listener released with the registration. An operation that rolls back restores both,
+compares against) has that listener released with its last registration. An operation that rolls back restores both,
 including the cancelled run: it continues and its result is applied.
 
 Validators belong to the element's **declaration**, so the call applies to the declaration: clearing the validators

@@ -9,7 +9,7 @@ import {
   ContributionChangedActionClassIdentifier,
 } from './actions/contribution-changed-action';
 import { EnabledChangedAction, EnabledChangingAction } from './actions/enabled-actions';
-import FieldActionBase from './actions/field-action-base';
+import FieldActionBase, { ReleaseIfAbandoned } from './actions/field-action-base';
 import { ValidChangedAction } from './actions/valid-changed-action';
 import { ValueChangedAction, ValueChangedActionClassIdentifier } from './actions/value-changed-action';
 import { VisibilityChangedAction, VisibilityChangingAction } from './actions/visibility-actions';
@@ -68,6 +68,9 @@ const bindingsMade = new WeakMap<object, BindingsMade>();
  * is involved: a declaration that records nothing keeps its set until its next recording or registration.
  */
 const SWEEP_INTERVAL = 60_000;
+
+/** When each map of actions last released its abandoned actions; a map has no entry before its first registration. */
+const abandonedReleasedAt = new WeakMap<ActionsMap, number>();
 
 /** Removes the references whose binding was collected and returns the live bindings. */
 function sweep(made: BindingsMade): FieldBase[] {
@@ -1504,6 +1507,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    */
   private register(tx: Transaction, action: FieldActionBase, before?: FieldActionBase): void {
     const actions = this.actions;
+    this.releaseAbandoned(actions);
     const previous = actions.registrations;
     const elements = this.boundElements;
     tx.whenRolledBack(() => {
@@ -1525,6 +1529,19 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
         actions.triggerEagerFor(action.classIdentifier, element, element.contribution, element.originalValue);
       }
     });
+  }
+
+  /**
+   * Asks the actions of `actions` to release themselves if abandoned (see `ReleaseIfAbandoned`), if a minute or more
+   * has passed since the last time. A map is checked only when an action is registered on it, with no timer.
+   */
+  private releaseAbandoned(actions: ActionsMap): void {
+    const now = Date.now();
+    const releasedAt = abandonedReleasedAt.get(actions);
+    if (releasedAt !== undefined && now - releasedAt < SWEEP_INTERVAL) return;
+    abandonedReleasedAt.set(actions, now);
+    if (releasedAt === undefined) return;
+    actions.registrations.forEach((registered) => (registered as any)[ReleaseIfAbandoned]?.());
   }
 
   triggerAction<T2 extends FieldActionBase>(

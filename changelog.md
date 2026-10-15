@@ -34,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A declaration removes the references to its collected bindings when it records a binding a minute or more after the
   last removal, so a declaration bound for every record a dialog opens no longer accumulates one `WeakRef` per
   binding.
+- `CompareTo` removes the `ValueChangedAction` it registered on the compared field when it is unregistered from its
+  last field. A conditional action removes its handler from the fields its statement reads when it leaves its last
+  element, also when rows of a list it applied to were collected before.
+- A rule of a dropped form that reads a field outside it (`CompareTo`, a conditional action) no longer keeps the form
+  reachable, and its handler on that field is removed by the next registration on the field a minute or more after
+  the previous check.
 - A rolled-back `removeField()` puts the member back at its position, so the order of `fields`, of the keys of `value`
   and of the members a group value writes is the one before the transaction.
 - Once a group has a view, `addField()` refuses the member names a view reserves (`$`, `then`, `__v_*`).

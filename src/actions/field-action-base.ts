@@ -8,6 +8,14 @@ import { currentTransaction } from '@/transaction';
  */
 export const Outermost = Symbol('FieldActionBase.outermost');
 
+/**
+ * Names a method of a listener a rule installs on an element outside the rule's own elements. The method removes
+ * the listener, from every element it is installed on, if every element the rule applies to has been collected.
+ * An element that registers an action calls it on the actions registered there, at most once a minute. The package
+ * does not export it.
+ */
+export const ReleaseIfAbandoned = Symbol('FieldActionBase.releaseIfAbandoned');
+
 type ActionExecutor = (field: FieldBase, supr: FieldActionExecute, ...params: any[]) => any;
 
 export default abstract class FieldActionBase {

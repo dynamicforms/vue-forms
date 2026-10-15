@@ -417,6 +417,12 @@ the record validates the field again over the completed record: a row has the va
 as soon as the row exists, and a name that resolves only in the form holding the list is resolved when the
 list adds the row to that form. A name that never resolves leaves the field with no result from this validator.
 
+The validator registers one `ValueChangedAction` on the compared field, the first time it compares against it, so a
+change of that field validates again. It is removed when the validator is unregistered from its last field, by
+`unregisterAction()` or `clearValidators()`. A validator whose fields have all been collected, such as one on a
+dropped form that compares against a field outside it, has the action removed by the next registration on the
+compared field made a minute or more after the previous such check.
+
 ## Error types
 
 ### Error codes
