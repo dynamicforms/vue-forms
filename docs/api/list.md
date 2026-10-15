@@ -36,9 +36,9 @@ tags.push('refund');
 tags.value; // ['urgent', 'billing', 'refund']
 ```
 
-The type argument is the row type: `new List(itemTemplate)` infers it from the item template, so the two lists above are a
-`List<Group<{ name: Field<string>; score: Field<number> }>>` and a `List<Field<string>>`. A list declared without
-an item template is typed `List<Group>`; specify the row type where it holds something else:
+The type argument is the row type: `new List(itemTemplate)` infers it from the item template, so the two lists above are
+a `List<Group<{ name: Field<string>; score: Field<number> }>>` and a `List<Field<string>>`. A list declared without an
+item template is typed `List<Group>`; specify the row type where it holds something else:
 
 ```typescript
 const names = new List<Field<string>>();
@@ -81,7 +81,8 @@ default `undefined`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else
+Template bound to each new item's data: every row is `itemTemplate.bind(item)`. If omitted, every row is built from its
+own item: a `Group` from a plain object, a `List` from an array, a `Field` from anything else
 
 </td></tr>
 <tr class="member-head"><td>
@@ -99,7 +100,9 @@ default `'editable'`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts value assignment and every mutation regardless of its access. See [What a container serializes](/api/container#what-a-container-serializes).
+What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts
+value assignment and every mutation regardless of its access. See [What a container
+serializes](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td>
@@ -135,7 +138,8 @@ default `false`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value` creates them. Assign `list.touched` after construction instead
+Accepted, but without effect: `touched` is delegated to the items, and the parameters are applied before `params.value`
+creates them. Assign `list.touched` after construction instead
 
 </td></tr>
 <tr class="member-head"><td>
@@ -153,7 +157,8 @@ default `[]`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Initial array of item values. When absent, `originalValue` is used; an explicit `null` is not replaced and leaves the list empty. Anything that is neither an array nor `null` throws a `TypeError`
+Initial array of item values. When absent, `originalValue` is used; an explicit `null` is not replaced and leaves the
+list empty. Anything that is neither an array nor `null` throws a `TypeError`
 
 </td></tr>
 </tbody>
@@ -179,7 +184,8 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): the `fullValue` of every row, regardless of access. `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it
+Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): the `fullValue` of every row, regardless of access.
+`value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-items"></a>
@@ -233,7 +239,13 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.value`](/api/field-base#prop-value): array of row values, by the rule a `Group` applies to its members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a `'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list the same way. A value that is neither an array nor `null` throws `TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged; because the setter is typed, such a value can only come from JavaScript or through an `as any`
+Overrides [`FieldBase.value`](/api/field-base#prop-value): array of row values, by the rule a `Group` applies to its
+members: an `'editable'` or `'readonly'` row sends its own `value`, a `'disabled-null'` row is sent as `null`, and a
+`'disabled'` row is left out. Reads `[]` when the list has no rows; the list's value is never `null`. The setter also
+accepts `null` (which `group.value = null` writes into a nested list) and releases every row; `clear()` empties a list
+the same way. A value that is neither an array nor `null` throws
+`TypeError('Invalid value provided: a list takes an array of rows, or null to empty it')` and leaves the rows unchanged;
+because the setter is typed, such a value can only come from JavaScript or through an `as any`
 
 </td></tr>
 </tbody>
@@ -289,7 +301,9 @@ reads them re-run on every such change.
 The caches are invalidated by the write itself, so no manual refresh is needed. `value` is rebuilt on the first
 read after a change and reused until the next change, so two consecutive reads return the same object. That object
 is frozen, rows included: writing into it throws in strict mode and is ignored otherwise, so assign a new value
-instead. `originalValue` is a separate copy and is not frozen. The freeze covers only the objects the containers build. An array or object that a `Field` holds as its value is not frozen: writing into it changes the field's value without a `ValueChangedAction`, so assign a new array or object instead.
+instead. `originalValue` is a separate copy and is not frozen. The freeze covers only the objects the containers build.
+An array or object that a `Field` holds as its value is not frozen: writing into it changes the field's value without a
+`ValueChangedAction`, so assign a new array or object instead.
 
 An assignment reuses the existing row objects, position by position, so `list.get(0)` returns the same instance
 after `list.value = rows` when the new array has the same length. A keyed `v-for` over the rows therefore does not
@@ -298,7 +312,8 @@ passed to `push()` or `insert()` as an element is replaced by a new row, so it k
 item template does not have. A reused row is reset to the state of a new row built for that position: a member
 whose key is absent from the new item gets the item template member's `originalValue`; `originalValue`, `isChanged`, `touched`
 and `errors` are reset; the row and its members take the `access` and `visibility` of the item template, and their
-conditional actions apply their statements again over the new item. Extended properties stay as they are. The new set is built separately and installed as a whole, so a validator that reads
+conditional actions apply their statements again over the new item. Extended properties stay as they are. The new set is
+built separately and installed as a whole, so a validator that reads
 `list.value` during the assignment never sees an unfilled position.
 
 ## Methods
@@ -351,7 +366,9 @@ Removes the last item and returns it (`undefined` if the list is empty). Trigger
 
 ### `push(item): number`
 
-Appends an item to the end of the list. `item` is either the data a row is built from (bound to the item template, or built into an element by its type where the list has no item template) or an existing element, which becomes the row itself. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
+Appends an item to the end of the list. `item` is either the data a row is built from (bound to the item template, or
+built into an element by its type where the list has no item template) or an existing element, which becomes the row
+itself. Returns the new length of the list. Triggers `ListItemAddedAction` with the index the item was appended at.
 
 An existing element that already belongs to a container throws a `TypeError`, as does the list itself or a container
 above it. The same applies to `insert()`.
@@ -385,6 +402,7 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 ## Inherited members
 
 ::: details Inherited from Container
+
 | Member | Description |
 |--------|-------------|
 | [`busy`](/api/container#prop-busy) | `true` while an `Action.execute()` in any child has not settled |
@@ -394,9 +412,11 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | [`touched`](/api/container#prop-touched) | `true` where any child is touched; assigning it assigns every child |
 | [`valid`](/api/container#prop-valid) | `true` where the container's own errors are empty and every child it counts is valid |
 | [`validate(revalidate?)`](/api/container#validate-revalidate-void) | Revalidates every child first with `revalidate: true`, then computes the container's validity |
+
 :::
 
 ::: details Inherited from FieldBase
+
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -423,6 +443,7 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+
 :::
 
 ## `NullableList`

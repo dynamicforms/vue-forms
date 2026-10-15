@@ -36,7 +36,9 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending` covers both
+Overrides [`FieldBase.busy`](/api/field-base#prop-busy): `true` while an `Action.execute()` in any child has not
+settled, composed over the children and memoised. Pending validation is reported by `validating`, not `busy`; `pending`
+covers both
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-touched"></a>
@@ -54,7 +56,8 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns every child, so assigning `true` removes the `'edit'` errors wherever a value changed since they were written
+Overrides [`FieldBase.touched`](/api/field-base#prop-touched): `true` where any child is touched. Assigning it assigns
+every child, so assigning `true` removes the `'edit'` errors wherever a value changed since they were written
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-valid"></a>
@@ -72,7 +75,10 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where none of the container's own errors counts toward validity and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and memoised, so an error written into a child without a `validate()` call is reflected here as well
+Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where none of the container's own errors counts toward
+validity and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it
+carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and
+memoised, so an error written into a child without a `validate()` call is reflected here as well
 
 </td></tr>
 </tbody>
@@ -126,6 +132,7 @@ notification on the container.
 `value` and `bind()` are abstract here and implemented by `Group` and `List`.
 
 ::: details Inherited from FieldBase
+
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -156,6 +163,7 @@ notification on the container.
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`value`](/api/field-base#prop-value) | Current value; writable |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+
 :::
 
 ## What a container serializes

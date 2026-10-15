@@ -20,11 +20,11 @@ of a list. Both extend [`Container`](/api/container), which composes `valid`, `b
 and is the type of every element's `parent`. Everything below applies at every level.
 
 Every element has the same members, whatever its class: `value`, `originalValue`, `errors`, `valid`,
-`access`, `effectiveAccess`, `enabled`, `visibility`, `touched`, `validating`, `busy`, `pending`, `settled()`, `isChanged`, `parent`
-and `fieldName`. A container adds its own: `fields`, `field()`, `addField()` and `removeField()` on a `Group`;
-`length`, `items`, `get()`, `push()`, `insert()`, `remove()`, `pop()` and `clear()` on a `List`. Any additional data the
-application stores on an element goes in `extra`, the element's
-[extended properties](/api/field-base#extended-properties). They are declared once by augmenting
+`access`, `effectiveAccess`, `enabled`, `visibility`, `touched`, `validating`, `busy`, `pending`, `settled()`,
+`isChanged`, `parent` and `fieldName`. A container adds its own: `fields`, `field()`, `addField()` and `removeField()`
+on a `Group`; `length`, `items`, `get()`, `push()`, `insert()`, `remove()`, `pop()` and `clear()` on a `List`. Any
+additional data the application stores on an element goes in `extra`, the element's [extended
+properties](/api/field-base#extended-properties). They are declared once by augmenting
 [`Extras`](/api/field-base#extras) or per element as its second type argument, given at construction, written with
 `setExtendedValues()`, and read like every other member.
 

@@ -1,6 +1,7 @@
 # Validators
 
-Validators are specialized actions that run automatically when a field's value changes. They populate `field.errors` and update `field.valid`.
+Validators are specialized actions that run automatically when a field's value changes. They populate `field.errors` and
+update `field.valid`.
 
 All built-in validators are available on the `Validators` namespace:
 
@@ -25,9 +26,12 @@ import { Validators } from '@dynamicforms/vue-forms';
 class Even extends Validators.Validator<number> { /* … */ }
 ```
 
-Pass validators when creating an element (`new Field({ validators: [...] })`, `new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })`) or register them later with `registerAction()`.
+Pass validators when creating an element (`new Field({ validators: [...] })`,
+`new Group(fields, { validators: [...] })`, `new List(itemTemplate, { validators: [...] })`) or register them later with
+`registerAction()`.
 
-When a validator re-runs, it replaces only its own errors; errors added by other validators or from outside (e.g. server-side errors) are left unchanged.
+When a validator re-runs, it replaces only its own errors; errors added by other validators or from outside (e.g.
+server-side errors) are left unchanged.
 
 The same `ValidationError` instance may be returned by more than one validator, on one field or on several. A
 validator that returns an instance owned by another validator adds a copy of it, which keeps the prototype and
@@ -55,6 +59,7 @@ const myValidator = new Validators.Validator(async (newValue, oldValue, field) =
 ```
 
 **`validationFn` signature**, exported as `ValidationFunction<T>`:
+
 ```typescript
 type ValidationFunctionResult = ValidationError[] | null;
 type ValidationFunction<T = any> = (
@@ -75,8 +80,9 @@ Validators are eager: they run once at field creation, over the value the constr
 passed to `registerAction()` on an existing field, on every value change, on `field.validate(true)`, and once more
 where a run produced no result because the record it reads was not assembled yet (see
 [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void), and
-[A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record)). A field can therefore be `valid === false` before the user has
-interacted with it. Use `touched` to decide when to display the errors.
+[A rule that reads another field of the record](/guide/cookbook#a-rule-that-reads-another-field-of-the-record)). A field
+can therefore be `valid === false` before the user has interacted with it. Use `touched` to decide when to display the
+errors.
 
 One validator instance validates every element it is registered on, including that element's bindings, so a
 validator on a `List`'s item template validates every row. Its per-element state (the run sequence, and whatever a
@@ -119,8 +125,8 @@ A rejected promise produces no result, and the field is not treated as valid:
 
 - if the rejected run is the current one, this validator's errors on the field are replaced by one error with the
   detail `Validation could not be completed`, the code `validation_failed` and no params. The field is invalid
-  until a later run of the validator succeeds, so the form cannot be submitted. The error belongs to this validator like any
-  other error it adds: the next successful run of the same validator removes it. The rejection reason is not shown
+  until a later run of the validator succeeds, so the form cannot be submitted. The error belongs to this validator like
+  any other error it adds: the next successful run of the same validator removes it. The rejection reason is not shown
   to the user; it is logged once as `console.error('Validation failed', reason)`;
 - a rejection from a superseded run is discarded: no error is added and nothing is logged.
 
@@ -247,7 +253,10 @@ type RequiredOptions = ValidationErrorOptions & {
 
 ### `new Validators.Pattern(pattern, options?)`
 
-Fails when the string representation of a non-empty value does not match `pattern`; the value is converted with `String(value)` before testing. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes and flags (`/^\d{4}$/`). The validator tests with a copy of `pattern` without the `g` and `y` flags, so every value is tested from its start, and the expression passed in is not modified.
+Fails when the string representation of a non-empty value does not match `pattern`; the value is converted with
+`String(value)` before testing. The `{pattern}` placeholder is replaced with the whole regex literal, including slashes
+and flags (`/^\d{4}$/`). The validator tests with a copy of `pattern` without the `g` and `y` flags, so every value is
+tested from its start, and the expression passed in is not modified.
 
 ```typescript
 new Validators.Pattern(/^\d{4}$/, { code: 'pin_format', detail: 'Must be a 4-digit number' })
@@ -262,7 +271,9 @@ new Validators.Pattern(/^\d{4}$/, { code: 'pin_format', detail: 'Must be a 4-dig
 
 ### `new Validators.MinValue(minValue, options?)`
 
-Fails when a non-empty value is smaller than `minValue`, or cannot be compared with it. A number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
+Fails when a non-empty value is smaller than `minValue`, or cannot be compared with it. A number is compared with a
+number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of
+another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -273,7 +284,9 @@ Fails when a non-empty value is smaller than `minValue`, or cannot be compared w
 
 ### `new Validators.MaxValue(maxValue, options?)`
 
-Fails when a non-empty value is larger than `maxValue`, or cannot be compared with it. A number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
+Fails when a non-empty value is larger than `maxValue`, or cannot be compared with it. A number is compared with a
+number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of
+another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -284,7 +297,9 @@ Fails when a non-empty value is larger than `maxValue`, or cannot be compared wi
 
 ### `new Validators.ValueInRange(minValue, maxValue, options?)`
 
-Fails when a non-empty value is smaller than `minValue` or larger than `maxValue`, or cannot be compared with either. A number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
+Fails when a non-empty value is smaller than `minValue` or larger than `maxValue`, or cannot be compared with either. A
+number is compared with a number, a bigint with a bigint, a string with a string (by code unit) and a date with a date
+(by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 ```typescript
 new Validators.ValueInRange(0, 100, { code: 'percent_range', detail: 'Must be between 0 and 100' })
@@ -364,7 +379,7 @@ validation run, which is not a reactive effect, so a change to the list does not
 The params contain the list as `allowedValues`, so an application can name the values in its own language.
 `allowedAsText` is `join(', ')` over the list the run read; when it is longer than 60 characters it is truncated so
 that the whole substitution, including the `... (N items total)` suffix, is at most 40 characters, cut at the last
-`, ` that fits. The suffix takes about twenty of those characters, so roughly the first twenty characters of the
+`', '` that fits. The suffix takes about twenty of those characters, so roughly the first twenty characters of the
 joined list remain: twenty values named `value-0` … `value-19` give `value-0, value-1... (20 items total)`. The full
 list is in `allowedValues`.
 
@@ -577,10 +592,10 @@ the existing instance. A changed param, such as `newValue`, gives a new instance
 type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});
 ```
 
-`'validator'` for an error a validator produced, `'server'` for one built from a server's response, and `'application'` for one
-the application's own code computed and wrote into `errors`. An origin passed as the last constructor argument
-is used as is; where none is passed, an error returned by a validator is `'validator'` and any other is
-`'application'`. Any other string is an application-defined origin.
+`'validator'` for an error a validator produced, `'server'` for one built from a server's response, and `'application'`
+for one the application's own code computed and wrote into `errors`. An origin passed as the last constructor argument
+is used as is; where none is passed, an error returned by a validator is `'validator'` and any other is `'application'`.
+Any other string is an application-defined origin.
 
 The library reads the origin to find the rule an error falls under: every error of origin `'validator'` counts
 toward `valid` and is replaced when its validator runs again, and every other origin has a rule stating whether its

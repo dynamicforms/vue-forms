@@ -8,10 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.0.0-alpha.2] - 2026-10-15
 
 ### Added
+
 - `ActionsMap.registrations` and `ActionsMap.restore(registrations)`: the array of registered actions, which is not
   modified later, and its reinstatement with the order of the handlers and every duplicate registration.
 
 ### Changed
+
 - `onCommit` and `onElementAdopted` run after the transaction is closed. A write they make opens a transaction of its
   own and is announced; an exception they throw does not roll back the committed change and is rethrown once every
   hook of the commit has run.
@@ -22,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RangeError`.
 
 ### Fixed
+
 - Removing a validator cancels its runs on every element it is removed from, the rows of a `List` included, and no
   other validator's: a run on a row no longer adds its errors after the validator was removed from the item template,
   and removing one validator no longer discards the result of another the field keeps.
@@ -71,6 +74,7 @@ Most of the breaking changes keep compiling. The
 lists them first.
 
 ### Added
+
 - Vue devtools support in development: a "vue-forms" inspector listing every root element, grouped by the file or
   the component that constructed it, with its members and state, and the state a component constructed shown in
   that component's inspector. `describeState()` and `hideState()` name and hide an element; `configureDevtools()`
@@ -123,6 +127,7 @@ lists them first.
   modules an application does not use.
 
 ### Changed
+
 - A `value` assignment fires `ListItemRemovedAction` and `ListItemAddedAction` for the rows it removes and builds,
   and `clear()` fires `ListItemRemovedAction` for every row. `sort()` and `reverse()` of a list view reorder the rows
   in place and fire neither.
@@ -168,6 +173,7 @@ lists them first.
   replaces the instance on the field.
 
 ### Fixed
+
 - `bind()` of a `Group` records every member's part of the data as the member's `originalValue`, at every level:
   a member, a nested list, a `List` row built from the item template and the members of a row start out with
   `isChanged` `false`. A member whose key the data leaves out takes the declared member's `originalValue`.
@@ -197,6 +203,7 @@ lists them first.
 - Reading an index or `length` of `view(list)` copied the row array on every read.
 
 ### Removed
+
 - `beginValidating()`, `endValidating()` and `validationEpoch` from the public API; validators reach them through
   keys the package does not export.
 - `MessagesWidget`, `RenderableValue`, `MdString`, `SimpleComponentDef`, the `RenderContent` types, `ClassType`,
@@ -210,6 +217,7 @@ lists them first.
 ## [2.0.3] - 2026-10-06
 
 ### Changed
+
 - `@dynamicforms/translatable` is a peer dependency instead of a dependency, as it is in every other
   `@dynamicforms` library, so an application resolves one copy of it for all of them.
 
@@ -218,6 +226,7 @@ lists them first.
 The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed relative to 1.1.0 is listed here.
 
 ### Added
+
 - `access`, what an element accepts and what it sends: `'editable'` and `'readonly'` send its value, `'disabled'`
   leaves it out and `'disabled-null'` sends `null` in its place; only `'editable'` accepts input. The type `Access`,
   `accessValues`, `defaultAccess` and `isAccess()` are exported with it.
@@ -247,6 +256,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   and reads back `['abc']`.
 
 ### Changed
+
 - **Breaking:** `enabled` is read from `access` and has no setter: it is `true` where `access` is `'editable'`, and
   `effectiveEnabled` where `effectiveAccess` is. A parameter object or a `bind()` override naming `enabled` throws a
   `TypeError`. `EnabledChangingAction` is asked before, and `EnabledChangedAction` told after, a write of `access`
@@ -284,6 +294,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   past the end of such a list follows the inserted item the same way.
 
 ### Fixed
+
 - A `Group` completes the records of its members once it has written the data it was built with, so a rule reading
   a sibling - a validator on a `List` row that reads another field of the row - reaches its verdict over the row's
   data rather than over the values its members were bound with.
@@ -291,6 +302,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [1.1.0] - 2026-09-05
 
 ### Added
+
 - `isEqual(a, b)`, a structural comparison that treats a `FieldBase` anywhere in `a` or `b` as the value it holds
   rather than as itself. `isEqual(fieldA, fieldB)` and `isEqual(list.items, other.items)` answer what
   `isEqual(fieldA.value, fieldB.value)` already does, without unwrapping every element by hand — including one
@@ -301,12 +313,14 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [1.0.0] - 2026-09-01
 
 ### Changed
+
 - No functional change from 0.18.0. This release is the stability commitment: the public API is frozen, and a
   further breaking change bumps the major version rather than the minor one, per Semantic Versioning.
 
 ## [0.18.0] - 2026-09-01
 
 ### Added
+
 - Every built-in validator's message is translatable. `translateStrings`, from `@dynamicforms/translatable`,
   replaces the English default of one or more of `Required`, `MinValue`, `MaxValue`, `ValueInRange`,
   `MinLength`, `MaxLength`, `LengthInRange`, `Pattern`, `InAllowedValues`, and `ValidationFailed` - an error
@@ -318,6 +332,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.17.1] - 2026-08-21
 
 ### Changed
+
 - An `AbortEventHandlingException` raised in a chain that has an asynchronous handler in it is answered with rather
   than raised, the way it is in a wholly synchronous one. `Action.execute()` resolves with the
   exception instead of rejecting with it, so a caller that read it off a `catch` branch reads it off the answer:
@@ -331,6 +346,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   trigger converts it. A rejection carrying anything other than an abort still reaches the caller as a rejection.
 
 ### Fixed
+
 - A handler that ends its run from an asynchronous handler leaves no unhandled rejection behind. The `*Changed*`
   setters discard what the trigger answers with, so an abort travelling as a rejection reached nothing but the
   runtime's unhandled-rejection reporting - under node's default settings, the end of the process.
@@ -341,6 +357,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.17.0] - 2026-08-20
 
 ### Added
+
 - `Extras`, an empty exported interface that is what the `X` type argument of every element defaults to. A UI
   layer declares the properties it renders forms with once, by augmenting `Extras` in a `declare module` block,
   and every element in the consuming application then carries them — including the fields written inline in a
@@ -357,6 +374,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   `enabled`.
 
 ### Changed
+
 - **Breaking.** `ActionValue` declares `label` and `icon` as `unknown`, and `Action`'s accessors for them read
   their type off the value rather than fixing `string | undefined`. What a label and an icon are is the rendering
   library's to say, and `unknown` is what lets it say so: `interface RichValue extends ActionValue { label?: string
@@ -374,6 +392,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.16.1] - 2026-08-20
 
 ### Added
+
 - `FieldBase.constructed(params)`, the hook a subclass overrides to complete what the element was built with.
   `Field`, `Action`, `Group` and `List` call it at the end of a construction, inside the transaction the
   construction is and before the element records what it was built as, so what the override writes - `_value`, a
@@ -389,6 +408,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   serializer reading `value` and `fullValue` back and writing a record into a form.
 
 ### Fixed
+
 - An `Action` keeps a value that states something other than a label or an icon. `Action` is meant to be subclassed
   with a wider value type, and the emptiness test read `label` and `icon` alone: a value naming a render style, a
   name or a set of per-breakpoint options and neither of those two was taken for empty and replaced by the pair of
@@ -410,6 +430,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   its containers with it.
 
 ### Documentation
+
 - **[Widening the value in a subclass](https://docs.velis.si/dynamicforms/vue-forms/api/action#widening-the-value-in-a-subclass)**
   on the `Action` reference: what a subclass adds and what it keeps, and that a subclass reading `label` or `icon`
   in a shape of its own declares the getter and the setter together, the setter delegating to the base with
@@ -428,6 +449,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.16.0] - 2026-08-20
 
 ### Changed
+
 - **Breaking:** a trigger answers with the `AbortEventHandlingException` a handler threw, where it answered `null`.
   A run a handler ended and a run that reached no handler at all were the same answer, so neither the library nor a
   caller could tell them apart. `triggerAction()` hands the exception back, and code testing for `null` sees the
@@ -467,6 +489,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.15.0] - 2026-08-19
 
 ### Changed
+
 - **Breaking:** `EmptyField` is gone. It was a module-level singleton `Field` the package exported, shared by
   everyone who touched it, and nothing used it - not the library, not its tests beyond the one asserting its own
   warning, not any of the packages built on it. A missing element is `null`: `Group.field()` answers with it and
@@ -554,6 +577,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   through `as any`; the constructor's `value` and `originalValue` are refused the same way.
 
 ### Fixed
+
 - A `List` constructed with an `originalValue` and no `value` takes its rows from it, the way a `Field` and a
   `Group` already did: it held no rows, read back `null` and reported `isChanged` as `true` against the very value
   it was declared with. An explicit `value: null` still leaves the list empty - null is a value the caller means -
@@ -562,6 +586,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.14.0] - 2026-08-19
 
 ### Changed
+
 - **Breaking:** `IBindParams` names `originalValue`, `enabled`, `visibility` and the extended properties, where it
   named everything a constructor takes but the value. `bind()` read three of those and dropped the rest, so
   `f.bind(v, { validators: [...] })`, `{ actions }`, `{ touched }` and `{ errors }` compiled and did nothing. They
@@ -576,12 +601,12 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.13.0] - 2026-08-19
 
 ### Added
+
 - `settled()` on every element answers with a promise that resolves once nothing at or below it is running - no
   asynchronous validation, no `Action.execute()` yet to settle. It resolves at once where nothing is running, so a
   submit path awaits it instead of reading `validating` and `busy` and reading them again. It answers for the
   moment it resolves and states nothing about the one after: work started later leaves the element running again.
 
-### Added
 - `ValidationError.code` names what failed, so a program reacting to a particular failure does not have to match
   message text that is translated and configurable. The built-in validators state theirs: `required`, `pattern`,
   `min`, `max`, `range`, `min-length`, `max-length`, `range-length`, `in-allowed-values`, `compare-to`, and
@@ -613,6 +638,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   plugin, so the global options can be read and written without the plugin.
 
 ### Changed
+
 - **Breaking:** `Group.fullValue` is typed `FieldsToFullValues<T>` and `List.fullValue` is `FieldsToFullValues<T>[]`,
   where both answered `Record<string, any>` or the list's own `value` before. `fullValue` states what an element
   holds where `value` states what it serializes, so every key is present and none is null - reading through a
@@ -669,6 +695,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   `group.value = null` makes into every member — type-checks.
 
 ### Fixed
+
 - `CompareTo` withdraws the errors it placed on a field when it is taken off that field. `unregisterAction()` on a
   `CompareTo` dropped the registration and left the error standing, so the field stayed invalid on an error no
   validator was left to take back.
@@ -676,6 +703,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.12.1] - 2026-08-19
 
 ### Changed
+
 - The build target is ES2022, up from ES2015. The only thing it changed is `field-base.ts`: it is the sole
   file holding private class fields, and an ES2015 output has to lower each of its 51 access sites to a
   WeakMap lookup guarded by an access check. The artifact goes from 92 715 to 87 902 bytes, 25 728 to 24 547
@@ -685,6 +713,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.12.0] - 2026-08-18
 
 ### Added
+
 - `unregisterAction(action)` on every element drops one action and answers whether the element held it. The
   instance goes on serving every other element it was registered on, so unregistering a validator from one row of a
   `List` leaves the other rows validating. A `Validator` withdraws the errors it put on the element as it goes, so
@@ -696,6 +725,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   "a transaction undoes everything it did" holds without an exception for registrations.
 
 ### Changed
+
 - **Breaking:** the package is ESM-only. The `require` condition, the `main` field, the UMD artifact
   (`dynamicforms-vue-forms.umd.cjs` and its map) and the `index.d.cts` copy of the declarations are gone; `exports`
   resolves one build with one set of types. A CommonJS consumer reaches the library through `require()` of an ES
@@ -725,6 +755,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.11.0] - 2026-08-18
 
 ### Added
+
 - **`rebind(data)`** on every element: the exchange `bind()` makes, made in place. The element is the same
   instance afterwards — its identity, its actions, its extended properties and its place in whatever container
   holds it all stand — and it ends up over the new record, with `originalValue` baselined to it, `touched` back to
@@ -745,6 +776,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 - **`IBindParams<T, X>`**, the exported type of the second argument of `bind()`.
 
 ### Changed
+
 - **Breaking:** `clone()` is now `bind()`, and takes the data it binds as its first argument. The call does what
   it always did — a new element of the same class, carrying the same registered action and validator instances and
   the same extended properties, detached and with `originalValue` baselined to the data — and it is now named for
@@ -775,6 +807,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 ## [0.10.2] - 2026-08-18
 
 ### Added
+
 - **Extended properties.** Every form element now carries whatever properties your application declares for it
   beyond the members of its class — a label, a hint, a css class, a permission flag — so a form whose shape
   arrives from a server has somewhere to put them and a UI layer has somewhere to read them from. Declare them as
@@ -802,6 +835,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
   `clone()`. `IFieldConstructorParams<T>` goes on naming the members every element takes.
 
 ### Changed
+
 - A constructor parameter naming something the element's class does not declare is now an extended property
   rather than a property written onto the element itself. It was already a compile error to pass one; code that
   passed one past the type system with `as any` and read it back as `field.myProp` now reads it as
@@ -816,6 +850,7 @@ The first 2.0 release. 2.0.0 and 2.0.1 were withdrawn from npm; what changed rel
 Documentation only. No behaviour changes, and no source under `src/` was touched.
 
 ### Added
+
 - **[The model](https://docs.velis.si/dynamicforms/vue-forms/guide/model)**, a new guide page placed ahead of the
   API reference. It states the whole design in one place — elements, declarations and clones, how a `List` builds
   rows, what a record is and how a shared rule resolves within one, when each event fires, where validity comes
@@ -833,6 +868,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   module-format and browser matrix. The changelog is now reachable from the site navigation.
 
 ### Fixed
+
 - `Field.value` no longer claims that assigning an object fires `ValueChangedAction` even for the same reference.
   Values are compared by identity: a new object announces a change even when it is deeply equal to the old one, and
   the very object the field already holds announces nothing. Mutate a copy and assign it.
@@ -856,6 +892,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
 ## [0.10.0] - 2026-08-17
 
 ### Added
+
 - `field.declaration` names the element a field was declared as: itself for a field built from parameters, and the
   field it was cloned from for a clone, transitively. Every row a `List` builds from an item template is a clone,
   so `list.get(0).fields.a.declaration === template.fields.a`.
@@ -874,6 +911,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   so does a container that takes the record in afterwards.
 
 ### Changed
+
 - **Breaking:** `CompareTo`'s first constructor parameter widens from `FieldBase` to
   `FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined)`. Passing a field keeps working, and
   is now resolved within the record being validated rather than read as the one field it names.
@@ -889,6 +927,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   overriding `newBindingState()`. The exported type is `ValidatorBindingState`.
 
 ### Fixed
+
 - Conditional actions work inside a `List`. Registered on the item template, a conditional action serves every row,
   each row holds a result of its own, and a change in one row reaches that row alone. Previously the rows shared a
   single result and a row built by the list never had the action bound at all, so the condition was silently dead.
@@ -914,12 +953,14 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
 ## [0.9.0] - 2026-08-17
 
 ### Added
+
 - `Action.busy` reports whether an execution of the action has yet to settle. `execute()` raises it as the chain
   is entered and clears it once the run has settled, whether it resolves or rejects; overlapping runs are counted,
   so it stands until the last of them settles. It is a form-state flag a button binds to in order to disable
   itself while a submit runs.
 
 ### Changed
+
 - **Breaking:** `Action.execute(params?)` is asynchronous. It answers what the `ExecuteAction` chain returned,
   as a promise, where it previously discarded the result and answered `undefined`. The chain is still entered
   synchronously, so a handler has already run by the time the call returns, but a handler that throws now rejects
@@ -936,12 +977,14 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   unchanged against a baseline that never carried it.
 
 ### Fixed
+
 - `label` and `icon` are assignable on an action constructed without a value. `new Action({}).label = 'X'` threw
   a `TypeError`, because the action held the frozen `originalValue` baseline as its value.
 
 ## [0.8.0] - 2026-08-17
 
 ### Added
+
 - `transaction(fn)` runs several writes as one atomic change. The events they produce are announced once, at the
   end, over the net result: two writes to two members of a group announce one `ValueChangedAction` on the group
   instead of two, and a value that goes `A` -> `B` -> `A` inside one transaction announces nothing at all. A
@@ -960,6 +1003,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   to be open at the time.
 
 ### Changed
+
 - **Breaking:** events are announced when the operation carrying them finishes rather than as it runs, and each
   is announced once. Every mutating operation is a transaction; where you open none, the operation is the
   transaction, so a single write still announces exactly one change. What moves is the timing and the count for
@@ -989,6 +1033,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
 ## [0.7.0] - 2026-08-17
 
 ### Changed
+
 - **Breaking:** `watch(field, cb)` and `watch([field], cb)`, with a form element passed directly as the watch
   source, no longer fire. A form element is no longer a Vue proxy of itself - its mutable state is held in a
   reactive object beside it, and the element carries `__v_skip` - so the deep traversal Vue starts for a reactive
@@ -1033,12 +1078,14 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
 ## [0.6.1] - 2026-08-17
 
 ### Added
+
 - `FieldBase.validationEpoch`, a read-only counter of the validator generations a field has been through.
   `clearValidators()` raises it, and a validator that reads it when a run starts can tell that the result it is
   about to apply belongs to validators the field no longer carries. Custom asynchronous validators can use it
   the same way the built-in `Validator` does.
 
 ### Changed
+
 - `List.insert()` resolves a negative index before it reports one. The number it returns, and the index it
   announces with `ListItemAddedAction`, are the position the item occupies rather than the argument as given:
   on a two-element list `insert(item, -1)` reports `1` and `insert(item, -99)` reports `0`, where both used to
@@ -1060,6 +1107,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   built and tested against and CI can install with `npm ci`.
 
 ### Fixed
+
 - `ListItemAddedAction` reports the real index of every element `insert()` creates. The elements inserted as
   padding, to reach an index past the end of the list, were each announced with the index one past their own
   position, so `list.insert(item, 3)` on an empty list reported `1, 2, 3, 3` instead of `0, 1, 2, 3`.
@@ -1130,6 +1178,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
 - The `repository` and `bugs` URLs point at the current location, `https://github.com/dynamicforms/vue-forms`.
 
 ### Documentation
+
 - The API reference describes what this release settles: the order in which a constructor applies its
   parameters and the single eager run that closes it, `validationEpoch`, the reach of `clearValidators()`, the
   value rule of `clone()`, the boolean result of `Statement.evaluate()` and `IN`/`NOT_IN` over an operand
@@ -1142,11 +1191,13 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
 ## [0.6.0] - 2026-08-15
 
 ### Added
+
 - `FieldBase.beginValidating()` and `FieldBase.endValidating()`, the pair an asynchronous validator brackets its
   work with to report that it is running.
 - The value types `FieldsToValues`, `GroupValue`, `GroupValueInput` and `ListValue` are exported.
 
 ### Changed (breaking)
+
 - `IFieldConstructorParams` now lists only the writable members - `value`, `originalValue`, `enabled`,
   `visibility`, `touched`, `errors`, plus `actions` and `validators`. Passing a derived member such as
   `new Field({ value: 1, valid: true })` used to type-check and then throw at runtime; it is now a type error.
@@ -1164,10 +1215,12 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   runtime.
 
 ### Changed
+
 - Set `rootDir` explicitly in `tsconfig.build.json` and verify declaration output size in CI. TS 6.0 stops
   inferring it, and without it the rolled up `index.d.ts` comes out empty with a green build.
 
 ### Fixed
+
 - `Group` and `List` are reactive from construction, as `Field` and `Action` already were. `Group.errors` - which
   is where a group-level validator writes - `Group.visibility`, `Group.enabled`, group-level `Group.valid`, and
   the structural changes made by `List.push()`, `insert()`, `remove()`, `pop()` and `clear()` now trigger a Vue
@@ -1190,6 +1243,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   through `exports`. Documented in the getting started guide and the `MessagesWidget` reference.
 
 ### Removed (breaking)
+
 - `Field.create()` and `Action.create()`. Fields are constructed with `new`, the way groups and lists always were:
   `new Field({ value: 1 })`, `new Action({ value: { label: 'Save' } })`. The constructor guard that used to make
   `new Field()` throw is gone as well. Type inference is unchanged - `new Field({ value: 'a' })` is `Field<string>`.
@@ -1202,6 +1256,7 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   `ActionsMap` rejects an action that is not `instanceof FieldActionBase`.
 
 ### Documentation
+
 - Audited the whole of `docs/` against the source. Corrected statements that no longer matched the code
   (`enabled` cascading, `Statement` reactivity, the `EnabledChangingAction` return value, list defaults and
   every built-in validator's default message), and documented previously undocumented public API: `Action`,
@@ -1211,88 +1266,106 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
   correction, reassurances about doubts the reader never had, and leftovers of a mechanical API rename.
 
 ## [0.5.0] - 2026-01-28
+
 - Remove default class from MessagesWidget
 
 ## [0.4.7] - 2025-10-29
 
 ### Added
+
 - Support functions for `RenderContent` to support dynamically retrieving text and allow for translations.
 
 ## [0.4.6] - 2025-09-24
 
 ### Added
+
 - Add plugins and options to MdString supporting markdown-it extensibility
 
 ## [0.4.5] - 2025-09-19
 
 ### Added
+
 - Add field touched property to indicate when user had at least visited a field
 
 ## [0.4.4] - 2025-09-08
 
 ### Added
+
 - Add revalidate parameter to field validate method forcing revalidation
 
 ## [0.4.2,0.4.3] - 2025-09-06
 
 ### Added
+
 - add classes to ValidationError (and descendants)
 - add messages-widget
 
 ## [0.4.0] - 2025-09-02
 
 ### Added
+
 - Alias for ValidationErrorRenderContent: RenderableValue (it's not only usable for errors)
 - Support for v-html content in RenderableValue
 
 ### Changed - breaking changes
-- renamed in error-message-builder: CustomModalContentComponentDef → SimpleComponentDef 
+
+- renamed in error-message-builder: CustomModalContentComponentDef → SimpleComponentDef
 
 ## [0.3.5] - 2025-06-03
 
 ### Added
+
 - Support type generics on group.value / group.reactiveValue
 
 ## [0.3.3 - 0.3.4] - 2025-05-30
 
 ### Added
+
 - **Extending classes**: Support for extending the vue-forms classes, particularly the Action class
 
 ## [0.3.0] - 2025-05-19
 
 ### Added
+
 - **Async Validator Support**: Re-introduced async validation with loading states
 - **Improved Reactivity**: Enhanced reactivity for Field and Action components
 - Simplified validator architecture for better maintainability
 
 ### Fixed
+
 - Better reactive behaviour for field state management
 
 ### Removed
+
 - Removed all async versions of functions due to implementation complexity
 
 ## [0.2.6] - 2025-05-19
 
 ### Added
+
 - **Field.clearValidators()**: Method to dynamically clear all validators from a field
 
 ## [0.2.5] - 2025-05-17
 
 ### Added
+
 - **CompareTo Validator**: Cross-field validation for comparing values between fields
 
 ## [0.2.4] - 2025-04-19
 
 ### Added (dev helpers)
+
 - Package visualizer for bundle analysis
 - Enhanced IDE configuration for Vite
 
 ### Fixed
+
 - Updated repository URL in package configuration
 
 ## [0.2.3] - 2025-04-18
 
 ### Fixed
+
 - Fixed undefined value comparisons in MinValue/MaxValue/ValueInRange validators
 - Fixed ValidationErrorRenderContent reactivity issues
 - Improved documentation static build process
@@ -1300,61 +1373,70 @@ Documentation only. No behaviour changes, and no source under `src/` was touched
 ## [0.2.2] - 2025-04-17
 
 ### Added
+
 - **Validator System**: Built-in validators
-    - Required, Pattern, MinValue/MaxValue/ValueInRange validators
-    - MinLength/MaxLength/LengthInRange validators for text/array validation
-    - InAllowedValues validator for restricted value sets
+  - Required, Pattern, MinValue/MaxValue/ValueInRange validators
+  - MinLength/MaxLength/LengthInRange validators for text/array validation
+  - InAllowedValues validator for restricted value sets
 - **Async Operations**: Support for asynchronous field operations and validation
 - **Eager Actions**: Actions that execute immediately on registration and value changes
 - **Enhanced Action System**:
-    - Refactored classIdentifier system for better performance
-    - Added boundToField method for action-field relationship tracking
+  - Refactored classIdentifier system for better performance
+  - Added boundToField method for action-field relationship tracking
 - **Conditional Logic**: Complete implementation of conditional form behavior
-    - Statement and Operator system for complex conditions
-    - ConditionalVisibilityAction, ConditionalEnabledAction, ConditionalValueAction
+  - Statement and Operator system for complex conditions
+  - ConditionalVisibilityAction, ConditionalEnabledAction, ConditionalValueAction
 - **Extensive Testing**: Comprehensive unit test coverage for all validators
 - **Documentation Examples**: Interactive demos for validators and conditional statements
 - **Markdown Support**: Configurable markdown rendering in validation error messages
 
 ### Improved
+
 - Enhanced type safety in Group field methods
 - Fixed circular import issues
 
 ## [0.1.5] - 2025-03-21
 
 ### Added
+
 - Export of FieldBase class to allow extending
 
 ## [0.1.4] - 2025-03-19
 
 ### Fixed
+
 - DisplayMode export issues in type declarations
 
 ## [0.1.3] - 2025-03-19
 
 ### Improved
+
 - **Type Declarations**: Enhanced TypeScript support without requiring Reactive<> wrappers
 - Simplified type usage for end users
 
 ## [0.1.2] - 2025-03-19
 
 ### Added
+
 - **Forced Reactivity**: Field and Action instances are now automatically reactive
 - **reactiveValue Property**: Available on all field types for computed value access
 - **Enhanced Exports**: Better export organization with default namespace and individual imports
 
 ### Improved
+
 - Reorganized module exports for better developer experience
 - Enhanced reactivity system across all components
 
 ## [0.1.1] - 2025-03-12
 
 ### Changed
+
 - **Dependencies**: Migrated from lodash to lodash-es for better tree shaking
 
 ## [0.1.0] - 2025-03-06
 
 ### Added
+
 - **Core Architecture**: FieldBase abstraction with Field, Group, List, and Action implementations
 - **Reactive State Management**: Built on Vue's reactivity system
 - **Event System**: Action-driven architecture with event chains

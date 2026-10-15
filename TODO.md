@@ -28,8 +28,8 @@ classes, as for a submit.
 ## Memory footprint of application state (before 3.0.0)
 
 A field retains about 1.5 KiB of heap, and a 1000-row list of eight fields about 11.8 MiB (`bench/RESULTS.md`,
-"Memory and structure", the 0.10.x column). For a form this is not a constraint. For application state held in fields, groups and
-lists it limits how much state an application can hold this way. Undecided, before 3.0.0 is released:
+"Memory and structure", the 0.10.x column). For a form this is not a constraint. For application state held in fields,
+groups and lists it limits how much state an application can hold this way. Undecided, before 3.0.0 is released:
 
 - whether the documentation states application state as a supporting role, for state of the size of a form,
   with the limit given in numbers, or
@@ -84,8 +84,8 @@ has no page for application state. What it needs, in order:
    (application state, hot module replacement, server-rendered state, free-form state, data from a server cache, a
    value loaded for another value, reacting to every change, an optimistic update).
 3. **A page "Compared with Pinia"**: a factual table of what each library has and does not have — on this side
-   transactions, validation, rules between fields and refusing a write; on Pinia's side the devtools timeline, plugins on every action, SSR
-   support and `storeToRefs` — and when each fits. No ratings.
+   transactions, validation, rules between fields and refusing a write; on Pinia's side the devtools timeline, plugins
+   on every action, SSR support and `storeToRefs` — and when each fits. No ratings.
 
 ## A test of the packed package
 

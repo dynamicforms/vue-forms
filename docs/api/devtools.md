@@ -71,7 +71,8 @@ garbage-collected. These are never listed:
 
 An element's file is read from the stack at its construction: the first frame outside the library and outside
 `node_modules`. The location section lists every such frame, innermost first; a member shows the stack of the root
-element it is shown under, and an element whose stack was not captured or was dropped shows none. The stack is captured at construction and turned into text only when the devtools show the element.
+element it is shown under, and an element whose stack was not captured or was dropped shows none. The stack is captured
+at construction and turned into text only when the devtools show the element.
 A file the stack does not name, and a name other than the element's class and number, are given with
 `describeState()`.
 
@@ -135,8 +136,8 @@ the imports of the modules that build global state, or in a module imported firs
 
 ## How the devtools are built
 
-The devtools are a [plugin](/api/plugins) built on the hooks `onElementCreated`, `onElementAdopted` and `onCommit`. The library installs
-it on the first element built in development; `configureDevtools({ enabled: false })` uninstalls it.
+The devtools are a [plugin](/api/plugins) built on the hooks `onElementCreated`, `onElementAdopted` and `onCommit`. The
+library installs it on the first element built in development; `configureDevtools({ enabled: false })` uninstalls it.
 
 ## Production builds
 

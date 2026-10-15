@@ -5,7 +5,7 @@
 wherever you accept any form element: every library signature that takes an element (action executors,
 `ValidationFunction`, `Group`'s `fields` map, `CompareTo`'s `otherField`) is typed `FieldBase`.
 
-```
+```text
 FieldBase ─┬─ Field ── Action
            └─ Container ─┬─ Group
                          └─ List
@@ -71,7 +71,8 @@ default `'editable'`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Whether the element accepts input, what it sends to its container, and whether it is validated. A write to `value` is accepted whatever the access. See [What a container serializes](/api/container#what-a-container-serializes).
+Whether the element accepts input, what it sends to its container, and whether it is validated. A write to `value` is
+accepted whatever the access. See [What a container serializes](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td>
@@ -125,7 +126,8 @@ default same as `value`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Baseline for `isChanged`; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/action), [`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
+Baseline for `isChanged`; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/action),
+[`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
 
 </td></tr>
 <tr class="member-head"><td>
@@ -143,7 +145,8 @@ default `false`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Initial interaction flag; see [`Group`](/api/group#new-group-fields-params) and [`List`](/api/list#new-list-itemtemplate-params) for containers
+Initial interaction flag; see [`Group`](/api/group#new-group-fields-params) and
+[`List`](/api/list#new-list-itemtemplate-params) for containers
 
 </td></tr>
 <tr class="member-head"><td>
@@ -179,7 +182,8 @@ default per class
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Initial value; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/action), [`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
+Initial value; see [`Field`](/api/field#new-field-t-params), [`Action`](/api/action),
+[`Group`](/api/group#new-group-fields-params), [`List`](/api/list#new-list-itemtemplate-params)
 
 </td></tr>
 <tr class="member-head"><td>
@@ -398,7 +402,16 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Whether the element accepts input, what it sends to its container, and whether its validators run: `'editable'` and `'readonly'` send its value, `'disabled'` sends nothing and `'disabled-null'` sends `null`. A write to `value` is accepted whatever the access, so a record loaded into the form is written to the element. Changing `access` changes what every container above sends (each fires a [`ContributionChangedAction`](/api/actions#contributionchangedaction)) and runs the validators again on the element and its descendants whose effective access changed what they send; a change between `'editable'` and `'readonly'` runs none. Writing the access the element already has is not a change: no `AccessChangingAction` runs, nothing is enrolled in an open transaction, and no `AccessChangedAction` fires. Writing a value that is not one of the four throws `Error("'x' is not an access: …")`. On a `Group` or a `List` the access also applies to every element inside it through `effectiveAccess`. See [What a container serializes](/api/container#what-a-container-serializes).
+Whether the element accepts input, what it sends to its container, and whether its validators run: `'editable'` and
+`'readonly'` send its value, `'disabled'` sends nothing and `'disabled-null'` sends `null`. A write to `value` is
+accepted whatever the access, so a record loaded into the form is written to the element. Changing `access` changes what
+every container above sends (each fires a [`ContributionChangedAction`](/api/actions#contributionchangedaction)) and
+runs the validators again on the element and its descendants whose effective access changed what they send; a change
+between `'editable'` and `'readonly'` runs none. Writing the access the element already has is not a change: no
+`AccessChangingAction` runs, nothing is enrolled in an open transaction, and no `AccessChangedAction` fires. Writing a
+value that is not one of the four throws `Error("'x' is not an access: …")`. On a `Group` or a `List` the access also
+applies to every element inside it through `effectiveAccess`. See [What a container
+serializes](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-busy"></a>
@@ -416,7 +429,9 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` while an `Action.execute()` at or below the element has yet to settle. On `FieldBase` it is always `false`; [`Action.busy`](/api/action) covers the action's own runs and [`Container.busy`](/api/container#prop-busy) the actions below a `Group` or `List`. `busy` covers executions and `validating` covers validations; `pending` covers both
+`true` while an `Action.execute()` at or below the element has yet to settle. On `FieldBase` it is always `false`;
+[`Action.busy`](/api/action) covers the action's own runs and [`Container.busy`](/api/container#prop-busy) the actions
+below a `Group` or `List`. `busy` covers executions and `validating` covers validations; `pending` covers both
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-contribution"></a>
@@ -434,7 +449,8 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-What the element sends to its container's `value`: its value, `null` for `'disabled-null'`, `undefined` for `'disabled'`. The element's validators run over this value
+What the element sends to its container's `value`: its value, `null` for `'disabled-null'`, `undefined` for
+`'disabled'`. The element's validators run over this value
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-declaration"></a>
@@ -452,7 +468,10 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called on for a binding, transitively, so a binding of a binding has the same `declaration`. Every row a `List` builds from its item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. An action shared by every row uses it to tell one row's field from another's
+The element this one was declared as: itself for an element built from parameters, and the element `bind()` was called
+on for a binding, transitively, so a binding of a binding has the same `declaration`. Every row a `List` builds from its
+item template is a binding of it, so `list.get(0).fields.a.declaration === template.fields.a`. An action shared by every
+row uses it to tell one row's field from another's
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-effectiveaccess"></a>
@@ -470,7 +489,10 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-The access that applies once the containers above are taken into account: `'disabled'` below a container that is `'disabled'` or `'disabled-null'`, `'readonly'` for an `'editable'` element below a `'readonly'` one, and the element's own access otherwise. An element whose `effectiveAccess` is `'disabled'` sends nothing, so its validators produce no result and it has none of their errors
+The access that applies once the containers above are taken into account: `'disabled'` below a container that is
+`'disabled'` or `'disabled-null'`, `'readonly'` for an `'editable'` element below a `'readonly'` one, and the element's
+own access otherwise. An element whose `effectiveAccess` is `'disabled'` sends nothing, so its validators produce no
+result and it has none of their errors
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-effectiveenabled"></a>
@@ -488,7 +510,9 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` where `effectiveAccess` is `'editable'`: this element and every container above it accept input. A rendering layer binds this instead of walking the parent chain; on a `Group` or a `List` it reads it to draw the inputs of a whole section as not accepting input
+`true` where `effectiveAccess` is `'editable'`: this element and every container above it accept input. A rendering
+layer binds this instead of walking the parent chain; on a `Group` or a `List` it reads it to draw the inputs of a whole
+section as not accepting input
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-enabled"></a>
@@ -506,7 +530,8 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` where `access` is `'editable'`: the element accepts input. It describes input only: a `'readonly'` element is not enabled and still sends its value
+`true` where `access` is `'editable'`: the element accepts input. It describes input only: a `'readonly'` element is not
+enabled and still sends its value
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-errors"></a>
@@ -524,7 +549,13 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but normally managed by validators. Whether an error of an [origin](/api/validators#origin) other than `'validator'` counts toward `valid`, and when the element removes it by itself, is the rule of its origin: see [`ErrorPolicy`](/api/validators#errorpolicy). The getter returns the array the element holds, so pushing into it works. `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance: `field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
+Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but
+normally managed by validators. Whether an error of an [origin](/api/validators#origin) other than `'validator'` counts
+toward `valid`, and when the element removes it by itself, is the rule of its origin: see
+[`ErrorPolicy`](/api/validators#errorpolicy). The getter returns the array the element holds, so pushing into it works.
+`valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when
+`validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance:
+`field.errors[0] === myError` is `false` for the error a validator returned. Compare by content, or use `toRaw()`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-extra"></a>
@@ -542,7 +573,8 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-The [extended properties](#extended-properties) the element holds, `{}` where none were declared. The object is frozen; write through `setExtendedValues()`
+The [extended properties](#extended-properties) the element holds, `{}` where none were declared. The object is frozen;
+write through `setExtendedValues()`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-fieldname"></a>
@@ -578,7 +610,8 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Identical to `value` on `FieldBase`, and so on `Field` and `Action`. [`Group`](/api/group#prop-fullValue) and [`List`](/api/list#prop-fullValue) override it: there it is what the element holds, while `value` is what it sends
+Identical to `value` on `FieldBase`, and so on `Field` and `Action`. [`Group`](/api/group#prop-fullValue) and
+[`List`](/api/list#prop-fullValue) override it: there it is what the element holds, while `value` is what it sends
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-ischanged"></a>
@@ -614,7 +647,8 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Value as provided at creation. Assigning it resets the baseline for `isChanged`. On a `Group` or a `List` it is held as a separate, unfrozen copy, not the object `value` returns
+Value as provided at creation. Assigning it resets the baseline for `isChanged`. On a `Group` or a `List` it is held as
+a separate, unfrozen copy, not the object `value` returns
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-parent"></a>
@@ -632,7 +666,16 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Container the element belongs to. The container sets it and clears it when it releases the element: a `List` row removed by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be added to another list. A container rejects an element that still has a `parent`, so pass the released instance or a `bind()` of it. The container is a `Group` or a `List`, and [`Container`](/api/container) declares no children, so accessing `fields` through it is a compile error until it is narrowed: with `field.parent instanceof Group` or `(field.parent as Group)?.fields.other`. Naming the sibling and letting [`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options) resolve it needs neither; see [`parent`](/api/container#parent). The read is tracked, so a template rendering from `field.parent` updates when the element moves to another container. `parent` and `fieldName` are read-only accessors; assigning either throws a `TypeError`
+Container the element belongs to. The container sets it and clears it when it releases the element: a `List` row removed
+by `remove()`, `pop()`, `clear()` or a shortening `value` assignment has no `parent` and may be added to another list. A
+container rejects an element that still has a `parent`, so pass the released instance or a `bind()` of it. The container
+is a `Group` or a `List`, and [`Container`](/api/container) declares no children, so accessing `fields` through it is a
+compile error until it is narrowed: with `field.parent instanceof Group` or `(field.parent as Group)?.fields.other`.
+Naming the sibling and letting
+[`CompareTo`](/api/validators#new-validators-compareto-otherfield-isvalidcomparison-options) resolve it needs neither;
+see [`parent`](/api/container#parent). The read is tracked, so a template rendering from `field.parent` updates when the
+element moves to another container. `parent` and `fieldName` are read-only accessors; assigning either throws a
+`TypeError`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-pending"></a>
@@ -650,7 +693,8 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`validating || busy`: `true` while an asynchronous validation or an `Action.execute()` at or below the element has not settled. Reactive, so a submit button binds to it. [`settled()`](#settled-promise-void) resolves when it turns `false`
+`validating || busy`: `true` while an asynchronous validation or an `Action.execute()` at or below the element has not
+settled. Reactive, so a submit button binds to it. [`settled()`](#settled-promise-void) resolves when it turns `false`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-touched"></a>
@@ -668,7 +712,11 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Interaction flag. The library does not set it in response to input; your UI must assign `field.touched = true` (e.g. on blur). Assigning `true` removes the errors whose rule removes them on `'edit'` from the field and the containers above it, where their values changed since the errors were written ([`ErrorPolicy`](/api/validators#errorpolicy)). Abstract on `FieldBase`: [`Field`](/api/field#prop-touched) stores it, and [`Container`](/api/container#prop-touched) aggregates it from the children of a `Group` or `List` and propagates an assignment down
+Interaction flag. The library does not set it in response to input; your UI must assign `field.touched = true` (e.g. on
+blur). Assigning `true` removes the errors whose rule removes them on `'edit'` from the field and the containers above
+it, where their values changed since the errors were written ([`ErrorPolicy`](/api/validators#errorpolicy)). Abstract on
+`FieldBase`: [`Field`](/api/field#prop-touched) stores it, and [`Container`](/api/container#prop-touched) aggregates it
+from the children of a `Group` or `List` and propagates an assignment down
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-valid"></a>
@@ -686,7 +734,11 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` when no error in `errors` counts toward validity: every error of origin `'validator'` counts, and an error of another origin counts where the `validEffect` of its rule is `true` ([`ErrorPolicy`](/api/validators#errorpolicy)). It is computed from the live array, so it reflects an error pushed in by hand without any call. `ValidChangedAction` fires only when `validate()` is called. [`Container.valid`](/api/container#prop-valid) also requires every child it counts to be valid
+`true` when no error in `errors` counts toward validity: every error of origin `'validator'` counts, and an error of
+another origin counts where the `validEffect` of its rule is `true` ([`ErrorPolicy`](/api/validators#errorpolicy)). It
+is computed from the live array, so it reflects an error pushed in by hand without any call. `ValidChangedAction` fires
+only when `validate()` is called. [`Container.valid`](/api/container#prop-valid) also requires every child it counts to
+be valid
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-validating"></a>
@@ -704,7 +756,10 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` while an asynchronous validation is in flight on this element **or on any of its descendants**, so on a form it covers the whole tree. An element counts its own asynchronous validation runs, which a `Validator` starts and ends around a returned promise, and a container keeps a count of how many of its children are `validating`. Reading it is O(1) whatever the size of the tree; a run that starts or settles updates one count per nesting level
+`true` while an asynchronous validation is in flight on this element **or on any of its descendants**, so on a form it
+covers the whole tree. An element counts its own asynchronous validation runs, which a `Validator` starts and ends
+around a returned promise, and a container keeps a count of how many of its children are `validating`. Reading it is
+O(1) whatever the size of the tree; a run that starts or settles updates one count per nesting level
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-value"></a>
@@ -722,7 +777,9 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Current value. A write is accepted whatever the access. Abstract on `FieldBase`: [`Field`](/api/field#prop-value), [`Group`](/api/group#prop-value) and [`List`](/api/list#prop-value) implement it, and `Action` inherits `Field`'s. `isChanged` compares it with `originalValue`
+Current value. A write is accepted whatever the access. Abstract on `FieldBase`: [`Field`](/api/field#prop-value),
+[`Group`](/api/group#prop-value) and [`List`](/api/list#prop-value) implement it, and `Action` inherits `Field`'s.
+`isChanged` compares it with `originalValue`
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-visibility"></a>
@@ -740,7 +797,9 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or `'suppress'`. It is presentation only and does not affect what the element sends or whether it is validated. Writing the visibility the element already has is not a change, as for `access`. Writing a value that is not one of the four throws `Error("'x' is not a visibility: …")`.
+How a rendering layer shows the element: `'full'`, `'invisible'`, `'hidden'` or `'suppress'`. It is presentation only
+and does not affect what the element sends or whether it is validated. Writing the visibility the element already has is
+not a change, as for `access`. Writing a value that is not one of the four throws `Error("'x' is not a visibility: …")`.
 
 </td></tr>
 </tbody>
@@ -833,8 +892,8 @@ A member of a `Group` whose key is missing from `data` takes the `originalValue`
 group's declaration: for a group that is its own declaration, the member's own baseline. `group.originalValue` holds
 what the group sends, so it leaves a `'disabled'` member out, and `group.rebind(group.originalValue)` puts that
 member back to its own baseline as well. For a row of a `List` the declaration is the item template, so a key the
-new record leaves out takes the item template's baseline, not the value of the previous record. On a `List`, existing rows are reused by position, as in a whole-value
-assignment (see [Scale](/api/list#scale)).
+new record leaves out takes the item template's baseline, not the value of the previous record. On a `List`, existing
+rows are reused by position, as in a whole-value assignment (see [Scale](/api/list#scale)).
 
 Inside an open `transaction()`, a change of the element that the commit has yet to announce is kept: the commit
 announces the old and new values measured from the element's state when the transaction opened.
@@ -1076,9 +1135,9 @@ in private class fields, which a structural comparison does not read. `FieldBase
 accessor returning the element's class name; a structural comparison reads the tag first and returns `false` for two
 distinct objects with a tag it does not know.
 Two elements are therefore equal only where they are the same element. The package's own
-[`isEqual(a, b)`](#isequal-a-b-boolean) compares them by the value they hold. The accessor is defined on the prototype, so it adds nothing to each instance, and
-`Object.prototype.toString.call(field)` returns `[object Field]`, not `[object Object]`. See
-[Comparing elements](/guide/model#comparing-elements).
+[`isEqual(a, b)`](#isequal-a-b-boolean) compares them by the value they hold. The accessor is defined on the prototype,
+so it adds nothing to each instance, and `Object.prototype.toString.call(field)` returns `[object Field]`, not
+`[object Object]`. See [Comparing elements](/guide/model#comparing-elements).
 
 ### `isEqual(a, b): boolean`
 

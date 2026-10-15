@@ -7,9 +7,9 @@ do not run, and assigning or rebinding the container does not change it. A conta
 sends nothing either.
 
 `Action` is one of the few members that concern the user interface; [Rationale](/guide/rationale#what-the-library-carries-for-the-interface)
-lists them, and [What `Action` carries for the interface](/examples/action#what-action-carries-for-the-interface) describes this one.
-A UI library extends it: `@dynamicforms/vuetify-inputs` adds render options and per-breakpoint variants
-([df-actions](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html)).
+lists them, and [What `Action` carries for the interface](/examples/action#what-action-carries-for-the-interface)
+describes this one. A UI library extends it: `@dynamicforms/vuetify-inputs` adds render options and per-breakpoint
+variants ([df-actions](https://docs.velis.si/dynamicforms/vuetify-inputs/examples/df-actions.html)).
 
 ```typescript
 import { Action, ExecuteAction } from '@dynamicforms/vue-forms';
@@ -186,8 +186,8 @@ or `isChanged`, and runs no validator. The members inherit it through
 `effectiveEnabled` `false` while `handler` runs, and an access the target is given meanwhile is kept. The lock is an
 `access` write, so it fires `AccessChangedAction` and `EnabledChangedAction` on the target, and an
 `AccessChangingAction` can refuse it; as a change of access it also removes the errors whose rule removes them on
-`'change'` from the containers above the target. `busy` and `pending` report the running submit; a rendering layer that draws a
-form differently while it submits reads them.
+`'change'` from the containers above the target. `busy` and `pending` report the running submit; a rendering layer that
+draws a form differently while it submits reads them.
 
 The rebind in step 6 replaces the target's value with the result. A change written to the target by code while
 `handler` runs is lost, and `isChanged` is `false` afterwards.
@@ -361,7 +361,8 @@ inherited alongside the narrowed getter. A write to a property that has a getter
 either member) fails on such a subclass. TypeScript treats the getter-only accessor as read-only and rejects the
 assignment where the reference is typed as the subclass; a reference typed as `Action` compiles and throws at
 runtime. `super.label = newValue` calls the base setter with `this` bound to the action, so the write is an
-ordinary value change: `ValueChangedAction` fires, `isChanged` reflects it, and a disabled action takes it like any other field.
+ordinary value change: `ValueChangedAction` fires, `isChanged` reflects it, and a disabled action takes it like any
+other field.
 
 A narrowed getter and an unnarrowed setter are independent. The setter writes `value.label` regardless of the
 getter's filter, so an action whose filter returns `undefined` still returns `undefined` right after a label has
@@ -381,14 +382,17 @@ the members above, whether or not the action declares extended properties.
 ## Inherited members
 
 ::: details Inherited from Field
+
 | Member | Description |
 |--------|-------------|
 | [`bind(data?, overrides?)`](/api/field#bind-data-overrides-this) | Returns a new element of the same class over `data` |
 | [`touched`](/api/field#prop-touched) | Interaction flag the element stores; writable |
 | [`value`](/api/field#prop-value) | The value the element holds; writable |
+
 :::
 
 ::: details Inherited from FieldBase
+
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -418,6 +422,7 @@ the members above, whether or not the action declares extended properties.
 | [`validate(revalidate?)`](/api/field-base#validate-revalidate-void) | Publishes the validity derived from `errors` |
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+
 :::
 
 ## `NullableAction`
