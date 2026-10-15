@@ -1,4 +1,6 @@
+import { accessValues } from '../access';
 import { ConditionalAccessAction, ConditionalVisibilityAction, Operator, Statement } from '../actions';
+import type { FieldActionBase } from '../actions';
 import { Field } from '../field';
 import type { FieldBase } from '../field-base';
 import { Group } from '../group';
@@ -212,6 +214,64 @@ export function snapshot(element: FieldBase, path = '$'): Record<string, unknown
   return result;
 }
 
+/** Every element of the tree with its path, in the order snapshot() lists them. */
+export function elements(element: FieldBase, path = '$'): { path: string; element: FieldBase }[] {
+  const found = [{ path, element }];
+  if (element instanceof Group) {
+    Object.entries(element.fields as Record<string, FieldBase>).forEach(([name, member]) =>
+      found.push(...elements(member, `${path}.${name}`)),
+    );
+  } else if (element instanceof List) {
+    for (let index = 0; index < element.length; index++)
+      found.push(...elements(element.get(index)!, `${path}[${index}]`));
+  }
+  return found;
+}
+
+const identities = new WeakMap<object, number>();
+let nextIdentity = 0;
+/** A number that identifies `item` for the duration of the run, so two structures compare by identity. */
+const identity = (item: object | undefined): number | undefined => {
+  if (!item) return undefined;
+  if (!identities.has(item)) identities.set(item, nextIdentity++);
+  return identities.get(item);
+};
+
+/** The registered rules of an element, in registration order: the ones of its declaration, shared by its bindings. */
+const registrations = (element: FieldBase): readonly FieldActionBase[] =>
+  (element as any).boundActions?.registrations ?? [];
+
+/**
+ * What a snapshot does not show, for every element of a tree in the order of its container: which element it is,
+ * the container and the name it is held under, and the rules registered on it in their order. Elements and rules
+ * are listed by identity.
+ */
+export function structure(form: FieldBase): Record<string, unknown>[] {
+  return elements(form).map(({ path, element }) => ({
+    path,
+    element: identity(element),
+    parent: identity(element.parent),
+    fieldName: element.fieldName,
+    rules: registrations(element).map(identity),
+  }));
+}
+
+/**
+ * The paths whose element is not held by the container its `parent` names: a member of a group is held under its
+ * `fieldName`, a row of a list is one of its rows.
+ */
+export function detachedLinks(form: FieldBase): string[] {
+  return elements(form)
+    .filter(({ element }) => {
+      const parent = element.parent;
+      if (element === form) return parent !== undefined && !(parent instanceof Group || parent instanceof List);
+      if (parent instanceof Group) return (parent.fields as Record<string, FieldBase>)[element.fieldName!] !== element;
+      if (parent instanceof List) return !parent.items.includes(element as any);
+      return true;
+    })
+    .map(({ path }) => path);
+}
+
 /** Every leaf of the tree with its name, rows included. */
 export function leaves(element: FieldBase, name = ''): { name: string; field: Field<any> }[] {
   if (element instanceof Group)
@@ -275,4 +335,64 @@ export function edit(form: Group<any>, fixture: RealisticForm, next: () => numbe
   field.value = value;
   field.touched = true;
   return `${name} = ${JSON.stringify(value)}`;
+}
+
+/**
+ * Makes one edit of what a form consists of, as code that adapts a form does: registers a validator or a
+ * visibility rule, unregisters a rule, clears the validators, writes an access, adds a member to a group or removes
+ * one. Returns a description of the edit, for the message of a failing check.
+ */
+export function structuralEdit(form: Group<any>, next: () => number): string {
+  const pick = <T>(items: readonly T[]): T => items[Math.floor(next() * items.length)];
+  const all = elements(form);
+  const choice = next();
+  if (choice < 0.2) {
+    const { path, element } = pick(all);
+    element.registerAction(new Validators.Required());
+    return `register Required on ${path}`;
+  }
+  if (choice < 0.3) {
+    // a rule on an element outside the lists, over another such leaf: a row's rule is declared on its template
+    const outside = all.filter(({ path }) => !path.includes('['));
+    const sources = outside.filter(({ element }) => element instanceof Field);
+    const { path, element } = pick(outside);
+    const source = pick(sources);
+    element.registerAction(
+      new ConditionalVisibilityAction(new Statement(source.element, Operator.EQUALS, ''), 'hidden', 'full'),
+    );
+    return `register visibility on ${path} over ${source.path}`;
+  }
+  if (choice < 0.5) {
+    const registered = all.filter(({ element }) => registrations(element).length);
+    if (!registered.length) return 'unregister: nothing registered';
+    const { path, element } = pick(registered);
+    const rules = registrations(element);
+    const index = Math.floor(next() * rules.length);
+    element.unregisterAction(rules[index]);
+    return `unregister ${rules[index].constructor.name} [${index}] of ${path}`;
+  }
+  if (choice < 0.6) {
+    const { path, element } = pick(all);
+    element.clearValidators();
+    return `clear validators of ${path}`;
+  }
+  if (choice < 0.8) {
+    const { path, element } = pick(all);
+    const access = pick(accessValues);
+    element.access = access;
+    return `${path}.access = ${access}`;
+  }
+  const groups = all.filter(({ element }) => element instanceof Group) as { path: string; element: Group<any> }[];
+  const { path, element: group } = pick(groups);
+  if (choice < 0.9) {
+    const name = `added${Math.floor(next() * 1000)}`;
+    if (name in group.fields) return `add ${path}.${name}: present`;
+    group.addField(name, new Field({ value: name, validators: [new Validators.Required()] }));
+    return `add ${path}.${name}`;
+  }
+  const names = Object.keys(group.fields);
+  if (!names.length) return `remove from ${path}: empty`;
+  const name = pick(names);
+  group.removeField(name);
+  return `remove ${path}.${name}`;
 }

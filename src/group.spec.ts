@@ -1023,6 +1023,25 @@ describe('Group membership after construction', () => {
     expect(group.fields.b.parent).toBe(group);
   });
 
+  it('puts a member removed in a rolled back transaction back at its position', () => {
+    const group = new Group<GenericFieldsInterface>({
+      a: new Field({ value: 1 }),
+      b: new Field({ value: 2 }),
+      c: new Field({ value: 3 }),
+    });
+
+    expect(() =>
+      transaction(() => {
+        group.removeField('a');
+        group.removeField('c');
+        throw new Error('abandon');
+      }),
+    ).toThrow('abandon');
+
+    expect(Object.keys(group.fields)).toEqual(['a', 'b', 'c']);
+    expect(Object.keys(group.value)).toEqual(['a', 'b', 'c']);
+  });
+
   it('settles value and validity once for a set of changes made in one transaction', () => {
     const onValueChanged = vi.fn();
     const onValidChanged = vi.fn();

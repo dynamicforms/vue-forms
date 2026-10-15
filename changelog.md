@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A container throws a `TypeError` when it is to take itself or a container above it, which made `addField()` and
   `push()` loop without end.
 - `installPlugin()` leaves a plugin whose `setup()` throws uninstalled.
+- A rolled-back `removeField()` puts the member back at its position, so the order of `fields`, of the keys of `value`
+  and of the members a group value writes is the one before the transaction.
 - Once a group has a view, `addField()` refuses the member names a view reserves (`$`, `then`, `__v_*`).
 - The devtools record nothing where there is no `window`, as on a server that renders pages, and drop the entry of
   an element that has been garbage-collected.
