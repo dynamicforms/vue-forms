@@ -299,7 +299,7 @@ on. Each cycle advances `Date.now()` by one second.
 | the same, with a registration on the declaration every 100 cycles | 479 / 192 / -124 | 658 / 240 / 280 |
 | `push()` a row to a 100-row list, `remove(0)` | 1448 / -111 / -2 | 939 / 397 / -2 |
 | `addField()` with `CompareTo`, `unregisterAction()`, `removeField()` | 18 / 30 / -116 | 18 / 30 / -117 |
-| a form with a conditional action and `CompareTo` over a long-lived field, dropped | 2827 / -118 / 0 | 2821 / -114 / 0 |
+| a form with a conditional rule and `CompareTo` over a long-lived field, dropped | 2827 / -118 / 0 | 2821 / -114 / 0 |
 | `addField()` with `Required`, `unregisterAction()`, `removeField()` | 43 / 2 / 2 | 46 / -2 / 2 |
 
 The row template and the declaration each hold 8 fields, so a cycle of the first three scenarios makes 9
