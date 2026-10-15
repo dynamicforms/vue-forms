@@ -1,4 +1,5 @@
 import { isEqual } from 'lodash-es';
+import { vi } from 'vitest';
 import { nextTick, watch, watchEffect } from 'vue';
 
 import { Action } from './action';
@@ -876,5 +877,75 @@ describe('EnabledChangedAction', () => {
     });
 
     expect(seen).toEqual([false]);
+  });
+});
+
+describe('the references a declaration keeps to its bindings', () => {
+  /** A WeakRef whose binding the test collects by setting `collected`. */
+  class ControlledRef<T extends object> {
+    static made: ControlledRef<any>[] = [];
+    collected = false;
+    reads = 0;
+    constructor(readonly target: T) {
+      ControlledRef.made.push(this);
+    }
+    deref(): T | undefined {
+      this.reads += 1;
+      return this.collected ? undefined : this.target;
+    }
+  }
+
+  beforeEach(() => {
+    ControlledRef.made = [];
+    vi.useFakeTimers();
+    vi.stubGlobal('WeakRef', ControlledRef);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  /** the references to bindings: the devtools keep one to every element they list, the declaration included */
+  const bindingRefs = () =>
+    ControlledRef.made.filter(({ target }) => target instanceof FieldBase && target.declaration !== target);
+  const reads = () => bindingRefs().map((ref) => ref.reads);
+
+  it('reads no reference when a binding is recorded within a minute of the last removal', () => {
+    const declaration = new Field({ value: 'a' });
+    declaration.bind('b');
+    vi.advanceTimersByTime(59_999);
+    declaration.bind('c');
+
+    expect(reads()).toEqual([0, 0]);
+  });
+
+  it('removes the references of collected bindings when a binding is recorded a minute after the last removal', () => {
+    const declaration = new Field({ value: 'a' });
+    declaration.bind('b');
+    const kept = declaration.bind('c');
+    bindingRefs()[0].collected = true;
+    vi.advanceTimersByTime(60_000);
+    declaration.bind('d');
+
+    expect(reads()).toEqual([1, 1, 0]);
+
+    // a registration reads the references that remain, and not the removed one
+    declaration.registerAction(new ValueChangedAction(() => undefined));
+    const [removed, ...remaining] = reads();
+    expect(removed).toBe(1);
+    expect(remaining.every((count, index) => count > [1, 0][index])).toBe(true);
+    expect(kept.declaration).toBe(declaration);
+  });
+
+  it('waits another minute after a removal before the next one', () => {
+    const declaration = new Field({ value: 'a' });
+    declaration.bind('b');
+    vi.advanceTimersByTime(60_000);
+    declaration.bind('c');
+    vi.advanceTimersByTime(30_000);
+    declaration.bind('d');
+
+    expect(reads()).toEqual([1, 0, 0]);
   });
 });

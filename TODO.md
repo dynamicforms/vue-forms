@@ -87,17 +87,6 @@ has no page for application state. What it needs, in order:
    transactions, validation, rules between fields and refusing a write; on Pinia's side the devtools timeline, plugins on every action, SSR
    support and `storeToRefs` — and when each fits. No ratings.
 
-## Bindings recorded on a long-lived declaration
-
-A declaration records each binding made from it as a `WeakRef` (`bindingsMade` in `src/field-base.ts`). A dead
-reference is removed only when `boundElements` is read, which a registration, an unregistration and
-`clearValidators()` do. A declaration that makes and drops bindings without a registration, such as a form declaration
-bound for every record a dialog opens, keeps one `WeakRef` object per binding it has made: about 30 to 120 bytes per
-binding in `bench/long-run-harness.mjs` (see "Long-running use" in `bench/RESULTS.md`). A row a list adds and removes
-is such a binding of the item template. Pruning on registration removes few references, because `deref()` returns a
-dropped binding until a full collection has run. Undecided: whether the set is pruned when a binding is
-recorded, or by a `FinalizationRegistry`.
-
 ## `CompareTo` keeps its listener after removal
 
 `CompareTo` registers a `ValueChangedAction` on the compared element and adds the declarations it is registered on to
