@@ -48,12 +48,38 @@ import {
 import { type ErrorOrigin, ValidationError } from './validators/validation-error';
 import { isVisibility, type Visibility, visibilityValues } from './visibility';
 
+/** The references to the bindings made from one declaration, and when the dead ones were last removed. */
+interface BindingsMade {
+  refs: Set<WeakRef<FieldBase>>;
+  sweptAt: number;
+}
+
 /**
  * The bindings made from a declaration, held outside it and weakly: a binding is released with the record it
  * belongs to, and the declaration does not keep it alive. A rule registered on an item template reaches the rows
  * that already exist through this map; the declaration holds no other reference to them.
  */
-const bindingsMade = new WeakMap<object, Set<WeakRef<FieldBase>>>();
+const bindingsMade = new WeakMap<object, BindingsMade>();
+
+/**
+ * Milliseconds between two removals of dead references when a declaration records a binding. A reference whose
+ * binding was collected is removed by the next recording after the interval, so the set of a declaration that
+ * keeps making bindings holds at most the references recorded within one interval besides the live ones. No timer
+ * is involved: a declaration that records nothing keeps its set until its next recording or registration.
+ */
+const SWEEP_INTERVAL = 60_000;
+
+/** Removes the references whose binding was collected and returns the live bindings. */
+function sweep(made: BindingsMade): FieldBase[] {
+  const alive: FieldBase[] = [];
+  made.refs.forEach((ref) => {
+    const binding = ref.deref();
+    if (!binding) made.refs.delete(ref);
+    else alive.push(binding);
+  });
+  made.sweptAt = Date.now();
+  return alive;
+}
 
 /**
  * The parameter keys that name what to register on an element. The constructor registers them and applies the
@@ -682,27 +708,19 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected noteBinding(binding: FieldBase): void {
     let made = bindingsMade.get(this);
     if (!made) {
-      made = new Set();
+      made = { refs: new Set(), sweptAt: Date.now() };
       bindingsMade.set(this, made);
+    } else if (Date.now() - made.sweptAt >= SWEEP_INTERVAL) {
+      sweep(made);
     }
-    made.add(new WeakRef(binding));
+    made.refs.add(new WeakRef(binding));
   }
 
-  /**
-   * The live bindings made from this element's declaration, and the declaration itself. Dead references are removed
-   * when found, so the set does not grow over the life of a long-lived declaration.
-   */
+  /** The live bindings made from this element's declaration and the declaration; removes the dead references. */
   protected get boundElements(): FieldBase[] {
     const declaration = this.declaration;
     const made = bindingsMade.get(declaration);
-    const alive: FieldBase[] = [declaration];
-    if (!made) return alive;
-    made.forEach((ref) => {
-      const binding = ref.deref();
-      if (!binding) made.delete(ref);
-      else alive.push(binding);
-    });
-    return alive;
+    return made ? [declaration, ...sweep(made)] : [declaration];
   }
 
   /**

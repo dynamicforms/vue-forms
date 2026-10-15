@@ -10,6 +10,9 @@
  * growth of process.memoryUsage().heapUsed over the segment divided by CYCLES: a constant positive figure is heap
  * that grows with the number of cycles, figures around zero are heap that does not.
  *
+ * Each cycle advances Date.now() by CYCLE_MS, as one user action a second would: a declaration removes the
+ * references to collected bindings once a minute of that clock, when it records a binding.
+ *
  * The cycles yield to the event loop every YIELD_EVERY cycles, as an application's do between user actions: in
  * development the devtools registry drops the entry of a collected element in a FinalizationRegistry callback, and
  * such a callback runs only when the event loop runs a task.
@@ -36,6 +39,10 @@ const WARMUP = 1000;
 const CYCLES = 10000;
 const SEGMENTS = 3;
 const YIELD_EVERY = 100;
+const CYCLE_MS = 1000;
+
+let now = Date.now();
+Date.now = () => now;
 
 const selfPath = fileURLToPath(import.meta.url);
 
@@ -57,6 +64,7 @@ const heapUsed = async () => {
 const run = async (cycle, count) => {
   for (let i = 0; i < count; i += 1) {
     cycle();
+    now += CYCLE_MS;
     if ((i + 1) % YIELD_EVERY === 0) await yieldToEventLoop();
   }
 };

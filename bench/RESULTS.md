@@ -290,22 +290,24 @@ Re-render counts and `[Vue warn]` counts need a mounted component, which this ha
 `bench/long-run-harness.mjs`, run with `node bench/build-harness.mjs bench/long-run-harness.mjs` on node 26.7.0.
 Each scenario repeats one cycle of use on a long-lived form: 1000 warm-up cycles, then three segments of 10 000
 cycles, each followed by a reading across a full collection. A figure is the heap growth of one segment over its
-number of cycles. A form that releases what a cycle made retains about 0 bytes per cycle in every segment.
+number of cycles. A form that releases what a cycle made retains about 0 bytes per cycle from the second segment
+on. Each cycle advances `Date.now()` by one second.
 
 | scenario | production, bytes per cycle | development, bytes per cycle |
 |---|---:|---:|
-| `declaration.bind(row)`, write one field, drop the binding | 975 / 589 / 707 | 971 / 473 / 287 |
-| the same, with a registration on the declaration every 100 cycles | 831 / 1110 / 256 | 948 / 939 / 281 |
-| `push()` a row to a 100-row list, `remove(0)` | 1057 / 1007 / 286 | 952 / 471 / 811 |
-| `addField()` with `CompareTo`, `unregisterAction()`, `removeField()` | 1830 / 1738 / 1721 | 1830 / 1737 / 1721 |
-| `addField()` with `Required`, `unregisterAction()`, `removeField()` | 46 / -2 / 2 | 46 / 0 / 0 |
+| `declaration.bind(row)`, write one field, drop the binding | 1483 / -111 / 0 | 1485 / -113 / -1 |
+| the same, with a registration on the declaration every 100 cycles | 529 / 141 / 190 | 476 / 296 / -108 |
+| `push()` a row to a 100-row list, `remove(0)` | 1411 / 41 / -1 | 1331 / 3 / 0 |
+| `addField()` with `CompareTo`, `unregisterAction()`, `removeField()` | 1826 / 1737 / 1721 | 1826 / 1738 / 1720 |
+| `addField()` with `Required`, `unregisterAction()`, `removeField()` | 45 / 0 / 0 | 49 / -2 / 2 |
 
 The row template and the declaration each hold 8 fields, so a cycle of the first three scenarios makes 9
-bindings. Their growth is the `WeakRef` a declaration records per binding (`bindingsMade` in
-`src/field-base.ts`): with the recording disabled, the same three scenarios retain between -111 and 294 bytes per
-cycle in the first segment and between -2 and 9 in the last. The figures vary between segments because the set
-that holds the references grows its table in steps. A registration every 100 cycles removes few references:
-`deref()` returns a dropped binding until a full collection has run.
+bindings, and the declaration records a `WeakRef` to each (`bindingsMade` in `src/field-base.ts`). A recording
+made a minute or more after the last removal removes the references whose binding was collected. A binding is
+collected by a full collection, which the harness runs only at a reading, so the first segment holds the
+references of every binding made since the warm-up, and each later segment removes about as many as it records.
+The set therefore holds the references of the bindings made between two full collections, whatever the number of
+cycles.
 
 `CompareTo` leaves one `ValueChangedAction` on the compared field per cycle: after 31 000 cycles the field holds
 31 000 actions, and each write to it runs all of them.
