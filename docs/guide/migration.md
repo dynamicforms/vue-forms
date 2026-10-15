@@ -334,7 +334,7 @@ list.value;              // before: null     after: []
 form.value.lines ?? [];  // the fallback is no longer needed
 ```
 
-Search for `=== null`, `== null` and `?? ` over a container's `value`: a check for an empty container now reads
+Search for `=== null`, `== null` and `??` over a container's `value`: a check for an empty container now reads
 `length === 0` or `isEmpty(...)`. Assigning `null` still empties a container — every member of a group is set to
 `null`, every row of a list is released — and the container then reads `{ a: null, … }` or `[]`.
 
@@ -516,7 +516,7 @@ list.value;                 // before: Record<string, any>[] | null
 4. Review disabled containers that were sent because they held something: they are left out now; make them
    `'readonly'` where their data has to be sent.
 5. Move `ValueChangedAction` handlers on containers that hand the value to a server to `ContributionChangedAction`.
-6. Search for `=== null`, `== null` and `?? ` over a container's `value`, and for lists built without a template that
+6. Search for `=== null`, `== null` and `??` over a container's `value`, and for lists built without a template that
    are handed `null` for an empty record.
 7. Remove guards that disabled a field to protect it from an assignment, and narrow `parent` where a sibling is
    reached through it.
@@ -595,7 +595,6 @@ and no cast on the subclass's side reaches it. A subclass now restates the two m
 inherited accessors answer at that type; an accessor override is needed only where the read is to be filtered. See
 [Widening the value in a subclass](/api/action#widening-the-value-in-a-subclass).
 
-
 ## Upgrading to v0.16.0 (from v0.15.x)
 
 Both breaks are about what a trigger answers with and who an action belongs to. The type checker finds neither, so
@@ -640,7 +639,6 @@ field.visibility;   // before: SUPPRESS — the write went through. after: uncha
 A handler that threw one to stop the rest of the chain while still letting the write happen has to say so: call
 `supr` with the value it wants, or return that value, instead of throwing.
 
-
 ### An action belongs to the declaration
 
 A binding read a copy of its declaration's actions, made when the binding was made. It reads the declaration's own
@@ -664,7 +662,6 @@ Three things follow, and code that leaned on the old behaviour sees them:
 - **A handler that does not call `supr` stops the whole chain.** The handlers of one declaration stand in one
   chain, so a handler watching one row and returning early silences the handlers registered before it — on every
   row. Pass `supr` along and filter on the element instead.
-
 
 ## Upgrading to v0.15.0 (from v0.14.x)
 
@@ -886,7 +883,6 @@ Give such a subclass a `(fields, params)` constructor, or override `bind()` and 
 
 One break is silent and is the one to search for before you upgrade: `Required` trims. The rest throw or are found
 by the type checker.
-
 
 ### `Required` trims, so whitespace alone is no longer a value
 
@@ -1140,7 +1136,6 @@ field.registerActionBefore(new ValueChangedAction((f, supr, v, old) => supr(f, v
 `unregisterAction()` names one element: the same instance goes on serving every other element it was registered
 on, so dropping a validator names the declaration that holds it. A rollback puts back what a
 transaction registered or unregistered.
-
 
 ## The whole journey: 0.6.1 to 0.12.x
 
@@ -1635,7 +1630,7 @@ comparison throws rather than answering, and says so.
 
 ## Upgrading to v0.6.0 (from v0.5.x)
 
-Most projects need three mechanical edits — `.create(` → `new `, dropping `reactiveValue`, and renaming `IField` /
+Most projects need three mechanical edits — `.create(` → `new`, dropping `reactiveValue`, and renaming `IField` /
 `IFieldAction` in type positions. There is a [checklist](#checklist-for-0-6-0) at the end of this section.
 
 ### Fields are constructed with `new`

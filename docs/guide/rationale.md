@@ -12,11 +12,20 @@ field.
 
 ## Design Goals
 
-- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls, Vuetify, Tailwind, or any custom components. The library ships no components. The few members that relate to the interface are listed in [What the library carries for the interface](#what-the-library-carries-for-the-interface), each with the reason it exists.
-- **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over other fields, and the action pipeline lets a handler intercept, transform or abort an event.
-- **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read: assigning a property re-renders whatever read it. A group's value type is inferred from the fields it holds, nested structures included.
-- **Structural serialization**: A group's value has the shape of its fields, and `Group.createFromFormData()` builds a form from a plain object.
-- **Application state, not only forms**: The same elements hold state that no screen displays, such as a shopping cart, the filters of a list view or the settings of an editor, with the same features a form has: per-element tracked reads, changes made in transactions and announced once, validity and validators, rules for what is sent, and actions that react to a change. [`view()`](/api/view) reads such state as plain data, and the cookbook's
+- **UI-Agnostic**: A logic layer for form state, validation and dynamic behaviour. Works with native HTML controls,
+  Vuetify, Tailwind, or any custom components. The library ships no components. The few members that relate to the
+  interface are listed in [What the library carries for the interface](#what-the-library-carries-for-the-interface),
+  each with the reason it exists.
+- **Fields that react to each other**: Conditional visibility, enablement and values are declared as statements over
+  other fields, and the action pipeline lets a handler intercept, transform or abort an event.
+- **Reactive & Type-Safe**: Every member of a field, group or list is a tracked read: assigning a property re-renders
+  whatever read it. A group's value type is inferred from the fields it holds, nested structures included.
+- **Structural serialization**: A group's value has the shape of its fields, and `Group.createFromFormData()` builds a
+  form from a plain object.
+- **Application state, not only forms**: The same elements hold state that no screen displays, such as a shopping cart,
+  the filters of a list view or the settings of an editor, with the same features a form has: per-element tracked reads,
+  changes made in transactions and announced once, validity and validators, rules for what is sent, and actions that
+  react to a change. [`view()`](/api/view) reads such state as plain data, and the cookbook's
   [Application state](/guide/cookbook#application-state) recipe implements a shopping cart this way.
 
 ## When to use it

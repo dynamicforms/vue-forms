@@ -33,6 +33,7 @@ An element's mutable state, including the link to its parent, is in ECMAScript p
 into its parent. Private fields hide it at no per-instance cost.
 
 **Rejected.**
+
 - A non-enumerable accessor per instance: `Object.defineProperty` puts the object into dictionary mode, about 765
   bytes per field, 40 % of an element's retained size.
 - Enumerable symbol keys: lodash compares own enumerable symbols, so two equal fields in different parents compare
@@ -56,6 +57,7 @@ makes `transaction` return `undefined`. A throw in the callback rolls back and r
 anywhere joins it. A method `form.transaction()` would suggest a transaction scoped to `form`.
 
 **Rejected.**
+
 - `tx.setRollbackOnly()` (JDBC): code after the call keeps mutating a transaction that will be rolled back.
 - A handle usable after `transaction()` returns: a rollback after the commit would have to retract announced
   events. A transaction cannot span an `await`; cancelling an edit in a dialog restores a snapshot of the value by
@@ -114,6 +116,7 @@ A caller that neither awaits `execute()` nor attaches `.catch()` gets an unhandl
 catch to a promise an event handler returns, so `@click="save.execute()"` reaches `app.config.errorHandler`.
 
 **Rejected.**
+
 - Catching inside `execute()`: a swallowed submit failure is worse than an unhandled rejection, and a
   library-configured error handler would duplicate Vue's.
 - A synchronous `execute()` with the promise exposed separately: `busy` is cleared when the run settles, so the
@@ -161,6 +164,7 @@ resolve pays nothing. An element whose record never completes stays counted, and
 walks its own subtree.
 
 **Rejected.**
+
 - Revalidating every member at the end of row construction: doubles the validator runs of every row.
 - A static "needs the record" flag on the action class: it cannot tell a pass that resolved from one that did not,
   and every cross-field action author has to set it.
@@ -198,6 +202,7 @@ excess-property error.
 - **Type.** The parameter type is `Partial<IFieldConstructorParams<T>> & Partial<NoInfer<X>>`.
 
 **Rejected.**
+
 - A plain untracked property: a UI layer rendering from `extra` would not update.
 - Replacing the set on write: properties `X` declares as required would read `undefined`.
 - An explicit list of base parameter names: every subclass has to extend it, and a subclass member of the same name
@@ -230,6 +235,7 @@ a reused row equals a fresh `bind()` of the template.
 verdicts, so a verdict change cannot be silenced.
 
 **Rejected.**
+
 - `bind(params)` with the data inside the object: `value` would read as an override, not as the record.
 - `bind(data)` without overrides: `access`, `visibility`, `originalValue` and extended properties are overridden
   per binding.
@@ -264,6 +270,7 @@ CJS build holds two copies of every class and symbol, and a correct value fails 
 provided`. The CJS build was 327 kB of 731 kB, and the UMD build required `lodash` (1.4 MB) as a dependency.
 
 **Rejected.**
+
 - Interchangeable builds via `Symbol.for` and a registry: a cost on every identity check.
 - Keeping CJS and dropping only UMD: keeps the duplication.
 
@@ -307,6 +314,7 @@ declaration.
 `RangeError`.
 
 **Rejected.**
+
 - A composed closure chain: a registration cannot be removed, eagerness is per identifier, and each registration holds
   a closure for the element's lifetime.
 - An index argument for ordering: an off-by-one places a handler in the wrong layer without an error.
@@ -341,6 +349,7 @@ submitted, `<input disabled>` is not. A required section sent as `null` fails, a
 section are not checked, so an optional section with required fields needs no conditional validators.
 
 **Rejected.**
+
 - `contribution` as the name: it names half of what the values decide.
 - String values on `enabled`: `if (field.enabled)` keeps compiling and treats `'disabled'` as truthy.
 - Validating an element that sends nothing over `undefined`: a `Required` inside a disabled optional section would
@@ -366,6 +375,7 @@ and markup. Every package that renders errors already depends on `vuetify-inputs
 identifiers in JavaScript and Python dictionaries.
 
 **Rejected.**
+
 - Translation inside the library (`@dynamicforms/translatable`): needs markdown and plain variants of every message
   and a way to name each validator's values.
 - A `message` option beside `code`: a second text channel that bypasses translation.
@@ -499,6 +509,7 @@ application that does not import it does not bundle it.
   value does not move the baseline.
 
 **Rejected.**
+
 - A strict mode (`Object.freeze` or a warning): it does not stop writes into a `Map`, `Set`, `Date` or private field.
 - Copy on write: a row read from the value would no longer be in the value after the first write.
 - A deep `watch`: it sees a write after it happened, and misses writes through a non-proxy reference.
@@ -535,6 +546,7 @@ writing one into the other in the same transaction; a handler that writes during
 writes commit and roll back together.
 
 **Rejected.**
+
 - Several parents (MobX-State-Tree references, an Apollo cache entry): inherited access, visibility, depth and name
   have no single value, and dependent packages read `parent` as one container.
 - The number of parents chosen by a plugin: plugins are per module instance, so it would change `parent` for every
@@ -557,6 +569,7 @@ added and removed. A container's composed value is frozen and keeps its identity
 observer of committed transactions never sees that partial change.
 
 **Rejected.**
+
 - A hook per event: the observer would receive events of a commit that a later handler rolls back.
 - Copy-on-write state with the announcement after the swap: a handler's write would start a new transaction instead
   of joining the one it reacts to.
@@ -582,6 +595,7 @@ and compares against the value the error was written for, so an error stays when
 back.
 
 **Rejected.**
+
 - A plugin: plugins apply to every element in the module instance; a rule applies per form or subtree. An action is
   shared by bindings, undone by a rollback and found by walking `parent`.
 - A configuration object for the default: the configuration was removed (D-037); a function returning its undo

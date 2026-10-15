@@ -1,4 +1,6 @@
-# List benchmark, after transactions
+# List benchmark results
+
+## List benchmark, after transactions
 
 Same machine, same fixtures and same commands as `BASELINE.md`. Three columns, and they are not the same
 comparison:
@@ -8,7 +10,7 @@ comparison:
   each; every cell is the lower of the two run means. Only that pair is a controlled comparison — the 0.6.1
   column was taken on a different machine and reads about twice as slow for the same code.
 
-## Wall clock
+### Wall clock
 
 | id | scenario | variant | 0.6.1 | 0.7.0 | 0.8.0 | 0.7.0 → 0.8.0 |
 |---|---|---|---:|---:|---:|---:|
@@ -37,7 +39,7 @@ Every acceptance figure the plan set against 0.6.1 still holds with room to spar
 where 20× was asked, a single-field write on a 1000-row list is 3400× faster where 50× was asked, and `remove`
 is 49× faster where 10× was asked.
 
-## What the transaction costs, and where
+### What the transaction costs, and where
 
 The two scenarios that move are the two that modify many elements at once. The cost has two parts, separated by
 re-running S4a with the copy-on-first-write record disabled:
@@ -61,7 +63,7 @@ Two implementation choices were measured on this scenario rather than argued:
   its own, put S4a at 26.9 ms. The map is now restored by an undo the operation registers, which no other
   operation pays for.
 
-## Memory and structure
+### Memory and structure
 
 Measured in the same session as the wall clock above:
 
@@ -78,7 +80,7 @@ Measured in the same session as the wall clock above:
 Transactions add no per-element state: a participant record lives for the length of one operation and is dropped
 with the transaction.
 
-## Not captured here
+### Not captured here
 
 Allocations per row, for the reason `BASELINE.md` gives: counting them means counting constructor calls inside
 the library, which cannot be observed without changing its source. Retained bytes per field stands in.
@@ -88,7 +90,7 @@ Re-render counts and `[Vue warn]` counts need a mounted component; this harness 
 
 ---
 
-# 0.9.0
+## 0.9.0
 
 Same machine, same fixtures and same commands. The 0.8.0 column is carried over from the table above rather than
 re-measured, so this comparison crosses sessions and is not the controlled one that pair is. Two full runs of
@@ -97,7 +99,7 @@ re-measured, so this comparison crosses sessions and is not the controlled one t
 The fixtures build lists of `Group`s of `Field`s and contain no `Action`, so this release changes nothing they
 exercise. The point of the run is that it says so.
 
-## Wall clock
+### Wall clock
 
 | id | scenario | variant | 0.8.0 | 0.9.0 |
 |---|---|---|---:|---:|
@@ -122,7 +124,7 @@ Every cell is inside the run-to-run spread the 0.8.0 section records for it, and
 the widest of it: S2a and the S6 write are the same operation measured twice, and they move in opposite
 directions here.
 
-## Memory and structure
+### Memory and structure
 
 | | 0.8.0 | 0.9.0 |
 |---|---:|---:|
@@ -140,7 +142,7 @@ say.
 
 ---
 
-# 0.10.0
+## 0.10.0
 
 Same machine, same fixtures and same commands. The 0.9.0 column is carried over from the table above rather than
 re-measured, so this comparison crosses sessions. Two full runs of 0.10.0; every cell is the lower of the two run
@@ -151,7 +153,7 @@ eight `Required`s and one `ValueChangedAction`, none of which reads a second ele
 where the release shows, because a `ConditionalVisibilityAction` on `f1` driven by `f0` is exactly the rule that
 cannot be answered while a row is still a set of loose elements.
 
-## Wall clock
+### Wall clock
 
 | id | scenario | variant | 0.9.0 | 0.10.0 |
 |---|---|---|---:|---:|
@@ -176,7 +178,7 @@ The two build scenarios are the ones that move, and only for the conditional var
 figures. Every other cell is inside the spread its own run reports — S1a itself carries ±9 % to ±16 % across
 samples, so read the build pair as the measurement and the rest as noise.
 
-## What the second eager pass costs
+### What the second eager pass costs
 
 The conditional row is built by cloning `f1` before it holds either its siblings or its row, so the pass that
 applies the condition reaches nothing and is run again once the row is assembled. Re-running the build with that
@@ -191,7 +193,7 @@ About 3 % of building a 1000-row list, and nothing measurable on the `push` path
 that asked for it and never by an element that answered on its first pass — a form whose rules all resolve where
 they are declared reads a counter and walks nothing.
 
-## Memory and structure
+### Memory and structure
 
 | | 0.9.0 | 0.10.0 |
 |---|---:|---:|
@@ -217,7 +219,7 @@ element.
 
 ---
 
-# 0.6.1 to 0.10.x, in one table
+## 0.6.1 to 0.10.x, in one table
 
 Every figure below is carried over from the section that measured it; nothing here is a fresh run. **0.10.1
 changes no source under `src/`, so it carries 0.10.0's figures.**
@@ -230,7 +232,7 @@ Two caveats decide how far the columns can be compared:
   crosses a session boundary, so a difference of a few per cent between neighbours is below what the method
   resolves.
 
-## Wall clock, milliseconds, lower is better
+### Wall clock, milliseconds, lower is better
 
 | id | scenario | variant | 0.6.1 | 0.7.0 | 0.8.0 | 0.9.0 | 0.10.x |
 |---|---|---|---:|---:|---:|---:|---:|
@@ -260,7 +262,7 @@ and a single-field write stopped depending on the length of the list. What went 
 assignment, 18.8 ms to 24.7 ms, which is the transaction's own bookkeeping plus the record a rollback restores
 from, over the 9001 elements such an assignment modifies.
 
-## Memory and structure
+### Memory and structure
 
 | | 0.6.1 | 0.7.0 | 0.8.0 | 0.9.0 | 0.10.x |
 |---|---:|---:|---:|---:|---:|
@@ -275,7 +277,7 @@ from, over the 9001 elements such an assignment modifies.
 A field costs **43 % less RAM** than at 0.6.1, which is the state object replacing per-instance property
 descriptors, less the slot and the per-element action record the later releases added back.
 
-## What is still not captured
+### What is still not captured
 
 Allocations per row, for the reason `BASELINE.md` gives: counting them means counting constructor calls inside
 the library, which cannot be observed without changing its source. Retained bytes per field stands in.
@@ -285,7 +287,7 @@ Re-render counts and `[Vue warn]` counts need a mounted component, which this ha
 
 ---
 
-# Long-running use, 3.0.0-alpha.2
+## Long-running use, 3.0.0-alpha.2
 
 `bench/long-run-harness.mjs`, run with `node bench/build-harness.mjs bench/long-run-harness.mjs` on node 26.7.0.
 Each scenario repeats one cycle of use on a long-lived form: 1000 warm-up cycles, then three segments of 10 000

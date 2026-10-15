@@ -7,7 +7,7 @@ Machine: AMD Ryzen 5 5600GT, 12 threads, 31 GiB RAM, Linux 6.1.0-43-amd64, node 
 
 ## Commands
 
-```
+```sh
 npx vitest bench --run                     # ops/s table, optionally with --outputJson=<path>
 node bench/build-harness.mjs       # retained heap, proxies per row, validator runs
 ```

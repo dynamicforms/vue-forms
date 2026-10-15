@@ -105,6 +105,7 @@ template and runs on every score of every round, and `rounds.valid` covers all o
 ## Try It Yourself
 
 Experiment with the list by:
+
 1. Adding a line and leaving its description empty
 2. Setting a quantity above zero on a row without a unit price
 3. Lowering that quantity back to zero

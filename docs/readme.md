@@ -2,7 +2,7 @@
 
 This directory contains the VitePress documentation for `@dynamicforms/vue-forms`.
 
-The documentation is publicly hosted at **https://docs.velis.si/dynamicforms/vue-forms**.
+The documentation is publicly hosted at **<https://docs.velis.si/dynamicforms/vue-forms>**.
 
 ## Development
 
@@ -13,7 +13,7 @@ npm run docs:dev
 ```
 
 It works from the repo root (`docs` is an npm workspace, so the root script just forwards to it) as well as from the
-`docs/` directory. The site will be available at http://localhost:5173/
+`docs/` directory. The site will be available at <http://localhost:5173/>
 
 `npm run docs:preview` serves the production build locally.
 

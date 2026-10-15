@@ -63,7 +63,8 @@ default `'editable'`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-What the group sends to its own container, and the access applied to its members through `effectiveAccess`. See [What a container serializes](/api/container#what-a-container-serializes).
+What the group sends to its own container, and the access applied to its members through `effectiveAccess`. See [What a
+container serializes](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td>
@@ -81,7 +82,9 @@ default same as `value`
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Baseline for `isChanged`. When `value` is absent or explicitly `undefined`, it is also applied to the members as their initial value. When `value` is given, each member it contains takes its part as its `originalValue`, through every nested group; a `List` member takes its part as its own `originalValue`, and its rows keep what they hold
+Baseline for `isChanged`. When `value` is absent or explicitly `undefined`, it is also applied to the members as their
+initial value. When `value` is given, each member it contains takes its part as its `originalValue`, through every
+nested group; a `List` member takes its part as its own `originalValue`, and its rows keep what they hold
 
 </td></tr>
 <tr class="member-head"><td>
@@ -117,17 +120,34 @@ default not assigned
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Initial values applied to matching members; members whose key is absent keep the value they were created with. An absent or explicitly `undefined` `value` assigns nothing, so every member keeps the value it was created with; an explicit `null` clears all of them. When a value is applied, every element below the group records what it holds at the end of the construction as its `originalValue`, so the members start with `isChanged` `false`
+Initial values applied to matching members; members whose key is absent keep the value they were created with. An absent
+or explicitly `undefined` `value` assigns nothing, so every member keeps the value it was created with; an explicit
+`null` clears all of them. When a value is applied, every element below the group records what it holds at the end of
+the construction as its `originalValue`, so the members start with `isChanged` `false`
 
 </td></tr>
 </tbody>
 </table>
 
-The constructor throws if `fields` is not an object of element instances (`Invalid fields object provided`). It also throws a `TypeError` when it receives an element that already belongs to another group or list: an element belongs to one container at a time. Each group needs its own element instances; create one with `field.bind()`. A `List` releases the rows it removes and a `Group` releases the element `removeField()` removes, so both can be added to a container again.
+The constructor throws if `fields` is not an object of element instances (`Invalid fields object provided`). It also
+throws a `TypeError` when it receives an element that already belongs to another group or list: an element belongs to
+one container at a time. Each group needs its own element instances; create one with `field.bind()`. A `List` releases
+the rows it removes and a `Group` releases the element `removeField()` removes, so both can be added to a container
+again.
 
-Member names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`, `constructor`, `__proto__`, …) are accepted: the map has no prototype, and `value` and `fullValue` build their result the same way. The value setter assigns only from the object's own keys, so `group.value = {}` leaves a member named `toString` unchanged and does not assign `Object.prototype.toString` to it. [`addField()`](#addfield-fieldname-field-this) throws `Error('Field <name> is already in this form')` for a name the group already holds.
+Member names are ordinary keys of the `fields` map, so names that collide with `Object.prototype` members (`toString`,
+`constructor`, `__proto__`, …) are accepted: the map has no prototype, and `value` and `fullValue` build their result
+the same way. The value setter assigns only from the object's own keys, so `group.value = {}` leaves a member named
+`toString` unchanged and does not assign `Object.prototype.toString` to it.
+[`addField()`](#addfield-fieldname-field-this) throws `Error('Field <name> is already in this form')` for a name the
+group already holds.
 
-`fields` returns a guarded view of the member map, so the set of members cannot be changed through it: `group.fields.name = otherField`, `Object.defineProperty(group.fields, 'name', …)` and `delete group.fields.name` all throw a `TypeError` naming the method to use instead. An element assigned that way would get no `parent`, `fieldName` or change notifications, and the group would keep counting the validity of a member it no longer holds. The set changes only through `addField()` and `removeField()`. Reading through the view is a tracked read of the set of members, so a template rendering `group.fields` re-renders when a member is added or removed.
+`fields` returns a guarded view of the member map, so the set of members cannot be changed through it:
+`group.fields.name = otherField`, `Object.defineProperty(group.fields, 'name', …)` and `delete group.fields.name` all
+throw a `TypeError` naming the method to use instead. An element assigned that way would get no `parent`, `fieldName` or
+change notifications, and the group would keep counting the validity of a member it no longer holds. The set changes
+only through `addField()` and `removeField()`. Reading through the view is a tracked read of the set of members, so a
+template rendering `group.fields` re-renders when a member is added or removed.
 
 The group writes `parent` and `fieldName` of each member; see [`parent`](/api/field-base#prop-parent). A `Group`
 that is a row of a `List` gets the `List` as its `parent`. Two groups compare by identity; see
@@ -145,7 +165,10 @@ that is a row of a `List` gets the `List` as its `parent`. Two groups compare by
 
 ## `Group.createFromFormData(data)`
 
-Creates a `Group` from a plain `Record<string, any>` so that its `fullValue` equals the data: a plain object becomes a `Group`, an array a `List` without an item template (whose rows are built by the same rule), and any other value a `Field`, at every level. Useful when building a form from raw API data. Passing `null` returns an empty group; passing an already built form structure throws (`data is already a Form structure, should be a simple object`).
+Creates a `Group` from a plain `Record<string, any>` so that its `fullValue` equals the data: a plain object becomes a
+`Group`, an array a `List` without an item template (whose rows are built by the same rule), and any other value a
+`Field`, at every level. Useful when building a form from raw API data. Passing `null` returns an empty group; passing
+an already built form structure throws (`data is already a Form structure, should be a simple object`).
 
 ```typescript
 const form = Group.createFromFormData({ name: 'Alice', score: 42 });
@@ -171,7 +194,9 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-The typed map of members. It is a guarded view over the group's map: reads return the members themselves, and every write throws a `TypeError`; `addField()` and `removeField()` change the set. The read is tracked, so a template rendering it re-renders when members are added or removed
+The typed map of members. It is a guarded view over the group's map: reads return the members themselves, and every
+write throws a `TypeError`; `addField()` and `removeField()` change the set. The read is tracked, so a template
+rendering it re-renders when members are added or removed
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-fullvalue"></a>
@@ -189,7 +214,9 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): what the group holds (`value` is what it sends): every member's `fullValue`, regardless of access. A nested group includes its own full structure. A binding of the group copies this value
+Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): what the group holds (`value` is what it sends):
+every member's `fullValue`, regardless of access. A nested group includes its own full structure. A binding of the group
+copies this value
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-value"></a>
@@ -207,14 +234,24 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.value`](/api/field-base#prop-value): object of the values the members send, by the serialization rule below; `{}` when no member sends anything (a group without members, or one whose members the rule all leaves out). The group's value is never `null`. Each key has its member's own value type, optional and nullable: for `Group<{ age: Field<number> }>`, `group.value.age` is `number | null | undefined`, because a `'disabled'` `age` is left out and a `'disabled-null'` one is `null`. The object is built once per change and returned to every reader until the next change. It is frozen: writing into it throws in strict mode and is ignored otherwise. An array or object a member `Field` holds is not frozen; assign a new one instead of writing into it. The setter takes a `Partial`: absent keys are not changed, and assigning `null` sets every member to `null`
+Overrides [`FieldBase.value`](/api/field-base#prop-value): object of the values the members send, by the serialization
+rule below; `{}` when no member sends anything (a group without members, or one whose members the rule all leaves out).
+The group's value is never `null`. Each key has its member's own value type, optional and nullable: for
+`Group<{ age: Field<number> }>`, `group.value.age` is `number | null | undefined`, because a `'disabled'` `age` is left
+out and a `'disabled-null'` one is `null`. The object is built once per change and returned to every reader until the
+next change. It is frozen: writing into it throws in strict mode and is ignored otherwise. An array or object a member
+`Field` holds is not frozen; assign a new one instead of writing into it. The setter takes a `Partial`: absent keys are
+not changed, and assigning `null` sets every member to `null`
 
 </td></tr>
 </tbody>
 </table>
 
 ::: tip Serialization rule
-`Group.value` includes every member according to its access: an `'editable'` or `'readonly'` member with its value, a `'disabled-null'` one as `null`, and a `'disabled'` one not at all. A nested container is a member like any other, so a `'disabled'` one is left out regardless of what it holds. See [What a container serializes](/api/container#what-a-container-serializes) for the full rules.
+`Group.value` includes every member according to its access: an `'editable'` or `'readonly'` member with its value, a
+`'disabled-null'` one as `null`, and a `'disabled'` one not at all. A nested container is a member like any other, so a
+`'disabled'` one is left out regardless of what it holds. See [What a container
+serializes](/api/container#what-a-container-serializes) for the full rules.
 :::
 
 ## Methods
@@ -308,6 +345,7 @@ of `isChanged` is not changed. When the transaction it ran in is rolled back, th
 ## Inherited members
 
 ::: details Inherited from Container
+
 | Member | Description |
 |--------|-------------|
 | [`busy`](/api/container#prop-busy) | `true` while an `Action.execute()` in any child has not settled |
@@ -317,9 +355,11 @@ of `isChanged` is not changed. When the transaction it ran in is rolled back, th
 | [`touched`](/api/container#prop-touched) | `true` where any child is touched; assigning it assigns every child |
 | [`valid`](/api/container#prop-valid) | `true` where the container's own errors are empty and every child it counts is valid |
 | [`validate(revalidate?)`](/api/container#validate-revalidate-void) | Revalidates every child first with `revalidate: true`, then computes the container's validity |
+
 :::
 
 ::: details Inherited from FieldBase
+
 | Member | Description |
 |--------|-------------|
 | [`access`](/api/field-base#prop-access) | Whether the element accepts input, what it sends to its container, and whether it is validated |
@@ -346,6 +386,7 @@ of `isChanged` is not changed. When the transaction it ran in is rolled back, th
 | [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |
+
 :::
 
 ## `NullableGroup`

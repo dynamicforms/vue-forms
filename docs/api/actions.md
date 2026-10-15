@@ -1,8 +1,11 @@
 # Actions
 
-Actions are event handlers attached to fields, groups, or lists via `registerAction()`. They form a chain: each handler receives a `supr` function to call the next handler in the chain.
+Actions are event handlers attached to fields, groups, or lists via `registerAction()`. They form a chain: each handler
+receives a `supr` function to call the next handler in the chain.
 
-The chain runs in reverse registration order: the action registered last executes first, and its `supr` calls the previously registered action of the same type. If that outermost handler does not call `supr`, none of the remaining handlers run.
+The chain runs in reverse registration order: the action registered last executes first, and its `supr` calls the
+previously registered action of the same type. If that outermost handler does not call `supr`, none of the remaining
+handlers run.
 
 ```typescript
 import { ValueChangedAction } from '@dynamicforms/vue-forms';
@@ -14,7 +17,8 @@ field.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) =>
 ```
 
 ::: tip Calling supr
-Always call `supr(field, newValue, oldValue)` unless you deliberately want to stop the action chain. Validators are also actions and sit in the same chain.
+Always call `supr(field, newValue, oldValue)` unless you deliberately want to stop the action chain. Validators are also
+actions and sit in the same chain.
 :::
 
 ## A handler is synchronous
@@ -223,7 +227,9 @@ differences. On a `List` item template, the `watchEffect()` does not reach the r
 
 ### `ValueChangedAction`
 
-Fires when the element's value changes: a `Field`'s `value` (after the new value is set), and a `Group`'s or a `List`'s `fullValue` when any value below it changes. A change of access changes what is sent, not the value, so it fires [`ContributionChangedAction`](#contributionchangedaction) instead.
+Fires when the element's value changes: a `Field`'s `value` (after the new value is set), and a `Group`'s or a `List`'s
+`fullValue` when any value below it changes. A change of access changes what is sent, not the value, so it fires
+[`ContributionChangedAction`](#contributionchangedaction) instead.
 
 It fires when the [transaction](/api/transactions) containing the change commits, with the value the element holds
 at the end of that transaction: `oldValue` is the value of the last announcement, so a value that goes
@@ -286,17 +292,22 @@ new AccessChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so plainly returning `supr(...)` means "no change to `newValue`". Returning `oldValue` refuses the write: nothing is written and nothing is announced. If the resulting value is none of the four accesses, the setter throws `Error("'x' is not an access: …")` and leaves `field.access` as it was.
+If the action returns `null` or `undefined`, `newValue` is used instead. The default end of the chain returns `null`, so
+plainly returning `supr(...)` means "no change to `newValue`". Returning `oldValue` refuses the write: nothing is
+written and nothing is announced. If the resulting value is none of the four accesses, the setter throws
+`Error("'x' is not an access: …")` and leaves `field.access` as it was.
 
-The setter runs the chain only when the write is a change. Assigning the access the element already has runs no handler and fires no event, so a handler that would return a different value is not called for such a write: `field.access = field.access` leaves the element unchanged. The same holds for `VisibilityChangingAction`.
+The setter runs the chain only when the write is a change. Assigning the access the element already has runs no handler
+and fires no event, so a handler that would return a different value is not called for such a write:
+`field.access = field.access` leaves the element unchanged. The same holds for `VisibilityChangingAction`.
 
 **With `watch()`:** no equivalent. A watcher runs after the write and cannot refuse or change it.
 
 ### `AccessChangedAction`
 
-Fires **after** `field.access` has been updated. It fires when the [transaction](/api/transactions) containing the change commits, once, with the net change: the
-value before the transaction's first write and the value at its end. A change that a transaction undoes or rolls
-back fires nothing.
+Fires **after** `field.access` has been updated. It fires when the [transaction](/api/transactions) containing the
+change commits, once, with the net change: the value before the transaction's first write and the value at its end. A
+change that a transaction undoes or rolls back fires nothing.
 
 ```typescript
 new AccessChangedAction((field, supr, newValue, oldValue) => {
@@ -331,8 +342,8 @@ new EnabledChangingAction((field, supr, newValue, oldValue) => {
 ### `EnabledChangedAction`
 
 Fires **after** a write of `access` has changed `enabled` (a change into or out of `'editable'`), right after
-`AccessChangedAction` at the commit, with the two booleans of the net change. A change between two accesses other than `'editable'` changes what
-the element sends but not `enabled`, and does not fire it.
+`AccessChangedAction` at the commit, with the two booleans of the net change. A change between two accesses other than
+`'editable'` changes what the element sends but not `enabled`, and does not fire it.
 
 ```typescript
 new EnabledChangedAction((field, supr, newValue, oldValue) => {
@@ -357,15 +368,17 @@ new VisibilityChangingAction((field, supr, newValue, oldValue) => {
 })
 ```
 
-If the action returns `null` or `undefined`, `newValue` is used instead. Returning `oldValue` refuses the write: nothing is written and nothing is announced. A result that is none of the four [visibilities](/api/field-base#visibility) makes the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
+If the action returns `null` or `undefined`, `newValue` is used instead. Returning `oldValue` refuses the write: nothing
+is written and nothing is announced. A result that is none of the four [visibilities](/api/field-base#visibility) makes
+the setter throw `Error("'x' is not a visibility: …")` and leaves `field.visibility` as it was.
 
 **With `watch()`:** no equivalent. A watcher runs after the write and cannot refuse or change it.
 
 ### `VisibilityChangedAction`
 
-Fires **after** `field.visibility` has been updated. It fires when the [transaction](/api/transactions) containing the change commits, once, with the net change: the
-value before the transaction's first write and the value at its end. A change that a transaction undoes or rolls
-back fires nothing.
+Fires **after** `field.visibility` has been updated. It fires when the [transaction](/api/transactions) containing the
+change commits, once, with the net change: the value before the transaction's first write and the value at its end. A
+change that a transaction undoes or rolls back fires nothing.
 
 **With `watch()`:** `watch(() => element.visibility, cb)`. See [Actions and `watch()`](#actions-and-watch).
 
@@ -399,7 +412,9 @@ transition and never the validity of a partially applied value. The same holds f
 member, and for `validate(true)` on a container, which revalidates the members first and computes its own validity
 once over the complete set.
 
-**With `watch()`:** `watch(() => element.valid, cb)`. `valid` follows `errors` at once, so the watcher also sees an error pushed by hand before `validate()` is called; `ValidChangedAction` fires only when `validate()` or a validator announces the change. See [Actions and `watch()`](#actions-and-watch).
+**With `watch()`:** `watch(() => element.valid, cb)`. `valid` follows `errors` at once, so the watcher also sees an
+error pushed by hand before `validate()` is called; `ValidChangedAction` fires only when `validate()` or a validator
+announces the change. See [Actions and `watch()`](#actions-and-watch).
 
 ---
 
@@ -420,7 +435,10 @@ field.registerAction(new ExecuteAction((field, supr, params) => {
 field.triggerAction(ExecuteAction, { reason: 'submit' });
 ```
 
-`triggerAction()` returns whatever the chain returns, the `AbortEventHandlingException` a handler threw to end the run (a promise resolving to it where the chain went through an asynchronous handler), or `null` when no action of that type is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and returns the same value, wrapped in a promise.
+`triggerAction()` returns whatever the chain returns, the `AbortEventHandlingException` a handler threw to end the run
+(a promise resolving to it where the chain went through an asynchronous handler), or `null` when no action of that type
+is registered on the field. `Action.execute(params)` on the `Action` class triggers the same action and returns the same
+value, wrapped in a promise.
 
 `canExecute(action): boolean` returns whether the handler can run now on `action`. The base class returns `true`. A
 subclass overrides it with a condition, and [`Action.executable`](/api/action) is `false` while any
@@ -459,7 +477,8 @@ Additions and removals are operations, not states, so they have no net result ov
 operations happened, before the resulting value change. A handler reading `list.value` therefore sees the rows at
 the end of the transaction, not the rows at the time its own item was added.
 
-**With `watch()`:** `watch(() => [...list.items], (rows, oldRows) => …)` observes additions and removals together; the callback compares the two arrays to find the added and removed rows. See [Actions and `watch()`](#actions-and-watch).
+**With `watch()`:** `watch(() => [...list.items], (rows, oldRows) => …)` observes additions and removals together; the
+callback compares the two arrays to find the added and removed rows. See [Actions and `watch()`](#actions-and-watch).
 
 ### `ListItemRemovedAction`
 
@@ -474,7 +493,10 @@ new ListItemRemovedAction((field, supr, item, index) => {
 })
 ```
 
-`item` is the removed row itself, detached from the list (so without `parent`) and holding everything it held while it was in the list: its values, its errors and the change history behind `isChanged`. It is the instance `remove()` returns to the caller, and the one `list.get(index)` returned before the call. `pop()` delegates to `remove()`, so it behaves identically.
+`item` is the removed row itself, detached from the list (so without `parent`) and holding everything it held while it
+was in the list: its values, its errors and the change history behind `isChanged`. It is the instance `remove()` returns
+to the caller, and the one `list.get(index)` returned before the call. `pop()` delegates to `remove()`, so it behaves
+identically.
 
 **With `watch()`:** see `ListItemAddedAction`.
 
@@ -484,7 +506,11 @@ new ListItemRemovedAction((field, supr, item, index) => {
 
 Conditional actions automatically toggle a field property when a `Statement` evaluates to a different boolean.
 
-Conditional actions are eager: `registerAction()` evaluates the statement immediately and sets the field property right away. A conditional action passed to a constructor through `params.actions` does the same once the element is built, over its final value. After that, the executor only runs when the result of the statement changes (`true` → `false` or `false` → `true`), not on every value change. The executor is applied to the fields the action is bound to, not to the fields appearing in the statement.
+Conditional actions are eager: `registerAction()` evaluates the statement immediately and sets the field property right
+away. A conditional action passed to a constructor through `params.actions` does the same once the element is built,
+over its final value. After that, the executor only runs when the result of the statement changes (`true` → `false` or
+`false` → `true`), not on every value change. The executor is applied to the fields the action is bound to, not to the
+fields appearing in the statement.
 
 Registered on a `List`'s item template, a conditional action applies to every row, and **each row has its own
 result**. A statement built from the item template's fields reads the fields of the row it is evaluated for, so
@@ -595,7 +621,9 @@ Enum of supported operators:
 | Membership | `IN`, `NOT_IN`: evaluate `operand2.includes(operand1)` (array or string) and coerce its result to a boolean. `NOT_IN` is the negation of `IN`, so an `operand2` without a callable `includes` gives `IN` `false` and `NOT_IN` `true` |
 | Substring | `INCLUDES`, `NOT_INCLUDES`: `operand1` contains the substring `operand2`; both operands must be strings, otherwise `INCLUDES` is `false` and `NOT_INCLUDES` `true` |
 
-Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`. `Operator.isDefined(value)` returns whether a number or a string is an
+Use `Operator.fromString('and')` to parse a string at runtime. It is case insensitive and also accepts hyphen and space
+variants (`'not equals'`, `'not-in'`, `'not_includes'`); an unrecognised string throws an `Error`.
+`Operator.isDefined(value)` returns whether a number or a string is an
 operator, and returns `false` for an unrecognised string.
 
 `Operator.fromAny(mode)` takes an operator or an operator name: a number is returned as is when it is an
@@ -634,7 +662,9 @@ vatId.registerAction(
 
 Sets `field.value = trueValue` when `statement` transitions to `true`. Does nothing on `false`.
 
-The value is set only on the transition from `false`/`undefined` to `true`: if you later change the value manually, the action will not restore it until the statement goes back to `false` and becomes `true` again. The value is set regardless of the field's access.
+The value is set only on the transition from `false`/`undefined` to `true`: if you later change the value manually, the
+action will not restore it until the statement goes back to `false` and becomes `true` again. The value is set
+regardless of the field's access.
 
 ### `ConditionalStatementAction(statement, executorFn)`
 
@@ -657,13 +687,16 @@ targetField.registerAction(new ConditionalStatementAction(
 | `currentResult` | `boolean` | Current evaluation of the statement |
 | `previousResult` | `boolean \| undefined` | Previous result (`undefined` on first run) |
 
-**With `watch()`:** a `watchEffect()` that reads the statement's fields and sets the member. It does not reach the rows of a `List` when the action would sit on the item template. See [Actions and `watch()`](#actions-and-watch).
+**With `watch()`:** a `watchEffect()` that reads the statement's fields and sets the member. It does not reach the rows
+of a `List` when the action would sit on the item template. See [Actions and `watch()`](#actions-and-watch).
 
 ---
 
 ## Custom actions
 
-For actions that are not conditional, derive from the exported `FieldActionBase`. Every action class must declare a static `classIdentifier`: it is the key under which `ActionsMap` stores the chain. Without it the base class throws `Error('classIdentifier must be declared')` on registration.
+For actions that are not conditional, derive from the exported `FieldActionBase`. Every action class must declare a
+static `classIdentifier`: it is the key under which `ActionsMap` stores the chain. Without it the base class throws
+`Error('classIdentifier must be declared')` on registration.
 
 ```typescript
 import { FieldActionBase } from '@dynamicforms/vue-forms';
