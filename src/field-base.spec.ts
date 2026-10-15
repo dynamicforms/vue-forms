@@ -21,6 +21,7 @@ import { FieldBase } from './field-base';
 import { AbortEventHandlingException } from './field.interface';
 import { Group } from './group';
 import { List } from './list';
+import { ControlledRef } from './tests/controlled-ref';
 import { transaction } from './transaction';
 import { Validators } from './validators';
 import { ValidationError } from './validators/validation-error';
@@ -881,24 +882,9 @@ describe('EnabledChangedAction', () => {
 });
 
 describe('the references a declaration keeps to its bindings', () => {
-  /** A WeakRef whose binding the test collects by setting `collected`. */
-  class ControlledRef<T extends object> {
-    static made: ControlledRef<any>[] = [];
-    collected = false;
-    reads = 0;
-    constructor(readonly target: T) {
-      ControlledRef.made.push(this);
-    }
-    deref(): T | undefined {
-      this.reads += 1;
-      return this.collected ? undefined : this.target;
-    }
-  }
-
   beforeEach(() => {
-    ControlledRef.made = [];
     vi.useFakeTimers();
-    vi.stubGlobal('WeakRef', ControlledRef);
+    ControlledRef.install();
   });
 
   afterEach(() => {

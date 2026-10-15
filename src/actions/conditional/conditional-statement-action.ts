@@ -4,7 +4,8 @@ import { FieldActionExecute } from '../../field.interface';
 import { bindingsIn, scopeOf } from '../../resolve';
 import { currentTransaction } from '../../transaction';
 import type { Visibility } from '../../visibility';
-import { Outermost } from '../field-action-base';
+import { WeakElements } from '../../weak-elements';
+import { Outermost, ReleaseIfAbandoned } from '../field-action-base';
 import { ValueChangedAction } from '../value-changed-action';
 
 import { Statement } from './statement';
@@ -24,11 +25,12 @@ export class ConditionalStatementAction extends ValueChangedAction {
   private readonly conditionalExecutor: ConditionalExecutorFn;
 
   /**
-   * The declarations of the elements this action was registered on. It holds declarations, not the elements, so one
+   * The declarations of the elements this action is registered on. It holds declarations, not the elements, so one
    * entry covers every row of a list; a result is applied to the element that corresponds to the declaration within
-   * the record the change happened in.
+   * the record the change happened in. They are held weakly: the relay on a field the statement reads keeps this
+   * action reachable, and a form dropped without unregistering the action is released all the same.
    */
-  private readonly declarations = new Set<FieldBase>();
+  private readonly declarations = new WeakElements<FieldBase>();
 
   /**
    * The elements this action was registered on. Registration happens one element at a time (the rows of a list
@@ -58,24 +60,42 @@ export class ConditionalStatementAction extends ValueChangedAction {
       return supr(source, ...params);
     });
     (this.relay as any)[Outermost] = true;
+    // the relay outlives the action's elements when the statement reads a field outside them; a field the relay is
+    // registered on asks the action to remove it once they are all collected
+    (this.relay as any)[ReleaseIfAbandoned] = () => {
+      if (this.bound && this.declarations.alive.length === 0) this.stopListening();
+    };
     this.listen();
   }
 
   /**
    * The listener on the fields the statement reads. The constructor installs it; it is removed when the action is
-   * taken off its last element and installed again when the action is next registered.
+   * taken off its last element or its elements are collected, and installed again when the action is next
+   * registered.
    */
   private readonly relay: ValueChangedAction;
 
-  /** The number of elements the action is registered on; the relay is removed when it drops to zero. */
-  private registered = 0;
-
   private listening = false;
+
+  /** Whether the action has been registered on an element; until then the relay waits for its first element. */
+  private bound = false;
 
   private listen(): void {
     if (this.listening) return;
     this.listening = true;
     this.statement.collectFields().forEach((field) => field.registerAction(this.relay));
+  }
+
+  /** Removes the relay from the fields the statement reads; a rollback restores it with the flag. */
+  private stopListening(): void {
+    if (!this.listening) return;
+    // a rollback re-registers the relay first and the action on its element after it (newest undo first), so the
+    // flag is restored in between and the re-registered action does not install the relay a second time
+    currentTransaction()?.whenRolledBack(() => {
+      this.listening = true;
+    });
+    this.listening = false;
+    this.statement.collectFields().forEach((field) => field.unregisterAction(this.relay));
   }
 
   static get classIdentifier() {
@@ -88,8 +108,8 @@ export class ConditionalStatementAction extends ValueChangedAction {
 
   boundToBinding(binding: FieldBase) {
     this.declarations.add(binding.declaration);
-    if (!this.registrations.has(binding)) this.registered++;
     this.registrations.add(binding);
+    this.bound = true;
     this.listen();
   }
 
@@ -99,18 +119,13 @@ export class ConditionalStatementAction extends ValueChangedAction {
   }
 
   unregisterFrom(binding: FieldBase) {
-    if (this.registrations.delete(binding)) this.registered--;
-    // taken off the last element, the action has nothing left to apply, and the listener it installed on the fields
-    // the statement reads is removed with it
-    if (this.registered === 0 && this.listening) {
-      // a rollback re-registers the relay first and the action on its element after it (newest undo first), so the
-      // flag is restored in between and the re-registered action does not install the relay a second time
-      currentTransaction()?.whenRolledBack(() => {
-        this.listening = true;
-      });
-      this.listening = false;
-      this.statement.collectFields().forEach((field) => field.unregisterAction(this.relay));
-    }
+    this.registrations.delete(binding);
+    // the declaration itself is released when the action leaves its map, which every binding of it reads; a rollback
+    // binds the action to the declaration again, which adds it back
+    if (binding === binding.declaration) this.declarations.delete(binding);
+    // taken off the last declaration, the action has nothing left to apply, and the listener it installed on the
+    // fields the statement reads is removed with it
+    if (this.declarations.alive.length === 0) this.stopListening();
   }
 
   /**
@@ -119,7 +134,7 @@ export class ConditionalStatementAction extends ValueChangedAction {
    */
   private targetsIn(scope: FieldBase): FieldBase[] {
     const targets: FieldBase[] = [];
-    this.declarations.forEach((declaration) =>
+    this.declarations.alive.forEach((declaration) =>
       bindingsIn(declaration, scope).forEach((target) => {
         if (this.registrations.has(target)) targets.push(target);
       }),

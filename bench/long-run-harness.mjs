@@ -21,6 +21,9 @@ import { spawnSync } from 'node:child_process';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { ConditionalVisibilityAction } from '../src/actions/conditional/conditional-statement-action';
+import Operator from '../src/actions/conditional/operator';
+import { Statement } from '../src/actions/conditional/statement';
 import { Field } from '../src/field';
 import { Group } from '../src/group';
 import { List } from '../src/list';
@@ -130,6 +133,20 @@ const scenarios = {
         form.removeField('confirmation');
       },
       count: () => `${registrationCount(form.fields.password)} actions on the compared field`,
+    };
+  },
+
+  'build a form with rules over a long-lived field and drop it': () => {
+    const setting = new Field({ value: false });
+    return {
+      cycle: () => {
+        const dialog = new Group({ name: new Field({ value: '' }) });
+        dialog.fields.name.registerAction(
+          new ConditionalVisibilityAction(new Statement(setting, Operator.EQUALS, true)),
+        );
+        dialog.fields.name.registerAction(new CompareTo(setting, () => true));
+      },
+      count: () => `${registrationCount(setting)} actions on the long-lived field`,
     };
   },
 

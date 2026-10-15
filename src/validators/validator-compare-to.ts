@@ -1,8 +1,11 @@
 import { unref } from 'vue';
 
 import { ValueChangedAction } from '../actions';
+import { ReleaseIfAbandoned } from '../actions/field-action-base';
 import type { FieldBase } from '../field-base';
 import { bindingsIn, resolveByName, resolveInScope, scopeOf } from '../resolve';
+import { currentTransaction } from '../transaction';
+import { WeakElements } from '../weak-elements';
 
 import { ValidationErrorOptions, ValidationFunction, Validator, ValidatorBindingState } from './validator';
 
@@ -29,17 +32,25 @@ export default class CompareTo<T = any> extends Validator {
   private readonly registrations = new WeakSet<FieldBase>();
 
   /**
-   * The elements this validator has installed its listener on. A binding of such an element has the listener too
-   * (a binding uses the actions of its declaration), so the declaration is checked as well, and a list of N rows
-   * installs one listener, not N.
+   * The declarations of the elements this validator has installed its listener on. A registration goes into the map
+   * of the element's declaration, which every binding of it uses, so a list of N rows installs one listener, not N.
    */
-  private readonly listening = new WeakSet<FieldBase>();
+  private readonly listening = new WeakElements<FieldBase>();
 
   /**
-   * The declarations of the fields this validator was registered on. One entry covers every binding of such a
+   * The declarations of the fields this validator is registered on. One entry covers every binding of such a
    * field, so a change of a compared element finds the fields of its record without this set holding every row.
+   * They are held weakly: the listener on the compared element keeps this validator reachable, and a form dropped
+   * without unregistering the validator is released all the same.
    */
-  private readonly declarations = new Set<FieldBase>();
+  private readonly declarations = new WeakElements<FieldBase>();
+
+  /**
+   * The listener on the compared elements, one instance for all of them. It is removed when the validator is taken
+   * off its last declaration, or, once its declarations are collected, when an element it is registered on asks it
+   * to release itself.
+   */
+  private readonly relay: ValueChangedAction;
 
   constructor(
     otherField: CompareToTarget,
@@ -73,6 +84,21 @@ export default class CompareTo<T = any> extends Validator {
 
     super(validationFn);
     this.otherField = otherField;
+    this.relay = new ValueChangedAction((oField, supr, oNewValue, oOldValue) => {
+      supr(oField, oNewValue, oOldValue);
+      const scope = scopeOf(oField);
+      this.declarations.alive.forEach((declaration) =>
+        bindingsIn(declaration, scope).forEach((mine) => {
+          // of the declaration's elements, only those the validator is registered on are revalidated, so a rule
+          // registered on one row of a list applies only to that row
+          if (!this.registrations.has(mine)) return;
+          this.execute(mine, () => null, mine.contribution, this.comparisonState(mine).oldValue);
+        }),
+      );
+    });
+    (this.relay as any)[ReleaseIfAbandoned] = () => {
+      if (this.declarations.alive.length === 0) this.stopListening();
+    };
   }
 
   /** The element `field` is compared against, within the record `field` belongs to. */
@@ -89,22 +115,20 @@ export default class CompareTo<T = any> extends Validator {
    * declaration applies to that row; it re-runs only this validator, not the whole chain.
    */
   private listenOn(other: FieldBase): void {
-    if (this.listening.has(other) || this.listening.has(other.declaration)) return;
-    this.listening.add(other);
-    other.registerAction(
-      new ValueChangedAction((oField, supr, oNewValue, oOldValue) => {
-        supr(oField, oNewValue, oOldValue);
-        const scope = scopeOf(oField);
-        this.declarations.forEach((declaration) =>
-          bindingsIn(declaration, scope).forEach((mine) => {
-            // of the declaration's elements, only those the validator is registered on are revalidated, so a rule
-            // registered on one row of a list applies only to that row
-            if (!this.registrations.has(mine)) return;
-            this.execute(mine, () => null, mine.contribution, this.comparisonState(mine).oldValue);
-          }),
-        );
-      }),
-    );
+    if (this.listening.has(other.declaration)) return;
+    this.listening.add(other.declaration);
+    other.registerAction(this.relay);
+  }
+
+  /** Removes the listener from every compared element; a rollback restores it and the record of the elements. */
+  private stopListening(): void {
+    const listening = this.listening.alive;
+    if (listening.length === 0) return;
+    currentTransaction()?.whenRolledBack(() => listening.forEach((element) => this.listening.add(element)));
+    listening.forEach((element) => {
+      this.listening.delete(element);
+      element.unregisterAction(this.relay);
+    });
   }
 
   boundToBinding(binding: FieldBase) {
@@ -126,5 +150,10 @@ export default class CompareTo<T = any> extends Validator {
     // compared element revalidates
     super.unregisterFrom(binding);
     this.registrations.delete(binding);
+    // the declaration itself is released when the validator leaves its map, which every binding of it reads; a
+    // rollback binds the validator to the declaration again, which adds it back. Off its last declaration, the
+    // validator has nothing to revalidate, and its listener is removed from the compared elements
+    if (binding === binding.declaration) this.declarations.delete(binding);
+    if (this.declarations.alive.length === 0) this.stopListening();
   }
 }

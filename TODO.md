@@ -87,15 +87,6 @@ has no page for application state. What it needs, in order:
    transactions, validation, rules between fields and refusing a write; on Pinia's side the devtools timeline, plugins on every action, SSR
    support and `storeToRefs` — and when each fits. No ratings.
 
-## `CompareTo` keeps its listener after removal
-
-`CompareTo` registers a `ValueChangedAction` on the compared element and adds the declarations it is registered on to
-a `Set`. `unregisterFrom()` removes neither: the listener stays on the compared element and the `Set` keeps the
-declarations reachable. The listener applies nothing after removal, because it revalidates only the elements the
-validator is still registered on. A form that adds a field with `CompareTo` and removes it again retains about
-1.7 KiB per cycle, and the compared field keeps one action per cycle, all of which run on each write to it (see
-"Long-running use" in `bench/RESULTS.md`).
-
 ## A test of the packed package
 
 `scripts/verify-artifact.mjs` imports the built `dist/` from the repository. A test that installs the output of

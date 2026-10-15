@@ -295,11 +295,12 @@ on. Each cycle advances `Date.now()` by one second.
 
 | scenario | production, bytes per cycle | development, bytes per cycle |
 |---|---:|---:|
-| `declaration.bind(row)`, write one field, drop the binding | 1483 / -111 / 0 | 1485 / -113 / -1 |
-| the same, with a registration on the declaration every 100 cycles | 529 / 141 / 190 | 476 / 296 / -108 |
-| `push()` a row to a 100-row list, `remove(0)` | 1411 / 41 / -1 | 1331 / 3 / 0 |
-| `addField()` with `CompareTo`, `unregisterAction()`, `removeField()` | 1826 / 1737 / 1721 | 1826 / 1738 / 1720 |
-| `addField()` with `Required`, `unregisterAction()`, `removeField()` | 45 / 0 / 0 | 49 / -2 / 2 |
+| `declaration.bind(row)`, write one field, drop the binding | 1484 / 20 / -17 | 1483 / -111 / -2 |
+| the same, with a registration on the declaration every 100 cycles | 479 / 192 / -124 | 658 / 240 / 280 |
+| `push()` a row to a 100-row list, `remove(0)` | 1448 / -111 / -2 | 939 / 397 / -2 |
+| `addField()` with `CompareTo`, `unregisterAction()`, `removeField()` | 18 / 30 / -116 | 18 / 30 / -117 |
+| a form with a conditional rule and `CompareTo` over a long-lived field, dropped | 2827 / -118 / 0 | 2821 / -114 / 0 |
+| `addField()` with `Required`, `unregisterAction()`, `removeField()` | 43 / 2 / 2 | 46 / -2 / 2 |
 
 The row template and the declaration each hold 8 fields, so a cycle of the first three scenarios makes 9
 bindings, and the declaration records a `WeakRef` to each (`bindingsMade` in `src/field-base.ts`). A recording
@@ -309,8 +310,11 @@ references of every binding made since the warm-up, and each later segment remov
 The set therefore holds the references of the bindings made between two full collections, whatever the number of
 cycles.
 
-`CompareTo` leaves one `ValueChangedAction` on the compared field per cycle: after 31 000 cycles the field holds
-31 000 actions, and each write to it runs all of them.
+A rule of a dropped form that reads a field outside it registers a handler on that field: one for the conditional
+action and one for `CompareTo`. The rule holds the form's elements weakly, and a registration on the field a minute
+or more after the previous check removes the handlers whose rules have no element left. As with the references to
+bindings, the handlers of forms dropped since the last full collection remain: after the last segment the field
+holds 20 000, two for each form of that segment.
 
 The cycles yield to the event loop every 100 cycles. In development the devtools registry drops the entry of a
 collected element in a `FinalizationRegistry` callback, which runs only when the event loop runs a task; a loop

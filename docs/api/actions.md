@@ -568,7 +568,14 @@ new Statement(form.fields.typo, Operator.EQUALS, 1);
 // TypeError: Statement operand 1 is undefined: an operand is a field, a nested statement or a literal, …
 ```
 
-`Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on any field. One handler is registered per field regardless of how many rows read it, and the handler re-evaluates the record the change happened in.
+`Statement` itself is passive: it computes its value only when you call `evaluate()`. Reactivity comes from the
+conditional action you pass it to: its constructor uses `collectFields()` to gather every field appearing in the
+statement and registers a `ValueChangedAction` on each of them, so the statement is re-evaluated whenever any of those
+fields changes. This happens when you write `new ConditionalVisibilityAction(stmt)`, before the action is registered on
+any field. One handler is registered per field regardless of how many rows read it, and the handler re-evaluates the
+record the change happened in. The handler is removed when the action is unregistered from its last element. An action
+whose elements have all been collected, such as a rule of a dropped form over a field outside it, has its handler
+removed by the next registration on that field made a minute or more after the previous such check.
 
 `collectFields(): Set<FieldBase>` is public: it walks the statement and its nested statements and returns the field
 instances themselves, which is useful when you want to attach your own handlers to the same set.
