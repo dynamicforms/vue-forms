@@ -274,8 +274,11 @@ export class Group<
       const field: FieldBase = this._fields[fieldName];
       tx.touch(this);
       this.releaseChild(field);
+      // the undo reinstates every entry, so the member returns to its position: the order of the map is the order
+      // of `fields`, of the keys of `value` and of the writes a group value makes
+      const entries = Object.entries(this._fields);
       Group.dropEntry(this._fields, fieldName);
-      tx.whenRolledBack(() => Group.setEntry(this._fields, fieldName, field));
+      tx.whenRolledBack(() => Group.restoreEntries(this._fields, entries));
       this.state.fieldNames.splice(this.state.fieldNames.indexOf(fieldName), 1);
       this.bumpValueVersion();
       this.notifyValueChanged();
@@ -295,6 +298,12 @@ export class Group<
   /** Removes one entry from the member map. */
   private static dropEntry(fields: GenericFieldsInterface, fieldName: string): void {
     delete (fields as Record<string, FieldBase | undefined>)[fieldName];
+  }
+
+  /** Replaces the entries of the member map with `entries`, in their order. */
+  private static restoreEntries(fields: GenericFieldsInterface, entries: [string, FieldBase][]): void {
+    Object.keys(fields).forEach((name) => Group.dropEntry(fields, name));
+    entries.forEach(([name, field]) => Group.setEntry(fields, name, field));
   }
 
   private static isValidFields(flds: unknown): flds is Record<string, FieldBase> {

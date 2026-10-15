@@ -282,3 +282,34 @@ the library, which cannot be observed without changing its source. Retained byte
 
 Re-render counts and `[Vue warn]` counts need a mounted component, which this harness has none of. They live in
 `src/tests/reactivity-render.spec.ts`, which has passed unedited through every release in the table.
+
+---
+
+# Long-running use, 3.0.0-alpha.2
+
+`bench/long-run-harness.mjs`, run with `node bench/build-harness.mjs bench/long-run-harness.mjs` on node 26.7.0.
+Each scenario repeats one cycle of use on a long-lived form: 1000 warm-up cycles, then three segments of 10 000
+cycles, each followed by a reading across a full collection. A figure is the heap growth of one segment over its
+number of cycles. A form that releases what a cycle made retains about 0 bytes per cycle in every segment.
+
+| scenario | production, bytes per cycle | development, bytes per cycle |
+|---|---:|---:|
+| `declaration.bind(row)`, write one field, drop the binding | 975 / 589 / 707 | 971 / 473 / 287 |
+| the same, with a registration on the declaration every 100 cycles | 831 / 1110 / 256 | 948 / 939 / 281 |
+| `push()` a row to a 100-row list, `remove(0)` | 1057 / 1007 / 286 | 952 / 471 / 811 |
+| `addField()` with `CompareTo`, `unregisterAction()`, `removeField()` | 1830 / 1738 / 1721 | 1830 / 1737 / 1721 |
+| `addField()` with `Required`, `unregisterAction()`, `removeField()` | 46 / -2 / 2 | 46 / 0 / 0 |
+
+The row template and the declaration each hold 8 fields, so a cycle of the first three scenarios makes 9
+bindings. Their growth is the `WeakRef` a declaration records per binding (`bindingsMade` in
+`src/field-base.ts`): with the recording disabled, the same three scenarios retain between -111 and 294 bytes per
+cycle in the first segment and between -2 and 9 in the last. The figures vary between segments because the set
+that holds the references grows its table in steps. A registration every 100 cycles removes few references:
+`deref()` returns a dropped binding until a full collection has run.
+
+`CompareTo` leaves one `ValueChangedAction` on the compared field per cycle: after 31 000 cycles the field holds
+31 000 actions, and each write to it runs all of them.
+
+The cycles yield to the event loop every 100 cycles. In development the devtools registry drops the entry of a
+collected element in a `FinalizationRegistry` callback, which runs only when the event loop runs a task; a loop
+that never yields keeps every entry, 6.5 to 7.2 KiB per cycle of the first scenario.

@@ -92,15 +92,20 @@ has no page for application state. What it needs, in order:
 A declaration records each binding made from it as a `WeakRef` (`bindingsMade` in `src/field-base.ts`). A dead
 reference is removed only when `boundElements` is read, which a registration, an unregistration and
 `clearValidators()` do. A declaration that makes and drops bindings without a registration, such as a form declaration
-bound for every record a dialog opens, keeps one `WeakRef` object per binding it has made. The size is not measured.
-Undecided: whether the set is pruned when a binding is recorded, or by a `FinalizationRegistry`.
+bound for every record a dialog opens, keeps one `WeakRef` object per binding it has made: about 30 to 120 bytes per
+binding in `bench/long-run-harness.mjs` (see "Long-running use" in `bench/RESULTS.md`). A row a list adds and removes
+is such a binding of the item template. Pruning on registration removes few references, because `deref()` returns a
+dropped binding until a full collection has run. Undecided: whether the set is pruned when a binding is
+recorded, or by a `FinalizationRegistry`.
 
 ## `CompareTo` keeps its listener after removal
 
 `CompareTo` registers a `ValueChangedAction` on the compared element and adds the declarations it is registered on to
 a `Set`. `unregisterFrom()` removes neither: the listener stays on the compared element and the `Set` keeps the
 declarations reachable. The listener applies nothing after removal, because it revalidates only the elements the
-validator is still registered on. The size is not measured.
+validator is still registered on. A form that adds a field with `CompareTo` and removes it again retains about
+1.7 KiB per cycle, and the compared field keeps one action per cycle, all of which run on each write to it (see
+"Long-running use" in `bench/RESULTS.md`).
 
 ## A test of the packed package
 

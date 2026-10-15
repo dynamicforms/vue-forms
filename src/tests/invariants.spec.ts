@@ -2,7 +2,17 @@ import { Action } from '../action';
 import { SubmitAction } from '../actions';
 import { transaction } from '../transaction';
 
-import { edit, leaves, lists, random, realisticForms, snapshot } from './realistic-forms';
+import {
+  detachedLinks,
+  edit,
+  leaves,
+  lists,
+  random,
+  realisticForms,
+  snapshot,
+  structuralEdit,
+  structure,
+} from './realistic-forms';
 
 const SEEDS = Array.from({ length: 25 }, (_, index) => index + 1);
 const EDITS = 8;
@@ -108,6 +118,64 @@ describe.each(realisticForms)('invariants of the $name form', (fixture) => {
       ).toThrow('abandon');
 
       expect(snapshot(form)).toEqual(before);
+    });
+
+    it.each(SEEDS)(
+      'a rolled back transaction of structural edits (seed %i) restores the values, the links and the rules',
+      (seed) => {
+        const form = fixture.build(record);
+        const next = random(seed);
+        const before = { snapshot: snapshot(form), structure: structure(form) };
+        const log: string[] = [];
+
+        expect(() =>
+          transaction(() => {
+            Array.from({ length: EDITS }, () =>
+              log.push(next() < 0.5 ? structuralEdit(form, next) : edit(form, fixture, next)),
+            );
+            throw new Error('abandon');
+          }),
+        ).toThrow('abandon');
+
+        expect(structure(form), log.join('; ')).toEqual(before.structure);
+        expect(snapshot(form), log.join('; ')).toEqual(before.snapshot);
+      },
+    );
+
+    it.each(SEEDS)(
+      'after a rolled back transaction of structural edits (seed %i) the form answers edits as an untouched one',
+      (seed) => {
+        const form = fixture.build(record);
+        const untouched = fixture.build(record);
+        const next = random(seed);
+        const log: string[] = [];
+
+        expect(() =>
+          transaction(() => {
+            Array.from({ length: EDITS }, () => log.push(structuralEdit(form, next)));
+            throw new Error('abandon');
+          }),
+        ).toThrow('abandon');
+
+        const edits = random(seed + 1000);
+        const twin = random(seed + 1000);
+        Array.from({ length: EDITS }, () => {
+          log.push(edit(form, fixture, edits));
+          edit(untouched, fixture, twin);
+        });
+
+        expect(snapshot(form), log.join('; ')).toEqual(snapshot(untouched));
+      },
+    );
+
+    it.each(SEEDS)('structural edits (seed %i) keep every element held by the container it names', (seed) => {
+      const form = fixture.build(record);
+      const next = random(seed);
+      const log = Array.from({ length: EDITS }, () =>
+        next() < 0.5 ? structuralEdit(form, next) : edit(form, fixture, next),
+      );
+
+      expect(detachedLinks(form), log.join('; ')).toEqual([]);
     });
 
     it.each(SEEDS)('a submit the server echoes (seed %i) leaves no change', async (seed) => {
