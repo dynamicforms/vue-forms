@@ -1,6 +1,7 @@
 import { truncate } from 'lodash-es';
 import { type Ref, unref } from 'vue';
 
+import { namespaced } from './error-namespace';
 import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 import { isEmptyValue } from './value-checks';
 
@@ -29,7 +30,7 @@ export default class InAllowedValues<T = any> extends Validator {
       const values = resolve();
       if (!values.includes(unref(newValue))) {
         return [
-          this.errorFor(options, 'in_allowed_values', 'Must be one of [{allowedAsText}]', {
+          this.errorFor(options, namespaced('in_allowed_values'), 'Must be one of [{allowedAsText}]', {
             newValue,
             oldValue,
             allowedValues: values,

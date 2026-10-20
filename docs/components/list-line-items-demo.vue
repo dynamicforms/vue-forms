@@ -107,7 +107,7 @@ lineItem.fields.unitPrice.registerAction(new Validators.Validator((newValue, old
     return null;
   }
   if (row.fields.quantity.value > 0 && (newValue === null || newValue === '')) {
-    return [new ValidationError('unit_price_required', {}, 'Unit price is required when quantity is above zero')];
+    return [new ValidationError('app.unit_price_required', {}, 'Unit price is required when quantity is above zero')];
   }
   return null;
 }));

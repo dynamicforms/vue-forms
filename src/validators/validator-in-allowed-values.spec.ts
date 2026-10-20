@@ -150,7 +150,7 @@ describe('InAllowedValues Validator with a list that arrives later', () => {
   it('states the in_allowed_values code on the error it produces', () => {
     const field = new Field({ value: 'blue', validators: [new InAllowedValues(['red'])] });
 
-    expect(field.errors[0].code).toBe('in_allowed_values');
+    expect(field.errors[0].code).toBe('vue-forms.in_allowed_values');
   });
 });
 

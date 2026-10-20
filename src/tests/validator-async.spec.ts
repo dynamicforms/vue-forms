@@ -80,6 +80,7 @@ describe('Asynchronous validation sequencing', () => {
 
     expect(field.errors.length).toBe(1);
     expect(messageOf(field.errors[0])).toBe('Validation could not be completed');
+    expect(field.errors[0].code).toBe('vue-forms.validation_failed');
     expect(field.valid).toBe(false);
     expect(field.validating).toBe(false);
     expect(consoleError).toHaveBeenCalledTimes(1);

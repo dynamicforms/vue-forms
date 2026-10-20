@@ -1,6 +1,7 @@
 import { isString } from 'lodash-es';
 import { unref } from 'vue';
 
+import { namespaced } from './error-namespace';
 import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 import { toLength } from './value-checks';
 
@@ -19,7 +20,7 @@ export default class Required extends Validator {
     const validationFn: ValidationFunction = (newValue, oldValue) => {
       const value = unref(newValue);
       if (toLength(trim && isString(value) ? value.trim() : value) === 0) {
-        return [this.errorFor(options, 'required', 'Please enter a value', { newValue, oldValue })];
+        return [this.errorFor(options, namespaced('required'), 'Please enter a value', { newValue, oldValue })];
       }
       return null;
     };

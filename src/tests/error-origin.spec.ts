@@ -128,7 +128,7 @@ describe('An error of origin server, under the default rule', () => {
     form.fields.name.value = 'bc';
     form.fields.name.touched = true;
 
-    expect(codes(form.fields.name)).toEqual(['checked', 'min_length']);
+    expect(codes(form.fields.name)).toEqual(['checked', 'vue-forms.min_length']);
     expect(codes(form.fields.city)).toEqual(['unknown']);
   });
 

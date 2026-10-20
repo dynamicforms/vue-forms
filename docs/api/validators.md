@@ -52,7 +52,7 @@ import { Validators, ValidationError } from '@dynamicforms/vue-forms';
 
 const myValidator = new Validators.Validator(async (newValue, oldValue, field) => {
   if (newValue === 'forbidden') {
-    return [new ValidationError('forbidden', {}, 'This value is not allowed')];
+    return [new ValidationError('app.forbidden', {}, 'This value is not allowed')];
   }
   return null; // no errors
 });
@@ -93,13 +93,14 @@ state `Validator` itself stores is `ValidatorBindingState`.
 `protected errorFor(options, code, detail, params)` returns the `ValidationError` a validator reports where it takes
 `ValidationErrorOptions` as the built-in ones do: the `code` and `detail` from `options` where they are set, else
 `code` and `detail`, with each `{name}` placeholder of the detail that names a key of `params` replaced by that
-param, in one pass.
+param, in one pass. Both codes are used as given; a subclass of the application passes a code in its own
+namespace.
 
 ```typescript
 class Even extends Validators.Validator<number> {
   constructor(options?: Validators.ValidationErrorOptions) {
     super((value) =>
-      value == null || value % 2 === 0 ? null : [this.errorFor(options, 'even', 'Value must be even', {})],
+      value == null || value % 2 === 0 ? null : [this.errorFor(options, 'app.even', 'Value must be even', {})],
     );
   }
 }
@@ -124,7 +125,7 @@ so a synchronous result also supersedes a pending asynchronous run.
 A rejected promise produces no result, and the field is not treated as valid:
 
 - if the rejected run is the current one, this validator's errors on the field are replaced by one error with the
-  detail `Validation could not be completed`, the code `validation_failed` and no params. The field is invalid
+  detail `Validation could not be completed`, the code `vue-forms.validation_failed` and no params. The field is invalid
   until a later run of the validator succeeds, so the form cannot be submitted. The error belongs to this validator like
   any other error it adds: the next successful run of the same validator removes it. The rejection reason is not shown
   to the user; it is logged once as `console.error('Validation failed', reason)`;
@@ -134,10 +135,10 @@ In both cases the run counts as finished, so `validating` returns to `false`, an
 unhandled rejection.
 
 A validator does not re-run by itself once the value is unchanged: assigning the value the field already holds is
-a no-op, so the `validation_failed` error remains until a new run starts. Call `field.validate(true)` (on the field
+a no-op, so the `vue-forms.validation_failed` error remains until a new run starts. Call `field.validate(true)` (on the field
 or on the `Group` above it) to retry once the service is available. The failure message names no cause. For a more
 specific message, catch inside the validation function and return a custom error, e.g.
-`[new ValidationError('unverified', {}, 'Could not verify this value')]`.
+`[new ValidationError('app.unverified', {}, 'Could not verify this value')]`.
 
 [`clearValidators()`](/api/field-base#clearvalidators-void) also cancels pending validation: it removes the validators, empties
 `field.errors` and recomputes validity over the empty list, and a run that settles afterwards (resolved or rejected)
@@ -165,7 +166,7 @@ Pass it to the work the function starts, so that work stops when its result is n
 ```typescript
 new Validators.Validator(async (newValue, oldValue, field, signal) => {
   const response = await fetch(`/api/available?${new URLSearchParams({ name: newValue })}`, { signal });
-  return (await response.json()).free ? null : [new ValidationError('name_taken', {}, 'This name is taken')];
+  return (await response.json()).free ? null : [new ValidationError('app.name_taken', {}, 'This name is taken')];
 });
 ```
 
@@ -182,13 +183,16 @@ argument of every built-in validator is `ValidationErrorOptions`:
 
 ```typescript
 type ValidationErrorOptions =
-  | { code?: string }                  // replaces the validator's code
+  | { code?: string }                  // replaces the validator's code; used as given
   | { code: string; detail?: string }; // a detail, which replaces the validator's detail, requires a code
 ```
 
 `{name}` placeholders in `detail` are replaced with the params. A renderer chooses the text by the error's code and
 falls back to `detail`, so a detail under the validator's own code would not be shown where the renderer has a text
 for that code: `{ detail }` without `code` does not compile.
+
+A code given in the options is used as given: the library does not prefix or check it. The application prefixes its
+own codes with a namespace of its own, such as `app.name_required` (see [Error codes](#error-codes)).
 
 The options do not change the params. A `{name}` placeholder that names no param stays in the detail unchanged. The
 application renders the error; see [Error messages and translation](#error-messages-and-translation).
@@ -217,7 +221,7 @@ as the built-in validators do:
 
 ```typescript
 const even = new Validators.Validator<number | null>((value) =>
-  Validators.isEmptyValue(value) || value! % 2 === 0 ? null : [new ValidationError('even', {}, 'Must be even')],
+  Validators.isEmptyValue(value) || value! % 2 === 0 ? null : [new ValidationError('app.even', {}, 'Must be even')],
 );
 ```
 
@@ -229,7 +233,7 @@ string is trimmed before it is measured, so a value of only spaces is empty and 
 are trimmed; an array, an object or any other value is measured unchanged.
 
 ```typescript
-new Field({ value: '', validators: [new Validators.Required({ code: 'name_required', detail: 'Enter a name' })] })
+new Field({ value: '', validators: [new Validators.Required({ code: 'app.name_required', detail: 'Enter a name' })] })
 
 // where the spaces are part of what the field holds
 new Field({ value: ' ', validators: [new Validators.Required({ trim: false })] })
@@ -246,7 +250,7 @@ type RequiredOptions = ValidationErrorOptions & {
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `options.trim` | `boolean` | `true` |
-| `options.code` | `string` | `'required'` |
+| `options.code` | `string` | `'vue-forms.required'` |
 | `options.detail` | `string` | `'Please enter a value'` |
 
 ---
@@ -259,13 +263,13 @@ and flags (`/^\d{4}$/`). The validator tests with a copy of `pattern` without th
 tested from its start, and the expression passed in is not modified.
 
 ```typescript
-new Validators.Pattern(/^\d{4}$/, { code: 'pin_format', detail: 'Must be a 4-digit number' })
+new Validators.Pattern(/^\d{4}$/, { code: 'app.pin_format', detail: 'Must be a 4-digit number' })
 ```
 
 | Parameter | Type | Default |
 |-----------|------|---------|
-| `pattern` | `RegExp` | required |
-| `options` | `ValidationErrorOptions` | code `pattern`, detail `'Value must match pattern "{pattern}"'` |
+| `vue-forms.pattern` | `RegExp` | required |
+| `options` | `ValidationErrorOptions` | code `vue-forms.pattern`, detail `'Value must match pattern "{pattern}"'` |
 
 ---
 
@@ -278,7 +282,7 @@ another type, `NaN` and an invalid date cannot be compared with the bound and fa
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minValue` | `T` | required |
-| `options` | `ValidationErrorOptions` | code `min_value`, detail `'Value must be larger or equal to {minValue}'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.min_value`, detail `'Value must be larger or equal to {minValue}'` |
 
 ---
 
@@ -291,7 +295,7 @@ another type, `NaN` and an invalid date cannot be compared with the bound and fa
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `maxValue` | `T` | required |
-| `options` | `ValidationErrorOptions` | code `max_value`, detail `'Value must be less than or equal to {maxValue}'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.max_value`, detail `'Value must be less than or equal to {maxValue}'` |
 
 ---
 
@@ -302,14 +306,14 @@ number is compared with a number, a bigint with a bigint, a string with a string
 (by time). A value of another type, `NaN` and an invalid date cannot be compared with the bound and fail.
 
 ```typescript
-new Validators.ValueInRange(0, 100, { code: 'percent_range', detail: 'Must be between 0 and 100' })
+new Validators.ValueInRange(0, 100, { code: 'app.percent_range', detail: 'Must be between 0 and 100' })
 ```
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minValue` | `T` | required |
 | `maxValue` | `T` | required |
-| `options` | `ValidationErrorOptions` | code `value_in_range`, detail `'Value must be between {minValue} and {maxValue}'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.value_in_range`, detail `'Value must be between {minValue} and {maxValue}'` |
 
 ---
 
@@ -320,7 +324,7 @@ Fails when the length of a non-empty value is less than `minLength`. Supports st
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minLength` | `number` | required |
-| `options` | `ValidationErrorOptions` | code `min_length`, detail `'Length must be larger or equal to {minLength}'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.min_length`, detail `'Length must be larger or equal to {minLength}'` |
 
 ---
 
@@ -331,7 +335,7 @@ Fails when the length of a non-empty value exceeds `maxLength`.
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `maxLength` | `number` | required |
-| `options` | `ValidationErrorOptions` | code `max_length`, detail `'Length must be less than or equal to {maxLength}'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.max_length`, detail `'Length must be less than or equal to {maxLength}'` |
 
 ---
 
@@ -340,14 +344,14 @@ Fails when the length of a non-empty value exceeds `maxLength`.
 Fails when the length of a non-empty value is outside `[minLength, maxLength]`.
 
 ```typescript
-new Validators.LengthInRange(10, 200, { code: 'bio_length', detail: 'Must be between 10 and 200 characters' })
+new Validators.LengthInRange(10, 200, { code: 'app.bio_length', detail: 'Must be between 10 and 200 characters' })
 ```
 
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `minLength` | `number` | required |
 | `maxLength` | `number` | required |
-| `options` | `ValidationErrorOptions` | code `length_in_range`, detail `'Length must be between {minLength} and {maxLength}'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.length_in_range`, detail `'Length must be between {minLength} and {maxLength}'` |
 
 ---
 
@@ -369,7 +373,7 @@ new Validators.InAllowedValues(() => rolesFor(department.value))
 | Parameter | Type | Default |
 |-----------|------|---------|
 | `allowedValues` | `AllowedValues<T>` (`T[] \| Ref<T[]> \| (() => T[])`) | required |
-| `options` | `ValidationErrorOptions` | code `in_allowed_values`, detail `'Must be one of [{allowedAsText}]'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.in_allowed_values`, detail `'Must be one of [{allowedAsText}]'` |
 
 `AllowedValues<T>` is exported. The list is read at each validation, not at construction, so a ref or a callback
 provides the current list, and that list is used both for the check and in the error. The read happens inside the
@@ -393,7 +397,7 @@ Cross-field validator that re-validates whenever this field **or** the field it 
 new Validators.CompareTo(
   passwordField,
   (myValue, otherValue) => myValue === otherValue,
-  { code: 'passwords_differ', detail: 'Passwords must match' },
+  { code: 'app.passwords_differ', detail: 'Passwords must match' },
 )
 ```
 
@@ -401,7 +405,7 @@ new Validators.CompareTo(
 |-----------|------|-------------|
 | `otherField` | `CompareToTarget` | The field to compare against: a field, the name its container holds it under, or a callback receiving the field being validated |
 | `isValidComparison` | `(myValue: T, otherValue: T) => boolean` | Return `true` when valid |
-| `options` | `ValidationErrorOptions` | code `compare_to`, detail `'Value does not match the comparison with {otherValue}'` |
+| `options` | `ValidationErrorOptions` | code `vue-forms.compare_to`, detail `'Value does not match the comparison with {otherValue}'` |
 
 ```typescript
 type CompareToTarget = FieldBase | string | ((field: FieldBase) => FieldBase | null | undefined);
@@ -418,12 +422,12 @@ containers, so it finds the enclosing row.
 ```typescript
 const row = new Group({ password: new Field(), confirmation: new Field() });
 row.fields.confirmation.registerAction(
-  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, { code: 'passwords_differ', detail: 'Passwords must match' }),
+  new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, { code: 'app.passwords_differ', detail: 'Passwords must match' }),
 );
 // every row of new List(row, …) now compares its own two fields
 
 // the same rule written against the name, which needs no reference to the template
-new Validators.CompareTo<string>('password', (mine, other) => mine === other, { code: 'passwords_differ', detail: 'Passwords must match' });
+new Validators.CompareTo<string>('password', (mine, other) => mine === other, { code: 'app.passwords_differ', detail: 'Passwords must match' });
 ```
 
 When the record does not yet hold the compared field (a row is validated while it is assembled, before it holds
@@ -442,29 +446,42 @@ compared field made a minute or more after the previous such check.
 
 ### Error codes
 
-`error.code` is a snake_case identifier of what failed. Code matches on it to handle a particular failure, and a
-renderer uses it to look up the error text.
+`error.code` identifies what failed. It is a full code, `<namespace>.<code>`:
+
+- `code` is snake_case and contains no `.`: `[a-z0-9]+(_[a-z0-9]+)*`;
+- `namespace` is one or more segments joined by `.`, each `[a-z0-9]+(-[a-z0-9]+)*`;
+- a full code splits at its last `.`: everything before it is the namespace, everything after it the code.
+
+The namespace names the package that declared the code. The codes this library raises are in the namespace
+`vue-forms`, exported as `ERROR_NAMESPACE`:
 
 ```typescript
-const missing = field.errors.filter((error) => error.code === 'required');
+import { ERROR_NAMESPACE } from '@dynamicforms/vue-forms';
+
+const missing = field.errors.filter((error) => error.code === `${ERROR_NAMESPACE}.required`);
 ```
+
+A code the application gives the library, in a validator's `{ code }` option or in a `ValidationError` it
+constructs, is stored as given: the library does not prefix, check or rewrite it. The application prefixes its own
+codes with a namespace of its own, such as `app.role_required`, so that they do not collide with the codes of a
+library.
 
 `error.params` holds the values that describe the failure; it is an empty object where there are none. The codes
 the library uses, with their params and the English detail:
 
 | Code | Raised by | Params | English detail |
 |------|-----------|--------|----------------|
-| `required` | `Required` | `newValue`, `oldValue` | `Please enter a value` |
-| `pattern` | `Pattern` | `newValue`, `oldValue`, `pattern` | `Value must match pattern "{pattern}"` |
-| `min_value` | `MinValue` | `newValue`, `oldValue`, `minValue` | `Value must be larger or equal to {minValue}` |
-| `max_value` | `MaxValue` | `newValue`, `oldValue`, `maxValue` | `Value must be less than or equal to {maxValue}` |
-| `value_in_range` | `ValueInRange` | `newValue`, `oldValue`, `minValue`, `maxValue` | `Value must be between {minValue} and {maxValue}` |
-| `min_length` | `MinLength` | `newValue`, `oldValue`, `minLength` | `Length must be larger or equal to {minLength}` |
-| `max_length` | `MaxLength` | `newValue`, `oldValue`, `maxLength` | `Length must be less than or equal to {maxLength}` |
-| `length_in_range` | `LengthInRange` | `newValue`, `oldValue`, `minLength`, `maxLength` | `Length must be between {minLength} and {maxLength}` |
-| `in_allowed_values` | `InAllowedValues` | `newValue`, `oldValue`, `allowedValues`, `allowedAsText` | `Must be one of [{allowedAsText}]` |
-| `compare_to` | `CompareTo` | `newValue`, `oldValue`, `otherValue` | `Value does not match the comparison with {otherValue}` |
-| `validation_failed` | a rejected validation promise | none | `Validation could not be completed` |
+| `vue-forms.required` | `Required` | `newValue`, `oldValue` | `Please enter a value` |
+| `vue-forms.pattern` | `Pattern` | `newValue`, `oldValue`, `pattern` | `Value must match pattern "{pattern}"` |
+| `vue-forms.min_value` | `MinValue` | `newValue`, `oldValue`, `minValue` | `Value must be larger or equal to {minValue}` |
+| `vue-forms.max_value` | `MaxValue` | `newValue`, `oldValue`, `maxValue` | `Value must be less than or equal to {maxValue}` |
+| `vue-forms.value_in_range` | `ValueInRange` | `newValue`, `oldValue`, `minValue`, `maxValue` | `Value must be between {minValue} and {maxValue}` |
+| `vue-forms.min_length` | `MinLength` | `newValue`, `oldValue`, `minLength` | `Length must be larger or equal to {minLength}` |
+| `vue-forms.max_length` | `MaxLength` | `newValue`, `oldValue`, `maxLength` | `Length must be less than or equal to {maxLength}` |
+| `vue-forms.length_in_range` | `LengthInRange` | `newValue`, `oldValue`, `minLength`, `maxLength` | `Length must be between {minLength} and {maxLength}` |
+| `vue-forms.in_allowed_values` | `InAllowedValues` | `newValue`, `oldValue`, `allowedValues`, `allowedAsText` | `Must be one of [{allowedAsText}]` |
+| `vue-forms.compare_to` | `CompareTo` | `newValue`, `oldValue`, `otherValue` | `Value does not match the comparison with {otherValue}` |
+| `vue-forms.validation_failed` | a rejected validation promise | none | `Validation could not be completed` |
 
 `{name}` substitution is textual and runs in one pass, so a substituted value that contains a placeholder is not
 substituted again: a value that is an object, such as `newValue` of a group,
@@ -472,28 +489,47 @@ is substituted as `[object Object]`, and `allowedValues` as `admin,user`. A rend
 from `params`.
 
 `newValue`, `oldValue` and `otherValue` are field values and are not escaped, and `detail` of an error built from
-a server's response is the server's string. The English detail of `compare_to` contains `otherValue` unescaped.
+a server's response is the server's string. The English detail of `vue-forms.compare_to` contains `otherValue` unescaped.
 Rendering a message as HTML or markdown requires escaping the params and `detail`. Text interpolation (`{{ }}`) and
 string props escape them.
 
 ### Error messages and translation
 
-The library ships no translations, selects no locale and renders nothing. The application converts an error into
-text by its code, here with [vue-i18n](https://vue-i18n.intlify.dev/): `i18n` is the instance `createI18n()`
-returns, and `formatParams` formats numbers and dates for the locale before `t` substitutes them.
+The library ships no translations or translation keys, selects no locale and renders nothing. The application
+converts an error into text by its code. It maps each namespace to a translation key prefix of its own, and the code
+after the namespace to a key under that prefix: here `vue-forms.required` renders through the key
+`libs.vue-forms.required` and the application's `app.role_required` through `errors.role_required`. The example
+uses [vue-i18n](https://vue-i18n.intlify.dev/): `i18n` is the instance `createI18n()` returns, and `formatParams`
+formats numbers and dates for the locale before `t` substitutes them.
 
 ```typescript
 import { formatParams } from '@dynamicforms/translatable';
+import { ERROR_NAMESPACE as VUE_FORMS_ERRORS } from '@dynamicforms/vue-forms';
 
 const { t, n, d, te } = i18n.global;
 const tf = formatParams(t, (value) =>
   typeof value === 'number' ? n(value) : value instanceof Date ? d(value) : value);
 
-const errorText = (error) => (te(`errors.${error.code}`) ? tf(`errors.${error.code}`, error.params) : error.detail);
+// the translation key prefix of each namespace; a library's namespace is taken from its constant
+const keyPrefixes: Record<string, string> = { [VUE_FORMS_ERRORS]: 'libs.vue-forms', app: 'errors' };
+
+function errorKey(code: string): string | undefined {
+  const dot = code.lastIndexOf('.');
+  const prefix = keyPrefixes[code.slice(0, dot)];
+  return prefix === undefined ? undefined : `${prefix}.${code.slice(dot + 1)}`;
+}
+
+const errorText = (error) => {
+  const key = errorKey(error.code);
+  return key !== undefined && te(key) ? tf(key, error.params) : error.detail;
+};
 ```
 
 ```json
-{ "errors": { "min_value": "Vrednost mora biti vsaj {minValue}", "required": "Prosimo, vnesite vrednost" } }
+{
+  "libs": { "vue-forms": { "min_value": "Vrednost mora biti vsaj {minValue}", "required": "Prosimo, vnesite vrednost" } },
+  "errors": { "role_required": "Izberite vlogo" }
+}
 ```
 
 `@dynamicforms/translatable` is optional and is not a dependency of this library; an application that uses
@@ -509,30 +545,34 @@ A validator takes `{ code, detail }` as its last argument. A field that needs it
 own code, which the application translates like any other:
 
 ```typescript
-new Validators.Required({ code: 'role_required', detail: 'Select a role' });
+new Validators.Required({ code: 'app.role_required', detail: 'Select a role' });
 ```
 
-Every code the library raises, with its English detail, as a starting point for a locale's messages:
+Every code the library raises, with its English detail, as a starting point for a locale's messages, under the key
+prefix `libs.vue-forms` of the example above:
 
 ```json
 {
-  "errors": {
-    "required": "Please enter a value",
-    "pattern": "Value must match pattern \"{pattern}\"",
-    "min_value": "Value must be larger or equal to {minValue}",
-    "max_value": "Value must be less than or equal to {maxValue}",
-    "value_in_range": "Value must be between {minValue} and {maxValue}",
-    "min_length": "Length must be larger or equal to {minLength}",
-    "max_length": "Length must be less than or equal to {maxLength}",
-    "length_in_range": "Length must be between {minLength} and {maxLength}",
-    "in_allowed_values": "Must be one of [{allowedAsText}]",
-    "compare_to": "Value does not match the comparison with {otherValue}",
-    "validation_failed": "Validation could not be completed"
+  "libs": {
+    "vue-forms": {
+      "required": "Please enter a value",
+      "pattern": "Value must match pattern \"{pattern}\"",
+      "min_value": "Value must be larger or equal to {minValue}",
+      "max_value": "Value must be less than or equal to {maxValue}",
+      "value_in_range": "Value must be between {minValue} and {maxValue}",
+      "min_length": "Length must be larger or equal to {minLength}",
+      "max_length": "Length must be less than or equal to {maxLength}",
+      "length_in_range": "Length must be between {minLength} and {maxLength}",
+      "in_allowed_values": "Must be one of [{allowedAsText}]",
+      "compare_to": "Value does not match the comparison with {otherValue}",
+      "validation_failed": "Validation could not be completed"
+    }
   }
 }
 ```
 
-The codes an application gives its own validators, and those of its server's errors, are added next to these.
+The codes an application gives its own validators, and those of its server's errors, are added under the prefixes
+of their namespaces.
 
 ### `ValidationError`
 
@@ -554,7 +594,7 @@ interface ErrorDescription {
 
 | Member | Description |
 |--------|-------------|
-| `code` | Machine-readable identifier of what failed, in snake_case |
+| `code` | Machine-readable identifier of what failed, a full code `<namespace>.<code>` (see [Error codes](#error-codes)); stored as given |
 | `detail` | The failure in English, plain text. The constructor stores it as given; the built-in validators substitute the params before they construct the error |
 | `origin` | Where the error comes from; see below |
 | `params` | The values that describe the failure |
@@ -565,9 +605,11 @@ translate them, as this library does with its [error codes](#error-codes) and th
 [Error messages and translation](#error-messages-and-translation).
 [`src/tests/error-codes.spec.ts`](https://github.com/dynamicforms/vue-forms/blob/main/src/tests/error-codes.spec.ts)
 keeps those lists in sync with the source: it reads every `this.errorFor(…)` call and every `new ValidationError(…)`
-in the library source, requires the code and the detail of each to be string literals, and compares the resulting
-codes and details with both lists. Such a library can copy the spec and adapt the source directory, the
-construction it skips (the one inside `errorFor`), and the paths and patterns of its own documentation.
+in the library source, requires the code of each to be built by `namespaced('<code>')` (which prefixes it with
+`ERROR_NAMESPACE`) and the detail to be a string literal, checks the grammar of each full code, and compares the
+resulting codes and details with both lists. A code that is not built with `namespaced()` fails the spec. Such a
+library can copy the spec and adapt the source directory, the construction it skips (the one inside `errorFor`),
+and the paths and patterns of its own documentation.
 :::
 
 An error the application builds from a server's response carries the same `code`, `params` and `detail`, so one

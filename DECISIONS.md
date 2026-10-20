@@ -606,3 +606,30 @@ back.
   combination throws a `TypeError`.
 - A rule for `'validator'`: a validator replaces its own errors on every run; a validator whose errors should not
   count uses an origin of its own.
+
+---
+
+## D-051 — An error code carries the namespace of the package that declared it
+
+**Since:** 3.0.0-alpha.3 · 2026-10-20\
+**Tests:** `src/tests/error-codes.spec.ts`, `src/index.spec.ts`, `src/validators/validator.spec.ts:88–99`
+
+A code the library raises is `<namespace>.<code>`: the namespace `vue-forms`, exported as `ERROR_NAMESPACE`, then a
+snake_case code without `.`. A namespace is one or more `.`-joined segments of `[a-z0-9]+(-[a-z0-9]+)*`; a full code
+splits at its last `.`. The built-in codes are built from `ERROR_NAMESPACE`. A code the application passes in (the
+`{ code }` option, the `code` of `errorFor()`, a `ValidationError` it constructs) is stored as given: the library
+neither prefixes nor checks it. The library ships no translation keys; the application maps each namespace to a key
+prefix of its own.
+
+**Reason.** Errors of several libraries reach one renderer. `required` of this library and `required` of another
+are different errors with different params; with a bare code the renderer cannot tell them apart. The same grammar
+is used by `vuetify-inputs`, `fastapi-viewsets`, `taskwire` and `muxws`, so one split serves every source.
+
+**Rejected.**
+
+- `origin` as the discriminator: it states who wrote the error into a form, not which package declared the code,
+  and `ErrorPolicy` selects its rule by it.
+- Prefixing application codes: the application owns its namespace, and a library that rewrote a code it was given
+  would break the application's own comparisons.
+- A separate `namespace` member on `ErrorDescription`: every comparison and every map keyed by code would need both
+  members, and a server's `detail_code` arrives as one string.

@@ -7,6 +7,7 @@ import { bindingsIn, resolveByName, resolveInScope, scopeOf } from '../resolve';
 import { currentTransaction } from '../transaction';
 import { WeakElements } from '../weak-elements';
 
+import { namespaced } from './error-namespace';
 import { ValidationErrorOptions, ValidationFunction, Validator, ValidatorBindingState } from './validator';
 
 /**
@@ -72,7 +73,7 @@ export default class CompareTo<T = any> extends Validator {
       const otherValue = unref(other.value);
       if (!this.isValidComparison(unref(newValue), otherValue)) {
         return [
-          this.errorFor(options, 'compare_to', 'Value does not match the comparison with {otherValue}', {
+          this.errorFor(options, namespaced('compare_to'), 'Value does not match the comparison with {otherValue}', {
             newValue,
             oldValue,
             otherValue,

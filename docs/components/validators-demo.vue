@@ -139,6 +139,7 @@
 import { formatParams, interpolate } from '@dynamicforms/translatable';
 import { computed, ref } from 'vue';
 import {
+  ERROR_NAMESPACE,
   Group,
   Field,
   Validators,
@@ -168,11 +169,16 @@ const roles = ['admin', 'user', 'guest'];
 const roleName = (role) => messages[locale.value].roles[role];
 const roleItems = computed(() => roles.map((value) => ({ value, title: roleName(value) })));
 
-// The demo's translation function: the message for an error code with the params substituted, or the code
-// unchanged where the current language has none
-const t = (code, params) => {
-  const template = messages[locale.value].errors[code];
-  return template ? interpolate(template, params) : code;
+// The block of `errors` that holds the messages of each error namespace: the library's codes and the demo's own
+const messageBlocks = { [ERROR_NAMESPACE]: 'vue-forms', app: 'app' };
+
+// The demo's translation function: the message for a full error code with the params substituted, or the code
+// unchanged where the current language has none. A full code splits at its last `.` into namespace and code.
+const t = (fullCode, params) => {
+  const dot = fullCode.lastIndexOf('.');
+  const block = messages[locale.value].errors[messageBlocks[fullCode.slice(0, dot)]];
+  const template = block?.[fullCode.slice(dot + 1)];
+  return template ? interpolate(template, params) : fullCode;
 };
 
 // formatParams formats every param before t substitutes it: numbers in the language's digits, and in bold where the
@@ -188,7 +194,7 @@ const translate = formatParams(t, (value) => {
 // the fields follow the language and the checkbox without revalidating.
 function errorText(error) {
   const params =
-    error.code === 'in_allowed_values'
+    error.code === `${ERROR_NAMESPACE}.in_allowed_values`
       ? { allowedAsText: error.params.allowedValues.map(roleName).join(', ') }
       : error.params;
   const message = translate(error.code, params);
@@ -213,7 +219,7 @@ const validatedForm = new Group({
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        { code: 'invalid_email', detail: 'Please enter a valid email address' },
+        { code: 'app.invalid_email', detail: 'Please enter a valid email address' },
       ),
       // Async validator to simulate email availability check
       new Validators.Validator(async (newValue) => {
@@ -227,7 +233,7 @@ const validatedForm = new Group({
 
         // Check if email is "taken"
         if (newValue.endsWith('@taken.com')) {
-          return [new ValidationError('email_taken', {}, 'This email address is already taken')];
+          return [new ValidationError('app.email_taken', {}, 'This email address is already taken')];
         }
 
         return null; // Email is available
@@ -240,7 +246,7 @@ const validatedForm = new Group({
     value: '',
     validators: [
       new Validators.CompareTo('email', (confirmation, email) => confirmation === email, {
-        code: 'emails_differ',
+        code: 'app.emails_differ',
         detail: 'The email addresses do not match',
       }),
     ],

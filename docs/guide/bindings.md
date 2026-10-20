@@ -36,7 +36,7 @@ its container holds without a name.
 const row = new Group({ password: new Field(), confirmation: new Field() });
 row.fields.confirmation.registerAction(
   new Validators.CompareTo(row.fields.password, (mine, other) => mine === other, {
-    code: 'passwords_mismatch',
+    code: 'app.passwords_mismatch',
     detail: 'Passwords must match',
   }),
 );

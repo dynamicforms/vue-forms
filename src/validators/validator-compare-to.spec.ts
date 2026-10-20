@@ -399,6 +399,6 @@ describe('CompareTo Validator error code', () => {
     const field = new Field({ value: 'abc' });
     field.registerAction(new CompareTo(other, (mine, theirs) => mine === theirs));
 
-    expect(field.errors[0].code).toBe('compare_to');
+    expect(field.errors[0].code).toBe('vue-forms.compare_to');
   });
 });

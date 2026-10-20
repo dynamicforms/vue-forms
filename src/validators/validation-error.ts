@@ -16,9 +16,12 @@ export type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {})
  * validator and server errors to text with one function.
  */
 export interface ErrorDescription {
-  /** Machine-readable identifier of what failed, in snake_case. */
+  /**
+   * Machine-readable identifier of what failed: `<namespace>.<code>`, such as `vue-forms.min_value`. The namespace
+   * names the package that declared the code.
+   */
   readonly code: string;
-  /** The values of the failure, such as `minValue` for `min_value`. */
+  /** The values of the failure, such as `minValue` for `vue-forms.min_value`. */
   readonly params: Readonly<Record<string, unknown>>;
   /** The failure in English, plain text, with `params` substituted. */
   readonly detail: string;
@@ -32,8 +35,8 @@ export interface ErrorDescription {
  */
 export class ValidationError implements ErrorDescription {
   /**
-   * @param code Machine-readable identifier of what failed, in snake_case.
-   * @param params The values of the failure, such as `minValue` for `min_value`.
+   * @param code Machine-readable identifier of what failed, `<namespace>.<code>`. Stored as given.
+   * @param params The values of the failure, such as `minValue` for `vue-forms.min_value`.
    * @param detail The failure in English, plain text. Stored as given.
    * @param statedOrigin The origin of the error, if its author sets it; see `origin`.
    */

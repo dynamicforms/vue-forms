@@ -95,7 +95,7 @@ async function register(value: Registration): Promise<Registration> {
     const email = form.fields.email;
     email.errors = [
       ...email.errors,
-      new ValidationError('email_rejected', {}, 'example.com addresses are not accepted', 'server'),
+      new ValidationError('app.email_rejected', {}, 'example.com addresses are not accepted', 'server'),
     ];
     throw new Error('the server rejected the address');
   }
@@ -111,7 +111,7 @@ const form = new Group({
     value: '',
     validators: [
       new Validators.Pattern(/^[^@\s]+@[^@\s]+\.[^@\s]+$/, {
-        code: 'invalid_email',
+        code: 'app.invalid_email',
         detail: 'Please enter a valid email address',
       }),
     ],

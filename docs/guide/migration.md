@@ -59,18 +59,29 @@ the write returns.
 
 ### Error codes are renamed
 
-Every code is snake_case and names what failed. Code comparing `error.code` with an old code keeps compiling and
-stops matching.
+Every code the library raises is in the namespace `vue-forms`, exported as `ERROR_NAMESPACE`: a full code is
+`<namespace>.<code>`, and the code after the namespace is snake_case and names what failed. Code comparing
+`error.code` with an old code keeps compiling and stops matching.
 
 | 2.0 | 3.0 |
 |-----|-----|
-| `min` / `max` / `range` | `min_value` / `max_value` / `value_in_range` |
-| `min-length` / `max-length` / `range-length` | `min_length` / `max_length` / `length_in_range` |
-| `in-allowed-values` | `in_allowed_values` |
-| `compare-to` | `compare_to` |
-| `validation-failed` | `validation_failed` |
+| `required` | `vue-forms.required` |
+| `pattern` | `vue-forms.pattern` |
+| `min` / `max` / `range` | `vue-forms.min_value` / `vue-forms.max_value` / `vue-forms.value_in_range` |
+| `min-length` / `max-length` / `range-length` | `vue-forms.min_length` / `vue-forms.max_length` / `vue-forms.length_in_range` |
+| `in-allowed-values` | `vue-forms.in_allowed_values` |
+| `compare-to` | `vue-forms.compare_to` |
+| `validation-failed` | `vue-forms.validation_failed` |
 
-`required` and `pattern` stay.
+From 3.0.0-alpha.1 and 3.0.0-alpha.2, every code gains the prefix `vue-forms.`: `required` is `vue-forms.required`,
+`pattern` is `vue-forms.pattern`, `min_value` is `vue-forms.min_value`, `max_value` is `vue-forms.max_value`,
+`value_in_range` is `vue-forms.value_in_range`, `min_length` is `vue-forms.min_length`, `max_length` is
+`vue-forms.max_length`, `length_in_range` is `vue-forms.length_in_range`, `in_allowed_values` is
+`vue-forms.in_allowed_values`, `compare_to` is `vue-forms.compare_to` and `validation_failed` is
+`vue-forms.validation_failed`.
+
+A code the application gives a validator (`{ code }`) or a `ValidationError` is stored as given. Prefix the
+application's own codes with a namespace of its own, such as `app.role_required`.
 
 ### Smaller silent changes
 
@@ -154,8 +165,8 @@ new ValidationErrorText('This name is taken', '', 'name_taken', 'server');
 new ValidationErrorRenderContent(new MdString('**Required**'));
 
 // after
-new ValidationError('name_taken', {}, 'This name is taken', 'server');
-new ValidationError('required', {}, 'Required');
+new ValidationError('app.name_taken', {}, 'This name is taken', 'server');
+new ValidationError('app.required', {}, 'Required');
 ```
 
 The 2.0 constructor `new ValidationError(code?, origin?)` no longer compiles: `params` and `detail` are required.
@@ -188,12 +199,12 @@ new Validators.Required('Select a role', { trim: false });
 new Validators.CompareTo(password, (a, b) => a === b, 'Passwords must match');
 
 // after
-new Validators.Required({ code: 'role_required', detail: 'Select a role' });
-new Validators.Required({ code: 'role_required', detail: 'Select a role', trim: false });
-new Validators.CompareTo(password, (a, b) => a === b, { code: 'passwords_differ', detail: 'Passwords must match' });
+new Validators.Required({ code: 'app.role_required', detail: 'Select a role' });
+new Validators.Required({ code: 'app.role_required', detail: 'Select a role', trim: false });
+new Validators.CompareTo(password, (a, b) => a === b, { code: 'app.passwords_differ', detail: 'Passwords must match' });
 ```
 
-`CompareTo` no longer requires the argument; its default is the code `compare_to` with the detail
+`CompareTo` no longer requires the argument; its default is the code `vue-forms.compare_to` with the detail
 `Value does not match the comparison with {otherValue}`.
 
 A message given as a `Ref`, a `computed`, a function, an `MdString` or a component definition has no replacement in
@@ -205,7 +216,7 @@ A `Validator` subclass that built its message with the protected `replacePlaceho
 which applies `ValidationErrorOptions` and substitutes the params into the detail:
 
 ```typescript
-return [this.errorFor(options, 'even', 'Value must be even', {})];
+return [this.errorFor(options, 'app.even', 'Value must be even', {})];
 ```
 
 ### Translation is the renderer's
@@ -217,12 +228,23 @@ and substitutes the params:
 // before
 translateStrings((key, defaultValue) => t(`forms.${key}`, defaultValue));
 
-// after, where the application renders the error
-const errorText = (error) => (te(`forms.${error.code}`) ? t(`forms.${error.code}`, error.params) : error.detail);
+// after, where the application renders the error: `vue-forms.min_value` through the key `forms.min_value`
+import { ERROR_NAMESPACE } from '@dynamicforms/vue-forms';
+
+const errorKey = (code) => {
+  const dot = code.lastIndexOf('.');
+  return code.slice(0, dot) === ERROR_NAMESPACE ? `forms.${code.slice(dot + 1)}` : undefined;
+};
+const errorText = (error) => {
+  const key = errorKey(error.code);
+  return key !== undefined && te(key) ? t(key, error.params) : error.detail;
+};
 ```
 
-The translations move from the message keys to the codes: `MinValue` to `min_value`, `Required` to `required`. The
-[Error codes](/api/validators#error-codes) table lists every code with its params.
+The translations move from the message keys to the codes: `MinValue` to `vue-forms.min_value`, `Required` to
+`vue-forms.required`. The [Error codes](/api/validators#error-codes) table lists every code with its params, and
+[Error messages and translation](/api/validators#error-messages-and-translation) maps several namespaces to key
+prefixes.
 
 ### Rendering and configuration are removed
 
@@ -243,7 +265,7 @@ app.use(forms, { useMarkdownInValidators: false });
 
 ### Checklist for 3.0.0
 
-1. Replace every comparison with an old error code by the new one.
+1. Replace every comparison with an old error code by the new one, and prefix the application's own codes.
 2. Replace `ValidationErrorText`, `ValidationErrorRenderContent` and `new ValidationError(code, origin)` with
    `new ValidationError(code, params, detail, origin?)`; read `detail` where the code read the rendered text.
 3. Replace the `message` argument of every built-in validator with `{ code, detail }`; in a `Validator`
