@@ -611,7 +611,7 @@ back.
 
 ## D-051 — An error code carries the namespace of the package that declared it
 
-**Since:** 3.0.0-alpha.3 · 2026-10-20\
+**Since:** 3.0.0-alpha.3 · (#89) · 2026-10-20\
 **Tests:** `src/tests/error-codes.spec.ts`, `src/index.spec.ts`, `src/validators/validator.spec.ts:88–99`
 
 A code the library raises is `<namespace>.<code>`: the namespace `vue-forms`, exported as `ERROR_NAMESPACE`, then a
