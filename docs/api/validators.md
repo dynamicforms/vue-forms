@@ -15,9 +15,9 @@ The namespace contains the validators and the types and the function used to wri
 `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength`, `LengthInRange`, `InAllowedValues` and `CompareTo`. They are
 exported only through the namespace: a validator is written `Validators.Required`, never `Required`.
 
-`ValidationError`, the error types and the rules over errors (`ErrorPolicy`, `setDefaultErrorPolicies`,
-`ErrorPolicyRule`, `ErrorPolicies`, `ErrorRemoval`, `errorRemovals`) describe a field's errors, not its validation,
-and are exported from the package root:
+`ValidationError`, the error types, the namespace of the library's error codes (`ERROR_NAMESPACE`) and the rules
+over errors (`ErrorPolicy`, `setDefaultErrorPolicies`, `ErrorPolicyRule`, `ErrorPolicies`, `ErrorRemoval`,
+`errorRemovals`) describe a field's errors, not its validation, and are exported from the package root:
 
 ```typescript
 import { ValidationError } from '@dynamicforms/vue-forms';
