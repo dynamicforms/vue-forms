@@ -1,6 +1,6 @@
 ---
-title: 'Vue 3 Forms, Validation and Application State'
-description: 'Vue Forms holds form data, validation and conditional rules between fields for Vue 3, and application state; any Vue or Vuetify components render it.'
+title: 'Vue 3 forms and application state, UI-agnostic'
+description: 'UI-agnostic Vue 3 forms and application state: rules between fields, transactional changes, composable validation and lists of thousands of rows.'
 layout: home
 hero:
   name: Vue Forms
