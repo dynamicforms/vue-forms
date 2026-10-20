@@ -1,3 +1,7 @@
+---
+description: 'Install @dynamicforms/vue-forms, declare fields and groups, render them with Vue components, add validation and rules for list rows, and submit.'
+---
+
 # Getting Started
 
 `@dynamicforms/vue-forms` holds a form's data, its validation and the rules between its fields, and the same

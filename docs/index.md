@@ -1,4 +1,6 @@
 ---
+title: 'Vue 3 Forms, Validation and Application State'
+description: 'Vue Forms holds form data, validation and conditional rules between fields for Vue 3, and application state; any Vue or Vuetify components render it.'
 layout: home
 hero:
   name: Vue Forms

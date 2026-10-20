@@ -1,5 +1,7 @@
 {
   "config": {
+    // VitePress uses a front-matter title only for <title>; the page keeps its own H1
+    "MD025": { "front_matter_title": "" },
     "MD013": { "line_length": 120, "tables": false, "code_blocks": false },
     // Keep a Changelog repeats Added / Changed / Fixed under every version
     "MD024": { "siblings_only": true },

@@ -3,7 +3,12 @@ import vuetify from 'vite-plugin-vuetify';
 
 export default defineConfig({
   title: 'Vue Forms',
-  description: 'Reactive forms and application state for Vue.js: validation, rules between fields and transactions',
+  description: 'Vue 3 library for reactive form and application state: fields, groups and lists, sync and async validation, conditional rules and transactions.',
+  srcExclude: ['readme.md'],
+  transformHead({ pageData, siteConfig }) {
+    const path = pageData.relativePath.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '.html');
+    return [['link', { rel: 'canonical', href: `https://docs.velis.si${siteConfig.site.base}${path}` }]];
+  },
   ignoreDeadLinks: [
     /^https?:\/\/localhost/
   ],
