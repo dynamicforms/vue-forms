@@ -9,6 +9,11 @@ describe('package entry point', () => {
     expect(entry.Validators.isEmptyValue(0)).toBe(false);
   });
 
+  it('exports the namespace of its error codes', () => {
+    expect(entry.ERROR_NAMESPACE).toBe('vue-forms');
+    expect(entry).not.toHaveProperty('namespaced');
+  });
+
   it('exports no rendering or configuration surface', () => {
     for (const name of ['MessagesWidget', 'MdString', 'RenderableValue', 'forms', 'getConfig', 'setConfig']) {
       expect(entry).not.toHaveProperty(name);

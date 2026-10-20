@@ -112,6 +112,6 @@ describe('Required Validator whitespace', () => {
   it('states the required code on the error it produces', () => {
     const field = new Field({ value: '', validators: [new Required()] });
 
-    expect(field.errors[0].code).toBe('required');
+    expect(field.errors[0].code).toBe('vue-forms.required');
   });
 });

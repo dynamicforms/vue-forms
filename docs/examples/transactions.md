@@ -91,7 +91,7 @@ const booking = new Group({
     value: '',
     validators: [
       new Validators.CompareTo<string>('from', (to, from) => !from || !to || to >= from, {
-        code: 'date_order',
+        code: 'app.date_order',
         detail: 'The end must not precede the start',
       }),
     ],

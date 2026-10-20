@@ -37,7 +37,8 @@ list.push({ name: '', note: 'second' });
 
 assert.equal(list.length, 2, 'the list holds both rows');
 assert.equal(list.valid, false, 'a row failing Required leaves the list invalid');
-assert.equal(list.get(1).fields.name.errors[0].code, 'required', 'the error carries its code');
+assert.equal(m.ERROR_NAMESPACE, 'vue-forms', 'the package root exports its error namespace');
+assert.equal(list.get(1).fields.name.errors[0].code, `${m.ERROR_NAMESPACE}.required`, 'the error carries its code');
 
 list.get(1).fields.name.value = 'Grace';
 assert.equal(list.valid, true, 'filling the row settles the list');

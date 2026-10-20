@@ -207,8 +207,10 @@ describe('ValueInRange Validator', () => {
 
 describe('Value bound error codes', () => {
   it('names each bound on the error it produces', () => {
-    expect(new Field({ value: 5, validators: [new MinValue(10)] }).errors[0].code).toBe('min_value');
-    expect(new Field({ value: 15, validators: [new MaxValue(10)] }).errors[0].code).toBe('max_value');
-    expect(new Field({ value: 15, validators: [new ValueInRange(1, 10)] }).errors[0].code).toBe('value_in_range');
+    expect(new Field({ value: 5, validators: [new MinValue(10)] }).errors[0].code).toBe('vue-forms.min_value');
+    expect(new Field({ value: 15, validators: [new MaxValue(10)] }).errors[0].code).toBe('vue-forms.max_value');
+    expect(new Field({ value: 15, validators: [new ValueInRange(1, 10)] }).errors[0].code).toBe(
+      'vue-forms.value_in_range',
+    );
   });
 });

@@ -1,3 +1,4 @@
+export { ERROR_NAMESPACE } from './error-namespace';
 export * from './validation-error';
 export {
   type ErrorPolicies,

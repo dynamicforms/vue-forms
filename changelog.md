@@ -5,6 +5,34 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-alpha.3] - 2026-10-20
+
+### Added
+
+- `ERROR_NAMESPACE`, exported from the package root: `'vue-forms'`, the namespace of every error code the library
+  raises.
+
+### Changed
+
+- Every error code the library raises is `<namespace>.<code>` in the namespace `vue-forms`:
+
+  | 3.0.0-alpha.2 | 3.0.0-alpha.3 |
+  |---------------|---------------|
+  | `required` | `vue-forms.required` |
+  | `pattern` | `vue-forms.pattern` |
+  | `min_value` | `vue-forms.min_value` |
+  | `max_value` | `vue-forms.max_value` |
+  | `value_in_range` | `vue-forms.value_in_range` |
+  | `min_length` | `vue-forms.min_length` |
+  | `max_length` | `vue-forms.max_length` |
+  | `length_in_range` | `vue-forms.length_in_range` |
+  | `in_allowed_values` | `vue-forms.in_allowed_values` |
+  | `compare_to` | `vue-forms.compare_to` |
+  | `validation_failed` | `vue-forms.validation_failed` |
+
+  A code given in a validator's `{ code }` option, to `errorFor()` or to a `ValidationError` is stored as given; the
+  application prefixes its own codes with a namespace of its own.
+
 ## [3.0.0-alpha.2] - 2026-10-15
 
 ### Added

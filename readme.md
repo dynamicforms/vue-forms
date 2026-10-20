@@ -186,7 +186,7 @@ import { Field, Group, Validators } from '@dynamicforms/vue-forms';
 const validatedForm = new Group({
   // Required field
   username: new Field({ 
-    validators: [new Validators.Required({ code: 'username_required', detail: 'Username is required' })] 
+    validators: [new Validators.Required({ code: 'app.username_required', detail: 'Username is required' })] 
   }),
   
   // Email validation with pattern
@@ -194,7 +194,7 @@ const validatedForm = new Group({
     validators: [
       new Validators.Pattern(
         /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
-        { code: 'invalid_email', detail: 'Please enter a valid email address' }
+        { code: 'app.invalid_email', detail: 'Please enter a valid email address' }
       )
     ] 
   }),
@@ -203,7 +203,7 @@ const validatedForm = new Group({
   age: new Field({ 
     value: 25, 
     validators: [
-      new Validators.ValueInRange(18, 100, { code: 'age_range', detail: 'Age must be between {minValue} and {maxValue}' })
+      new Validators.ValueInRange(18, 100, { code: 'app.age_range', detail: 'Age must be between {minValue} and {maxValue}' })
     ] 
   }),
   
@@ -217,7 +217,7 @@ const validatedForm = new Group({
   // Text length validation
   bio: new Field({
     validators: [
-      new Validators.LengthInRange(10, 200, { code: 'bio_length', detail: 'Bio must be between 10 and 200 characters' })
+      new Validators.LengthInRange(10, 200, { code: 'app.bio_length', detail: 'Bio must be between 10 and 200 characters' })
     ]
   })
 });
@@ -228,10 +228,12 @@ invalid immediately. `field.touched` determines when the UI shows the errors. `R
 measuring it, so a value of only spaces counts as empty; `new Validators.Required({ trim: false })` keeps spaces as
 part of the value.
 
-An error is data: a `code` (`required`, `pattern`, `min_length`, …), the `params` it failed with, and an English
-`detail`. The library does not render it. The application, or a UI library such as `@dynamicforms/vuetify-inputs`,
-converts it into text, translated by its code. A validator's last argument, `{ code, detail }`, replaces the
-validator's default code and English detail.
+An error is data: a `code` (`vue-forms.required`, `vue-forms.pattern`, `vue-forms.min_length`, …), the `params` it
+failed with, and an English `detail`. A code is `<namespace>.<code>`; the library's namespace is `vue-forms`,
+exported as `ERROR_NAMESPACE`. The library does not render an error. The application, or a UI library such as
+`@dynamicforms/vuetify-inputs`, converts it into text, translated by its code. A validator's last argument,
+`{ code, detail }`, replaces the validator's default code and English detail; the library uses that code as given,
+and the application prefixes its own codes with a namespace of its own.
 
 A validation function may return a `Promise`; `field.validating` is `true` while it runs, and only the newest run
 determines the result. [Asynchronous validation](https://docs.velis.si/dynamicforms/vue-forms/api/validators#asynchronous-validation)

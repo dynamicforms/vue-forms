@@ -230,7 +230,7 @@ computed along two paths.
   `ValidChangedAction` fires once for each element whose validity changed.
 
 ```typescript
-field.errors.push(new ValidationError('rejected', {}, 'Rejected by the server', 'server'));
+field.errors.push(new ValidationError('app.rejected', {}, 'Rejected by the server', 'server'));
 field.valid;      // false already
 group.valid;      // false already
 // no ValidChangedAction has fired
@@ -255,7 +255,7 @@ decide when to show errors.
 
 An asynchronous validator returns a promise. `validating` counts the runs in progress on the element and on every
 element below it, so a form's `validating` covers the whole tree. Only the newest run determines that validator's
-result on a field. A rejected promise makes the field invalid with a `validation_failed` error
+result on a field. A rejected promise makes the field invalid with a `vue-forms.validation_failed` error
 (`Validation could not be completed`). When a run's result is no longer used, the `AbortSignal` passed to its
 validation function is aborted, so the work behind it can be cancelled.
 

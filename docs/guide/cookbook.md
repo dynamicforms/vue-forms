@@ -158,7 +158,7 @@ function showServerErrors(root: FieldBase, errors: Record<string, string[]>) {
     const element = elementAt(root, path) ?? root;
     element.errors = [
       ...element.errors,
-      ...messages.map((message) => new ValidationError('server_error', {}, message, 'server')),
+      ...messages.map((message) => new ValidationError('app.server_error', {}, message, 'server')),
     ];
   });
 }
@@ -224,7 +224,7 @@ const login = new Group(
             async (value, target) => {
               const answer = await api.login(value);
               if (!answer.ok) {
-                target.errors = [new ValidationError('invalid_credentials', {}, answer.detail, 'server')];
+                target.errors = [new ValidationError('app.invalid_credentials', {}, answer.detail, 'server')];
                 throw new Error(answer.detail);
               }
             },
@@ -398,7 +398,7 @@ const booking = new Group({
     value: '',
     validators: [
       new Validators.CompareTo<string>('from', (to, from) => !to || !from || to >= from, {
-        code: 'range_reversed',
+        code: 'app.range_reversed',
         detail: 'The end is before the start',
       }),
     ],
@@ -418,7 +418,7 @@ const lineItem = new Group({
     value: null,
     validators: [
       new Validators.CompareTo<number | null>('quantity', (price, quantity) => !(quantity! > 0 && price == null), {
-        code: 'unit_price_required',
+        code: 'app.unit_price_required',
         detail: 'Unit price is required when quantity is above zero',
       }),
     ],
@@ -443,7 +443,7 @@ line.fields.discount.registerAction(new Validators.Validator((discount, oldValue
     return null;
   }
   return discount > row.fields.quantity.value * row.fields.unitPrice.value
-    ? [new ValidationError('discount_too_high', {}, 'The discount exceeds the line total')]
+    ? [new ValidationError('app.discount_too_high', {}, 'The discount exceeds the line total')]
     : null;
 }));
 
@@ -484,7 +484,7 @@ const available = new Validators.Validator<string>(async (name, oldName, field, 
   if (Validators.isEmptyValue(name)) return null;
   await delay(300, signal);
   const response = await fetch(`/api/available?${new URLSearchParams({ name })}`, { signal });
-  return (await response.json()).free ? null : [new ValidationError('name_taken', {}, 'This name is taken')];
+  return (await response.json()).free ? null : [new ValidationError('app.name_taken', {}, 'This name is taken')];
 });
 
 const username = new Field({ value: '', validators: [new Validators.Required(), available] });
@@ -586,7 +586,7 @@ describe('signup form', () => {
     form.fields.username.value = 'ada';
     await form.settled();
 
-    expect(form.fields.username.errors.map((error) => error.code)).toEqual(['name_taken']);
+    expect(form.fields.username.errors.map((error) => error.code)).toEqual(['app.name_taken']);
     expect(form.valid).toBe(false);
   });
 

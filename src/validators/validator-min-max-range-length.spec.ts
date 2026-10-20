@@ -306,10 +306,14 @@ describe('LengthInRange Validator', () => {
 
 describe('Length bound error codes', () => {
   it('names each bound on the error it produces', () => {
-    expect(new Field({ value: 'ab', validators: [new Validators.MinLength(5)] }).errors[0].code).toBe('min_length');
-    expect(new Field({ value: 'abcdef', validators: [new Validators.MaxLength(5)] }).errors[0].code).toBe('max_length');
+    expect(new Field({ value: 'ab', validators: [new Validators.MinLength(5)] }).errors[0].code).toBe(
+      'vue-forms.min_length',
+    );
+    expect(new Field({ value: 'abcdef', validators: [new Validators.MaxLength(5)] }).errors[0].code).toBe(
+      'vue-forms.max_length',
+    );
     expect(new Field({ value: 'abcdef', validators: [new Validators.LengthInRange(1, 5)] }).errors[0].code).toBe(
-      'length_in_range',
+      'vue-forms.length_in_range',
     );
   });
 });

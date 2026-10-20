@@ -1,5 +1,6 @@
 import { unref } from 'vue';
 
+import { namespaced } from './error-namespace';
 import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 import { isEmptyValue } from './value-checks';
 
@@ -15,7 +16,7 @@ export default class Pattern extends Validator {
       if (isEmptyValue(value)) return null;
       if (!tester.test(String(value))) {
         return [
-          this.errorFor(options, 'pattern', 'Value must match pattern "{pattern}"', {
+          this.errorFor(options, namespaced('pattern'), 'Value must match pattern "{pattern}"', {
             newValue,
             oldValue,
             pattern,

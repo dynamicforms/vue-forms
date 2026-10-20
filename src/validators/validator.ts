@@ -4,6 +4,7 @@ import { type FieldBase } from '../field-base';
 import { FieldActionExecute } from '../field.interface';
 import { currentTransaction, SentNowhere, transaction, transactional } from '../transaction';
 
+import { namespaced } from './error-namespace';
 import { ValidationError } from './validation-error';
 
 export type ValidationFunctionResult = ValidationError[] | null;
@@ -38,12 +39,15 @@ export interface ValidatorBindingState {
  */
 export type ValidationErrorOptions =
   | {
-      /** The error's `code`. Defaults to the validator's own, such as `required`. */
+      /**
+       * The error's `code`, used as given. Defaults to the validator's own, such as `vue-forms.required`. The
+       * application prefixes its own codes with a namespace of its own.
+       */
       code?: string;
       detail?: never;
     }
   | {
-      /** The error's `code`. */
+      /** The error's `code`, used as given. */
       code: string;
       /** The error's English `detail`, plain text. `{name}` placeholders are replaced with the error's `params`. */
       detail?: string;
@@ -132,12 +136,14 @@ export class Validator<T = any> extends ValueChangedAction {
               if (isCurrent()) processErrors(err);
             },
             (reason) => {
-              // a rejection replaces this validator's errors with one `validation_failed` error, so the field is
-              // invalid and the form cannot be submitted until a later run of the validator succeeds. The error has
+              // a rejection replaces this validator's errors with one `vue-forms.validation_failed` error, so the field
+              // is invalid and the form cannot be submitted until a later run of the validator succeeds. The error has
               // this validator's source stamp, so the next successful run removes it like any other error of its
               // own. The error message says only that the check did not complete, so the reason is logged.
               if (isCurrent()) {
-                processErrors([new ValidationError('validation_failed', {}, 'Validation could not be completed')]);
+                processErrors([
+                  new ValidationError(namespaced('validation_failed'), {}, 'Validation could not be completed'),
+                ]);
                 console.error('Validation failed', reason);
               }
             },
@@ -241,7 +247,8 @@ export class Validator<T = any> extends ValueChangedAction {
 
   /**
    * Returns the error a built-in validator reports: `code` and `detail` from `options` if set, the validator's own
-   * otherwise, with `params` substituted into the detail.
+   * otherwise, with `params` substituted into the detail. Both codes are used as given: a built-in validator passes
+   * its own code as `vue-forms.<code>`, and a subclass of the application passes a code in a namespace of its own.
    */
   protected errorFor(
     options: ValidationErrorOptions | undefined,

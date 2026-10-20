@@ -17,21 +17,26 @@ on the fields follow either choice without revalidating.
 
 ### Translations
 
-The demo's text lives in `validators-demo.messages.json`, one block per language: `errors` keyed by error code,
-`roles` keyed by the stored role, and `ui` for the demo's own labels. `errors` holds the codes of the built-in
-validators and the demo's own codes, `invalid_email`, `email_taken` and `emails_differ`. An excerpt:
+The demo's text lives in `validators-demo.messages.json`, one block per language: `errors` keyed by error
+namespace and code, `roles` keyed by the stored role, and `ui` for the demo's own labels. `errors` holds the codes
+of the built-in validators under `vue-forms`, and the demo's own codes `app.invalid_email`, `app.email_taken` and
+`app.emails_differ` under `app`. An excerpt:
 
 ```json
 {
   "sl": {
     "errors": {
-      "required": "Prosimo, vnesite vrednost",
-      "value_in_range": "Vrednost mora biti med {minValue} in {maxValue}",
-      "in_allowed_values": "Mora biti ena od [{allowedAsText}]",
-      "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}",
-      "invalid_email": "Vnesite veljaven e-poštni naslov",
-      "emails_differ": "E-poštna naslova se ne ujemata",
-      …
+      "vue-forms": {
+        "required": "Prosimo, vnesite vrednost",
+        "value_in_range": "Vrednost mora biti med {minValue} in {maxValue}",
+        "in_allowed_values": "Mora biti ena od [{allowedAsText}]",
+        "length_in_range": "Dolžina mora biti med {minLength} in {maxLength}"
+      },
+      "app": {
+        "invalid_email": "Vnesite veljaven e-poštni naslov",
+        "emails_differ": "E-poštna naslova se ne ujemata",
+        …
+      }
     },
     "roles": {
       "admin": "Skrbnik",
@@ -95,12 +100,14 @@ The language selector switches the demo between English, Slovenian, German, Span
 Bengali. The library does not render errors: every error has a `code`, `params` and an English `detail`, and the
 demo's `errorText` function converts it into the text Vuetify's `error-messages` prop shows.
 
-- **Messages.** `errorText` looks the error's code up under `errors` in the current language and substitutes the
-  params with `interpolate` from `@dynamicforms/translatable`. A code the language has no message for shows the
-  error's `detail`.
-- **The demo's own codes.** The email pattern validator is given `{ code: 'invalid_email', detail: … }`, the
-  `CompareTo` validator `{ code: 'emails_differ', detail: … }`, and the asynchronous validator returns an error with
-  the code `email_taken`. All three are translated like the built-in codes.
+- **Messages.** `errorText` splits the error's code at its last `.` into namespace and code, finds the block of
+  `errors` for the namespace (`messageBlocks` maps the library's `ERROR_NAMESPACE` to `vue-forms` and the demo's
+  namespace `app` to `app`), looks the code up there in the current language and substitutes the params with
+  `interpolate` from `@dynamicforms/translatable`. A code the language has no message for shows the error's
+  `detail`.
+- **The demo's own codes.** The email pattern validator is given `{ code: 'app.invalid_email', detail: … }`, the
+  `CompareTo` validator `{ code: 'app.emails_differ', detail: … }`, and the asynchronous validator returns an error with
+  the code `app.email_taken`. All three are translated like the built-in codes.
 - **Numbers.** `formatParams`, from the same package, formats the params before they are substituted: numbers go
   through `Intl.NumberFormat` for the language, so Persian and Bengali show the age range in their own digits.
 - **Role names.** A role is stored as its code, `guest`, and the error's params carry the codes in `allowedValues`.
@@ -112,7 +119,7 @@ demo's `errorText` function converts it into the text Vuetify's `error-messages`
 without revalidating.
 
 Persian is written right to left: the demo wraps itself in Vuetify's `v-locale-provider` with `rtl` set for it, and
-the Persian message for `in_allowed_values` isolates the list with U+2068 and U+2069, so its brackets stay in place.
+the Persian message for `vue-forms.in_allowed_values` isolates the list with U+2068 and U+2069, so its brackets stay in place.
 
 ## API Reference
 

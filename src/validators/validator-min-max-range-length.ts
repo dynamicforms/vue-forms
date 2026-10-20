@@ -1,3 +1,4 @@
+import { namespaced } from './error-namespace';
 import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
 import { isEmptyValue, toLength } from './value-checks';
 
@@ -7,7 +8,7 @@ export class MinLength extends Validator {
       if (isEmptyValue(newValue)) return null;
       if (toLength(newValue) < minLength) {
         return [
-          this.errorFor(options, 'min_length', 'Length must be larger or equal to {minLength}', {
+          this.errorFor(options, namespaced('min_length'), 'Length must be larger or equal to {minLength}', {
             newValue,
             oldValue,
             minLength,
@@ -27,7 +28,7 @@ export class MaxLength extends Validator {
       if (isEmptyValue(newValue)) return null;
       if (toLength(newValue) > maxLength) {
         return [
-          this.errorFor(options, 'max_length', 'Length must be less than or equal to {maxLength}', {
+          this.errorFor(options, namespaced('max_length'), 'Length must be less than or equal to {maxLength}', {
             newValue,
             oldValue,
             maxLength,
@@ -48,7 +49,7 @@ export class LengthInRange extends Validator {
       const len = toLength(newValue);
       if (len < minLength || len > maxLength) {
         return [
-          this.errorFor(options, 'length_in_range', 'Length must be between {minLength} and {maxLength}', {
+          this.errorFor(options, namespaced('length_in_range'), 'Length must be between {minLength} and {maxLength}', {
             newValue,
             oldValue,
             minLength,
