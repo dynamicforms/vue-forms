@@ -3,7 +3,7 @@ import vuetify from 'vite-plugin-vuetify';
 
 export default defineConfig({
   title: 'Vue Forms',
-  description: 'Vue 3 library for reactive form and application state: fields, groups and lists, sync and async validation, conditional rules and transactions.',
+  description: 'UI-agnostic Vue 3 forms and application state: rules between fields, transactional changes, composable validation and lists of thousands of rows.',
   srcExclude: ['readme.md'],
   transformHead({ pageData, siteConfig }) {
     const path = pageData.relativePath.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '.html');
