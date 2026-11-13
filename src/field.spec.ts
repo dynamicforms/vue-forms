@@ -53,7 +53,7 @@ describe('Field', () => {
     const onValidChanged = vi.fn();
     const field = new Form.Field({ access: 'editable' }).registerAction(new Form.ValidChangedAction(onValidChanged));
 
-    field.errors = [new ValidationError('invalid', {}, 'Napaka')];
+    field.errors = [new ValidationError('invalid', {}, 'Error')];
     field.value = 'test';
 
     expect(field.valid).toBe(false);
@@ -63,9 +63,7 @@ describe('Field', () => {
   it.each<Visibility | null>([null, 'full', 'hidden'])(
     'triggers onVisibilityChanging on visibility change',
     (changingReturnValue: Visibility | null) => {
-      // why we're doing .each? it's to test that the function for setting visibility value
-      //  actually uses the result of the event handler.
-      //  when it returns null, expected result is what was requested in the setVisibility call
+      // the handler's answer is what is written; null writes what was asked for
       const onVisibilityChanging = vi.fn().mockReturnValue(changingReturnValue);
       const field = new Form.Field().registerAction(new Form.VisibilityChangingAction(onVisibilityChanging));
 
@@ -194,7 +192,7 @@ describe('Field construction', () => {
     expect(onChange).toHaveBeenCalled();
   });
 
-  it('runs init before a subclass class field initializer', () => {
+  it('runs init before a subclass class field initialiser', () => {
     const seenDuringInit: unknown[] = [];
 
     class Suffixed extends Form.Field<string> {
@@ -208,7 +206,7 @@ describe('Field construction', () => {
 
     const field = new Suffixed({ value: 'a' });
 
-    // init is called from Field's constructor, so the subclass initializer has not run yet
+    // init is called from Field's constructor, so the subclass initialiser has not run yet
     expect(seenDuringInit).toEqual([undefined]);
     expect(field.suffix).toBe(' EUR');
     expect(field.value).toBe('a');
@@ -340,5 +338,20 @@ describe('Field construction', () => {
 
     expect(seen).toEqual([{ amount: 12, currency: 'EUR' }]);
     expect(field.valid).toBe(true);
+  });
+});
+
+describe('a write of NaN over NaN', () => {
+  it('is not a change', () => {
+    let changes = 0;
+    const field = new Form.Field({
+      value: NaN,
+      actions: [new Form.ValueChangedAction((f, s, n, o) => (changes++, s(f, n, o)))],
+    });
+
+    field.value = NaN;
+    field.value = NaN;
+
+    expect(changes).toBe(0);
   });
 });

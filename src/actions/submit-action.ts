@@ -12,7 +12,7 @@ import { ExecuteAction } from './execute-action';
  */
 export type CommandTarget = FieldBase | ((action: FieldBase) => FieldBase | null | undefined);
 
-/** An `ExecuteAction` that works on a target element; `Container.confirm()` and `reject()` find it by its target. */
+/** An `ExecuteAction` that works on a target element. */
 export abstract class TargetedExecuteAction extends ExecuteAction {
   protected abstract readonly target: CommandTarget;
 
@@ -123,8 +123,7 @@ export class SubmitRefusedException extends CommandException {
  * with the result, so a change written to the target by code while the handler runs is lost and `isChanged` is
  * false afterwards. `busy` and `pending` report the running submit.
  *
- * `canExecute()` is true while the target is valid and not `pending`, so `Action.executable` disables a submit
- * button while the form is invalid or a validation is running.
+ * `canExecute()` is true while the target is valid and not `pending`.
  */
 export class SubmitAction<R = any> extends TargetedExecuteAction {
   protected readonly target: CommandTarget;

@@ -63,7 +63,7 @@ describe('effectiveEnabled', () => {
 
     // the member states its own enabled, unchanged
     expect(f.fields.section.fields.a.enabled).toBe(true);
-    // and it goes on serializing and accepting writes
+    // and it goes on serialising and accepting writes
     expect(f.value).toEqual({ name: 'x', section: { a: 1, inner: { b: 2 } } });
     f.fields.section.fields.a.value = 9;
     expect(f.fields.section.fields.a.value).toBe(9);

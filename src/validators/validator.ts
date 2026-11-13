@@ -64,7 +64,7 @@ function interpolate(template: string, params: Record<string, unknown>): string 
 }
 
 /**
- * Validator is a specialized action that performs validation when a field's value changes.
+ * Validator is a specialised action that performs validation when a field's value changes.
  * It automatically adds/removes validation errors from the field's errors array.
  */
 export class Validator<T = any> extends ValueChangedAction {

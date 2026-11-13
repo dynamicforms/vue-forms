@@ -49,7 +49,7 @@ function isIndex(key: string | symbol): key is string {
   return typeof key === 'string' && /^(0|[1-9]\d*)$/.test(key);
 }
 
-/** an argument read as an integer, as array methods read it: NaN is 0, a fraction is truncated toward 0 */
+/** an argument read as an integer, as array methods read it: NaN is 0, a fraction is truncated towards 0 */
 function toInteger(value: unknown): number {
   const number = Math.trunc(Number(value));
   return Number.isNaN(number) ? 0 : number;
@@ -121,7 +121,6 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
 }
 
 function listView(list: List<any, any>): unknown[] {
-  // the rows a view shows, in order: every row the list holds, whatever it sends
   // the rows the view shows: every row, in the frozen array `items` keeps until the set of rows changes, so a read
   // of an index or of `length` costs no copy
   const shown = (): readonly FieldBase[] => list.items;

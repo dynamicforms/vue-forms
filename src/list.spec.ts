@@ -18,16 +18,17 @@ import { Group } from './group';
 import { List, type ListValue } from './list';
 import { transaction } from './transaction';
 import { Validators, ValidationError } from './validators';
+import { view } from './view';
 import type { Visibility } from './visibility';
 
 describe('List', () => {
-  it('correctly initializes with empty array', () => {
+  it('correctly initialises with empty array', () => {
     const list = new List();
     expect(list.value).toEqual([]);
     expect(list.get(0)).toBeUndefined();
   });
 
-  it('initializes with values', () => {
+  it('initialises with values', () => {
     const list = new List(undefined, {
       value: [
         { name: 'John', age: 30 },
@@ -45,7 +46,7 @@ describe('List', () => {
     expect(list.get(0)?.fields.name.value).toBe('John');
   });
 
-  it('initializes with template groups', () => {
+  it('initialises with template groups', () => {
     const template = new Group({
       name: new Field({ value: '' }),
       age: new Field({ value: 0 }),
@@ -75,7 +76,7 @@ describe('List', () => {
     expect(list.value).toEqual([{ name: 'John' }]);
   });
 
-  it('triggers ArrayItemAddedAction on push', () => {
+  it('triggers ListItemAddedAction on push', () => {
     const onItemAdded = vi.fn();
     const list = new List().registerAction(new ListItemAddedAction(onItemAdded));
 
@@ -118,7 +119,7 @@ describe('List', () => {
     expect(list.value).toEqual([{ name: 'John' }, { name: 'Jane' }]);
   });
 
-  it('triggers ArrayItemRemovedAction on pop', () => {
+  it('triggers ListItemRemovedAction on pop', () => {
     const onItemRemoved = vi.fn();
     const list = new List(undefined, { value: [{ name: 'John' }] }).registerAction(
       new ListItemRemovedAction(onItemRemoved),
@@ -365,7 +366,7 @@ describe('List', () => {
     // Check that item has parent reference
     const item = list.get(0);
     expect(item?.parent).toBe(list);
-    // the back-reference stays out of enumeration, so serializing the list does not walk back up into it
+    // the back-reference stays out of enumeration, so serialising the list does not walk back up into it
     expect(Object.keys(item!)).not.toContain('parent');
     expect(JSON.stringify(item)).not.toContain('parent');
     expect(() => JSON.stringify(list)).not.toThrow();
@@ -533,7 +534,7 @@ describe('Cross-field validation with revalidate', () => {
     });
     itemTemplate.fields.endDate.registerAction(dateValidator);
 
-    // Ustvari list z enim elementom
+    // a list with one row
     const eventsList = new List(itemTemplate, {
       value: [{ startDate: '2025-01-01', endDate: '2025-01-05' }],
     });
@@ -570,7 +571,8 @@ describe('Cross-field validation with revalidate', () => {
 
     // Revalidate entire list
     eventsList.validate(false);
-    expect(firstItem?.fields.endDate.valid).toBe(true); // We don't have cross-field revalidation, it will remain true
+    // validate(false) does not re-run the validators, so the verdict stands
+    expect(firstItem?.fields.endDate.valid).toBe(true);
     eventsList.validate(true);
     expect(firstItem?.fields.endDate.valid).toBe(false); // Should become invalid
     expect(firstItem?.valid).toBe(false);
@@ -1436,7 +1438,7 @@ describe('List.fullValue', () => {
     list.push({ a: 'Ada', b: 'Lovelace' });
     list.get(0)!.fields.b.access = 'disabled';
 
-    // value serializes, so the disabled field is out of it; fullValue states what the row holds
+    // value serialises, so the disabled field is out of it; fullValue states what the row holds
     expect(list.value).toEqual([{ a: 'Ada' }]);
     expect(list.fullValue).toEqual([{ a: 'Ada', b: 'Lovelace' }]);
   });
@@ -1567,7 +1569,7 @@ describe('List of fields', () => {
     expect(bound.get(0)).toBeInstanceOf(Field);
   });
 
-  it('serializes as an array of values inside a group, and clears with it', () => {
+  it('serialises as an array of values inside a group, and clears with it', () => {
     const group = new Group({ tags: tags(), name: new Field({ value: 'n' }) });
 
     group.value = { tags: ['t1', 't2'] };
@@ -1621,5 +1623,68 @@ describe('List without an item template', () => {
     lists.insert([1], 1);
     expect(lists.get(0)).toBeInstanceOf(List);
     expect(lists.get(0)!.value).toEqual([]);
+  });
+});
+
+describe('a list row that was not built from the item template', () => {
+  it('is replaced by a value assignment, not reset through the template', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }));
+    const own = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
+    list.push(own);
+
+    list.value = [{ a: 5 }];
+
+    expect(list.get(0)).not.toBe(own);
+    expect(list.value).toEqual([{ a: 5 }]);
+    expect(own.fields.b.value).toBe(2);
+  });
+});
+
+describe('List row events', () => {
+  const events = (list: List<any>) => {
+    const seen: string[] = [];
+    list.registerAction(
+      new ListItemAddedAction((f, s, item, index: number) => (seen.push(`+${index}`), s(f, item, index))),
+    );
+    list.registerAction(
+      new ListItemRemovedAction((f, s, item, index: number) => (seen.push(`-${index}`), s(f, item, index))),
+    );
+    return seen;
+  };
+
+  it('fire for the rows a value assignment adds and removes, not for the rows it reuses', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }, { a: 2 }, { a: 3 }] });
+    const seen = events(list);
+
+    list.value = [{ a: 4 }];
+    expect(seen).toEqual(['-2', '-1']);
+
+    seen.length = 0;
+    list.value = [{ a: 5 }, { a: 6 }];
+    expect(seen).toEqual(['+1']);
+  });
+
+  it('fire a removal per row for clear()', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 1 }, { a: 2 }] });
+    const seen = events(list);
+
+    list.clear();
+
+    expect(seen).toEqual(['-1', '-0']);
+  });
+
+  it('do not fire for sort() and reverse() of the view, which reorder the rows in place', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }), { value: [{ a: 2 }, { a: 1 }, { a: 3 }] });
+    const rows = [...list.items];
+    const seen = events(list);
+    const data = view(list) as any;
+
+    data.sort((x: any, y: any) => x.a - y.a);
+    expect(list.value).toEqual([{ a: 1 }, { a: 2 }, { a: 3 }]);
+    data.reverse();
+
+    expect(list.value).toEqual([{ a: 3 }, { a: 2 }, { a: 1 }]);
+    expect(seen).toEqual([]);
+    expect(new Set(list.items)).toEqual(new Set(rows));
   });
 });

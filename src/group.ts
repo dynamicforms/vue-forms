@@ -47,11 +47,6 @@ export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValue
 /** what Group.value and the Group constructor accept: missing keys are not assigned, and null clears */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
 
-/**
- * The groups whose constructor is still adding and writing their members. A member's record is completed after the
- * constructor has written the given data, so a rule that reads a sibling runs over that data, not over the values
- * the members were bound with.
- */
 /** The element plain data is built into: a `Group` for a plain object, a `List` for an array, a `Field` otherwise. */
 function elementFromData(value: unknown): FieldBase {
   if (isPlainObject(value)) return Group.createFromFormData(value as Record<string, any>);
@@ -59,6 +54,11 @@ function elementFromData(value: unknown): FieldBase {
   return new Field({ value });
 }
 
+/**
+ * The groups whose constructor is still adding and writing their members. A member's record is completed after the
+ * constructor has written the given data, so a rule that reads a sibling runs over that data, not over the values
+ * the members were bound with.
+ */
 const assembling = new WeakSet<object>();
 
 /** the value of a group in which no member sends anything; it is frozen like every value a group builds */
@@ -427,11 +427,8 @@ export class Group<
       tx.touch(this);
       if (this.errors.length) this.errors = [];
       Object.entries(this._fields).forEach(([name, field]) => {
-        // a null value clears every member, as assigning null does. A member whose key is missing from a value takes
-        // the baseline of the template's member: for a group that is its own declaration that is the member's own
-        // originalValue, so a member the value leaves out (a 'disabled' one) is put back to its baseline, not left
-        // holding what was written to it since. Without a value, every member takes the template member's value.
-        // An action holds no data and takes its value from the template, whatever the value contains
+        // null clears every member; a key missing from a value takes the template member's baseline, and without
+        // a value every member takes the template member's value; an action takes the template's value
         const source = template.field(name) ?? field;
         let memberValue: any;
         if (this.childSerializesAs(field, 'fullValue') === 'omit') memberValue = undefined;

@@ -76,15 +76,14 @@ at construction and turned into text only when the devtools show the element.
 A file the stack does not name, and a name other than the element's class and number, are given with
 `describeState()`.
 
-Capturing the stack is the expensive part of the devtools: about 9 µs of construction time and 2.4 KB of heap per
-element in Node, against about 2 µs for the rest of what the devtools record. What each element records in
-development:
+Capturing the stack is the largest cost of the devtools, in construction time and in heap, and the captured stack is
+kept only while the element is a root. What each element records in development:
 
-| element | recorded | construction time | heap kept |
-|---|---|---:|---:|
-| an element built directly, `location` true | the stack and the component | ~11 µs | 2.4 KB while it is a root |
-| an element built directly, `location` false | the component | ~2 µs | — |
-| a binding: an element `bind()` builds, such as a row of a `List` and the members of the row | nothing | 0 | 0 |
+| element | recorded |
+|---|---|
+| an element built directly, `location` true | the stack and the component |
+| an element built directly, `location` false | the component |
+| a binding: an element `bind()` builds, such as a row of a `List` and the members of the row | nothing |
 
 An element built directly does not know at its construction whether a container will take it, so the stack is
 captured for a member of a declaration as well. When a container takes the element, the captured stack is dropped:
@@ -104,8 +103,8 @@ Names `element` for the devtools and lists it in opt-in mode. `description` is a
 
 | Member | Type | Description |
 |---|---|---|
-| `name` | `string` | The name the devtools show, in place of the element's class and number |
-| `file` | `string` | The file the devtools group the element under, in place of the file read from the stack |
+| `name` | `string`, optional | The name the devtools show; defaults to the element's class and number |
+| `file` | `string`, optional | The file the devtools group the element under; defaults to the file read from the stack, or none while `location` is `false` |
 
 ```typescript
 export const cart = createCart();

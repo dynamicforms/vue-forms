@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 
+import { BeginValidating } from '../element-state';
 import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
@@ -426,5 +427,20 @@ describe('Runs in flight where the form the field stands in changes under them',
     field.value = 'b';
     expect(signals.length).toBe(2);
     await settled(field);
+  });
+});
+
+describe('the end function of an asynchronous validation run', () => {
+  it('ends its own run once: a second call does not end another run', () => {
+    const field = new Field({ value: 1 });
+    const endFirst = field[BeginValidating]();
+    const endSecond = field[BeginValidating]();
+
+    endFirst();
+    endFirst();
+
+    expect(field.validating).toBe(true);
+    endSecond();
+    expect(field.validating).toBe(false);
   });
 });

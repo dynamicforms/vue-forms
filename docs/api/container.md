@@ -76,10 +76,10 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where none of the container's own errors counts toward
-validity and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever errors it
-carries; see [What a container serializes](#what-a-container-serializes). The value is composed over the children and
-memoised, so an error written into a child without a `validate()` call is reflected here as well
+Overrides [`FieldBase.valid`](/api/field-base#prop-valid): `true` where none of the container's own errors counts
+towards validity and every child it counts is valid. A `'disabled'` child sends nothing and is not counted, whatever
+errors it carries; see [What a container serialises](#what-a-container-serializes). The value is composed over the
+children and memoised, so an error written into a child without a `validate()` call is reflected here as well
 
 </td></tr>
 </tbody>
@@ -190,16 +190,16 @@ narrowing.
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
 | [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
-| [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
-| [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
+| [`effectiveAccess`](/api/field-base#prop-effectiveaccess) | The access that applies once the containers above are taken into account |
+| [`effectiveEnabled`](/api/field-base#prop-effectiveenabled) | `true` where `effectiveAccess` is `'editable'` |
 | [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
 | [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |
 | [`extra`](/api/field-base#prop-extra) | The extended properties the element holds, frozen; written through `setExtendedValues()` |
-| [`fieldName`](/api/field-base#prop-fieldName) | Key name within the parent `Group` |
-| [`fullValue`](/api/field-base#prop-fullValue) | What the element holds; identical to `value` except on `Group` and `List` |
-| [`isChanged`](/api/field-base#prop-isChanged) | `true` when `value` differs from `originalValue` (deep equality) |
+| [`fieldName`](/api/field-base#prop-fieldname) | Key name within the parent `Group` |
+| [`fullValue`](/api/field-base#prop-fullvalue) | What the element holds; identical to `value` except on `Group` and `List` |
+| [`isChanged`](/api/field-base#prop-ischanged) | `true` when `value` differs from `originalValue` (deep equality) |
 | [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) | Marks that an eager action did not find a second element of a record not yet assembled |
-| [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
+| [`originalValue`](/api/field-base#prop-originalvalue) | Baseline for `isChanged`; writable |
 | [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
 | [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
 | [`rebind(data)`](/api/field-base#rebind-data-this) | Replaces the data the element holds, in place |
@@ -215,7 +215,7 @@ narrowing.
 
 :::
 
-## What a container serializes
+## What a container serialises {#what-a-container-serializes}
 
 ::: tip
 The [Cookbook](/guide/cookbook) applies these rules to common cases: fields that depend on a type, an optional

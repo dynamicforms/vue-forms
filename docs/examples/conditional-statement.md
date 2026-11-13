@@ -25,7 +25,7 @@ from the values of other fields.
 
 ::: tip
 To also leave a suppressed field out of what the form sends, register a `ConditionalAccessAction` on it as well;
-see [What a container serializes](/api/container#what-a-container-serializes).
+see [What a container serialises](/api/container#what-a-container-serializes).
 :::
 
 ## Source Code

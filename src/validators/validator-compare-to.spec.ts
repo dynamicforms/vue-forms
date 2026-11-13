@@ -52,7 +52,7 @@ describe('CompareTo Validator', () => {
     numberField.value = 3;
     expect(numberField.errors.length).toBe(1);
 
-    // When increasing the limit, it becomes invalid
+    // raising the limit leaves it invalid
     limitField.value = 15;
     expect(numberField.errors.length).toBe(1);
 

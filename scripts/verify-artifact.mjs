@@ -1,5 +1,5 @@
 /**
- * Loads the built ESM artifact and exercises it, so that what the package publishes is checked rather than what
+ * Loads the built ESM artefact and exercises it, so that what the package publishes is checked rather than what
  * the source compiles to under the test runner. The specs import `src/`; nothing else reaches `dist/`.
  *
  * Run after `npm run build`.
@@ -22,9 +22,9 @@ const declared = [
 const expected = [...new Set(declared), 'default'];
 assert.ok(declared.length > 40, `only ${declared.length} value exports declared - the declarations rolled up empty?`);
 const missing = expected.filter((name) => !(name in m));
-assert.equal(missing.length, 0, `the artifact is missing exports: ${missing.join(', ')}`);
+assert.equal(missing.length, 0, `the artefact is missing exports: ${missing.join(', ')}`);
 const undeclared = Object.keys(m).filter((name) => !expected.includes(name));
-assert.equal(undeclared.length, 0, `the artifact exports values the declarations do not: ${undeclared.join(', ')}`);
+assert.equal(undeclared.length, 0, `the artefact exports values the declarations do not: ${undeclared.join(', ')}`);
 
 // a form end to end: composition, validation, serialization
 const template = new m.Group({
@@ -77,4 +77,4 @@ assert.equal(address.isChanged, true, 'a write into a tracked value is a change 
 assert.equal(address.originalValue.city, 'Ljubljana', 'the baseline is a copy');
 uninstall();
 
-console.log(`artifact verified: ${expected.length} exports, a list of ${list.length} rows exercised end to end`);
+console.log(`artefact verified: ${expected.length} exports, a list of ${list.length} rows exercised end to end`);

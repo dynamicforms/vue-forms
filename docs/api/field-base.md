@@ -72,7 +72,7 @@ default `'editable'`
 <tr class="member-desc"><td colspan="3">
 
 Whether the element accepts input, what it sends to its container, and whether it is validated. A write to `value` is
-accepted whatever the access. See [What a container serializes](/api/container#what-a-container-serializes).
+accepted whatever the access. See [What a container serialises](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td>
@@ -288,7 +288,7 @@ and setter) on the subclass, not an extended property. `List` declares `length` 
 parameter of either name throws the same `TypeError` as `valid`. In your own subclass, an accessor counts as a
 declared member and a class field does not: class fields are defined on the instance after the base constructor has
 applied the parameters, so a parameter with a class field's name becomes an extended property and the class field
-keeps its initializer. Declare the member as an accessor where a parameter of its name should set it.
+keeps its initialiser. Declare the member as an accessor where a parameter of its name should set it.
 
 `validators` and `actions` list what to register on the element, so neither becomes an extended property, in a
 constructor or in a `bind()` override.
@@ -404,14 +404,15 @@ writable
 
 Whether the element accepts input, what it sends to its container, and whether its validators run: `'editable'` and
 `'readonly'` send its value, `'disabled'` sends nothing and `'disabled-null'` sends `null`. A write to `value` is
-accepted whatever the access, so a record loaded into the form is written to the element. Changing `access` changes what
-every container above sends (each fires a [`ContributionChangedAction`](/api/actions#contributionchangedaction)) and
-runs the validators again on the element and its descendants whose effective access changed what they send; a change
-between `'editable'` and `'readonly'` runs none. Writing the access the element already has is not a change: no
-`AccessChangingAction` runs, nothing is enrolled in an open transaction, and no `AccessChangedAction` fires. Writing a
-value that is not one of the four throws `Error("'x' is not an access: …")`. On a `Group` or a `List` the access also
-applies to every element inside it through `effectiveAccess`. See [What a container
-serializes](/api/container#what-a-container-serializes).
+accepted whatever the access, so a record loaded into the form is written to the element. A change of access that
+changes what the element sends changes what every container above sends (each fires a
+[`ContributionChangedAction`](/api/actions#contributionchangedaction)), and the validators run again on the element
+and its descendants whose effective access changed what they send; a change between `'editable'` and `'readonly'`
+sends the same value, so it fires no `ContributionChangedAction` and runs no validator. Writing the access the
+element already has is not a change: no `AccessChangingAction` runs, nothing is enrolled in an open transaction, and
+no `AccessChangedAction` fires. Writing a value that is not one of the four throws
+`Error("'x' is not an access: …")`. On a `Group` or a `List` the access also applies to every element inside it
+through `effectiveAccess`. See [What a container serialises](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-busy"></a>
@@ -551,7 +552,7 @@ writable
 
 Current validation errors of the element; on a `Group` or a `List` these are the container's own errors. Writable, but
 normally managed by validators. Whether an error of an [origin](/api/validators#origin) other than `'validator'` counts
-toward `valid`, and when the element removes it by itself, is the rule of its origin: see
+towards `valid`, and when the element removes it by itself, is the rule of its origin: see
 [`ErrorPolicy`](/api/validators#errorpolicy). The getter returns the array the element holds, so pushing into it works.
 `valid` updates immediately, on this element and on the containers above it; `ValidChangedAction` fires only when
 `validate()` is called. The array is reactive, so an error read back from it is a Vue proxy of the original instance:
@@ -610,8 +611,8 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Identical to `value` on `FieldBase`, and so on `Field` and `Action`. [`Group`](/api/group#prop-fullValue) and
-[`List`](/api/list#prop-fullValue) override it: there it is what the element holds, while `value` is what it sends
+Identical to `value` on `FieldBase`, and so on `Field` and `Action`. [`Group`](/api/group#prop-fullvalue) and
+[`List`](/api/list#prop-fullvalue) override it: there it is what the element holds, while `value` is what it sends
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-ischanged"></a>
@@ -647,8 +648,9 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Value as provided at creation. Assigning it resets the baseline for `isChanged`. On a `Group` or a `List` it is held as
-a separate, unfrozen copy, not the object `value` returns
+The baseline for `isChanged`: the value recorded at construction, or the one last set by `rebind()`, the reset of
+a reused `List` row, or an assignment. On a `Group` or a `List` it is held as a separate, unfrozen copy, not the
+object `value` returns
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-parent"></a>
@@ -734,7 +736,7 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-`true` when no error in `errors` counts toward validity: every error of origin `'validator'` counts, and an error of
+`true` when no error in `errors` counts towards validity: every error of origin `'validator'` counts, and an error of
 another origin counts where the `validEffect` of its rule is `true` ([`ErrorPolicy`](/api/validators#errorpolicy)). It
 is computed from the live array, so it reflects an error pushed in by hand without any call. `ValidChangedAction` fires
 only when `validate()` is called. [`Container.valid`](/api/container#prop-valid) also requires every child it counts to
@@ -1040,7 +1042,7 @@ overrides it to revalidate the children first.
 `init(params)`, on `Field` and `Action`, applies the constructor parameters; `Group` and `List` apply theirs in
 their constructors. Override it where the subclass accepts parameters of its own shape, and read only the parameters
 in it: it runs from the base constructor, so a member the subclass declares as a class field is still `undefined`
-while it runs, and anything it assigns to one is overwritten when the initializer runs.
+while it runs, and anything it assigns to one is overwritten when the initialiser runs.
 
 `constructed(params)` is the last step of a construction, and all four classes call it. It runs inside the
 construction's transaction, with the parameters applied and the value set, before the element records its initial
@@ -1105,8 +1107,8 @@ its value and an `<input disabled>` is left out:
 | `'disabled-null'` | no | `null` | over `null` |
 
 `accessValues` lists the four, `defaultAccess` is `'editable'`, and `isAccess(value)` returns whether a value is
-one of them; a deserializer uses it to check an access value without the exception the setter throws. See
-[What a container serializes](/api/container#what-a-container-serializes) for how a container's access applies to
+one of them; a deserialiser uses it to check an access value without the exception the setter throws. See
+[What a container serialises](/api/container#what-a-container-serializes) for how a container's access applies to
 the elements inside it.
 
 ## `Visibility`
@@ -1131,9 +1133,11 @@ value is one of them.
 ## Comparing elements
 
 A structural comparison of two elements (lodash `isEqual(fieldA, fieldB)`) compares identity. The element state is
-in private class fields, which a structural comparison does not read. `FieldBase` has a `Symbol.toStringTag`
-accessor returning the element's class name; a structural comparison reads the tag first and returns `false` for two
-distinct objects with a tag it does not know.
+in private class fields, which a structural comparison does not read. Every element has a `Symbol.toStringTag`
+accessor: `Field`, `Action`, `Group` and `List` return their class name, and a class that does not declare its own
+inherits the tag of the nearest class above it that does (`'FormElement'` on `FieldBase`, `'Container'` on
+`Container`). A structural comparison reads the tag first and returns `false` for two distinct objects with a tag it
+does not know.
 Two elements are therefore equal only where they are the same element. The package's own
 [`isEqual(a, b)`](#isequal-a-b-boolean) compares them by the value they hold. The accessor is defined on the prototype,
 so it adds nothing to each instance, and `Object.prototype.toString.call(field)` returns `[object Field]`, not

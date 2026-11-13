@@ -940,7 +940,7 @@ describe('Cookbook: keeping state across a hot module replacement', () => {
 });
 
 describe('Cookbook: carrying server-rendered state to the client', () => {
-  it('rebinds the client instance to the serialized fullValue, members that are not sent included', () => {
+  it('rebinds the client instance to the serialised fullValue, members that are not sent included', () => {
     const server = createState();
     server.fields.secret.value = 'from-db';
     const payload = JSON.stringify(server.fullValue);

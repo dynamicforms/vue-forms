@@ -685,7 +685,7 @@ describe('comparing elements', () => {
     expect(Object.prototype.toString.call(new Action())).toBe('[object Action]');
     expect(`${group}`).toBe('[object Group]');
 
-    // the tag is on the prototype and JSON reads own enumerable keys, so serializing an element is unaffected
+    // the tag is on the prototype and JSON reads own enumerable keys, so serialising an element is unaffected
     expect(() => JSON.stringify(group)).not.toThrow();
     expect(JSON.stringify(group.value)).toBe('{"a":1}');
   });

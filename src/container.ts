@@ -71,7 +71,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
 
   /**
    * Records that a child changed its value, so that at commit the open transaction computes this container's new
-   * value and announces it once. The mutation methods call it; a direct call is rarely needed.
+   * value and announces it once.
    */
   notifyValueChanged() {
     this.propagateValueChanged();
@@ -87,8 +87,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
    *
    * Only actions whose `visibility` is `'full'` are candidates. One candidate is executed if it is `executable`;
    * where it is not, nothing is executed. Two or more candidates in one step are ambiguous: nothing is executed and
-   * a warning is logged. Returns undefined where nothing is executed. A rendering layer calls it for a confirm
-   * gesture, such as Enter in a dialog.
+   * a warning is logged. Returns undefined where nothing is executed.
    */
   confirm(params?: any): Promise<any> | undefined {
     return this.command('confirm')?.execute(params);
@@ -96,7 +95,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
 
   /**
    * Executes the action that rejects this container, looked up as in `confirm()` with `RejectAction` and
-   * `defaultReject`. A rendering layer calls it for a reject gesture, such as Escape in a dialog.
+   * `defaultReject`.
    */
   reject(params?: any): Promise<any> | undefined {
     return this.command('reject')?.execute(params);

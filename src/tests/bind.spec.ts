@@ -477,3 +477,27 @@ describe('rebind()', () => {
     expect(list.get(0)!.access).toBe('disabled');
   });
 });
+
+describe('rebind with a value that leaves a member out', () => {
+  it('puts the member back to its own baseline, so rebind(originalValue) restores a disabled member', () => {
+    const form = new Group({ name: new Field({ value: 'n' }), secret: new Field({ value: 's', access: 'disabled' }) });
+    form.fields.name.value = 'm';
+    form.fields.secret.value = 't';
+
+    form.rebind(form.originalValue);
+
+    expect(form.fields.name.value).toBe('n');
+    expect(form.fields.secret.value).toBe('s');
+    expect(form.fields.secret.access).toBe('disabled');
+    expect(form.isChanged).toBe(false);
+  });
+
+  it('takes the item template member baseline for a list row, not the previous record', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }), b: new Field({ value: 7 }) }));
+    list.value = [{ a: 1, b: 2 }];
+
+    list.value = [{ a: 3 }];
+
+    expect(list.get(0)!.fields.b.value).toBe(7);
+  });
+});

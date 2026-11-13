@@ -144,8 +144,8 @@ array, a `Field` from any other value), so its rows can differ in kind and in me
 
 An assignment reuses row objects, so `list.get(0)` returns the same row after `list.value = rows` when the new array
 has the same length, and a keyed `v-for` does not remount. A reused row is reset to the state a newly built row at
-that position would have: a member with no key in the new item takes the item template's value, and
-`originalValue`, `isChanged`, `touched` and `errors` are reset.
+that position would have: a member with no key in the new item takes the `originalValue` of the item template's
+member, and `originalValue`, `isChanged`, `touched` and `errors` are reset.
 
 ## Actions and commands
 
@@ -308,7 +308,7 @@ A `List` sends its rows by the same rule, and its value is `[]` when no row is s
 A container's access applies to everything inside it: nothing below a `'disabled'` or `'disabled-null'` container
 is sent, and therefore nothing there is validated. An element's validators run over what it sends, and only where
 it is sent. `visibility` is presentation only and affects neither. The full rule, with what to declare for each
-outcome, is in [What a container serializes](/api/container#what-a-container-serializes). The
+outcome, is in [What a container serialises](/api/container#what-a-container-serializes). The
 [Cookbook](/guide/cookbook) applies it in individual recipes.
 
 The composed object is cached behind a version counter that a write increments along its own branch. A container
@@ -364,7 +364,7 @@ the package's `isEqual` compares by value.
 |---|---|
 | every member every element has | [FieldBase](/api/field-base) |
 | what `Field` implements, writing a value | [Field](/api/field) |
-| members, serialization, `fields` | [Group](/api/group) |
+| members, serialisation, `fields` | [Group](/api/group) |
 | loading, submitting, resetting, optional sections, type-dependent fields | [Cookbook](/guide/cookbook) |
 | a group or a list read as plain data | [view()](/api/view) |
 | action state per element, records, memory per element | [Bindings and records](/guide/bindings) |

@@ -6,9 +6,9 @@ transaction.
 
 ## Demo
 
-The [Application state](/guide/cookbook#application-state) cart from the cookbook: a `Group` read through
-[`view()`](/api/view), with a list of items, a coupon, a pickup flag and a delivery address that is a `Group` inside
-the cart's `Group`.
+A cart built like the [Application state](/guide/cookbook#application-state) cart from the cookbook, with a
+`watchEffect` in place of its conditional access rule: a `Group` read through [`view()`](/api/view), with a list of
+items, a coupon, a pickup flag and a delivery address that is a `Group` inside the cart's `Group`.
 
 <CartDemo />
 
@@ -98,13 +98,13 @@ const booking = new Group({
   }),
 });
 
-// written one at a time, `to` is validated against a `from` that is not there yet
+// one ValueChangedAction on the form, over both dates, instead of one after each write
 transaction(() => {
   booking.fields.from.value = '2026-08-20';
   booking.fields.to.value = '2026-08-24';
 });
 
-booking.valid;  // true: both dates were written before validity was announced
+booking.valid;  // true
 ```
 
 ## Undoing an edit

@@ -100,7 +100,7 @@ describe('Validator', () => {
     expect(field.errors[0].detail).toBe('Got a, {unknown} stays');
   });
 
-  it('creates validator with field instance instead of mock', () => {
+  it('adds and removes its error as the field value changes', () => {
     // Create a field with a validator directly
     const validationFn: ValidationFunction = (newValue) =>
       newValue === 'invalid' ? [new ValidationError('invalid', {}, 'Invalid value')] : null;
@@ -328,5 +328,44 @@ describe('the error instance a re-run leaves standing', () => {
     expect(field.errors).toHaveLength(1);
     expect(field.errors[0]).not.toBe(first);
     expect(field.errors[0].params.newValue).toBe('abc');
+  });
+});
+
+describe('value validators on an empty or a non-comparable value', () => {
+  const valid = (value: unknown, validator: Validators.Validator) =>
+    new Field({ value, validators: [validator] }).valid;
+
+  it('pass an empty value: refusing it is Required', () => {
+    for (const empty of [null, undefined, '', []]) {
+      expect(valid(empty, new Validators.MinValue(5))).toBe(true);
+      expect(valid(empty, new Validators.ValueInRange(1, 5))).toBe(true);
+      expect(valid(empty, new Validators.MinLength(2))).toBe(true);
+      expect(valid(empty, new Validators.Pattern(/^\d+$/))).toBe(true);
+      expect(valid(empty, new Validators.InAllowedValues(['a']))).toBe(true);
+    }
+  });
+
+  it('refuse a value that cannot be compared with the bound', () => {
+    expect(valid(NaN, new Validators.MinValue(5))).toBe(false);
+    expect(valid('abc', new Validators.MinValue(5))).toBe(false);
+    expect(valid(new Date('x'), new Validators.MaxValue(new Date()))).toBe(false);
+  });
+
+  it('compare numbers, strings and dates', () => {
+    expect(valid(6, new Validators.MinValue(5))).toBe(true);
+    expect(valid('b', new Validators.MinValue('a'))).toBe(true);
+    expect(valid(new Date(2020, 0, 1), new Validators.MaxValue(new Date(2021, 0, 1)))).toBe(true);
+    expect(valid(new Date(2022, 0, 1), new Validators.MaxValue(new Date(2021, 0, 1)))).toBe(false);
+  });
+});
+
+describe('Required and the length validators on a Map, a Set and an object without a prototype', () => {
+  it('measure a Map and a Set by size, and a null-prototype object by its keys', () => {
+    const required = (value: unknown) => new Field({ value, validators: [new Validators.Required()] }).valid;
+
+    expect(required(new Map())).toBe(false);
+    expect(required(new Set([1]))).toBe(true);
+    expect(required(Object.create(null))).toBe(false);
+    expect(new Field({ value: new Set([1, 2]), validators: [new Validators.MaxLength(1)] }).valid).toBe(false);
   });
 });

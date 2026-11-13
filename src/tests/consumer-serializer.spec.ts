@@ -7,7 +7,7 @@ import { List } from '../list';
 import { isVisibility } from '../visibility';
 
 /**
- * What a serializer works over: the whole of a form in one read, and a whole record in one write. The elements
+ * What a serialiser works over: the whole of a form in one read, and a whole record in one write. The elements
  * below stand for the three shapes a payload is built out of - scalars, a nested object and a row array - and the
  * assertions are about the object that crosses the boundary rather than about any one member of it.
  */
@@ -126,7 +126,7 @@ describe('The visibility and access a payload names', () => {
 
     expect(field.visibility).toBe('hidden');
     expect(field.access).toBe('readonly');
-    // the questions that answer rather than raise, which are the ones a deserializer asks of a value it may reject
+    // the questions that answer rather than raise, which are the ones a deserialiser asks of a value it may reject
     expect(isVisibility('EXPANDED')).toBe(false);
     expect(isAccess(false)).toBe(false);
     expect(() => new Field({ value: 'a', ...({ visibility: 'EXPANDED' } as object) })).toThrow('is not a visibility');
@@ -145,19 +145,19 @@ describe('The visibility and access a payload names', () => {
  * every file under `src`, so `vue-tsc --noEmit` reports a mismatched `expectTypeOf` and an `@ts-expect-error` over
  * an expression that in fact type-checks.
  */
-describe('The types a serializer is written against', () => {
+describe('The types a serialiser is written against', () => {
   it('reads a member off value as possibly absent or null, and off fullValue as it is held', () => {
     const form = orderForm();
     const send = (reference: string) => reference;
 
-    // the form itself is never null: a group that serializes does so as {} where no member contributes
+    // the form itself is never null: a group that serialises does so as {} where no member contributes
     expectTypeOf(form.value.reference).toEqualTypeOf<string | null | undefined>();
     expectTypeOf(form.value.address).toEqualTypeOf<{ city?: string | null; zip?: string | null } | null | undefined>();
     expectTypeOf(form.fullValue.reference).toEqualTypeOf<string>();
     expectTypeOf(form.fullValue.address).toEqualTypeOf<{ city: string; zip: string }>();
     expectTypeOf(form.fullValue.lines).toEqualTypeOf<{ sku: string; qty: number }[]>();
 
-    // never evaluated: the assertion is that a serializer handing on a member of value has to account for a member
+    // never evaluated: the assertion is that a serialiser handing on a member of value has to account for a member
     // that is left out ('disabled') and for one that is null ('disabled-null'), while fullValue reads through
     const handed = () => [
       // @ts-expect-error a member may be left out of value or be null there

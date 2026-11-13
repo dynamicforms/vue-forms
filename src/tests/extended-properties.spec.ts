@@ -271,3 +271,17 @@ describe('an emptyValue extended property, as the rebind() reference shows it', 
     expect(amount.isChanged).toBe(false);
   });
 });
+
+describe('a construction parameter named like a member', () => {
+  it('becomes an extended property where it names a method, and leaves the method as it is', () => {
+    const field = new Field({ value: 1, validate: true, bind: 'x' } as any);
+
+    expect(field.extra).toEqual({ validate: true, bind: 'x' });
+    expect(typeof field.validate).toBe('function');
+    expect(() => field.validate()).not.toThrow();
+  });
+
+  it('throws for a getter-only accessor', () => {
+    expect(() => new Field({ value: 1, valid: false } as any)).toThrow(TypeError);
+  });
+});

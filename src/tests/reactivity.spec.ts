@@ -1,11 +1,13 @@
 import { isEqual } from 'lodash-es';
-import { EffectScope, effectScope, isReactive, isReadonly, nextTick, readonly, toRaw, watchEffect } from 'vue';
+import { EffectScope, effectScope, isReactive, isReadonly, nextTick, readonly, toRaw, watch, watchEffect } from 'vue';
 
 import { Action } from '../action';
 import { Field } from '../field';
 import { Group } from '../group';
 import { List } from '../list';
+import { transaction } from '../transaction';
 import { ValidationError, Validators } from '../validators';
+import { view } from '../view';
 
 /**
  * A field is not a proxy of itself - it carries __v_skip, and what is reactive is the state it holds its members
@@ -299,7 +301,7 @@ describe('Group reactivity', () => {
     const group = new Group({ a: new Field({ value: 1 }) });
     const valid = track(() => group.valid);
 
-    group.errors = [new ValidationError('invalid', {}, 'napaka')];
+    group.errors = [new ValidationError('invalid', {}, 'Error')];
     await nextTick();
     expect(valid).toEqual([true, false]);
 
@@ -318,7 +320,7 @@ describe('Group reactivity', () => {
     await nextTick();
     expect(value).toEqual(['{"inner":{"x":1},"y":2}', '{"inner":{"x":9},"y":2}']);
 
-    inner.errors.push(new ValidationError('invalid', {}, 'napaka'));
+    inner.errors.push(new ValidationError('invalid', {}, 'Error'));
     await nextTick();
     expect(valid).toEqual([true, false]);
   });
@@ -459,5 +461,36 @@ describe('Action reactivity', () => {
     await nextTick();
 
     expect(runs).toEqual([true, false]);
+  });
+});
+
+describe('a list whose rows are held outside Vue reactivity', () => {
+  it('re-runs readers of length, get() and items when a row is inserted or removed', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }));
+    list.push({ a: 1 });
+    const seen: string[] = [];
+    watch(
+      () => [list.length, list.get(0)?.fields.a.value, list.items.length].join(','),
+      (state) => seen.push(state),
+      { flush: 'sync' },
+    );
+
+    list.insert({ a: 5 }, 0);
+    list.remove(0);
+
+    expect(seen).toEqual(['2,5,2', '1,1,1']);
+  });
+
+  it('restores the rows on rollback', () => {
+    const list = new List(new Group({ a: new Field({ value: 0 }) }));
+    list.push({ a: 1 });
+
+    transaction((tx) => {
+      list.insert({ a: 5 }, 0);
+      tx.rollback();
+    });
+
+    expect(list.value).toEqual([{ a: 1 }]);
+    expect(view(list).length).toBe(1);
   });
 });

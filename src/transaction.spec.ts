@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 
-import { ValueChangedAction } from './actions';
+import { AccessChangedAction, EnabledChangedAction, ValueChangedAction, VisibilityChangedAction } from './actions';
 import { Field } from './field';
 import { Group } from './group';
 import { transaction, type TransactionControl } from './transaction';
@@ -204,5 +204,66 @@ describe('transaction', () => {
       ).toThrow(TypeError);
       expect(field.value).toBe('a');
     });
+  });
+});
+
+describe('access, enabled and visibility events in a transaction', () => {
+  it('fire at the commit, once, with the net change', () => {
+    const seen: string[] = [];
+    const field = new Field({
+      value: 1,
+      actions: [
+        new AccessChangedAction((f, s, n, o) => (seen.push(`access ${o}->${n}`), s(f, n, o))),
+        new EnabledChangedAction((f, s, n, o) => (seen.push(`enabled ${o}->${n}`), s(f, n, o))),
+        new VisibilityChangedAction((f, s, n, o) => (seen.push(`visibility ${o}->${n}`), s(f, n, o))),
+      ],
+    });
+
+    transaction(() => {
+      field.access = 'disabled';
+      field.visibility = 'hidden';
+      expect(seen).toEqual([]);
+      field.access = 'readonly';
+      field.visibility = 'full';
+    });
+
+    expect(seen).toEqual(['access editable->readonly', 'enabled true->false']);
+  });
+
+  it('do not fire for a change a transaction undoes or rolls back', () => {
+    const seen: string[] = [];
+    const field = new Field({
+      value: 1,
+      actions: [new AccessChangedAction((f, s, n, o) => (seen.push(`${o}->${n}`), s(f, n, o)))],
+    });
+
+    transaction(() => {
+      field.access = 'disabled';
+      field.access = 'editable';
+    });
+    transaction((tx) => {
+      field.access = 'disabled';
+      tx.rollback();
+    });
+
+    expect(seen).toEqual([]);
+    expect(field.access).toBe('editable');
+  });
+});
+
+describe('a rollback whose signal the application catches', () => {
+  it('still rolls the transaction back', () => {
+    const field = new Field({ value: 1 });
+
+    transaction((tx) => {
+      field.value = 2;
+      try {
+        tx.rollback();
+      } catch {
+        // an application catch-all
+      }
+    });
+
+    expect(field.value).toBe(1);
   });
 });

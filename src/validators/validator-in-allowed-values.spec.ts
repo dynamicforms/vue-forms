@@ -45,11 +45,11 @@ describe('InAllowedValues Validator', () => {
     expect(field.errors.length).toBe(0);
   });
 
-  it('handles reactive values correctly', () => {
+  it('validates again when the value changes', () => {
     const allowedValues = ['red', 'green', 'blue'];
     const validator = new InAllowedValues(allowedValues);
 
-    // Create field with reactive value
+    // a field holding an allowed value
     const field = new Field({
       value: 'red',
       validators: [validator],

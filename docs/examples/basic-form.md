@@ -13,7 +13,7 @@ components.
   `'readonly'` field sends its value, a `'disabled-null'` field sends `null`, and a `'disabled'` field drops out of
   the output: its key is missing. First Name has a `Required` validator, so `'disabled-null'` makes the form
   invalid, while `'disabled'` does not, because a disabled field is not validated. See
-  [What a container serializes](/api/container#what-a-container-serializes).
+  [What a container serialises](/api/container#what-a-container-serializes).
 - **Visibility.** The second select sets [`visibility`](/api/field-base#visibility). The template renders it:
   `'invisible'` keeps the field's space, `'hidden'` takes none, and `'suppress'` does not render the field. The output
   is the same for all four.

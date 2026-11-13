@@ -87,6 +87,9 @@ export class Action<
    * Returns a copy of the value this action holds with one member replaced. A member set to undefined is deleted
    * from the copy: an own key holding undefined is invisible to a reader and to JSON, but lodash isEqual compares
    * own-key sets, so the action would remain changed against a baseline without that key.
+   *
+   * Written through the value setter, the copy is a regular value change: the handlers fire and `isChanged`
+   * reflects it. The value setter compares by identity, so a copy of an unchanged value would announce a change.
    */
   private valueWith<K extends 'label' | 'icon'>(member: K, newValue: T[K]): T {
     const res: ActionValue = { ...this.value };
@@ -99,6 +102,7 @@ export class Action<
     return this.value.icon;
   }
 
+  /** Writes a copy of the value with `icon` replaced; does nothing if it is unchanged. */
   set icon(newValue: T['icon']) {
     if (this.value.icon === newValue) return;
     this.value = this.valueWith('icon', newValue);
@@ -108,13 +112,7 @@ export class Action<
     return this.value.label;
   }
 
-  /**
-   * The two setters pass a new object to the value setter instead of modifying the one the action holds, so each
-   * is a regular value change: the handlers fire and isChanged reflects it.
-   * The new object is built only if the member differs from the current one: the value setter compares by identity
-   * and every copy is a new object, so without this check a write of the current value would announce a change and
-   * invalidate the value cache of every container above.
-   */
+  /** Writes a copy of the value with `label` replaced; does nothing if it is unchanged. */
   set label(newValue: T['label']) {
     if (this.value.label === newValue) return;
     this.value = this.valueWith('label', newValue);

@@ -26,7 +26,7 @@ import { defaultVisibility, type Visibility } from './visibility';
  * a `Group`, and `_itemTemplate` on a `List`. All of them lead downwards only.
  */
 export interface ElementSlots<T = any> {
-  /** the value the element was given at construction; isChanged compares against it */
+  /** the baseline isChanged compares the value against */
   originalValue: T;
   /**
    * The value the last ValueChangedAction reported for the element (its value; a container's fullValue); the next
@@ -53,7 +53,7 @@ export interface ElementSlots<T = any> {
   validatingCount: number;
   /** the number of direct children whose `validating` is true; updated when a child starts or stops validating */
   validatingChildren: number;
-  /** the container that holds this element, or undefined; takeChild writes it, releaseChild clears it */
+  /** the container that holds this element, or undefined */
   parent: Container | undefined;
   /** the name the containing Group holds this element under; undefined for a List row */
   fieldName: string | undefined;
@@ -183,28 +183,23 @@ export function listSlots<R extends FieldBase = Group>(): ListSlots<R> {
   return { ...containerSlots<ListValue<R>>(), rows: null, rowsVersion: 0, cachedItems: null, cachedItemsVersion: -1 };
 }
 
-/** Key of the `Action` method that lists its `ExecuteAction` handlers; `Container` calls it, and the package does not
- * export it. */
+/** Key of the `Action` method that lists its `ExecuteAction` handlers. */
 export const ExecuteHandlers = Symbol('Action.executeHandlers');
 
-/** Key of the `List` method that reorders the rows in place; `view()` calls it, and the package does not export it. */
+/** Key of the `List` method that reorders the rows in place. */
 export const ReorderRows = Symbol('List.reorderRows');
 
 /**
  * Key of the `FieldBase` method that starts counting one asynchronous validation run and returns the function that
- * ends it. A validator calls it; the package does not export it.
+ * ends it.
  */
 export const BeginValidating = Symbol('FieldBase.beginValidating');
 
 /**
  * Key of the `FieldBase` method that recomputes the validity of every element in its subtree that holds an error
- * of an origin other than `'validator'`, after the rules over those errors may have changed. `ErrorPolicy` calls
- * it; the package does not export it.
+ * of an origin other than `'validator'`, after the rules over those errors may have changed.
  */
 export const ErrorPoliciesChanged = Symbol('FieldBase.errorPoliciesChanged');
 
-/**
- * Key of the `FieldBase` method that removes, in its subtree, the errors whose rule removes them on `'submit'`.
- * `SubmitAction` calls it; the package does not export it.
- */
+/** Key of the `FieldBase` method that removes, in its subtree, the errors whose rule removes them on `'submit'`. */
 export const RemoveErrorsOnSubmit = Symbol('FieldBase.removeErrorsOnSubmit');

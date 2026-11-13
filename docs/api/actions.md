@@ -81,8 +81,7 @@ list.get(0).fields.amount.registerAction(new Validators.Required());
 `unregisterAction()` and `clearValidators()` also act on the declaration, so they affect every row. Per row are
 the **data**: the value, the errors the action produces there, and the validity.
 
-A handler that applies to one row checks the element it receives; a handler without such a check applies to all
-rows:
+In this handler, the check limits the effect to the first row:
 
 ```typescript
 template.fields.amount.registerAction(new ValueChangedAction((field, supr, newValue, oldValue) => {
@@ -212,7 +211,7 @@ Both set the visibility. The differences:
 | Runs | inside the transaction of the change, at its commit | after the transaction, in Vue's scheduler (`flush: 'pre'` by default) |
 | A throw | rolls the transaction back | is reported to `app.config.errorHandler`; the change stays |
 | Refuses or changes a write | yes, with `*ChangingAction` | no |
-| Order and chaining | handlers run in registration order through `supr`, and a handler can stop the chain | independent callbacks |
+| Order and chaining | the newest registration runs first and calls the earlier ones through `supr`; a handler can stop the chain | independent callbacks |
 | `List` rows | an action on the item template applies to every row | a watcher observes the elements it reads; a new row needs its own watcher |
 | Lifetime | the element's | the effect scope's (the component, or a `stop()` call) |
 | Declared with the form | yes, the form definition carries it | no, it lives in the component or module that creates it |
@@ -547,7 +546,9 @@ const combined = new Statement(stmt, Operator.AND, new Statement(ageField, Opera
 
 `evaluate(scope?): boolean` always returns a boolean: the logical operators coerce their operands, so
 `new Statement(0, Operator.AND, true).evaluate()` is `false` and not `0`, and a conditional executor therefore
-always receives a boolean `currentResult`.
+always receives a boolean `currentResult`. The constructor does not check `operator`: one that is not an
+`Operator` value makes `evaluate()` throw `Error('Operator not implemented …')`. `Operator.fromAny()` converts a
+number or an operator name and throws for anything else, so untrusted input goes through it.
 
 `scope` is an element whose record the field operands are read from: a row of a `List`, or the form itself.
 `statement.evaluate(list.get(1))` reads the second row's fields even where the statement was built from the item
@@ -736,7 +737,8 @@ Optional overrides:
 State an action keeps between runs belongs to the element it ran for, because the instance is shared by every
 binding of the element it was registered on. `protected state<S>(key, init): S` stores it: the key is the element,
 or the record the element belongs to where the state concerns the whole record, and the entry is released together
-with the key.
+with the key. `protected forgetState(key): void` drops the state stored for `key`, so the next `state()` call creates
+it again; a rollback of the operation that dropped it restores it.
 
 ```typescript
 class CountingAction extends ValueChangedAction {

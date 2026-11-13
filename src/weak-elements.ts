@@ -1,8 +1,6 @@
 /**
  * A set of objects held weakly that can be iterated: an object is released when nothing else references it, and
- * `alive` returns the ones that remain. A rule that applies to the elements of several declarations holds them in
- * one, so a form that is dropped without its rules being unregistered is released even while the rule stays
- * reachable through a listener on an element outside the form.
+ * `alive` returns the ones that remain.
  */
 export class WeakElements<T extends object> {
   private readonly refs = new Set<WeakRef<T>>();

@@ -4,15 +4,14 @@ import { currentTransaction } from '@/transaction';
 
 /**
  * Marks an action that runs outermost in its chain: `ActionsMap` keeps it above every action registered without
- * the mark, so a handler that does not call `supr` cannot keep it from running. The package does not export it.
+ * the mark, so a handler that does not call `supr` cannot keep it from running.
  */
 export const Outermost = Symbol('FieldActionBase.outermost');
 
 /**
  * Names a method of a listener a rule installs on an element outside the rule's own elements. The method removes
  * the listener, from every element it is installed on, if every element the rule applies to has been collected.
- * An element that registers an action calls it on the actions registered there, at most once a minute. The package
- * does not export it.
+ * It runs on the actions of an element when an action is registered there, at most once a minute.
  */
 export const ReleaseIfAbandoned = Symbol('FieldActionBase.releaseIfAbandoned');
 

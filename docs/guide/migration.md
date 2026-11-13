@@ -3,9 +3,10 @@
 The sections are newest first, one per release. A project crossing a single release reads that release's section;
 one crossing several reads them oldest first, from the release it is on up to the one it upgrades to.
 
-A project coming from before 0.12 starts with **[the whole journey](#the-whole-journey-0-6-1-to-0-12-x)**, after the
-`v0.12.0` section: it is the releases from 0.6.1 to 0.12.x in one pass, ordered by how likely each change is to bite
-rather than by which version produced it. The sections above it take the project on from there.
+A project coming from before 0.12 starts with
+**[Upgrading from 0.6.1 to 0.12.x in one pass](#upgrading-from-0-6-1-to-0-12-x-in-one-pass)**, after the `v0.12.0`
+section: it is the releases from 0.6.1 to 0.12.x in one pass, ordered by how likely each change is to break existing
+code, not by release. The sections above it take the project on from there.
 
 This is the only page that names superseded APIs; everywhere else in this documentation only the current one
 exists.
@@ -176,7 +177,7 @@ gone; read `code`, `params` and `detail`.
 `sameAs` compares the class, `code`, `params`, `detail` and the stated origin. A re-run whose params differ, such
 as a changed `newValue`, replaces the error instance on the field.
 
-Every origin other than `'validator'` has a rule stating whether its errors count toward `valid` and when an
+Every origin other than `'validator'` has a rule stating whether its errors count towards `valid` and when an
 element removes them ([`ErrorPolicy`](/api/validators#errorpolicy)). In 2.0 every error counted and stayed until
 code removed it, so a form whose save was refused stayed invalid after the user corrected the field. The default
 rule of `'server'` removes the error when `touched = true` is written on the element, or on an element below it,
@@ -300,7 +301,7 @@ app.use(forms, { useMarkdownInValidators: false });
 well, from v1.x.
 
 Seven of the changes below are silent: code that relied on them keeps compiling and behaves differently. They come
-first. [What a container serializes](/api/container#what-a-container-serializes) states the rules they add up to.
+first. [What a container serialises](/api/container#what-a-container-serializes) states the rules they add up to.
 There is a [checklist](#checklist-for-2-0-2) at the end of this section.
 
 ### Validation follows what is sent
@@ -319,7 +320,7 @@ form.fields.name.errors;     // before: [Required]                after: []
 
 - A `'disabled'` element sends nothing, so it is not validated and carries no error from a validator. Nor is any
   element inside a container that is `'disabled'` or `'disabled-null'`: such a container sends none of its members.
-  [`effectiveAccess`](/api/field-base#prop-effectiveAccess) states this on each element.
+  [`effectiveAccess`](/api/field-base#prop-effectiveaccess) states this on each element.
 - A `'disabled-null'` element sends `null`, so it is validated over `null`: a `Required` on it refuses it.
 - A container does not count a `'disabled'` child at all, so an error written into one by hand — an error the server
   returned — stays on the child and no longer holds the form back.
@@ -740,7 +741,7 @@ field.visibility = 999;            // Error: visibility must be a DisplayMode co
 Every error from `fromString()` and `fromAny()` reads `<value> is not a DisplayMode constant`; the setter keeps its
 own `visibility must be a DisplayMode constant` and leaves the property at the value it held.
 
-**Deserializing a payload is where this bites.** A response carrying `"visibility": "hiden"` — or a mode a newer
+**A deserialised payload is affected.** A response carrying `"visibility": "hiden"` — or a mode a newer
 backend knows and this version does not — rendered the field fully and said nothing. It throws now, at the parse,
 and the throw is not caught for you. Decide per call site what an unknown mode means:
 
@@ -761,7 +762,7 @@ An element whose parameters name no visibility still starts at `DisplayMode.FULL
 is anything resolving to it for input it could not read, so where you want it for bad input, write it yourself as
 above.
 
-### A disabled `List` is serialized where its rows compose something
+### A disabled `List` is serialised where its rows compose something
 
 `Group.value` leaves a disabled member out, with one exception: a disabled container is kept while its own value
 is non-empty. That exception held for a nested `Group` and not for a nested `List`; it now holds for both.
@@ -1082,7 +1083,7 @@ reaches code that used `ActionsMap` directly.
 ### The package is ESM-only
 
 One build ships, with one set of type definitions. The `require` condition of `exports`, the `main` field, the
-UMD artifact and the `index.d.cts` copy of the declarations are gone, and so is the `DynamicFormsVueForms`
+UMD artefact and the `index.d.cts` copy of the declarations are gone, and so is the `DynamicFormsVueForms`
 global the UMD build exposed. `lodash` leaves `dependencies`; `lodash-es` is the only runtime dependency left.
 
 An `import` needs no change. A CommonJS consumer keeps working through `require()` of an ES module, which Node
@@ -1159,7 +1160,7 @@ field.registerActionBefore(new ValueChangedAction((f, supr, v, old) => supr(f, v
 on, so dropping a validator names the declaration that holds it. A rollback puts back what a
 transaction registered or unregistered.
 
-## The whole journey: 0.6.1 to 0.12.x
+## Upgrading from 0.6.1 to 0.12.x in one pass
 
 Six releases sit between those numbers. This is all of it in one pass, in the order worth doing it in.
 
@@ -1546,7 +1547,7 @@ either setter runs — the action holds a copy from then on.
 ```
 
 `busy` is `true` from the call to `execute()` until the run it started settles, however it settles. It is form
-state, not part of the action's value, so it is neither serialized nor restored by a transaction rollback: a
+state, not part of the action's value, so it is neither serialised nor restored by a transaction rollback: a
 rollback cannot un-start a submit that is already running.
 
 ## Upgrading to v0.8.0 (from v0.7.x)
@@ -1685,9 +1686,9 @@ A subclass of `Field` no longer needs a factory of its own. Give it a constructo
 `this.constructor`, so a subclass binds into its own class either way.
 
 `init` runs from `Field`'s constructor, that is, during your subclass's `super()` call and therefore **before**
-your own class-field initializers — read only the constructor parameters in it, never members you initialize on
+your own class-field initialisers — read only the constructor parameters in it, never members you initialise on
 the subclass. This is the one ordering the factory hid: `Field.create()` used to run `init` after the instance
-was fully constructed, so a subclass field initializer ran first and `init` saw it.
+was fully constructed, so a subclass field initialiser ran first and `init` saw it.
 
 ```typescript
 class Currency extends Field<number> {
@@ -1700,9 +1701,9 @@ class Currency extends Field<number> {
 }
 ```
 
-A subclass field initializer also wins over anything `init` assigned to the same member, so
+A subclass field initialiser also wins over anything `init` assigned to the same member, so
 `class Sub extends Field<string> { protected _value = 'x' }` now ends up with `'x'` whatever `value` the caller
-passed. If your subclass needs its own initialized state during setup, assign it inside the overridden `init`
+passed. If your subclass needs its own initialised state during setup, assign it inside the overridden `init`
 instead of as a class field.
 
 Read the constructor parameters in `init`, and complete the element in `constructed(params)` — the hook the
@@ -1917,7 +1918,7 @@ Two constructions that used to raise are also available now:
 8. Remove reactivity workarounds around groups and lists, and the `try`/`catch` or `{ value: [] }` guards around
    cloning an empty list.
 9. For every subclass of `Field`, replace its factory with a constructor or an `init` override, and check its
-   class fields: `init` now runs before them, so an initializer overwrites what `init` assigned and `init` reads
+   class fields: `init` now runs before them, so an initialiser overwrites what `init` assigned and `init` reads
    such a member as `undefined`.
 
 ---

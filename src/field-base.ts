@@ -140,20 +140,12 @@ let incompleteRecords = 0;
 let resetElements: FieldBase[] | null = null;
 
 export abstract class FieldBase<T = any, X extends object = Extras> {
-  /**
-   * Vue's getTargetType returns INVALID for an object that has __v_skip, so reactive() returns an element
-   * unwrapped and no element is wrapped in a proxy of its own. isReactive() reads the second flag, which is true
-   * because the element's state, which holds its reactivity, is a reactive object.
-   *
-   * Two consequences for a consumer, neither of which raises an error. watch(field, cb) with a bare element as the
-   * source registers no dependency, because Vue's deep traversal of a reactive source stops on __v_skip; use
-   * watch(() => field.value, cb). readonly(field) returns the element itself, so a write through the result
-   * reaches the field; to pass a read-only view, pass the value (which is frozen) or a computed over it.
-   */
+  /** Makes Vue's reactive() and ref() hold an element as it is, without wrapping it in a proxy. */
   get __v_skip(): boolean {
     return true;
   }
 
+  /** Makes isReactive() true for an element: its state is a reactive object. */
   get __v_isReactive(): boolean {
     return true;
   }
@@ -221,20 +213,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   /**
    * Replaces the data this element holds with `data`, in place. The instance, its actions, its extended properties
    * and its position in its container are unchanged, and the element ends in the state `bind(data)` produces: the
-   * values are written, the change history starts over and the validators run. A virtualised renderer uses it to
-   * reuse one element across records.
-   *
-   * No `ValueChangedAction` fires for the element itself, as for a newly built element. Its members announce their
-   * changes, and a change of validity is announced as usual: a rebound element that is invalid updates the invalid
-   * count of its container. If an open transaction already has a pending value change for the element, the commit
-   * announces it with the value the element had when the transaction opened as the old value.
-   *
-   * A member of a `Group` whose key is missing from `data` takes the `originalValue` of the corresponding member of
-   * the group's `declaration`: for a group that is its own declaration, the member's own baseline. A key missing
-   * from the data never takes the value of the previous record.
-   *
-   * The element keeps its `access` and `visibility`. A member reset from an element other than itself (a member of
-   * a bound group, a reused `List` row) takes them from that element, see `resetChild`.
+   * values are written, the change history starts over and the validators run.
    */
   rebind(data: T): this {
     transactional((tx) => {
@@ -256,7 +235,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return this;
   }
 
-  /** contains original field value as was provided at creation */
+  /** The baseline `isChanged` compares the value against. */
   get originalValue(): T {
     return this.#state.originalValue;
   }
@@ -397,8 +376,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   /**
    * Records that a child's `validating` became true or false, and passes the transition up if it changes this
-   * element's own `validating`. Only a `Container` has children and implements this; it is declared here because a
-   * child calls it on its container.
+   * element's own `validating`; a no-op on an element without children.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected childValidatingChanged(started: boolean): void {}
@@ -424,8 +402,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   /**
    * Resolves when nothing at or below this element is running: no asynchronous validation and no unsettled
-   * `Action.execute()`, which is when `pending` is false. A submit path awaits it instead of polling `pending`. If
-   * nothing is running, the returned promise is already resolved.
+   * `Action.execute()`, which is when `pending` is false. If nothing is running, the returned promise is already
+   * resolved.
    *
    * It covers only the moment it resolves: work started later makes the element run again, so a caller that needs
    * a settled tree reads what it needs immediately after the await.
@@ -454,11 +432,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * The array and its members are Vue proxies, not the raw instances a validator returned: `field.errors[0] ===
    * myError` is `false` even for the same error. Compare identity with `toRaw()`.
    *
-   * Whether an error of an origin other than `'validator'` counts toward `valid`, and when the element removes it
-   * by itself, is the rule of its origin: see `ErrorPolicy`. An `'edit'` rule compares the value the element holds
-   * against the one it held when the error was written: the value at the assignment of `errors`. For an error added
-   * to the array in place it is the value at the next read of `errors` outside a transaction, and a change of the
-   * element's value before that read counts as a change.
+   * Whether an error of an origin other than `'validator'` counts towards `valid`, and when the element removes it
+   * by itself, is the rule of its origin: see `ErrorPolicy`.
    */
   get errors(): ValidationError[] {
     this.touchState();
@@ -508,7 +483,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return chain;
   }
 
-  /** Whether `errors`, held by this element, leave it valid: none of them counts toward validity. */
+  /** Whether `errors`, held by this element, leave it valid: none of them counts towards validity. */
   protected ownErrorsValid(errors: readonly ValidationError[]): boolean {
     if (errors.length === 0) return true;
     return !errors.some((error) => {
@@ -602,16 +577,12 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return this.#state.parent;
   }
 
-  /**
-   * The same link, typed as `FieldBase` for internal calls. The hooks a child calls on its container
-   * (childValidatingChanged, childValidityChanged) are declared here, and a protected member is reachable only
-   * through the class that declares it; `Container` overrides them.
-   */
+  /** The same link, typed as `FieldBase`. */
   private get container(): FieldBase | undefined {
     return this.#state.parent;
   }
 
-  /** when member of a Group, fieldName specifies the name of this field. Written by the group, read-only after */
+  /** The name the containing Group holds this element under; undefined for a List row and for a detached element. */
   get fieldName(): string | undefined {
     return this.#state.fieldName;
   }
@@ -665,9 +636,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Runs the pending eager passes in `element`'s subtree, once the record it belongs to is assembled. A container
-   * calls it after it completes a record: a Group after it has written its members, and a List after it has taken a
-   * row, which connects the row's elements to the form above it.
+   * Runs the pending eager passes in `element`'s subtree, once the record it belongs to is assembled.
    */
   protected completeRecords(element: FieldBase = this): void {
     if (incompleteRecords === 0) return;
@@ -802,17 +771,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * The last step of a construction: it runs inside the construction's transaction, with the parameters applied and
    * the value in place, before the element records its initial state.
    *
-   * A subclass overrides it to complete the element. What it writes here is part of the construction, not a
-   * change: the element announces no ValueChangedAction, and its eager actions and validators run once over the
-   * state the hook leaves. An element whose parameters contain no `originalValue` takes the value the hook left as
-   * its `originalValue` and starts unchanged; one whose parameters contain `originalValue` is compared against it.
-   * A `Field` writes `_value` here, because the value setter records a change.
-   *
-   * A container completes itself through its members, and each member has already been constructed: the write
-   * reaches it as a regular change, so the member announces it. A `Group` constructed with a value records what each
-   * member holds after this hook as its baseline; without a value the member reports itself changed. To have a
-   * member start unchanged in both cases, set its baseline here as well:
-   * `this.fields.x.originalValue = this.fields.x.value`.
+   * A subclass overrides it to complete the element. What it writes to the element itself is part of the
+   * construction, not a change; a write to a member of a container is an ordinary change of that member.
    *
    * `params` is the parameter object the constructor received, if any.
    */
@@ -859,7 +819,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       // access needs the check
       const narrowing = this.effectiveAccess !== 'editable';
       const detached = narrowing ? child.effectiveAccessFromHere() : undefined;
-      // only a Container calls this, since only a container holds children
+      // this is a Container: only a container holds children
       child.#state.parent = this as unknown as Container;
       // the containers above now determine what the child sends, so elements whose effective access changed are
       // validated again
@@ -871,7 +831,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     });
   }
 
-  /** Adds a child to this element's invalid count; a container calls it after setting the child's parent link. */
+  /** Adds a child to this element's invalid count and validation counter. */
   protected adoptChild(child: FieldBase): void {
     transactional((tx) => {
       tx.touch(this);
@@ -918,9 +878,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   /**
    * Sets this element to the state of a new binding of `source` with `value`: `value` is written if supplied, and
    * `source`'s value otherwise; the change history (originalValue, touched) starts over, and the errors are cleared
-   * and set again by the validators. A container that reuses an element at a position calls it through
-   * `resetChild`, which also writes the flags, inside `asReset`, which applies the rules before the baseline is
-   * final, so the element is in the state of one built for that position; extended properties are kept.
+   * and set again by the validators; extended properties are kept.
    */
   protected resetTo(source: FieldBase, value: any): void {
     transactional(() => {
@@ -938,10 +896,10 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Resets a member. A container calls it to reset a child of any class. A child reset from an element other than
-   * itself (a member of a bound group, a reused `List` row) also takes `source`'s `access` and `visibility`, and its
-   * eager actions run again once the record is complete, so the conditional rules apply over the new record. A child
-   * that is its own source (a member of a declared group) keeps its flags.
+   * Resets a member. A child reset from an element other than itself (a member of a bound group, a reused `List` row)
+   * also takes `source`'s `access` and `visibility`, and its eager actions run again once the record is complete, so
+   * the conditional rules apply over the new record. A child that is its own source (a member of a declared group)
+   * keeps its flags.
    */
   protected resetChild(child: FieldBase, source: FieldBase, value: any): void {
     if (child !== source) {
@@ -977,10 +935,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     elements.forEach((element) => element.recordBaseline());
   }
 
-  /**
-   * Records what every element below this one holds as its baseline, each after its own members. A binding, and a
-   * group constructed with a value, call it once built, so a member written by the construction is not a change.
-   */
+  /** Records what every element below this one holds as its baseline, each after its own members. */
   protected baselineMembers(): void {
     this.members.forEach((member) => {
       member.baselineMembers();
@@ -997,8 +952,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Records a child's new validity in this element's invalid count. Only a `Container` has children and implements
-   * this; it is declared here for the same reason as `childValidatingChanged`.
+   * Records a child's new validity in this element's invalid count; a no-op on an element without children.
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected childValidityChanged(nowValid: boolean): void {}
@@ -1129,9 +1083,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * True if `effectiveAccess` is `'editable'`: this element and every container above it accept input. A rendering
-   * layer reads this instead of walking the parent chain; the inputs of members inside a container that is not
-   * editable read false here.
+   * True if `effectiveAccess` is `'editable'`: this element and every container above it accept input.
    */
   get effectiveEnabled(): boolean {
     return this.effectiveAccess === 'editable';
@@ -1318,7 +1270,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
 
   /**
    * Records what this element holds and sends as last announced, so the following commit announces no change of
-   * either. A construction calls it over its final state, as does `rebind()`.
+   * either.
    */
   protected recordAnnounced(): void {
     // a baseline is composed only if something receives the announcement it is compared for; a registration that
@@ -1335,13 +1287,6 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     this.#raw.errorsBaseline = NoErrorsBaseline;
   }
 
-  /**
-   * Computes the validity this element ends the transaction with and announces a change of it. The container is
-   * updated first, so a handler reads an invalid count that already includes this element, and the container is
-   * enrolled in the same transaction: its validity depends on its members', so a member whose validity changes
-   * without a value change (an asynchronous validator, an error written by hand) makes the container recompute its
-   * own. The transaction settles the deepest element first, so a container is settled after its members.
-   */
   /**
    * Announces the net change of access, enabled and visibility over the transaction: `AccessChangedAction` and
    * `EnabledChangedAction` where the access differs from the one before the transaction's first write of it, and
@@ -1369,6 +1314,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     }
   }
 
+  /**
+   * Computes the validity this element ends the transaction with and announces a change of it. The container is
+   * updated first, so a handler reads an invalid count that already includes this element, and the container is
+   * enrolled in the same transaction: its validity depends on its members', so a member whose validity changes
+   * without a value change (an asynchronous validator, an error written by hand) makes the container recompute its
+   * own. The transaction settles the deepest element first, so a container is settled after its members.
+   */
   protected [TxSettleValidity](tx: Transaction): void {
     const oldValid = this.#raw.valid;
     const newValid = this.countedValid;
@@ -1395,7 +1347,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * True while no error of the element counts toward validity: every error of origin `'validator'` counts, and an
+   * True while no error of the element counts towards validity: every error of origin `'validator'` counts, and an
    * error of another origin counts where its rule's `validEffect` is true (see `ErrorPolicy`).
    */
   get valid() {
@@ -1439,9 +1391,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   /**
-   * Registers the actions a constructor received in its parameters, without the eager trigger: a constructor ends
-   * with a single this.actions.triggerEager(...) over the finished value. With the trigger, an eager action would
-   * also run once per registration, over a partially built field.
+   * Registers the actions a constructor received in its parameters without running the eager ones; the constructor
+   * runs them once over the finished value.
    */
   protected registerInitialActions(actions: FieldActionBase[]): void {
     actions.forEach((action) => {
