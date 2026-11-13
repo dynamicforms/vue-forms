@@ -633,3 +633,31 @@ is used by `vuetify-inputs`, `fastapi-viewsets`, `taskwire` and `muxws`, so one 
   would break the application's own comparisons.
 - A separate `namespace` member on `ErrorDescription`: every comparison and every map keyed by code would need both
   members, and a server's `detail_code` arrives as one string.
+
+---
+
+## D-052 — A path through a form is resolved by a function, `elementAt()`, not by `field()`
+
+**Since:** 3.0.0-alpha.4 · 2026-11-13\
+**Tests:** `src/element-at.spec.ts`, `src/tests/cookbook.spec.ts`
+
+`elementAt(root, path, options?)` returns the element a path names: a string split on `.` or an array of steps, each
+a `Group` member name or a `List` row index. The empty path names `root`. A `List` step is a non-negative integer, as
+a number or as decimal digits without leading zeros; any other step names no row. A path that goes on below an
+element that is neither a `Group` nor a `List` returns `undefined`, or that element with `nearest: true`. The result
+is typed `FieldBase | undefined`. A `Group` step reads through `fields`, a tracked read of the set of members, so a
+call inside an effect follows members added and removed as it follows rows.
+
+**Reason.** Server errors arrive keyed by a dotted path, and placing them on a form needs the element each path
+names, through nested groups and list rows. The empty path is the key a server uses for errors of the form itself.
+`nearest` places an error reported at an item of an array-valued field (`weekdays.0`) on that field.
+
+**Rejected.**
+
+- `Group.field()` taking a path: a member name may contain `.`, and `field('a.b')` would change meaning; `List` has
+  no `field()`; an untyped overload would sit next to the typed `field<K>()`.
+- A result type inferred from the path: paths come from server answers at runtime, and a path known in the source is
+  written as the typed access it stands for.
+- `Number(step)` for a `List` step: it reads `''` as row 0 and `' 1'`, `'1e0'`, `'0x1'` as row 1.
+- A helper that writes errors (`addErrors`): replacing or appending, and where errors for an unknown path go, are the
+  application's decisions.

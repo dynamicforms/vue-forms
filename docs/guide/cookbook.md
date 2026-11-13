@@ -132,24 +132,16 @@ and list rows as well.
 
 The server answers a rejected save with its messages keyed by the dotted path of the field, such as
 `{ "email": ["…"], "items.0.price": ["…"] }`. The application's API client turns that answer into an error the save
-throws, and `elementAt()` finds the element a path names, given as a string or as an array (`['items', 0, 'price']`):
+throws, and [`elementAt()`](/api/container#elementat-root-path-options-fieldbase-undefined) finds the element a path
+names:
 
 ```typescript
+import { elementAt, type FieldBase, ValidationError } from '@dynamicforms/vue-forms';
+
 class FieldErrors extends Error {
   constructor(readonly errors: Record<string, string[]>) {
     super('The server rejected the values');
   }
-}
-
-function elementAt(root: FieldBase, path: string | readonly (string | number)[]): FieldBase | undefined {
-  const keys = typeof path === 'string' ? path.split('.') : path;
-  let element: FieldBase | null | undefined = root;
-  for (const key of keys) {
-    if (element instanceof Group) element = element.field(String(key));
-    else if (element instanceof List) element = element.get(Number(key));
-    else return undefined;
-  }
-  return element ?? undefined;
 }
 
 function showServerErrors(root: FieldBase, errors: Record<string, string[]>) {
@@ -195,10 +187,9 @@ new SubmitAction(
 );
 ```
 
-`form.field('addr.city')` reads a member named `addr.city`, not a path, so `elementAt()` walks the path through
-[`Group.field()`](/api/group#field-fieldname-t-k-null) and [`List.get()`](/api/list#get-index-r-undefined). An error
-written into `errors` makes the element and every container above it invalid at once. Its
-[origin](/api/validators#origin) is `'server'`, whose default rule is `{ validEffect: true, removeOn: 'edit' }`
+`form.field('addr.city')` reads a member named `addr.city`, not a path; `elementAt()` walks the path, and the empty
+path names the form itself. An error written into `errors` makes the element and every container above it invalid at
+once. Its [origin](/api/validators#origin) is `'server'`, whose default rule is `{ validEffect: true, removeOn: 'edit' }`
 ([`ErrorPolicy`](/api/validators#errorpolicy)): a field loses the error when the user leaves it after changing it,
 and the form loses its own when the user leaves any field after a change of the form's value. The rendering layer
 writes `touched = true` when the user leaves an input. Until then the form is invalid, so the same values are not
