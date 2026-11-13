@@ -1,14 +1,13 @@
 # List benchmark results
 
-## List benchmark, after transactions
+## 0.7.0 and 0.8.0
 
-Same machine, same fixtures and same commands as `BASELINE.md`. Three columns, and they are not the same
-comparison:
+Same fixtures and commands as `BASELINE.md`. Three columns, and they are not the same comparison:
 
-- **0.6.1** is `BASELINE.md`, the state before any of the staged performance work.
+- **0.6.1** is the figure from `BASELINE.md`. It was taken on a different machine and reads about twice as slow
+  for the same code.
 - **0.7.0** and **0.8.0** were measured back to back in one session, from the same node build, two full runs
-  each; every cell is the lower of the two run means. Only that pair is a controlled comparison — the 0.6.1
-  column was taken on a different machine and reads about twice as slow for the same code.
+  each; every cell is the lower of the two run means. Only that pair is a controlled comparison.
 
 ### Wall clock
 
@@ -35,9 +34,8 @@ The two S6 write figures carry the most run-to-run spread of the set — ±5 % t
 the same operation measured on its own. Read the pair together: the cost of a single field write is between 20 %
 and 50 % more than 0.7.0, on an operation that takes ten microseconds.
 
-Every acceptance figure the plan set against 0.6.1 still holds with room to spare: `push`-filling is 70× faster
-where 20× was asked, a single-field write on a 1000-row list is 3400× faster where 50× was asked, and `remove`
-is 49× faster where 10× was asked.
+Against 0.6.1: `push`-filling is 70× faster, a single-field write on a 1000-row list 3400× faster, and `remove`
+49× faster.
 
 ### What the transaction costs, and where
 
@@ -53,15 +51,8 @@ re-running S4a with the copy-on-first-write record disabled:
 A whole-list assignment modifies 8000 fields, 1000 rows and the list itself, so the record costs a fraction of a
 microsecond per element and is the smaller share. The larger share is the transaction's own bookkeeping: one
 participant per element, and two ordered passes over all of them at commit — values deepest first, then verdicts
-deepest first.
-
-Two implementation choices were measured on this scenario rather than argued:
-
-- ordering the passes by depth uses one bucket per nesting depth. Selecting the deepest dirty participant before
-  every announcement instead — exactly ordered, and quadratic — put S4a at 27.0 ms;
-- carrying the action map inside each snapshot, under a symbol key, so that `clearValidators()` needed no undo of
-  its own, put S4a at 26.9 ms. The map is now restored by an undo the operation registers, which no other
-  operation pays for.
+deepest first. The commit orders the participants with one bucket per nesting depth, and the snapshot holds no
+action map: `clearValidators()` registers its own undo for it.
 
 ### Memory and structure
 
@@ -86,18 +77,18 @@ Allocations per row, for the reason `BASELINE.md` gives: counting them means cou
 the library, which cannot be observed without changing its source. Retained bytes per field stands in.
 
 Re-render counts and `[Vue warn]` counts need a mounted component; this harness has none. Those live in
-`src/tests/reactivity-render.spec.ts`, which passes unedited.
+`src/tests/reactivity-render.spec.ts`.
 
 ---
 
 ## 0.9.0
 
-Same machine, same fixtures and same commands. The 0.8.0 column is carried over from the table above rather than
-re-measured, so this comparison crosses sessions and is not the controlled one that pair is. Two full runs of
-0.9.0; every cell is the lower of the two run means.
+Same machine, fixtures and commands as the 0.8.0 section. The 0.8.0 column is carried over from the table above
+rather than re-measured, so this comparison crosses sessions and is not the controlled one that pair is. Two full
+runs of 0.9.0; every cell is the lower of the two run means.
 
 The fixtures build lists of `Group`s of `Field`s and contain no `Action`, so this release changes nothing they
-exercise. The point of the run is that it says so.
+exercise.
 
 ### Wall clock
 
@@ -144,14 +135,14 @@ say.
 
 ## 0.10.0
 
-Same machine, same fixtures and same commands. The 0.9.0 column is carried over from the table above rather than
-re-measured, so this comparison crosses sessions. Two full runs of 0.10.0; every cell is the lower of the two run
-means.
+Same machine, fixtures and commands as the 0.9.0 section. The 0.9.0 column is carried over from the table above
+rather than re-measured, so this comparison crosses sessions. Two full runs of 0.10.0; every cell is the lower of
+the two run means.
 
 The fixtures carry no `CompareTo`, so the plain variant exercises none of this release: its item template holds
 eight `Required`s and one `ValueChangedAction`, none of which reads a second element. The conditional variant is
-where the release shows, because a `ConditionalVisibilityAction` on `f1` driven by `f0` is exactly the rule that
-cannot be answered while a row is still a set of loose elements.
+where the release shows: its `ConditionalVisibilityAction` on `f1` reads `f0` of the same row, which the cloned `f1`
+reaches only once the row is assembled.
 
 ### Wall clock
 
@@ -205,11 +196,10 @@ they are declared reads a counter and walks nothing.
 | validator runs per field, `new Field({ value, validators })` | 1 | 1 |
 | validator runs per row | 16 | 16 |
 
-The per-field growth is what an element and its actions now hold per element rather than per instance: a slot
-recording what the element was declared as, in the state object every element already carries, and the record a
-validator keeps about a field, which is an object where it was a number. That is the 3 % in the plain column. The
-conditional column adds what the conditional action keeps about each row and the entry saying which elements it
-drives.
+The per-field growth is two records per element: a slot in the element's state recording what the element was
+declared as, and the record object a validator keeps about each field it validates. That is the 3 % in the plain
+column. The conditional column adds what the conditional action keeps about each row and the entry saying which
+elements it drives.
 
 Proxies per row are unchanged, and so are the validator runs the harness counts: the template it counts them over
 carries validators only, none of which reads a second element, so nothing in it asks for a second pass. Where an
@@ -255,12 +245,12 @@ Two caveats decide how far the columns can be compared:
 
 Against 0.6.1, on the plain variant: `push`-filling a 1000-row list is **67× faster**, a single-field write is
 **3080× faster**, `remove()` is **53× faster**, a whole-list assignment is **19× faster** and reading
-`list.valid` is **56 000× faster**. The plan's acceptance figures were 20×, 50× and 10× for the first three.
+`list.valid` is **56 000× faster**.
 
-The two axes that carry the whole shape: `push`-filling changed complexity class, from `O(R²·N)` to `O(R·N)`,
-and a single-field write stopped depending on the length of the list. What went the other way is a whole-list
-assignment, 18.8 ms to 24.7 ms, which is the transaction's own bookkeeping plus the record a rollback restores
-from, over the 9001 elements such an assignment modifies.
+From 0.6.1 to 0.10.x, `push`-filling goes from `O(R²·N)` to `O(R·N)`, and the cost of a single-field write does
+not depend on the length of the list. A whole-list assignment takes 24.7 ms against 18.8 ms at 0.7.0: the
+transaction's own bookkeeping and the record a rollback restores from, over the 9001 elements such an assignment
+modifies.
 
 ### Memory and structure
 
@@ -274,16 +264,15 @@ from, over the 9001 elements such an assignment modifies.
 | validator runs per field, `new Field({ value, validators })` | 1 | 1 | 1 | 1 | 1 |
 | validator runs per row | 16 | 16 | 16 | 16 | 16 |
 
-A field costs **43 % less RAM** than at 0.6.1, which is the state object replacing per-instance property
-descriptors, less the slot and the per-element action record the later releases added back.
+A field costs **43 % less RAM** than at 0.6.1.
 
-### What is still not captured
+### Not captured
 
 Allocations per row, for the reason `BASELINE.md` gives: counting them means counting constructor calls inside
 the library, which cannot be observed without changing its source. Retained bytes per field stands in.
 
 Re-render counts and `[Vue warn]` counts need a mounted component, which this harness has none of. They live in
-`src/tests/reactivity-render.spec.ts`, which has passed unedited through every release in the table.
+`src/tests/reactivity-render.spec.ts`.
 
 ---
 

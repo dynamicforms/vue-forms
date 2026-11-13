@@ -2,10 +2,7 @@ import type { FieldBase } from './field-base';
 import { installDevtools } from './plugins/devtools/api';
 import type { Transaction } from './transaction';
 
-/**
- * The method a `Field` implements for `PluginContext.changeInPlace`. It is keyed by a symbol the package does not
- * export, so it is not part of the documented API of `Field`.
- */
+/** The key of the `Field` method that implements `PluginContext.changeInPlace`. */
 export const ChangeInPlace = Symbol('Field.changeInPlace');
 
 /** What `installPlugin()` passes to a plugin's `setup()`. */
@@ -128,7 +125,7 @@ export function pipeOriginalValue<T>(element: FieldBase, value: T): T {
   return result as T;
 }
 
-/** Constructs an element as a binding: `onElementCreated` receives `binding` true for it. Called by `bind()`. */
+/** Constructs an element as a binding: `onElementCreated` receives `binding` true for it. */
 export function asBinding<R>(build: () => R): R {
   bindingDepth++;
   try {
@@ -138,12 +135,12 @@ export function asBinding<R>(build: () => R): R {
   }
 }
 
-/** Records a list's item template, which `PluginContext.isInternal` reports. Called by `List`. */
+/** Records a list's item template, which `PluginContext.isInternal` reports. */
 export function noteItemTemplate(element: FieldBase): void {
   itemTemplates.add(element);
 }
 
-/** Runs the `onElementCreated` hooks. Called by the `FieldBase` constructor. */
+/** Runs the `onElementCreated` hooks. */
 export function elementCreated(element: FieldBase): void {
   // the devtools plugin is installed on the first element built in development; the condition is written out so
   // that a production build drops the call and, with it, the devtools modules
@@ -152,10 +149,7 @@ export function elementCreated(element: FieldBase): void {
   for (const plugin of createdHooks) plugin.onElementCreated!(element, binding);
 }
 
-/**
- * Runs the `onElementAdopted` hooks once `tx` commits. Called by a container when it takes a member; nothing is
- * registered while no plugin has the hook.
- */
+/** Runs the `onElementAdopted` hooks once `tx` commits; nothing is registered while no plugin has the hook. */
 export function elementAdopted(tx: Transaction, element: FieldBase): void {
   if (adoptedHooks.length === 0) return;
   tx.whenCommitted(() => {
@@ -163,7 +157,7 @@ export function elementAdopted(tx: Transaction, element: FieldBase): void {
   });
 }
 
-/** Runs the `onCommit` hooks. Called by a transaction after its commit. */
+/** Runs the `onCommit` hooks. */
 export function committed(): void {
   for (const plugin of commitHooks) plugin.onCommit!();
 }

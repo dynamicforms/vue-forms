@@ -3,7 +3,7 @@
 Short, standalone recipes for forms and for application state. The form recipes come first; the recipes from
 [Application state](#application-state) on keep state that is not a form on screen. Each one assumes you know
 [the model](/guide/model). The rules for what a form sends are in
-[What a container serializes](/api/container#what-a-container-serializes).
+[What a container serialises](/api/container#what-a-container-serializes).
 
 ## Loading a record
 
@@ -17,7 +17,7 @@ Every member is written, whatever its [access or visibility](/api/field-base#acc
 which the form's rules switch fields does not matter. A key missing from the record keeps what the member held;
 `null` for a container empties it.
 
-Where the record should also become the baseline for [`isChanged`](/api/field-base#prop-isChanged) (the form is
+Where the record should also become the baseline for [`isChanged`](/api/field-base#prop-ischanged) (the form is
 freshly loaded, not edited), use [`rebind()`](/api/field-base#rebind-data-this):
 
 ```typescript
@@ -249,7 +249,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', warn));
 onBeforeRouteLeave(() => !form.isChanged || window.confirm('Leave without saving the changes?'));
 ```
 
-[`isChanged`](/api/field-base#prop-isChanged) compares the form's value with `originalValue`, the baseline `rebind()`
+[`isChanged`](/api/field-base#prop-ischanged) compares the form's value with `originalValue`, the baseline `rebind()`
 sets. For a form loaded with `rebind(record)` and saved with `rebind(saved)`, as above, `isChanged` is `false`
 exactly while nothing has been edited since.
 
@@ -373,7 +373,7 @@ address.access = 'readonly';
 ```
 
 A container's access applies to every element below it through
-[`effectiveEnabled`](/api/field-base#prop-effectiveEnabled), which a rendering layer binds; the four values are in
+[`effectiveEnabled`](/api/field-base#prop-effectiveenabled), which a rendering layer binds; the four values are in
 [`Access`](/api/field-base#access).
 
 ## A rule that reads another field of the record
@@ -723,8 +723,8 @@ instance has the ones its construction and its rules give it. The module's effec
 
 ## Carrying server-rendered state to the client
 
-You want state built during server-side rendering to start the client with the same data. Serialize
-[`fullValue`](/api/field-base#prop-fullValue) into the page and rebind the client's instance to it:
+You want state built during server-side rendering to start the client with the same data. Serialise
+[`fullValue`](/api/field-base#prop-fullvalue) into the page and rebind the client's instance to it:
 
 ```typescript
 // server

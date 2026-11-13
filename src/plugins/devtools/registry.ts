@@ -42,7 +42,7 @@ export function useContext(installed: PluginContext): void {
   context = installed;
 }
 
-/** Called by the devtools plugin; runs after a change the devtools show. */
+/** Sets the listener that runs after a change the devtools show. */
 export function onRegistryChanged(listener: () => void): void {
   changed = listener;
 }

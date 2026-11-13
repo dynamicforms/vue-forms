@@ -25,7 +25,7 @@ function watchOwn(element: FieldBase, kind: 'value' | 'valid' | 'contribution'):
 
 const required = (value: string) => new Field<string>({ value, validators: [new Validators.Required()] });
 
-describe('An enabled container serializes', () => {
+describe('An enabled container serialises', () => {
   it('as {} or [] where nothing inside it contributes, never as null', () => {
     const group = new Group({ a: new Field({ value: 1, access: 'disabled' }) });
     const list = new List(new Field<string>());

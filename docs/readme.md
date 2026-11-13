@@ -21,7 +21,7 @@ It works from the repo root (`docs` is an npm workspace, so the root script just
 
 - `.vitepress/` - VitePress configuration
   - `config.ts` - site config (nav, sidebar)
-  - `theme/` - custom theme: registers Vuetify, VueMarkdown and the `forms` plugin
+  - `theme/` - custom theme: registers Vuetify and the VueMarkdown component
 - `guide/` - User guide documentation
 - `api/` - API reference documentation
 - `examples/` - Interactive examples
@@ -47,4 +47,4 @@ The built site will be in the `docs/.vitepress/dist` directory.
    navigation
 
 Demo components can use Vuetify and the globally registered `VueMarkdown` component — both are installed in
-`.vitepress/theme/index.ts`, which also installs the `forms` plugin.
+`.vitepress/theme/index.ts`.

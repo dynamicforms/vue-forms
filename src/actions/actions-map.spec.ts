@@ -1,4 +1,3 @@
-// form-actions.spec.ts
 import { vi } from 'vitest';
 
 import { Field } from '../field';
@@ -609,5 +608,34 @@ describe('AbortEventHandlingException', () => {
       field.visibility = 'hidden';
     }).toThrow('is not a visibility');
     expect(field.visibility).toBe('full');
+  });
+});
+
+describe('a VisibilityChangingAction that returns the current visibility', () => {
+  it('refuses the write: nothing is written and nothing is announced', () => {
+    const seen: string[] = [];
+    const field = new Field({
+      value: 1,
+      actions: [
+        new VisibilityChangingAction((f, s, newValue, oldValue) => oldValue),
+        new VisibilityChangedAction((f, s, newValue, oldValue) => seen.push(`${oldValue}->${newValue}`)),
+      ],
+    });
+
+    field.visibility = 'hidden';
+
+    expect(field.visibility).toBe('full');
+    expect(seen).toEqual([]);
+  });
+});
+
+describe('an action class without a classIdentifier', () => {
+  it('is refused at registration and leaves the element working', () => {
+    class Unnamed extends FieldActionBase {}
+    const field = new Field({ value: 1 });
+
+    expect(() => field.registerAction(new Unnamed(() => null))).toThrow('classIdentifier must be declared');
+    field.value = 2;
+    expect(field.value).toBe(2);
   });
 });

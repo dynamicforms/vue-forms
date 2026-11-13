@@ -64,7 +64,7 @@ default `'editable'`
 <tr class="member-desc"><td colspan="3">
 
 What the group sends to its own container, and the access applied to its members through `effectiveAccess`. See [What a
-container serializes](/api/container#what-a-container-serializes).
+container serialises](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td>
@@ -214,7 +214,7 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): what the group holds (`value` is what it sends):
+Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullvalue): what the group holds (`value` is what it sends):
 every member's `fullValue`, regardless of access. A nested group includes its own full structure. A binding of the group
 copies this value
 
@@ -234,7 +234,7 @@ writable
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.value`](/api/field-base#prop-value): object of the values the members send, by the serialization
+Overrides [`FieldBase.value`](/api/field-base#prop-value): object of the values the members send, by the serialisation
 rule below; `{}` when no member sends anything (a group without members, or one whose members the rule all leaves out).
 The group's value is never `null`. Each key has its member's own value type, optional and nullable: for
 `Group<{ age: Field<number> }>`, `group.value.age` is `number | null | undefined`, because a `'disabled'` `age` is left
@@ -247,11 +247,11 @@ not changed, and assigning `null` sets every member to `null`
 </tbody>
 </table>
 
-::: tip Serialization rule
+::: tip Serialisation rule
 `Group.value` includes every member according to its access: an `'editable'` or `'readonly'` member with its value, a
 `'disabled-null'` one as `null`, and a `'disabled'` one not at all. A nested container is a member like any other, so a
 `'disabled'` one is left out regardless of what it holds. See [What a container
-serializes](/api/container#what-a-container-serializes) for the full rules.
+serialises](/api/container#what-a-container-serializes) for the full rules.
 :::
 
 ## Methods
@@ -354,7 +354,7 @@ of `isChanged` is not changed. When the transaction it ran in is rolled back, th
 | [`notifyValueChanged()`](/api/container#notifyvaluechanged-void) | Records that a child changed its value, for the open transaction to announce |
 | [`reject(params?)`](/api/container#reject-params-promise-any-undefined) | Executes the action that rejects the container: its `RejectAction`, or the only shown `defaultReject` action |
 | [`touched`](/api/container#prop-touched) | `true` where any child is touched; assigning it assigns every child |
-| [`valid`](/api/container#prop-valid) | `true` where the container's own errors are empty and every child it counts is valid |
+| [`valid`](/api/container#prop-valid) | `true` where none of the container's own errors counts towards validity and every child it counts is valid |
 | [`validate(revalidate?)`](/api/container#validate-revalidate-void) | Revalidates every child first with `revalidate: true`, then computes the container's validity |
 
 :::
@@ -368,15 +368,15 @@ of `isChanged` is not changed. When the transaction it ran in is rolled back, th
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
 | [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
-| [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
-| [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
+| [`effectiveAccess`](/api/field-base#prop-effectiveaccess) | The access that applies once the containers above are taken into account |
+| [`effectiveEnabled`](/api/field-base#prop-effectiveenabled) | `true` where `effectiveAccess` is `'editable'` |
 | [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
 | [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |
 | [`extra`](/api/field-base#prop-extra) | The extended properties the element holds, frozen; written through `setExtendedValues()` |
-| [`fieldName`](/api/field-base#prop-fieldName) | Key name within the parent `Group` |
-| [`isChanged`](/api/field-base#prop-isChanged) | `true` when `value` differs from `originalValue` (deep equality) |
+| [`fieldName`](/api/field-base#prop-fieldname) | Key name within the parent `Group` |
+| [`isChanged`](/api/field-base#prop-ischanged) | `true` when `value` differs from `originalValue` (deep equality) |
 | [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) | Marks that an eager action did not find a second element of a record not yet assembled |
-| [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
+| [`originalValue`](/api/field-base#prop-originalvalue) | Baseline for `isChanged`; writable |
 | [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
 | [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
 | [`registerAction(action)`](/api/field-base#registeraction-action-this) | Registers an action on the element; returns `this` |

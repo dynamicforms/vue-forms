@@ -53,7 +53,7 @@ const yieldToEventLoop = () => new Promise((resolve) => setImmediate(resolve));
 
 /**
  * Collects twice, because the first pass can leave objects that only the second one finds unreachable, and lets
- * the finalization callbacks the collections queued run before the reading.
+ * the finalisation callbacks the collections queued run before the reading.
  */
 const heapUsed = async () => {
   gc();

@@ -21,7 +21,7 @@ mechanism applies at every level of a nested form.
 - **Fields that react to each other**: the behaviour between fields is part of the form definition, not wiring in
   components.
 - **Reactive & Type-Safe**: every member is a tracked read, and the types follow the declared structure.
-- **Structural serialization**: a group's value has the shape of its fields.
+- **Structural serialisation**: a group's value has the shape of its fields.
 - **Application state, not only forms**: the same elements hold state that no screen displays, such as a shopping
   cart, the filters of a list view or the settings of an editor, with the same features a form has.
 
@@ -49,7 +49,7 @@ mechanism applies at every level of a nested form.
 - **Nested structures**: fields, groups and lists compose recursively, at every level
 - **Extended properties**: a field holds the data your UI renders it with (a label, a hint, a width), declared as a
   second type argument, checked by the compiler and read through `extra`
-- **Serialization**: `Group.createFromFormData()` builds a form from a plain object
+- **Serialisation**: `Group.createFromFormData()` builds a form from a plain object
 - **TypeScript support**: full type definitions, and a group's value type inferred from the fields it holds,
   nested structures included
 
@@ -239,7 +239,7 @@ A validation function may return a `Promise`; `field.validating` is `true` while
 determines the result. [Asynchronous validation](https://docs.velis.si/dynamicforms/vue-forms/api/validators#asynchronous-validation)
 describes cancellation, `busy`, `pending` and `clearValidators()`.
 
-## Conditional Form Behavior
+## Conditional Form Behaviour
 
 Conditional logic is declared with `Statement` and `Operator`:
 

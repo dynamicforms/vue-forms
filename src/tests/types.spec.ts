@@ -276,7 +276,7 @@ describe('Statement construction', () => {
     };
     expect(refused).toBeInstanceOf(Function);
 
-    // what the compiler now refuses, the constructor refused at runtime all along
+    // the overload the compiler rejects also throws at runtime
     // @ts-expect-error the call under test is the one the overload rejects
     expect(() => new Statement(flag, Operator.EQUALS)).toThrow(TypeError);
   });

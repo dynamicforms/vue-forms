@@ -21,7 +21,7 @@ import { Validators, ValidationError } from './validators';
 import type { Visibility } from './visibility';
 
 describe('Group', () => {
-  it('correctly serializes values', () => {
+  it('correctly serialises values', () => {
     const group = new Group({
       field1: new Field({ value: 'test1' }),
       field2: new Field({ value: 'test2', access: 'disabled' }),
@@ -110,8 +110,8 @@ describe('Group', () => {
   });
 });
 
-describe('Group value initialization', () => {
-  it('correctly initializes empty fields without value', () => {
+describe('Group value initialisation', () => {
+  it('correctly initialises empty fields without value', () => {
     const fields = {
       name: new Field(),
       age: new Field(),
@@ -125,7 +125,7 @@ describe('Group value initialization', () => {
     });
   });
 
-  it('correctly initializes fields with their own values', () => {
+  it('correctly initialises fields with their own values', () => {
     const fields = {
       name: new Field({ value: 'John' }),
       age: new Field({ value: 30 }),
@@ -183,7 +183,7 @@ describe('Group value initialization', () => {
     });
   });
 
-  it('correctly initializes nested groups with values', () => {
+  it('correctly initialises nested groups with values', () => {
     const addressFields = {
       street: new Field({ value: 'Main St' }),
       city: new Field({ value: 'New York' }),
@@ -491,7 +491,7 @@ describe('Form Validation', () => {
 
 describe('Cross-field validation with revalidate', () => {
   it('should revalidate dependent fields when parent field changes', () => {
-    // Setup - ustvari formo z dvema poljema
+    // a form with two fields
     const form = new Group({
       minValue: new Field<number>({ value: 10 }),
       maxValue: new Field<number>({ value: 20 }),
@@ -532,8 +532,8 @@ describe('Cross-field validation with revalidate', () => {
     expect(form.fields.maxValue.valid).toBe(false); // Should become invalid
     expect(form.valid).toBe(false);
 
-    // Reset for next test
-    form.fields.maxValue.value = 30; // Make it valid again
+    // make maxValue valid again
+    form.fields.maxValue.value = 30;
     expect(form.fields.maxValue.valid).toBe(true);
     expect(form.valid).toBe(true);
 
@@ -628,7 +628,7 @@ describe('Group field storage', () => {
     expect(outer.parent).toBeUndefined();
   });
 
-  it('keeps the parent back-reference out of enumeration so cyclic structures still serialize', () => {
+  it('keeps the parent back-reference out of enumeration so cyclic structures still serialise', () => {
     const inner = new Group({ x: new Field({ value: 1 }) });
     const list = new List(new Group({ z: new Field({ value: 0 }) }));
     const outer = new Group({ inner, list });
@@ -837,7 +837,7 @@ describe('Group value caching', () => {
     expect(first).toEqual({ a: 1, b: 2 });
   });
 
-  it('builds a new object when a member is disabled, because a disabled member stops serializing', () => {
+  it('builds a new object when a member is disabled, because a disabled member stops serialising', () => {
     const group = new Group({ a: new Field({ value: 1 }), b: new Field({ value: 2 }) });
     const before = group.value;
 
@@ -926,7 +926,7 @@ describe('Group field ownership', () => {
 });
 
 describe('Group membership after construction', () => {
-  it('takes a field in and serializes it, announcing the change once', () => {
+  it('takes a field in and serialises it, announcing the change once', () => {
     const onValueChanged = vi.fn();
     // the type argument is the interface a group whose members change at runtime is declared with: addField takes
     // a name of its own and cannot widen the type the group was built with
@@ -1180,5 +1180,17 @@ describe('bind() and the class it builds', () => {
     expect(() => declaration.bind({ city: 'Maribor' })).toThrow(
       /did not take the members it was given|has to override bind/,
     );
+  });
+});
+
+describe('Group.createFromFormData', () => {
+  it('builds a group for an object and a list for an array, at every level', () => {
+    const data = { name: 'a', address: { city: 'Kranj' }, tags: ['x', 'y'], rows: [{ n: 1 }] };
+    const form = Group.createFromFormData(data);
+
+    expect(form.fields.address).toBeInstanceOf(Group);
+    expect(form.fields.tags).toBeInstanceOf(List);
+    expect((form.fields.rows as List).get(0)).toBeInstanceOf(Group);
+    expect(form.fullValue).toEqual(data);
   });
 });

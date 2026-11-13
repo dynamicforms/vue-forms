@@ -102,7 +102,7 @@ default `'editable'`
 
 What the list sends to its own container, and the access applied to its rows through `effectiveAccess`. A list accepts
 value assignment and every mutation regardless of its access. See [What a container
-serializes](/api/container#what-a-container-serializes).
+serialises](/api/container#what-a-container-serializes).
 
 </td></tr>
 <tr class="member-head"><td>
@@ -184,7 +184,7 @@ read-only
 </td></tr>
 <tr class="member-desc"><td colspan="3">
 
-Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullValue): the `fullValue` of every row, regardless of access.
+Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullvalue): the `fullValue` of every row, regardless of access.
 `value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it
 
 </td></tr>
@@ -410,7 +410,7 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | [`notifyValueChanged()`](/api/container#notifyvaluechanged-void) | Records that a child changed its value, for the open transaction to announce |
 | [`reject(params?)`](/api/container#reject-params-promise-any-undefined) | Executes the action that rejects the container: its `RejectAction`, or the only shown `defaultReject` action |
 | [`touched`](/api/container#prop-touched) | `true` where any child is touched; assigning it assigns every child |
-| [`valid`](/api/container#prop-valid) | `true` where the container's own errors are empty and every child it counts is valid |
+| [`valid`](/api/container#prop-valid) | `true` where none of the container's own errors counts towards validity and every child it counts is valid |
 | [`validate(revalidate?)`](/api/container#validate-revalidate-void) | Revalidates every child first with `revalidate: true`, then computes the container's validity |
 
 :::
@@ -424,15 +424,15 @@ be pushed into another list or back into this one. It keeps its state: a row edi
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`contribution`](/api/field-base#prop-contribution) | What the element sends to its container's `value` |
 | [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
-| [`effectiveAccess`](/api/field-base#prop-effectiveAccess) | The access that applies once the containers above are taken into account |
-| [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
+| [`effectiveAccess`](/api/field-base#prop-effectiveaccess) | The access that applies once the containers above are taken into account |
+| [`effectiveEnabled`](/api/field-base#prop-effectiveenabled) | `true` where `effectiveAccess` is `'editable'` |
 | [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
 | [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |
 | [`extra`](/api/field-base#prop-extra) | The extended properties the element holds, frozen; written through `setExtendedValues()` |
-| [`fieldName`](/api/field-base#prop-fieldName) | Key name within the parent `Group` |
-| [`isChanged`](/api/field-base#prop-isChanged) | `true` when `value` differs from `originalValue` (deep equality) |
+| [`fieldName`](/api/field-base#prop-fieldname) | Key name within the parent `Group` |
+| [`isChanged`](/api/field-base#prop-ischanged) | `true` when `value` differs from `originalValue` (deep equality) |
 | [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) | Marks that an eager action did not find a second element of a record not yet assembled |
-| [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
+| [`originalValue`](/api/field-base#prop-originalvalue) | Baseline for `isChanged`; writable |
 | [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
 | [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
 | [`registerAction(action)`](/api/field-base#registeraction-action-this) | Registers an action on the element; returns `this` |

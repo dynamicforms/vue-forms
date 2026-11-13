@@ -54,7 +54,7 @@ jobs:
           fi
           grep -q 'declare class Field' dist/index.d.ts
 
-      - name: Verify the built artifact
+      - name: Verify the built artefact
         run: node scripts/verify-artifact.mjs
 
       - name: Build docs
@@ -65,7 +65,7 @@ jobs:
         with:
           coverage-files: coverage/coverage-final.json
           # bench/ holds the benchmarks and their harnesses, docs/ the VitePress site and its demo components,
-          # scripts/ the lint runner and the checks run against the built artifact, and src/tests/ the test
+          # scripts/ the lint runner and the checks run against the built artefact, and src/tests/ the test
           # fixtures: none is library code
           extra-ignore-patterns: |
             bench/**

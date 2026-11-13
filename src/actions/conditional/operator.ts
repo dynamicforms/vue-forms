@@ -1,7 +1,4 @@
-/**
- * The operators of a `Statement`. A backend can send a condition composed of them, which sets the visibility of
- * form elements.
- */
+/** The operators of a `Statement`: logic operators combine statements, comparators compare operands. */
 enum Operator {
   // Logic Operators
   NOT = 0,
@@ -66,7 +63,6 @@ namespace Operator {
   }
 
   /** Whether `operator` is a logic operator (`NOT` … `NOR`) rather than a comparison. */
-  // c8 reports the next line as a branch with one uncovered path, whatever the line contains
   export function isLogicOperator(operator: Operator): boolean {
     return operator >= 0;
   }

@@ -11,8 +11,7 @@ import FieldActionBase, { Outermost } from './field-action-base';
  * outermost handler and calls the earlier ones through its `supr` argument. A handler that does not call `supr`
  * ends the run, and one that calls it may transform the result.
  *
- * The array is the only index. An element has few actions, and a linear walk over a few entries is faster and
- * smaller than a keyed lookup.
+ * Lookups walk the array; there is no keyed index.
  */
 export default class ActionsMap {
   /**

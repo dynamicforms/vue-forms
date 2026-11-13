@@ -168,14 +168,14 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
         // the rows before the write, so `items` builds a new array only if the assignment changes the set of rows; an
         // assignment that keeps every row keeps the array a reader already has
         const held = this.raw.rows;
-        // null clears the list, as Group.value = null writes null into every member; otherwise a list nested in a
-        // group would keep its rows while every sibling field was cleared
         const removed = (item: R, index: number) => {
           if (announce) tx.recordStructural(this, { actionClass: ListItemRemovedAction, item, index });
         };
         const added = (item: R, index: number) => {
           if (announce) tx.recordStructural(this, { actionClass: ListItemAddedAction, item, index });
         };
+        // null clears the list, as Group.value = null writes null into every member; otherwise a list nested in a
+        // group would keep its rows while every sibling field was cleared
         if (newValue == null) {
           const previous = this.raw.rows ?? [];
           for (let index = previous.length - 1; index >= 0; index--) removed(previous[index], index);
@@ -192,13 +192,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
           for (let index = 0; index < newValue.length; index++) {
             const item = newValue[index];
             const row = previous[index];
-            // an existing row at this index takes the new item, so its identity is kept and a keyed v-for keeps the
-            // component rendering it. This requires an item template: a list without one builds each row from its
-            // own data, so two rows can have different members, and writing one row's data into another's members
-            // would drop the members they do not share. The row is reset, not assigned, so it ends in the state of a
-            // row built for this position.
-            // A row the list did not build from its item template (an element passed to push()) is replaced: reset
-            // through the template, it would lose the members the template does not have.
+            // an existing row built from the item template takes plain data in place, keeping its identity; a row given
+            // an element, and a row not built from the template, are replaced
             const template = this._itemTemplate;
             if (row && template && !(item instanceof FieldBase) && row.declaration === template.declaration) {
               this.resetChild(row, template, item);
@@ -440,7 +435,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   /**
    * Puts the rows in the order `rows` gives, in place: `rows` holds the same rows as the list, in a new order. The
    * set of rows does not change, so no `ListItemAddedAction` or `ListItemRemovedAction` fires; the value changes and
-   * is announced. The view of a list calls it for `sort()` and `reverse()`; the package does not export the key.
+   * is announced.
    */
   [ReorderRows](rows: readonly R[]): void {
     transactional((tx) => {

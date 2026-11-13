@@ -15,7 +15,7 @@ import {
 } from './fixtures';
 
 /*
- * Scenario ids follow the plan: S1a bulk build, S1b push build, S2a single-field write, S3 remove, S4a and S4b
+ * Scenario ids: S1a bulk build, S1b push build, S2a single-field write, S3 remove, S4a and S4b
  * whole-list assignment, S6 the validity read. Every scenario runs over both fixture variants.
  *
  * Sample counts are set per scenario instead of by elapsed time, because one sample of S1b costs seconds. A

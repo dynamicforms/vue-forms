@@ -1,7 +1,6 @@
 # List benchmark baseline
 
-Numbers for 0.6.1 as it stands, taken before any of the staged performance work. They exist to be compared
-with a re-run after each step; they are single-machine figures, not absolute claims about the library.
+Figures for 0.6.1. They are single-machine figures, not absolute claims about the library.
 
 Machine: AMD Ryzen 5 5600GT, 12 threads, 31 GiB RAM, Linux 6.1.0-43-amd64, node v26.7.0, vitest 3.2.4.
 
@@ -58,9 +57,8 @@ shorter after each: the 20 samples cover a list shrinking from 1000 to 978 rows.
 and a 1001-row array, so every assignment lands on a list whose length differs from the one assigned. S2a and
 the second S6 write a different value on every sample, so no write returns early from the value setter.
 
-S6 appears in two forms because a validity read costs a full traversal of the list today and therefore does
-not depend on what preceded it. Once the read path is memoised, the paired form is the one that carries the
-information.
+S6 appears in two forms: a read with no write before it, and a read after a single-field write. At 0.6.1 every
+validity read traverses the list, so the two forms measure the same work.
 
 ## Memory and structure
 
@@ -81,8 +79,8 @@ It is the median of three runs; one batch per process, because a collection cann
 a batch an earlier measurement in the same process built. The three runs differ by 0.001 %.
 
 The proxy count is the number of `reactive()` calls the library makes, counted by a substitute module the
-bundler puts in front of `vue`. Proxies Vue creates on its own when a nested object is read through a field's
-proxy — `field.errors` is the one that occurs here — are not in the count.
+bundler puts in front of `vue`. Proxies Vue creates on its own when a nested object is read through an element's
+reactive state — `field.errors` is the one that occurs here — are not in the count.
 
 Validator runs are counted with a validator whose only work is counting. Two runs per field is what a row
 built from an item template costs, through the `bind` path and through the `List` path alike.
@@ -92,7 +90,7 @@ built from an item template costs, through the `bind` path and through the `List
 **Allocations per row.** Counting every object a row allocates means counting constructor calls inside
 `FieldBase`, `ActionsMap` and the action classes, which cannot be observed from outside the library without
 changing its source. Retained bytes per field stands in for it, and it is the metric that decides how much
-RAM a 1000-row list actually costs.
+RAM a 1000-row list costs.
 
 **Mounted scenarios.** Re-render counts and `[Vue warn]` counts need a mounted component; this harness has no
 mounted scenario and reports neither.
@@ -104,4 +102,4 @@ bundles and runs `memory-harness.mjs`, substituting `vue-proxy-counter.mjs` for 
 library source.
 
 The directory holds no spec file, so `npx vitest run` collects only what is under `src/`. The coverage
-configuration includes `src/**/*`, so these files do appear in a coverage report as uncovered.
+configuration includes only `src/**/*`, so these files are not in a coverage report.

@@ -279,8 +279,8 @@ describe('a Field subclass', () => {
 
     const field = new Currency({ value: 12 });
 
-    // init runs from the base constructor: it reads the member before the initializer defines it, and the
-    // initializer overwrites what it wrote there
+    // init runs from the base constructor: it reads the member before the initialiser defines it, and the
+    // initialiser overwrites what it wrote there
     expect(seen).toEqual([undefined, ' USD']);
     expect(field.suffix).toBe(' EUR');
     expect(field.value).toBe(12);
@@ -389,7 +389,7 @@ describe('an action whose label is not a string', () => {
     expect(action.icon).toBe('save');
   });
 
-  it('drops a member written undefined, so isChanged stays honest', () => {
+  it('drops a member written undefined from the value', () => {
     const action = new RichAction({ value: { label: new MdString('**Save**'), icon: 'save' } });
 
     action.icon = undefined;

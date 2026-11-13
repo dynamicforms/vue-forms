@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import { Field } from '../../field';
 import { Group } from '../../group';
 import { List } from '../../list';
+import { ValueChangedAction } from '../value-changed-action';
 
 import {
   ConditionalStatementAction,
@@ -27,7 +28,7 @@ describe('ConditionalStatementAction', () => {
     // Trigger action by changing field value
     field.value = 'test';
 
-    // Should be called on first evaluation
+    // a change of the statement result calls it again
     expect(callbackFn).toHaveBeenCalledTimes(2);
     expect(callbackFn).toHaveBeenLastCalledWith(expect.anything(), false, true);
 
@@ -90,17 +91,12 @@ describe('ConditionalVisibilityAction', () => {
     const action = new ConditionalVisibilityAction(statement);
     field.registerAction(action);
 
-    // Initial visibility should be FULL (since statement is true)
+    // the statement is true: 'full'
     field.value = 'test';
     expect(field.visibility).toBe('full');
 
-    // Change statement to evaluate to false
+    // the write to nameField re-evaluates the statement: 'suppress'
     nameField.value = 'Jane';
-
-    // Trigger visibility update
-    field.value = 'another test';
-
-    // Visibility should now be SUPPRESS
     expect(field.visibility).toBe('suppress');
   });
 });
@@ -119,13 +115,9 @@ describe('ConditionalAccessAction', () => {
     field.value = 'test';
     expect(field.enabled).toBe(true);
 
-    // Change statement to evaluate to false
+    // the write to ageField re-evaluates the statement
     ageField.value = 16;
 
-    // Trigger enabled update
-    field.value = 'another test';
-
-    // Enabled should now be false
     expect(field.enabled).toBe(false);
     expect(field.access).toBe('disabled');
   });
@@ -170,7 +162,7 @@ describe('ConditionalValueAction', () => {
     const action = new ConditionalValueAction(statement, 'admin access');
     field.registerAction(action);
 
-    // Initial value should remain default (since statement is false)
+    // while the statement is false, a write stands
     field.value = 'trigger update';
     expect(field.value).toBe('trigger update');
 
@@ -351,9 +343,6 @@ describe('Complex Conditional Actions', () => {
     form.fields.studentDiscount.registerAction(new ConditionalVisibilityAction(showDiscountStatement));
     form.fields.submitButton.registerAction(new ConditionalAccessAction(enableSubmitStatement));
 
-    // Trigger initial evaluation
-    // form.fields.age.value = 24;
-
     // Initially: age=25, isStudent=false, terms=false
     // So discount should be hidden and submit disabled
     expect(form.fields.studentDiscount.visibility).toBe('suppress');
@@ -370,5 +359,38 @@ describe('Complex Conditional Actions', () => {
     // Change age to hide discount again
     form.fields.age.value = 35;
     expect(form.fields.studentDiscount.visibility).toBe('suppress');
+  });
+});
+
+describe('a conditional action registered on several elements of one record', () => {
+  it('applies the current result to an element registered after it was applied to another', () => {
+    const source = new Field({ value: 1 });
+    const a = new Field({ value: 0 });
+    const b = new Field({ value: 0 });
+    new Group({ source, a, b });
+    const rule = new ConditionalVisibilityAction(new Statement(source, Operator.EQUALS, 2), 'full', 'suppress');
+
+    a.registerAction(rule);
+    b.registerAction(rule);
+    expect([a.visibility, b.visibility]).toEqual(['suppress', 'suppress']);
+
+    source.value = 2;
+    expect([a.visibility, b.visibility]).toEqual(['full', 'full']);
+  });
+});
+
+describe('the listener a conditional action installs on the fields its statement reads', () => {
+  it('runs although a later ValueChangedAction on that field does not call supr', () => {
+    const source = new Field({ value: 1 });
+    const target = new Field({ value: 0 });
+    new Group({ source, target });
+    target.registerAction(
+      new ConditionalVisibilityAction(new Statement(source, Operator.EQUALS, 2), 'full', 'suppress'),
+    );
+    source.registerAction(new ValueChangedAction(() => null));
+
+    source.value = 2;
+
+    expect(target.visibility).toBe('full');
   });
 });

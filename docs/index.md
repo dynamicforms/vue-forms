@@ -56,7 +56,8 @@ mechanism applies at every level of a nested form.
 ### Every operation is a transaction
 
 A change is announced once, over the net difference, when the operation that contains it finishes. Several writes
-wrapped in a `transaction()` are announced as one, and a handler that throws rolls back the whole operation:
+wrapped in a `transaction()` are announced as one, and a handler that throws rolls back the whole operation. The
+sample uses the `personForm` from the [Basic Usage Example](#basic-usage-example) below:
 
 ```typescript
 import { transaction } from '@dynamicforms/vue-forms';

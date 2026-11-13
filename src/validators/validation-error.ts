@@ -5,7 +5,7 @@ import { isEqual } from 'lodash-es';
  * `'application'` one the application's code computed and wrote into `errors`. Any other string is an
  * application-defined origin.
  *
- * Every origin but `'validator'` has a rule stating whether its errors count toward validity and when an element
+ * Every origin but `'validator'` has a rule stating whether its errors count towards validity and when an element
  * removes them; see `ErrorPolicy`.
  */
 export type ErrorOrigin = 'validator' | 'server' | 'application' | (string & {});

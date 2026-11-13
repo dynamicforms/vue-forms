@@ -32,7 +32,7 @@ export interface TxStructuralEvent {
  * does not find them.
  */
 export const TxCapture = Symbol('Transaction.capture');
-/** read by a validator before it runs: whether the element is not sent at all, read without tracking */
+/** whether the element is not sent at all, read without tracking */
 export const SentNowhere = Symbol('FieldBase.sentNowhere');
 export const TxRestore = Symbol('Transaction.restore');
 export const TxAnnounceValue = Symbol('Transaction.announceValue');
@@ -48,7 +48,7 @@ interface TxParticipantElement {
   [TxAnnounceFlags](): void;
 }
 
-/** FieldBase declares the four members above as protected, which keeps them out of the documented API */
+/** FieldBase declares these members as protected, which keeps them out of the documented API */
 function hooks(element: FieldBase): TxParticipantElement {
   return element as unknown as TxParticipantElement;
 }
@@ -245,8 +245,6 @@ export class Transaction {
 
   /**
    * The dirty participants a pass visits, one bucket per nesting depth; within a depth they keep enrolment order.
-   * A nesting depth is a small integer, so bucketing replaces a comparison sort: a whole-list assignment enrols one
-   * participant per field, and a comparison sort of those would cost more than the announcement itself.
    */
   private buckets(pick: (entry: Participant) => boolean): (Participant[] | undefined)[] {
     const buckets: (Participant[] | undefined)[] = [];

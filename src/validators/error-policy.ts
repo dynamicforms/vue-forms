@@ -63,7 +63,7 @@ export function rulesArePositional(): boolean {
   return positionalRules > 0;
 }
 
-/** Records that a rule may have changed; read by every validity that reads a rule. */
+/** Subscribes the running effect to changes of the error rules. */
 export function readRulesVersion(): void {
   void rulesVersion.value;
 }
@@ -187,7 +187,7 @@ export function ruleIn(policy: ErrorPolicy, origin: ErrorOrigin): ErrorPolicyRul
 
 /**
  * Throws a TypeError where `action` is an `ErrorPolicy` and `registered`, the actions of the element it is being
- * registered on, holds another policy naming one of its origins. `ActionsMap` calls it before it registers anything.
+ * registered on, holds another policy naming one of its origins.
  */
 export function checkRegistration(action: FieldActionBase, registered: readonly FieldActionBase[]): void {
   if (!(action instanceof ErrorPolicy)) return;

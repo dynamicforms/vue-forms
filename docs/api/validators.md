@@ -1,6 +1,6 @@
 # Validators
 
-Validators are specialized actions that run automatically when a field's value changes. They populate `field.errors` and
+Validators are specialised actions that run automatically when a field's value changes. They populate `field.errors` and
 update `field.valid`.
 
 All built-in validators are available on the `Validators` namespace:
@@ -88,7 +88,8 @@ One validator instance validates every element it is registered on, including th
 validator on a `List`'s item template validates every row. Its per-element state (the run sequence, and whatever a
 subclass adds) is stored per element: `protected bindingState(field)` returns it, and a subclass overrides
 `protected newBindingState()` to extend it, returning `{ ...super.newBindingState(), … }`. The exported type of the
-state `Validator` itself stores is `ValidatorBindingState`.
+state `Validator` itself stores is `ValidatorBindingState`. `protected abandonRun(field)` cancels the run in flight
+over `field`: the run number advances, so the run's result is discarded and its signal aborts.
 
 `protected errorFor(options, code, detail, params)` returns the `ValidationError` a validator reports where it takes
 `ValidationErrorOptions` as the built-in ones do: the `code` and `detail` from `options` where they are set, else
@@ -268,7 +269,7 @@ new Validators.Pattern(/^\d{4}$/, { code: 'app.pin_format', detail: 'Must be a 4
 
 | Parameter | Type | Default |
 |-----------|------|---------|
-| `vue-forms.pattern` | `RegExp` | required |
+| `pattern` | `RegExp` | required |
 | `options` | `ValidationErrorOptions` | code `vue-forms.pattern`, detail `'Value must match pattern "{pattern}"'` |
 
 ---
@@ -319,7 +320,9 @@ new Validators.ValueInRange(0, 100, { code: 'app.percent_range', detail: 'Must b
 
 ### `new Validators.MinLength(minLength, options?)`
 
-Fails when the length of a non-empty value is less than `minLength`. Supports strings, arrays, and plain objects.
+Fails when the length of a non-empty value is less than `minLength`. The length is that of a string or an array,
+the `size` of a `Map` or a `Set`, the number of own keys of a plain object, and the length of `String(value)` for any
+other value.
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -330,7 +333,8 @@ Fails when the length of a non-empty value is less than `minLength`. Supports st
 
 ### `new Validators.MaxLength(maxLength, options?)`
 
-Fails when the length of a non-empty value exceeds `maxLength`.
+Fails when the length of a non-empty value exceeds `maxLength`. The length is measured as for
+[`MinLength`](#new-validators-minlength-minlength-options).
 
 | Parameter | Type | Default |
 |-----------|------|---------|
@@ -341,7 +345,8 @@ Fails when the length of a non-empty value exceeds `maxLength`.
 
 ### `new Validators.LengthInRange(minLength, maxLength, options?)`
 
-Fails when the length of a non-empty value is outside `[minLength, maxLength]`.
+Fails when the length of a non-empty value is outside `[minLength, maxLength]`. The length is measured as for
+[`MinLength`](#new-validators-minlength-minlength-options).
 
 ```typescript
 new Validators.LengthInRange(10, 200, { code: 'app.bio_length', detail: 'Must be between 10 and 200 characters' })
@@ -640,7 +645,7 @@ is used as is; where none is passed, an error returned by a validator is `'valid
 Any other string is an application-defined origin.
 
 The library reads the origin to find the rule an error falls under: every error of origin `'validator'` counts
-toward `valid` and is replaced when its validator runs again, and every other origin has a rule stating whether its
+towards `valid` and is replaced when its validator runs again, and every other origin has a rule stating whether its
 errors count and when the element removes them. See [`ErrorPolicy`](#errorpolicy).
 
 A rendering layer reads the origin to decide when to show an error, and code reads it to withdraw the errors of one

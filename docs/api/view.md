@@ -3,6 +3,7 @@
 `view(element)` returns a form element as its data: the members of a group and the rows of a list are plain
 properties, and the element itself is `$`. Every read and every write through the view goes to the element, so
 code may use the view and the element interchangeably, and a project may keep only the view of what it builds.
+The view of a field or an action has only `$`, and writing any key to it, `$` included, throws a `TypeError`.
 
 ```typescript
 import { Field, Group, List, view } from '@dynamicforms/vue-forms';
@@ -26,9 +27,9 @@ cart.$.value;                                    // what the group sends
 | a member name of a group, an index of a list | the member or the row: a field as its **value**, a container as its **view** |
 | `$` | the element itself |
 
-A member is read by the rule `fullValue` follows ([What a container serializes](/api/container#what-a-container-serializes)):
-every member is present with what it holds, whatever its access or visibility, so a disabled field reads and writes
-like any other. `Object.keys()`, spreading and `JSON.stringify()` see the same keys.
+Every member is present with what it holds, whatever its access or visibility, so a disabled field reads and writes
+like any other, and `Object.keys()`, spreading and `JSON.stringify()` see the same keys. This is the rule `fullValue`
+follows ([What a container serialises](/api/container#what-a-container-serializes)).
 
 Writing a member's key writes the field's value. A container is replaced through its element
 (`cart.$.fields.delivery.value = { … }` or `cart.delivery!.$.value = { … }`), which accepts what the container's
@@ -72,8 +73,8 @@ Every read goes through the tracked state of the element behind it, so an effect
 ## Types
 
 `View<E>` types a field member by its value and a container member by its view; no member is optional.
-A container's key is read-only. A list's view has the array's reading members and the three mutations that take
-items, typed to take row data, an element or a view. `$` is typed as the element.
+A container's key is read-only. A list's view is typed as an array without `fill` and `copyWithin`, with `push`,
+`unshift` and `splice` typed to take row data, an element or a view. `$` is typed as the element.
 
 ## Names a view cannot hold
 

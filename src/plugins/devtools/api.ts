@@ -72,8 +72,7 @@ const devtools: Plugin = {
 
 /**
  * Installs the devtools plugin unless it is installed or turned off, or there is no `window`: on a server the devtools
- * never show the registry, and an element rendered there is never unmounted, so it would keep its entry. Called on
- * every element's construction.
+ * never show the registry, and an element rendered there is never unmounted, so it would keep its entry.
  */
 export function installDevtools(): void {
   if (process.env.NODE_ENV !== 'production') {

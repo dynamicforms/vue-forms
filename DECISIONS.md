@@ -1,7 +1,8 @@
 # Decision record
 
 The decisions currently in force: what the library does, why, and which alternatives were rejected. A decision that
-no longer holds is deleted or rewritten; `git log` holds the history. An open question belongs in `TODO.md`.
+no longer holds is deleted or rewritten; `git log` holds the history. An open question is a user story in the Taiga
+project `velis74-dynamic-forms`, epic vue-forms.
 
 Numbers are permanent. A deleted decision leaves a gap, and a number is never reused.
 
@@ -9,15 +10,23 @@ Each entry states:
 
 - **Since:** the first release carrying the decision in its current form (a release tag where one exists, otherwise
   the version `package.json` names), the commit that introduced it, and its date.
-- **Tests:** the spec ranges that assert the behaviour. **Checked by:** a non-test mechanism, where no unit test
-  can assert the decision. A decision about what the library does not provide has neither.
+- **Tests:** the spec files that assert the behaviour, and in each the `describe` blocks and tests that do, named by
+  their titles. A run of consecutive blocks is named by its first and its last block; a file named alone asserts the
+  decision as a whole. **Checked by:** a non-test mechanism, where no unit test can assert the decision. A decision
+  about what the library does not provide has neither.
 
 ---
 
 ## D-001 — Element state lives in private class fields; elements compare by identity under lodash `isEqual`
 
 **Since:** 1.1.0 · `a18f801` (#35) · 2026-09-05\
-**Tests:** `src/field-base.spec.ts:652–698`, `src/is-equal.spec.ts`, `src/group.spec.ts:551–658`
+**Tests:**
+
+- `src/field-base.spec.ts`, describe 'comparing elements'
+- `src/is-equal.spec.ts`
+- `src/group.spec.ts`, describe 'Group field storage', tests 'keeps the parent back-reference out of enumeration so
+  cyclic structures still serialise' and 'keeps the container link out of reach of a walker, and compares elements by
+  identity'
 
 An element's mutable state, including the link to its parent, is in ECMAScript private class fields (`#state`,
 `#raw` on `FieldBase`). `Object.keys`, `Object.getOwnPropertySymbols`, `JSON.stringify` and lodash do not reach it.
@@ -46,8 +55,11 @@ into its parent. Private fields hide it at no per-instance cost.
 ## D-003 — `transaction` is a free function, and rollback is reachable only from inside the callback
 
 **Since:** 0.11.0 · `5ee4127` · 2026-08-17\
-**Tests:** `src/transaction.spec.ts:182–207`, `src/tests/validity-events.spec.ts:697–809`,
-`src/tests/design-fixes.spec.ts:80–95`
+**Tests:**
+
+- `src/transaction.spec.ts`, describe 'transaction' › 'the control handle', and describe 'a rollback whose signal the
+  application catches'
+- `src/tests/validity-events.spec.ts`, describe 'What a transaction that does not commit leaves behind'
 
 `transaction(fn)` is exported from the package root and is not a method of any element. It returns the callback's
 result, typed `R | undefined`. The callback receives a control object with `rollback()`, which unwinds immediately and
@@ -68,8 +80,11 @@ anywhere joins it. A method `form.transaction()` would suggest a transaction sco
 ## D-005 — Copy-on-first-write snapshots are not optional
 
 **Since:** 0.11.0 · `5ee4127` · 2026-08-17\
-**Tests:** `src/tests/validity-events.spec.ts:697–809`, `src/tests/extended-properties.spec.ts:128–148`,
-`src/tests/bind.spec.ts:121–335`
+**Tests:**
+
+- `src/tests/validity-events.spec.ts`, describe 'What a transaction that does not commit leaves behind'
+- `src/tests/extended-properties.spec.ts`, describe 'transactions'
+- `src/tests/bind.spec.ts`, describe 'rebind()', test 'is put back by a rolled-back transaction'
 
 A transaction records the state of every element it modifies at the element's first write, and a rollback restores
 it. Recording cannot be switched off.
@@ -84,8 +99,12 @@ opt-out would serve are where a half-applied state does the most damage. The rec
 ## D-006 — A rollback restores registrations, and leaves validation runs in flight
 
 **Since:** 0.12.0 · `4e85904` · 2026-08-18\
-**Tests:** `src/actions/actions-map.spec.ts:184–231`, `src/transaction.spec.ts:19–77`,
-`src/transaction.spec.ts:145–180`, `src/tests/validator-async.spec.ts:174–265`
+**Tests:**
+
+- `src/actions/actions-map.spec.ts`, describe 'Registration inside a transaction'
+- `src/transaction.spec.ts`, describe 'transaction' › 'rollback restores the validators' and 'transaction' ›
+  'asynchronous validators'
+- `src/tests/validator-async.spec.ts`, describe 'Cancellation of asynchronous validation'
 
 `registerAction`, `registerActionBefore`, `unregisterAction` and `clearValidators()` each register an undo with the
 transaction, so a rollback reverses them.
@@ -97,15 +116,24 @@ counter and the validation epoch.
 **Reason.** Restoring the count would desynchronise it from the `endValidating` calls still pending: `validating`
 would read `false` with a run in flight and then go negative.
 
-**Rejected.** Applying the verdict of such a run: the field would be invalid over a value the form no longer holds.
+**Rejected.**
+
+- Applying the verdict of such a run: the field would be invalid over a value the form no longer holds.
+- The action map in every element's snapshot, so that a rollback restores registrations with the rest of the state:
+  every element a transaction modifies pays for it, and a whole-list assignment of 1000 rows takes 26.9 ms instead
+  of 24.3 ms (S4a, measured against 0.8.0).
 
 ---
 
 ## D-012 — `execute()` rejects when a handler fails, and resolves with an abort
 
 **Since:** 0.17.1 · `7e2f19c` · 2026-08-21\
-**Tests:** `src/action.spec.ts:165–248`, `src/actions/actions-map.spec.ts:276–561`,
-`src/tests/action-commands.spec.ts:223–485`
+**Tests:**
+
+- `src/action.spec.ts`, describe 'Action execution', test 'clears busy when the handler rejects, and rejects with
+  what it threw'
+- `src/actions/actions-map.spec.ts`, describe 'AbortEventHandlingException'
+- `src/tests/action-commands.spec.ts`, describe 'SubmitAction'
 
 A handler that throws rejects the promise `execute()` returns; the library catches nothing. An
 `AbortEventHandlingException` is an answer, not a failure: the trigger resolves with it on the synchronous and on the
@@ -131,8 +159,12 @@ catch to a promise an event handler returns, so `@click="save.execute()"` reache
 ## D-014 — An element knows its declaration, and its record is derived from the container chain
 
 **Since:** 0.11.0 · `5948e4a` · 2026-08-17\
-**Tests:** `src/list.spec.ts:792–814`, `src/actions/conditional/conditional-statement-action.spec.ts:201–325`,
-`src/validators/validator-compare-to.spec.ts:12–371`
+**Tests:**
+
+- `src/list.spec.ts`, describe 'Rows and the element they were declared as'
+- `src/actions/conditional/conditional-statement-action.spec.ts`, describe 'Conditional actions over the rows of a
+  List'
+- `src/validators/validator-compare-to.spec.ts`, describe 'CompareTo Validator'
 
 `field.declaration` is the element a binding was made from, and a declared element answers with itself. The record
 an element belongs to is the `List` row that holds it, or the top of the container chain where no row does. An action
@@ -149,7 +181,10 @@ records below it (a form field every row reads) is resolved by walking the subtr
 ## D-016 — An eager pass that reaches nothing runs again when the record is complete
 
 **Since:** 0.11.0 · `5948e4a` · 2026-08-17\
-**Tests:** `src/tests/record-completion.spec.ts:28–74`, `src/validators/validator-compare-to.spec.ts:12–371`
+**Tests:**
+
+- `src/tests/record-completion.spec.ts`
+- `src/validators/validator-compare-to.spec.ts`, describe 'CompareTo Validator'
 
 A row is built member by member, so a member's eager actions run before it has siblings or a row. An action that
 reaches nothing calls `markRecordIncomplete()`. The `Group` runs the eager actions of such members again once it has
@@ -175,8 +210,14 @@ walks its own subtree.
 ## D-023 — Extended properties live in one tracked slot, are merged on write, and are routed by accessor
 
 **Since:** 0.11.0 · `87e703b` · 2026-08-18\
-**Tests:** `src/tests/extended-properties.spec.ts:15–254`, `src/tests/reactivity.spec.ts:183–197`,
-`src/tests/defects.spec.ts:21–33`, `src/tests/extras-augmentation.spec.ts:94–110`, `src/tests/types.spec.ts:78–148`
+**Tests:**
+
+- `src/tests/extended-properties.spec.ts`, from describe 'reading and writing extended properties' to describe 'a
+  subclass naming a parameter after one of its own members', and describe 'a construction parameter named like a
+  member'
+- `src/tests/reactivity.spec.ts`, describe 'extended property reactivity'
+- `src/tests/extras-augmentation.spec.ts`, describe 'an Action'
+- `src/tests/types.spec.ts`, describe 'extended properties'
 
 `FieldBase<T, X extends object = {}>` carries properties a consumer declares beyond the class's members. `extra`
 reads them, `setExtendedValues(values)` writes them, and the constructor takes them in the same parameter object.
@@ -215,7 +256,11 @@ excess-property error.
 ## D-025 — `bind(data, overrides)` creates a binding, and `rebind(data)` reuses one in place
 
 **Since:** 0.11.0 · `ab7dcf5` · 2026-08-18\
-**Tests:** `src/tests/bind.spec.ts:22–335`, `src/tests/consumer-subclass.spec.ts`
+**Tests:**
+
+- `src/tests/bind.spec.ts`, describe 'bind()', and describe 'rebind()' from test 'exchanges the data of the very same
+  instance and starts the change history over' to test 'is put back by a rolled-back transaction'
+- `src/tests/consumer-subclass.spec.ts`
 
 `bind(data?, overrides?)` creates an element of the same class carrying the source's actions, validators and extended
 properties, detached, with `originalValue` set to `data`. `undefined` data keeps the source's value; `null` is data
@@ -245,7 +290,8 @@ verdicts, so a verdict change cannot be silenced.
 ## D-027 — A row is a group of elements bound from the item template
 
 **Since:** 0.11.0 · `ab7dcf5` · 2026-08-18\
-**Tests:** `src/list.spec.ts:710–814`, `src/list.spec.ts:941–986`
+**Tests:** `src/list.spec.ts`, from describe 'What remove() hands back' to describe 'Rows and the element they were
+declared as', and describe 'List whole-value assignment'
 
 A `List` row is a `Group` of elements bound from the item template, each holding its own state. A row is an object
 with its own identity, so `v-for` keys and component reuse need nothing extra, and property access is direct.
@@ -295,7 +341,7 @@ an error in Vue's own `runtime-core.d.ts`, 3.2.47 passes); nothing is run below 
 ## D-030 — Actions are one list, walked from the end
 
 **Since:** 0.12.0 · `4e85904` · 2026-08-18\
-**Tests:** `src/actions/actions-map.spec.ts:21–274`
+**Tests:** `src/actions/actions-map.spec.ts`, from describe 'Form actions' to describe 'Eager actions'
 
 `ActionsMap` holds one `FieldActionBase[]` in registration order. A trigger walks it from the end, skips actions
 registered under another identifier, and hands each handler a `supr` that continues at the previous index.
@@ -324,9 +370,11 @@ declaration.
 ## D-034 — `access` decides what is sent and validated, and `visibility` is presentation only
 
 **Since:** 2.0.2 · `1d720be` · 2026-10-01\
-**Tests:** `src/tests/serialization.spec.ts:57–168`, `src/tests/serialization.spec.ts:239–255`,
-`src/tests/serialization.spec.ts:354–404`, `src/tests/effective-enabled.spec.ts:18–163`,
-`src/field-base.spec.ts:757–880`
+**Tests:**
+
+- `src/tests/serialization.spec.ts`, describes 'Access in a group', 'Visibility' and 'What a change announces'
+- `src/tests/effective-enabled.spec.ts`
+- `src/field-base.spec.ts`, from describe 'EnabledChangingAction' to describe 'EnabledChangedAction'
 
 `access` is `'editable'`, `'readonly'`, `'disabled'` or `'disabled-null'`:
 
@@ -361,8 +409,11 @@ section are not checked, so an optional section with required fields needs no co
 ## D-037 — An error is data, and the library renders nothing
 
 **Since:** 3.0.0-alpha.1 · `0e08414` (#50) · 2026-10-08\
-**Tests:** `src/validators/validation-error.spec.ts:6–60`, `src/validators/validator.spec.ts:286–308`,
-`src/index.spec.ts`
+**Tests:**
+
+- `src/validators/validation-error.spec.ts`, describes 'ValidationError' and 'sameAs'
+- `src/validators/validator.spec.ts`, describe 'Error codes'
+- `src/index.spec.ts`
 
 `ValidationError` carries a snake_case `code`, `params`, an English plain-text `detail` and an `origin`, and nothing to
 render. A built-in validator takes `{ code?, detail? }`. The application chooses the text from `code` and `params`
@@ -387,7 +438,7 @@ identifiers in JavaScript and Python dictionaries.
 ## D-038 — An action is a command: it sends nothing, and a container finds its confirm and reject actions
 
 **Since:** 3.0.0-alpha.1 · `d607431` (#54) · 2026-10-08\
-**Tests:** `src/tests/action-commands.spec.ts:28–503`
+**Tests:** `src/tests/action-commands.spec.ts`
 
 An `Action` contributes nothing to `value` or `fullValue`, and neither does a container holding only actions.
 `SubmitAction` and `RejectAction` are `ExecuteAction` handlers with a required target. `Container.confirm()` and
@@ -408,7 +459,12 @@ form has not chosen one.
 ## D-039 — `isChanged` measures what is sent; `rebind` restores data, not state
 
 **Since:** 3.0.0-alpha.1 · `80dde19` (#57) · 2026-10-08\
-**Tests:** `src/tests/bind.spec.ts:337–479`, `src/tests/defects.spec.ts:85–107`, `src/group.spec.ts:880–899`
+**Tests:**
+
+- `src/tests/bind.spec.ts`, describe 'rebind()' from test 'gives a recycled row and its members the access and
+  visibility of the declaration' to test 'restores the access of a recycled row when the transaction rolls back',
+  and describe 'rebind with a value that leaves a member out'
+- `src/group.spec.ts`, describe 'Group value object'
 
 A container's `originalValue` is a snapshot of its `value`, and `isChanged` compares `value` with it. `rebind(data)`
 keeps the `access`, `visibility` and extended properties of the element it is called on and of declared members;
@@ -424,8 +480,13 @@ and a change of `access` alone would not. Keeping both snapshots doubles the sto
 ## D-040 — An action registered on a binding is registered on its declaration
 
 **Since:** 3.0.0-alpha.1 · `80dde19` (#57) · 2026-10-08\
-**Tests:** `src/list.spec.ts:1441–1483`, `src/field-base.spec.ts:131–185`,
-`src/actions/conditional/conditional-statement-action.spec.ts:201–325`
+**Tests:**
+
+- `src/list.spec.ts`, describe 'a rule registered after the rows exist'
+- `src/field-base.spec.ts`, tests 'clears the validators of one field without silencing the same validator on
+  another' and 'clears the validators of every row, because the rule was the declarations'
+- `src/actions/conditional/conditional-statement-action.spec.ts`, describe 'Conditional actions over the rows of a
+  List'
 
 `registerAction()` on any binding registers in the map the declaration and all its bindings share, so a rule
 registered on one row applies to every row, and `clearValidators()` on one row clears every row. A rule for a single
@@ -438,7 +499,7 @@ row reads the row (a conditional action, or a validator that reads `field.parent
 ## D-041 — Methods the library calls between its own classes are keyed by unexported symbols
 
 **Since:** 3.0.0-alpha.1 · `80dde19` (#57) · 2026-10-08\
-**Tests:** `src/tests/design-fixes.spec.ts:65–78`
+**Tests:** `src/tests/validator-async.spec.ts`, describe 'the end function of an asynchronous validation run'
 
 A method one class calls on another where `protected` does not reach is keyed by a symbol the package does not
 export: `BeginValidating`, `ValidationEpoch`, `ReorderRows`, `SentNowhere`, `ExecuteHandlers`, and `Outermost` on an
@@ -495,7 +556,10 @@ suspending on it (Jotai and Recoil async atoms), is not provided.
 ## D-046 — A field's value is one unit; tracking writes into it is an opt-in plugin
 
 **Since:** 3.0.0-alpha.1 · `f1323ea` · 2026-10-09\
-**Tests:** `src/plugins/tracking.spec.ts`, `src/plugins.spec.ts:62–77`
+**Tests:**
+
+- `src/plugins/tracking.spec.ts`
+- `src/plugins.spec.ts`, describe 'PluginContext.changeInPlace'
 
 A change of a field is an assignment to `value`; a write into an object the field holds is not. The tracking plugin
 (`@dynamicforms/vue-forms/plugins/tracking`, installed with `installPlugin()`) makes such a write a change. An
@@ -519,8 +583,10 @@ application that does not import it does not bundle it.
 ## D-047 — The devtools are a plugin the library installs in development
 
 **Since:** 3.0.0-alpha.1 · `e29aea6` (#63) · 2026-10-09\
-**Tests:** `src/tests/devtools.spec.ts:73–114`, `src/tests/devtools.spec.ts:167–224`, `src/plugins.spec.ts:3–21`,
-`src/plugins.spec.ts:79–94`
+**Tests:**
+
+- `src/tests/devtools.spec.ts`, describes 'configureDevtools' and 'the devtools plugin'
+- `src/plugins.spec.ts`, describes 'the onElementCreated hook' and 'the onElementAdopted hook'
 
 The devtools use the plugin hooks `onElementCreated`, `onElementAdopted` and `onCommit`, and the library installs the
 plugin on the first element built in development; the core calls no devtools code. `bind()` constructs inside
@@ -537,10 +603,13 @@ installs would miss that state. A list of 1000 rows of 8 fields is 9000 bindings
 ## D-048 — An element has one parent; a record shown in several places is several elements
 
 **Since:** 3.0.0-alpha.1 · `483dbfa` · 2026-10-10\
-**Tests:** `src/group.spec.ts:901–1128`, `src/list.spec.ts:988–1109`
+**Tests:**
+
+- `src/group.spec.ts`, describes 'Group field ownership' and 'Group membership after construction'
+- `src/list.spec.ts`, describe 'List membership of the rows it counts'
 
 A container that takes an element with a parent throws a `TypeError`. `parent`, `fieldName`, inherited access and
-visibility, a container's invalid count, serialization and the commit order (deepest first) are defined over the one
+visibility, a container's invalid count, serialisation and the commit order (deepest first) are defined over the one
 path from the root. A record shown in several places is an element in each, and their values are kept equal by
 writing one into the other in the same transaction; a handler that writes during the commit joins it, so the linked
 writes commit and roll back together.
@@ -557,7 +626,11 @@ writes commit and roll back together.
 ## D-049 — A plugin observes committed transactions, not events
 
 **Since:** 3.0.0-alpha.1 · `483dbfa` · 2026-10-10\
-**Tests:** `src/plugins.spec.ts:23–41`, `src/group.spec.ts:813–899`, `src/list.spec.ts:1245–1264`
+**Tests:**
+
+- `src/plugins.spec.ts`, describe 'the onCommit hook'
+- `src/group.spec.ts`, from describe 'Group value caching' to describe 'Group value object'
+- `src/list.spec.ts`, describe 'List value object'
 
 An observing plugin (devtools timeline, history, patches, persistence, sync) is called once per committed
 transaction, after the commit has announced everything and the handlers that wrote during it have run. A rolled-back
@@ -579,7 +652,8 @@ observer of committed transactions never sees that partial change.
 ## D-050 — The rules over an error's origin are an action, with a default per origin
 
 **Since:** 3.0.0-alpha.1 · `1e1e7ac` · 2026-10-12\
-**Tests:** `src/tests/error-origin.spec.ts:29–526`
+**Tests:** `src/tests/error-origin.spec.ts`, from describe 'An error of origin server, under the default rule' to
+describe 'setDefaultErrorPolicies'
 
 Every origin other than `'validator'` has a rule of two independent parts: `validEffect`, whether its errors count
 toward `valid`, and `removeOn`, when the element removes them (`'change'`, `'edit'`, `'submit'`, `'never'`). An
@@ -611,8 +685,13 @@ back.
 
 ## D-051 — An error code carries the namespace of the package that declared it
 
-**Since:** 3.0.0-alpha.3 · (#89) · 2026-10-20\
-**Tests:** `src/tests/error-codes.spec.ts`, `src/index.spec.ts`, `src/validators/validator.spec.ts:88–99`
+**Since:** 3.0.0-alpha.3 · `68a861b` (#89) · 2026-10-20\
+**Tests:**
+
+- `src/tests/error-codes.spec.ts`
+- `src/index.spec.ts`
+- `src/validators/validator.spec.ts`, describe 'Validator', test 'states the code and the detail the options give,
+  with params substituted into the detail'
 
 A code the library raises is `<namespace>.<code>`: the namespace `vue-forms`, exported as `ERROR_NAMESPACE`, then a
 snake_case code without `.`. A namespace is one or more `.`-joined segments of `[a-z0-9]+(-[a-z0-9]+)*`; a full code
@@ -638,8 +717,11 @@ is used by `vuetify-inputs`, `fastapi-viewsets`, `taskwire` and `muxws`, so one 
 
 ## D-052 — A path through a form is resolved by a function, `elementAt()`, not by `field()`
 
-**Since:** 3.0.0-alpha.4 · 2026-11-13\
-**Tests:** `src/element-at.spec.ts`, `src/tests/cookbook.spec.ts`
+**Since:** 3.0.0-alpha.4 · `f2c1a36` (#92) · 2026-11-13\
+**Tests:**
+
+- `src/element-at.spec.ts`
+- `src/tests/cookbook.spec.ts`
 
 `elementAt(root, path)` returns the element at a path, or `undefined` if the path does not exist. The path is a
 string split on `.` or an array of steps; a step is a `Group` member name or a `List` row index (a non-negative

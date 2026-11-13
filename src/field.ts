@@ -35,11 +35,11 @@ class Field<T = any, X extends object = Extras> extends FieldBase<T, X> {
 
   /**
    * Applies the constructor parameters. A subclass that needs different parameter handling overrides this method
-   * instead of redeclaring the constructor, as Action does.
+   * instead of redeclaring the constructor.
    *
-   * It is called from this constructor, so it runs before a subclass's class field initializers, which run after
-   * super() returns. An override can therefore use only its parameters: members the subclass initializes are
-   * undefined inside it, and a value it writes to such a member is overwritten when the initializer runs.
+   * It is called from this constructor, so it runs before a subclass's class field initialisers, which run after
+   * super() returns. An override can therefore use only its parameters: members the subclass initialises are
+   * undefined inside it, and a value it writes to such a member is overwritten when the initialiser runs.
    */
   protected init(params?: IFieldParams<T, X>) {
     transactional(() => {

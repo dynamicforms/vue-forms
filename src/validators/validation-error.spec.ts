@@ -3,6 +3,8 @@ import { Field } from '../field';
 import { ValidationError } from './validation-error';
 import { Validator } from './validator';
 
+import { Validators } from '.';
+
 describe('ValidationError', () => {
   it('holds the code, params and detail it is built with', () => {
     const error = new ValidationError('vue-forms.min_value', { minValue: 3 }, 'Value must be larger or equal to 3');
@@ -60,5 +62,16 @@ describe('sameAs', () => {
     class ServerError extends ValidationError {}
 
     expect(new ValidationError('x', {}, 'X').sameAs(new ServerError('x', {}, 'X'))).toBe(false);
+  });
+});
+
+describe('a value that contains a placeholder', () => {
+  it('is substituted once, not substituted again by a later param', () => {
+    const field = new Field({
+      value: '{minLength}',
+      validators: [new Validators.MinLength(20, { code: 'custom', detail: 'Got {newValue}, need {minLength}' })],
+    });
+
+    expect(field.errors[0].detail).toBe('Got {minLength}, need 20');
   });
 });

@@ -101,3 +101,18 @@ describe('Pattern Validator error code', () => {
     expect(field.errors[0].code).toBe('vue-forms.pattern');
   });
 });
+
+describe('Pattern Validator with a g or y flag', () => {
+  it('gives the same result for every value and leaves lastIndex of the given expression at 0', () => {
+    const pattern = /^\d+$/g;
+    const field = new Field({ value: '12', validators: [new Pattern(pattern)] });
+    const seen: boolean[] = [];
+    for (const value of ['34', '56', '78', 'x', '90']) {
+      field.value = value;
+      seen.push(field.valid);
+    }
+
+    expect(seen).toEqual([true, true, true, false, true]);
+    expect(pattern.lastIndex).toBe(0);
+  });
+});

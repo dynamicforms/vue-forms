@@ -199,7 +199,7 @@ it writes them to `field.errors` before it throws, as in
 
 `canExecute()` is `true` while the target is valid and not `pending`, so `Action.executable` is `false` while the
 form is invalid, a validation is running or the submit itself is running. An error whose rule removes it on
-`'submit'` does not count toward `valid`, so it never keeps the submit that removes it from running.
+`'submit'` does not count towards `valid`, so it never keeps the submit that removes it from running.
 
 Every outcome of a submit is the resolved value of `execute()` (and of `Container.confirm()`), of the type
 `SubmitResult<R> | CommandException`:
@@ -360,9 +360,8 @@ inherited alongside the narrowed getter. A write to a property that has a getter
 `TypeError` in strict mode, which module code always uses, so `action.label = 'Save'` (the documented way to change
 either member) fails on such a subclass. TypeScript treats the getter-only accessor as read-only and rejects the
 assignment where the reference is typed as the subclass; a reference typed as `Action` compiles and throws at
-runtime. `super.label = newValue` calls the base setter with `this` bound to the action, so the write is an
-ordinary value change: `ValueChangedAction` fires, `isChanged` reflects it, and a disabled action takes it like any
-other field.
+runtime. `super.label = newValue` calls the base setter, so the write is an ordinary value change (see
+[Value](#value)).
 
 A narrowed getter and an unnarrowed setter are independent. The setter writes `value.label` regardless of the
 getter's filter, so an action whose filter returns `undefined` still returns `undefined` right after a label has
@@ -400,15 +399,15 @@ the members above, whether or not the action declares extended properties.
 | [`clearValidators()`](/api/field-base#clearvalidators-void) | Removes the element's validators and empties `errors` |
 | [`declaration`](/api/field-base#prop-declaration) | The element this one was declared as: itself, or the element a binding was made from |
 | [`effectiveAccess`](/api/field-base#prop-effectiveaccess) | The access that applies once the containers above are taken into account |
-| [`effectiveEnabled`](/api/field-base#prop-effectiveEnabled) | `true` where `effectiveAccess` is `'editable'` |
+| [`effectiveEnabled`](/api/field-base#prop-effectiveenabled) | `true` where `effectiveAccess` is `'editable'` |
 | [`enabled`](/api/field-base#prop-enabled) | `true` where `access` is `'editable'` |
 | [`errors`](/api/field-base#prop-errors) | Current validation errors of the element; writable |
 | [`extra`](/api/field-base#prop-extra) | The extended properties the element holds, frozen; written through `setExtendedValues()` |
-| [`fieldName`](/api/field-base#prop-fieldName) | Key name within the parent `Group` |
-| [`fullValue`](/api/field-base#prop-fullValue) | What the element holds; identical to `value` except on `Group` and `List` |
-| [`isChanged`](/api/field-base#prop-isChanged) | `true` when `value` differs from `originalValue` (deep equality) |
+| [`fieldName`](/api/field-base#prop-fieldname) | Key name within the parent `Group` |
+| [`fullValue`](/api/field-base#prop-fullvalue) | What the element holds; identical to `value` except on `Group` and `List` |
+| [`isChanged`](/api/field-base#prop-ischanged) | `true` when `value` differs from `originalValue` (deep equality) |
 | [`markRecordIncomplete()`](/api/field-base#markrecordincomplete-void) | Marks that an eager action did not find a second element of a record not yet assembled |
-| [`originalValue`](/api/field-base#prop-originalValue) | Baseline for `isChanged`; writable |
+| [`originalValue`](/api/field-base#prop-originalvalue) | Baseline for `isChanged`; writable |
 | [`parent`](/api/field-base#prop-parent) | Container the element belongs to |
 | [`pending`](/api/field-base#prop-pending) | `validating \|\| busy` |
 | [`rebind(data)`](/api/field-base#rebind-data-this) | Replaces the data the element holds, in place |
@@ -418,7 +417,7 @@ the members above, whether or not the action declares extended properties.
 | [`settled()`](/api/field-base#settled-promise-void) | Resolves once `pending` is `false` |
 | [`triggerAction(actionClass, ...params)`](/api/field-base#triggeraction-actionclass-params-any) | Fires an action class on the element and returns what the chain returns |
 | [`unregisterAction(action)`](/api/field-base#unregisteraction-action-boolean) | Removes an action from the element's declaration and its bindings |
-| [`valid`](/api/field-base#prop-valid) | `true` when `errors` is empty |
+| [`valid`](/api/field-base#prop-valid) | `true` when no error in `errors` counts towards validity |
 | [`validate(revalidate?)`](/api/field-base#validate-revalidate-void) | Publishes the validity derived from `errors` |
 | [`validating`](/api/field-base#prop-validating) | `true` while an asynchronous validation is in flight on the element or below it |
 | [`visibility`](/api/field-base#prop-visibility) | How a rendering layer shows the element; writable |

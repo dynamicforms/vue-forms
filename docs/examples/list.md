@@ -33,15 +33,15 @@ Each row is a binding of it, so every row has what the item template has: the `R
 is declared once and rejects an empty description in every row, and an action registered on a field of the item
 template runs in each row separately, on that row's field.
 
-Rows are created for the list's initial value and for every later `push()` and `insert()`, so a change to the item
-template after the list has rows applies only to rows added afterwards. Declare the item template completely before
-building the list from it.
+Every row shares the item template's validators and actions, so registering or removing one on the item template
+(or on any row) applies to every row, existing and added later. Values, access, visibility and extended properties
+are copied when a row is built, so changing them on the item template affects only rows added afterwards.
 
 ### Reaching a Sibling Field
 
 Inside a row, `field.parent` is the row's own `Group`, so `row.fields.quantity` is the quantity of the row being
-validated. `parent` is typed [`Container`](/api/container), which declares no members, so the validator checks
-`row instanceof Group` before it reads one. The check narrows the type and also tests whether the row exists yet.
+validated. `parent` is typed [`Container`](/api/container), which has no `fields`, so the validator checks
+`row instanceof Group` before it reads a sibling. The check narrows the type and also tests whether the row exists yet.
 The expression is written on the item template and resolves per row, because the field the validator receives is
 the row's field.
 

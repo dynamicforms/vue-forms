@@ -105,6 +105,26 @@ describe('the relay a conditional action installs on the fields its statement re
 
     expect(actionCount(flag)).toBe(registered - 1);
   });
+
+  it('is removed with the action from its last element, and restored by a rollback', () => {
+    const source = new Field({ value: 1 });
+    const target = new Field({ value: 0 });
+    new Group({ source, target });
+    const rule = new ConditionalVisibilityAction(new Statement(source, Operator.EQUALS, 2), 'full', 'suppress');
+    target.registerAction(rule);
+    const handlers = () => (source as any).boundActions.ofClass(ValueChangedAction.classIdentifier).length;
+    expect(handlers()).toBe(1);
+
+    transaction((tx) => {
+      target.unregisterAction(rule);
+      expect(handlers()).toBe(0);
+      tx.rollback();
+    });
+    expect(handlers()).toBe(1);
+
+    target.unregisterAction(rule);
+    expect(handlers()).toBe(0);
+  });
 });
 
 describe('rules of a dropped form that read an element outside it', () => {
