@@ -5,6 +5,14 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-alpha.4] - 2026-11-13
+
+### Added
+
+- `elementAt(root, path)`, exported from the package root: returns the element at a dotted path (`'items.1.price'`)
+  or an array path (`['items', 1, 'price']`) below `root`, through `Group` members and `List` rows, or `undefined` if
+  the path does not exist; `''` and `[]` return `root`.
+
 ## [3.0.0-alpha.3] - 2026-10-20
 
 ### Added

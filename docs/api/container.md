@@ -14,7 +14,8 @@ name.parent === form;      // true; name.parent is typed Container | undefined
 ```
 
 `Group` holds named members and `List` holds rows by position. This page describes what the two share. Child
-access (`group.fields.name`, `list.get(0)`) is specific to each class and is described on its page.
+access (`group.fields.name`, `list.get(0)`) is specific to each class and is described on its page;
+[`elementAt()`](#elementat-root-path-fieldbase-undefined) returns the element at a path through both.
 
 ## Properties
 
@@ -125,6 +126,54 @@ Overrides [`FieldBase.validate()`](/api/field-base#validate-revalidate-void). Wi
 is revalidated first and the container then computes its own validity over the result, so it announces at most one
 net transition of its validity. A child that becomes valid while a later child is still unchecked produces no
 notification on the container.
+
+## `elementAt(root, path): FieldBase | undefined`
+
+Returns the element at `path` below `root`, or `undefined` if the path does not exist. The function is for a path
+that arrives as data: a server reports a field error by the path of the field (`'items.1.price'`), and the client
+finds the element at that path to set its `errors`. A path written in the source is read through
+[`view()`](/api/view), which keeps the types: `view(order).items![1]!.$.fields.price`.
+
+- `path` is a string with steps separated by `.`, or an array of steps.
+- A step below a `Group` is a member name. A member name containing `.` can be given only in an array path.
+- A step below a `List` is a row index: a non-negative integer, or a string of digits without leading zeros (`'0'`,
+  `'12'`). Any other step (`''`, `'01'`, `' 1'`, `'1e0'`, `-1`, `1.5`) does not exist.
+- `''` and `[]` return `root`.
+- A path that continues below an element that is neither a `Group` nor a `List` returns `undefined`.
+
+```typescript
+import { elementAt, Field, Group, List } from '@dynamicforms/vue-forms';
+
+const order = new Group({
+  address: new Group({ city: new Field({ value: 'Kranj' }) }),
+  items: new List(new Group({ price: new Field({ value: 0 }) }), { value: [{ price: 1 }, { price: 2 }] }),
+});
+
+elementAt(order, 'items.1.price');         // order.fields.items.get(1).fields.price
+elementAt(order, ['items', 1, 'price']);   // the same
+elementAt(order, '');                      // order
+elementAt(order, 'items.5.price');         // undefined
+elementAt(order, 'address.city.x');        // undefined
+```
+
+In a `computed`, a watcher or a template, the result is recomputed when a member or row on the path is added or
+removed.
+
+### Typing the result
+
+The result is typed `FieldBase | undefined`. Narrow it with `instanceof`, or with a cast where the form's structure
+determines the class; a cast is not checked at runtime.
+
+```typescript
+const price = elementAt(order, path);
+if (price instanceof Field) price.value = 0;
+
+const items = elementAt(order, 'items') as List<Group<{ price: Field<number> }>>;
+items.push({ price: 3 });
+```
+
+Code that uses only [`FieldBase`](/api/field-base) members (`errors`, `touched`, `value`, `validate()`) needs no
+narrowing.
 
 ## Inherited members
 

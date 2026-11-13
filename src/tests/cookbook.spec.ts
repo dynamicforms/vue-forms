@@ -22,6 +22,7 @@ import {
   ConditionalAccessAction,
   ConditionalVisibilityAction,
   ContributionChangedAction,
+  elementAt,
   ErrorPolicy,
   Field,
   FieldBase,
@@ -217,17 +218,6 @@ describe('Cookbook: errors the server returned', () => {
     }
   }
 
-  function elementAt(root: FieldBase, path: string | readonly (string | number)[]): FieldBase | undefined {
-    const keys = typeof path === 'string' ? path.split('.') : path;
-    let element: FieldBase | null | undefined = root;
-    for (const key of keys) {
-      if (element instanceof Group) element = element.field(String(key));
-      else if (element instanceof List) element = element.get(Number(key));
-      else return undefined;
-    }
-    return element ?? undefined;
-  }
-
   function showServerErrors(root: FieldBase, errors: Record<string, string[]>) {
     Object.entries(errors).forEach(([path, messages]) => {
       // a message for a path the form does not hold is shown on the form itself
@@ -254,6 +244,7 @@ describe('Cookbook: errors the server returned', () => {
     expect(elementAt(form, ['items', 1, 'price'])).toBe(form.fields.items.get(1)!.fields.price);
     expect(form.field('address.city' as any)).toBeNull();
     expect(elementAt(form, 'items.7.price')).toBeUndefined();
+    expect(elementAt(form, '')).toBe(form);
   });
 
   it('writes the errors from the plain submit, rethrows, and drops each one as the user leaves its edit', async () => {
