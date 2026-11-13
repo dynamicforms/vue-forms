@@ -87,23 +87,6 @@ describe('elementAt', () => {
     expect(elementAt(form, 'tags.1.x')).toBeUndefined();
   });
 
-  it('with nearest, returns the element the path goes on below', () => {
-    const form = createOrder();
-
-    expect(elementAt(form, 'weekdays.0', { nearest: true })).toBe(form.fields.weekdays);
-    expect(elementAt(form, 'weekdays.0.x', { nearest: true })).toBe(form.fields.weekdays);
-    expect(elementAt(form, 'tags.1.x', { nearest: true })).toBe(form.fields.tags.get(1));
-    expect(elementAt(form, 'address.city', { nearest: true })).toBe(form.fields.address.fields.city);
-  });
-
-  it('with nearest, still returns undefined for a missing member or row', () => {
-    const form = createOrder();
-
-    expect(elementAt(form, 'address.zip', { nearest: true })).toBeUndefined();
-    expect(elementAt(form, 'items.7.price', { nearest: true })).toBeUndefined();
-    expect(elementAt(form, 'items.x.price', { nearest: true })).toBeUndefined();
-  });
-
   it('follows rows added and removed after the list was built', () => {
     const form = createOrder();
     const items = form.fields.items;

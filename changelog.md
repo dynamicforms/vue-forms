@@ -9,10 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `elementAt(root, path, options?)`, exported from the package root: returns the element a dotted path
-  (`'items.1.price'`) or an array path (`['items', 1, 'price']`) names below `root`, through `Group` members and
-  `List` rows; `''` and `[]` name `root`. With `{ nearest: true }`, a path that goes on below an element that is
-  neither a `Group` nor a `List` returns that element.
+- `elementAt(root, path)`, exported from the package root: returns the element at a dotted path (`'items.1.price'`)
+  or an array path (`['items', 1, 'price']`) below `root`, through `Group` members and `List` rows, or `undefined` if
+  the path does not exist; `''` and `[]` return `root`.
 
 ## [3.0.0-alpha.3] - 2026-10-20
 

@@ -15,7 +15,7 @@ name.parent === form;      // true; name.parent is typed Container | undefined
 
 `Group` holds named members and `List` holds rows by position. This page describes what the two share. Child
 access (`group.fields.name`, `list.get(0)`) is specific to each class and is described on its page;
-[`elementAt()`](#elementat-root-path-options-fieldbase-undefined) follows a path through both.
+[`elementAt()`](#elementat-root-path-fieldbase-undefined) returns the element at a path through both.
 
 ## Properties
 
@@ -127,11 +127,16 @@ is revalidated first and the container then computes its own validity over the r
 net transition of its validity. A child that becomes valid while a later child is still unchecked produces no
 notification on the container.
 
-## `elementAt(root, path, options?): FieldBase | undefined`
+## `elementAt(root, path): FieldBase | undefined`
 
-Returns the element `path` names below `root`. Each step of the path names a `Group` member by its name or a `List`
-row by its index. `path` is a string of steps joined by `.` or an array of steps; an empty path (`''` or `[]`) names
-`root`.
+Returns the element at `path` below `root`, or `undefined` if the path does not exist.
+
+- `path` is a string with steps separated by `.`, or an array of steps.
+- A step below a `Group` is a member name. A member name containing `.` can be given only in an array path.
+- A step below a `List` is a row index: a non-negative integer, or a string of digits without leading zeros (`'0'`,
+  `'12'`). Any other step (`''`, `'01'`, `' 1'`, `'1e0'`, `-1`, `1.5`) does not exist.
+- `''` and `[]` return `root`.
+- A path that continues below an element that is neither a `Group` nor a `List` returns `undefined`.
 
 ```typescript
 import { elementAt, Field, Group, List } from '@dynamicforms/vue-forms';
@@ -141,49 +146,25 @@ const order = new Group({
   items: new List(new Group({ price: new Field({ value: 0 }) }), { value: [{ price: 1 }, { price: 2 }] }),
 });
 
-elementAt(order, 'items.1.price');         // the price field of the second row
+elementAt(order, 'items.1.price');         // order.fields.items.get(1).fields.price
 elementAt(order, ['items', 1, 'price']);   // the same
 elementAt(order, '');                      // order
 elementAt(order, 'items.5.price');         // undefined
+elementAt(order, 'address.city.x');        // undefined
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `root` | `FieldBase` | The element the path starts at; usually a form, but any element |
-| `path` | `string \| readonly (string \| number)[]` | The steps, joined by `.` or as an array |
-| `options.nearest` | `boolean` | Where the path goes on below an element that is neither a `Group` nor a `List`, return that element; default `false` |
-
-A `Group` step is a member name; a member name containing `.` can be named only by an array path. A `List` step is
-a non-negative integer: a number, or a string of decimal digits without leading zeros (`'0'`, `'12'`). Any other
-`List` step (`''`, `'01'`, `' 1'`, `'1e0'`, `-1`, `1.5`) names no row.
-
-Returns `undefined` where a step names a member or row the container does not hold, or where the path goes on below
-an element that is neither a `Group` nor a `List`. With `nearest: true`, the latter returns that element: a server
-that reports an error at `weekdays.0`, an item of a field whose value is an array, has the error shown on the
-`weekdays` field. A missing member or row still returns `undefined`.
-
-Inside a `computed`, a watcher or a template, the call depends on the members and rows it reads, so the result
-follows `addField()`, `removeField()` and the row changes of a `List`.
-
-```typescript
-const form = new Group({ weekdays: new Field({ value: [1, 3] }) });
-
-elementAt(form, 'weekdays.0');                     // undefined
-elementAt(form, 'weekdays.0', { nearest: true });  // the weekdays field
-```
+In a `computed`, a watcher or a template, the result is recomputed when a member or row on the path is added or
+removed.
 
 ### Typing the result
 
-The result is typed `FieldBase | undefined`: the type of the element a path names is not inferred from the path. A
-path read from a server answer is known only at runtime, and a path in the source is better written as the typed
-access it stands for (`order.fields.items.get(1)?.fields.price`). Narrow the result to the class the code needs:
+The result is typed `FieldBase | undefined`; the type is not inferred from the path. Narrow it with `instanceof` or
+a cast:
 
 ```typescript
-// checked: the branch runs only where the path names a Field
 const price = elementAt(order, path);
 if (price instanceof Field) price.value = 0;
 
-// cast: where the form's structure guarantees what the path names
 const city = elementAt(order, 'address.city') as Field<string> | undefined;
 city?.validate(true);
 
@@ -191,10 +172,9 @@ const items = elementAt(order, 'items') as List<Group<{ price: Field<number> }>>
 items.push({ price: 3 });
 ```
 
-A cast is not checked at runtime: where the path names an element of another class, or nothing, the cast value is
-still that element, or `undefined`, and a member read on it that the element does not have throws or reads
-`undefined`. Every element has the [`FieldBase`](/api/field-base) members (`errors`, `touched`, `value`,
-`validate()`), so code that uses only those needs neither.
+A cast is not checked at runtime. Code that uses only [`FieldBase`](/api/field-base) members (`errors`, `touched`,
+`value`, `validate()`) needs no narrowing. For a path known in the source, typed access
+(`order.fields.items.get(1)?.fields.price`) keeps the element's type.
 
 ## Inherited members
 

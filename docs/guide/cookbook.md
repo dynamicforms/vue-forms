@@ -132,8 +132,7 @@ and list rows as well.
 
 The server answers a rejected save with its messages keyed by the dotted path of the field, such as
 `{ "email": ["…"], "items.0.price": ["…"] }`. The application's API client turns that answer into an error the save
-throws, and [`elementAt()`](/api/container#elementat-root-path-options-fieldbase-undefined) finds the element a path
-names:
+throws, and [`elementAt()`](/api/container#elementat-root-path-fieldbase-undefined) returns the element at a path:
 
 ```typescript
 import { elementAt, type FieldBase, ValidationError } from '@dynamicforms/vue-forms';
@@ -187,8 +186,8 @@ new SubmitAction(
 );
 ```
 
-`form.field('addr.city')` reads a member named `addr.city`, not a path; `elementAt()` walks the path, and the empty
-path names the form itself. An error written into `errors` makes the element and every container above it invalid at
+`form.field('addr.city')` reads a member named `addr.city`; `elementAt()` reads a path, and `''` returns the form.
+An error written into `errors` makes the element and every container above it invalid at
 once. Its [origin](/api/validators#origin) is `'server'`, whose default rule is `{ validEffect: true, removeOn: 'edit' }`
 ([`ErrorPolicy`](/api/validators#errorpolicy)): a field loses the error when the user leaves it after changing it,
 and the form loses its own when the user leaves any field after a change of the form's value. The rendering layer

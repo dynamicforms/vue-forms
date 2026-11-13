@@ -2,15 +2,6 @@ import type { FieldBase } from './field-base';
 import { Group } from './group';
 import { List } from './list';
 
-/** Options of {@link elementAt}. */
-export interface ElementAtOptions {
-  /**
-   * Where the path goes on below an element that is neither a `Group` nor a `List`, return that element instead of
-   * `undefined`.
-   */
-  nearest?: boolean;
-}
-
 const INDEX = /^(0|[1-9]\d*)$/;
 
 function rowIndex(key: string | number): number | undefined {
@@ -19,19 +10,12 @@ function rowIndex(key: string | number): number | undefined {
 }
 
 /**
- * Returns the element `path` names below `root`: a `Group` member by its name, a `List` row by its index. A string
- * path is split on `.`; an empty path (`''` or `[]`) names `root`. A `List` step is a non-negative integer, as a
- * number or as decimal digits without leading zeros.
- *
- * Returns `undefined` where a step names no member or row, or where the path goes on below an element that is
- * neither a `Group` nor a `List`; with `nearest`, the latter returns that element. Inside an effect, the call tracks
- * the members and rows it reads. The result is typed `FieldBase | undefined`: narrow it with `instanceof` or a cast.
+ * Returns the element at `path` below `root`, or `undefined` if the path does not exist. A string path is split on
+ * `.`; `''` and `[]` return `root`. A step below a `Group` is a member name, below a `List` a non-negative integer
+ * (a number, or digits without leading zeros). A path that continues below an element that is neither a `Group` nor
+ * a `List` does not exist.
  */
-export function elementAt(
-  root: FieldBase,
-  path: string | readonly (string | number)[],
-  options?: ElementAtOptions,
-): FieldBase | undefined {
+export function elementAt(root: FieldBase, path: string | readonly (string | number)[]): FieldBase | undefined {
   const keys = typeof path === 'string' ? (path === '' ? [] : path.split('.')) : path;
   let element: FieldBase = root;
   for (const key of keys) {
@@ -43,7 +27,7 @@ export function elementAt(
       const index = rowIndex(key);
       next = index === undefined ? undefined : element.get(index);
     } else {
-      return options?.nearest ? element : undefined;
+      return undefined;
     }
     if (!next) return undefined;
     element = next;

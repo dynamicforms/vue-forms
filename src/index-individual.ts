@@ -4,7 +4,7 @@ export { type Visibility, visibilityValues, defaultVisibility, isVisibility } fr
 export * from './actions';
 export * from './action';
 export * from './container';
-export { elementAt, type ElementAtOptions } from './element-at';
+export { elementAt } from './element-at';
 export {
   configureDevtools,
   describeState,

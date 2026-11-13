@@ -641,16 +641,15 @@ is used by `vuetify-inputs`, `fastapi-viewsets`, `taskwire` and `muxws`, so one 
 **Since:** 3.0.0-alpha.4 · 2026-11-13\
 **Tests:** `src/element-at.spec.ts`, `src/tests/cookbook.spec.ts`
 
-`elementAt(root, path, options?)` returns the element a path names: a string split on `.` or an array of steps, each
-a `Group` member name or a `List` row index. The empty path names `root`. A `List` step is a non-negative integer, as
-a number or as decimal digits without leading zeros; any other step names no row. A path that goes on below an
-element that is neither a `Group` nor a `List` returns `undefined`, or that element with `nearest: true`. The result
-is typed `FieldBase | undefined`. A `Group` step reads through `fields`, a tracked read of the set of members, so a
-call inside an effect follows members added and removed as it follows rows.
+`elementAt(root, path)` returns the element at a path, or `undefined` if the path does not exist. The path is a
+string split on `.` or an array of steps; a step is a `Group` member name or a `List` row index (a non-negative
+integer, as a number or as digits without leading zeros). `''` and `[]` return `root`. A path that continues below an
+element that is neither a `Group` nor a `List` does not exist. The result is typed `FieldBase | undefined`. A `Group`
+step reads through `fields`, which is tracked, so a call inside an effect is recomputed when a member is added or
+removed.
 
-**Reason.** Server errors arrive keyed by a dotted path, and placing them on a form needs the element each path
-names, through nested groups and list rows. The empty path is the key a server uses for errors of the form itself.
-`nearest` places an error reported at an item of an array-valued field (`weekdays.0`) on that field.
+**Reason.** Server errors are keyed by a dotted path; placing them on a form needs the element at each path, through
+nested groups and list rows. A server keys errors of the form itself with `''`.
 
 **Rejected.**
 
@@ -659,5 +658,7 @@ names, through nested groups and list rows. The empty path is the key a server u
 - A result type inferred from the path: paths come from server answers at runtime, and a path known in the source is
   written as the typed access it stands for.
 - `Number(step)` for a `List` step: it reads `''` as row 0 and `' 1'`, `'1e0'`, `'0x1'` as row 1.
+- An option returning the last element reached when the path continues below it (`weekdays.0` → `weekdays`): a path
+  that does not exist would return an element. An application that maps such keys strips the extra steps itself.
 - A helper that writes errors (`addErrors`): replacing or appending, and where errors for an unknown path go, are the
   application's decisions.

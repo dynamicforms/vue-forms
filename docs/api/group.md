@@ -305,7 +305,7 @@ override `bind()` and construct itself.
 ### `field(fieldName): T[K] | null`
 
 Type-safe accessor for a single member. Returns `null` if the key does not exist. `fieldName` is a member name, not
-a path; [`elementAt()`](/api/container#elementat-root-path-options-fieldbase-undefined) follows a path.
+a path; [`elementAt()`](/api/container#elementat-root-path-fieldbase-undefined) returns the element at a path.
 
 ```typescript
 const first = form.field('firstName'); // typed as Field<string>
