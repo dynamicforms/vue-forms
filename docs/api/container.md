@@ -130,7 +130,8 @@ notification on the container.
 ## `elementAt(root, path): FieldBase | undefined`
 
 Returns the element at `path` below `root`, or `undefined` if the path does not exist. The function is for a path
-known only at runtime, such as an error key from a server answer. A path known in the source is read through
+that arrives as data: a server reports a field error by the path of the field (`'items.1.price'`), and the client
+finds the element at that path to set its `errors`. A path written in the source is read through
 [`view()`](/api/view), which keeps the types: `view(order).items![1]!.$.fields.price`.
 
 - `path` is a string with steps separated by `.`, or an array of steps.

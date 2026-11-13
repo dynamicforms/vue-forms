@@ -648,15 +648,16 @@ element that is neither a `Group` nor a `List` does not exist. The result is typ
 step reads through `fields`, which is tracked, so a call inside an effect is recomputed when a member is added or
 removed.
 
-**Reason.** A path known only at runtime, such as an error key from a server answer, is resolved by walking its
-steps through groups and list rows; the function holds that walk once, instead of a copy in every application. A
-path known in the source is read through `view()`, which is typed.
+**Reason.** A path can arrive as data: a server reports a field error by the path of the field (`'items.1.price'`),
+and the client finds the element at that path to set its `errors`. Resolving such a path means walking its steps
+through groups and list rows; the function holds that walk once, instead of a copy in every application. A path
+written in the source is read through `view()`, which is typed.
 
 **Rejected.**
 
 - `Group.field()` taking a path: a member name may contain `.`, and `field('a.b')` would change meaning; `List` has
   no `field()`; an untyped overload would sit next to the typed `field<K>()`.
-- A result type inferred from the path: the path is a runtime value.
+- A result type inferred from the path: the path is data, not an expression in the source.
 - `Number(step)` for a `List` step: it reads `''` as row 0 and `' 1'`, `'1e0'`, `'0x1'` as row 1.
 - An option returning the last element reached when the path continues below it (`weekdays.0` → `weekdays`): a path
   that does not exist would return an element. An application that maps such keys strips the extra steps itself.
