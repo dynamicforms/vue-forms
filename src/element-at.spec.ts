@@ -5,6 +5,7 @@ import { elementAt } from './element-at';
 import { Field } from './field';
 import { Group } from './group';
 import { List } from './list';
+import { view } from './view';
 
 const createOrder = () =>
   new Group({
@@ -108,8 +109,7 @@ describe('elementAt', () => {
     if (price instanceof Field) price.value = 0;
     expect(order.value.items).toEqual([{ price: 1 }, { price: 0 }]);
 
-    const city = elementAt(order, 'address.city') as Field<string> | undefined;
-    expect(city?.value).toBe('Kranj');
+    expect(view(order).items![1]!.$.fields.price).toBe(elementAt(order, 'items.1.price'));
 
     const items = elementAt(order, 'items') as List<Group<{ price: Field<number> }>>;
     items.push({ price: 3 });

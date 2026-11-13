@@ -648,15 +648,15 @@ element that is neither a `Group` nor a `List` does not exist. The result is typ
 step reads through `fields`, which is tracked, so a call inside an effect is recomputed when a member is added or
 removed.
 
-**Reason.** Server errors are keyed by a dotted path; placing them on a form needs the element at each path, through
-nested groups and list rows. A server keys errors of the form itself with `''`.
+**Reason.** A path known only at runtime, such as an error key from a server answer, is resolved by walking its
+steps through groups and list rows; the function holds that walk once, instead of a copy in every application. A
+path known in the source is read through `view()`, which is typed.
 
 **Rejected.**
 
 - `Group.field()` taking a path: a member name may contain `.`, and `field('a.b')` would change meaning; `List` has
   no `field()`; an untyped overload would sit next to the typed `field<K>()`.
-- A result type inferred from the path: paths come from server answers at runtime, and a path known in the source is
-  written as the typed access it stands for.
+- A result type inferred from the path: the path is a runtime value.
 - `Number(step)` for a `List` step: it reads `''` as row 0 and `' 1'`, `'1e0'`, `'0x1'` as row 1.
 - An option returning the last element reached when the path continues below it (`weekdays.0` → `weekdays`): a path
   that does not exist would return an element. An application that maps such keys strips the extra steps itself.

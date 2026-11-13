@@ -129,7 +129,9 @@ notification on the container.
 
 ## `elementAt(root, path): FieldBase | undefined`
 
-Returns the element at `path` below `root`, or `undefined` if the path does not exist.
+Returns the element at `path` below `root`, or `undefined` if the path does not exist. The function is for a path
+known only at runtime, such as an error key from a server answer. A path known in the source is read through
+[`view()`](/api/view), which keeps the types: `view(order).items![1]!.$.fields.price`.
 
 - `path` is a string with steps separated by `.`, or an array of steps.
 - A step below a `Group` is a member name. A member name containing `.` can be given only in an array path.
@@ -158,23 +160,19 @@ removed.
 
 ### Typing the result
 
-The result is typed `FieldBase | undefined`; the type is not inferred from the path. Narrow it with `instanceof` or
-a cast:
+The result is typed `FieldBase | undefined`. Narrow it with `instanceof`, or with a cast where the form's structure
+determines the class; a cast is not checked at runtime.
 
 ```typescript
 const price = elementAt(order, path);
 if (price instanceof Field) price.value = 0;
 
-const city = elementAt(order, 'address.city') as Field<string> | undefined;
-city?.validate(true);
-
 const items = elementAt(order, 'items') as List<Group<{ price: Field<number> }>>;
 items.push({ price: 3 });
 ```
 
-A cast is not checked at runtime. Code that uses only [`FieldBase`](/api/field-base) members (`errors`, `touched`,
-`value`, `validate()`) needs no narrowing. For a path known in the source, typed access
-(`order.fields.items.get(1)?.fields.price`) keeps the element's type.
+Code that uses only [`FieldBase`](/api/field-base) members (`errors`, `touched`, `value`, `validate()`) needs no
+narrowing.
 
 ## Inherited members
 
