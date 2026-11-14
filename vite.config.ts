@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import { renameSync } from 'fs';
+import { readdirSync, readFileSync, renameSync } from 'fs';
 import { resolve } from 'path';
 import { defineConfig } from 'vite';
 import dts from 'vite-plugin-dts';
@@ -14,11 +14,17 @@ export default defineConfig({
       // a plugin entry imports the package by its name, so its declarations refer to the package's, not a copy
       aliasesExclude: ['@dynamicforms/vue-forms'],
       // the rolled-up declarations are named after the base name of each entry; they are moved next to the
-      // entry's JavaScript, over the unrolled file tsc emitted there
+      // entry's JavaScript, over the unrolled file tsc emitted there.
+      // The build fails when the declarations import a type by a node_modules path, which does not resolve in a
+      // consumer's installation.
       afterBuild() {
         const dist = resolve(import.meta.dirname, 'dist');
         renameSync(resolve(dist, 'dynamicforms-vue-forms.d.ts'), resolve(dist, 'index.d.ts'));
         renameSync(resolve(dist, 'tracking.d.ts'), resolve(dist, 'plugins/tracking.d.ts'));
+        const paths = readdirSync(dist, { recursive: true, encoding: 'utf-8' })
+          .filter((file) => file.endsWith('.d.ts'))
+          .flatMap((file) => readFileSync(resolve(dist, file), 'utf-8').match(/(?:from |import\()['"][^'"]*node_modules[^'"]*['"]/g) ?? []);
+        if (paths.length) throw new Error(`declarations import from node_modules paths: ${paths.join(', ')}`);
       },
     }),
     visualizer({
