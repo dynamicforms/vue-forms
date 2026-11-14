@@ -21,9 +21,10 @@ export default defineConfig({
         const dist = resolve(import.meta.dirname, 'dist');
         renameSync(resolve(dist, 'dynamicforms-vue-forms.d.ts'), resolve(dist, 'index.d.ts'));
         renameSync(resolve(dist, 'tracking.d.ts'), resolve(dist, 'plugins/tracking.d.ts'));
+        const nodeModulesImport = /(?:from |import\()['"][^'"]*node_modules[^'"]*['"]/g;
         const paths = readdirSync(dist, { recursive: true, encoding: 'utf-8' })
           .filter((file) => file.endsWith('.d.ts'))
-          .flatMap((file) => readFileSync(resolve(dist, file), 'utf-8').match(/(?:from |import\()['"][^'"]*node_modules[^'"]*['"]/g) ?? []);
+          .flatMap((file) => readFileSync(resolve(dist, file), 'utf-8').match(nodeModulesImport) ?? []);
         if (paths.length) throw new Error(`declarations import from node_modules paths: ${paths.join(', ')}`);
       },
     }),
