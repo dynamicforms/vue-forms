@@ -1,9 +1,10 @@
-import { isEmpty } from 'lodash-es';
+import { isEmpty, isPlainObject } from 'lodash-es';
 
 import type { Action } from './action';
 import { Container } from './container';
 import { elementFromData } from './element-from-data';
 import { type GroupSlots, groupSlots, Omitted } from './element-state';
+import { Field } from './field';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { asBinding } from './plugins';
@@ -440,9 +441,10 @@ export class Group<
   }
 
   bind(data?: GroupValueInput<T>, overrides?: IBindParams<GroupValueInput<T>, X>): Group<T, X> {
+    const input = data !== undefined ? this.withBaselines(data) : undefined;
     const newFields = Object.create(null) as T;
     Object.entries(this._fields).forEach(([name, field]) => {
-      newFields[name as keyof T] = field.bind() as any;
+      newFields[name as keyof T] = this.bindMember(field, input, name) as any;
     });
     // construction goes through this.constructor so that a subclass binds into its own type
     const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
@@ -451,7 +453,7 @@ export class Group<
         new Ctor(newFields, {
           // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
           // the group holds (fullValue), not what it sends, so a member that sends nothing keeps its data
-          value: data !== undefined ? this.withBaselines(data) : (this.fullValue as GroupValueInput<T>),
+          value: input !== undefined ? input : (this.fullValue as GroupValueInput<T>),
           ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
           access: overrides?.access ?? this.access,
           visibility: overrides?.visibility ?? this.visibility,
@@ -459,12 +461,31 @@ export class Group<
     );
     Group.assertTookFields(res, newFields, this.constructor.name);
     res.boundFrom(this, res.contribution, res.originalValue, overrides);
-    // the members were bound empty and written by the construction, which assembles the record their rules read; a
-    // binding starts out unchanged at every level, so each member records what it holds as its baseline, and a
-    // baseline the overrides supply is the baseline of the members it contains
+    // the members were written by the construction, which assembles the record their rules read; a binding starts
+    // out unchanged at every level, so each member records what it holds as its baseline, and a baseline the
+    // overrides supply is the baseline of the members it contains
     res.baselineMembers();
     if (overrides?.originalValue !== undefined) res.baselineMembersFrom(res.originalValue);
     return res;
+  }
+
+  /**
+   * Binds a member for a binding of this group with `input`. A `Field` is bound with its part of `input`, and a
+   * `Group` with its part over its own full value, so the construction's write leaves both unchanged and their eager
+   * actions run once, over the record's data. Without `input`, and for a `List` (whose value setter always rebuilds
+   * its rows), an action or any other element, the member is bound with no data and takes its part from the
+   * construction's write.
+   */
+  private bindMember(field: FieldBase, input: GroupValueInput<T> | undefined, name: string): FieldBase {
+    if (input === undefined || this.childSerializesAs(field, 'fullValue') === 'omit') return field.bind();
+    const part = input === null ? null : (input as Record<string, any>)[name];
+    if (field instanceof Field) return field.bind(part);
+    if (field instanceof Group) {
+      // the construction writes only the keys the part contains, so a missing key keeps the member's own value
+      if (part === null) return field.bind(null);
+      if (isPlainObject(part)) return field.bind({ ...field.fullValue, ...part });
+    }
+    return field.bind();
   }
 
   /**
