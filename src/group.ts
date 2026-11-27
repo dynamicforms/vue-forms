@@ -3,7 +3,7 @@ import { isEmpty } from 'lodash-es';
 import type { Action } from './action';
 import { Container } from './container';
 import { elementFromData } from './element-from-data';
-import { type GroupSlots, groupSlots } from './element-state';
+import { type GroupSlots, groupSlots, Omitted } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { asBinding } from './plugins';
@@ -161,7 +161,7 @@ export class Group<
 
       // reading value walks every member and builds an object, so it is read once here and reused below
       const constructedValue = this.value;
-      if (this.originalValue === undefined) this.originalValue = Group.baseline(constructedValue);
+      if (this.originalValue === undefined) this.originalValue = this.copyValue(constructedValue);
 
       // the state a construction ends with is the group's initial state, not a change: recording it as announced
       // keeps the commit from announcing the members' assignment as a change of the group, and the first later
@@ -203,11 +203,7 @@ export class Group<
     return captured;
   }
 
-  /**
-   * A copy of a built value, used as a baseline. The value getter returns one object per version, and a baseline
-   * holding that same object would make every value equal to its original.
-   */
-  private static baseline<V extends GenericFieldsInterface>(value: GroupValue<V>): GroupValue<V> {
+  protected copyValue(value: GroupValue<T>): GroupValue<T> {
     return value == null ? value : { ...value };
   }
 
@@ -354,33 +350,23 @@ export class Group<
   }
 
   get value(): GroupValue<T> {
-    // the version read is tracked and the cache read is not, so a reader served from the cache still depends on
-    // every write below this group, without repeating the walk
-    const version = this.valueVersion;
-    if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
+    return this.cachedComposed('value', () => this.compose('value'));
+  }
 
+  /**
+   * Builds `value` or `fullValue` from what each member sends. The object is shared with later readers, so it is
+   * frozen: a write into it would change the group's value without any member holding that value. A group in which
+   * no member sends anything returns {}.
+   */
+  private compose(purpose: 'value' | 'fullValue'): any {
     // accumulate without a prototype so a field named `__proto__` is stored instead of reassigning the
     // accumulator's prototype; the spread on return produces a regular object
-    const val = Object.create(null) as Record<string, any>;
+    const composed = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
-      switch (this.childSerializesAs(field, 'value')) {
-        case 'value':
-          val[name] = field.value;
-          break;
-        case 'null':
-          val[name] = null;
-          break;
-        case 'omit':
-          break;
-      }
+      const sent = this.sent(field, purpose);
+      if (sent !== Omitted) composed[name] = sent;
     });
-    // the object is shared with later readers, so it is frozen: a write into it would change the group's value
-    // without any member holding that value. A group that sends a value sends an object, so a group in which no
-    // member sends anything returns {}.
-    const built = (isEmpty(val) ? emptyGroupValue : Object.freeze({ ...val })) as GroupValue<T>;
-    this.raw.cachedValue = built;
-    this.raw.cachedValueVersion = version;
-    return built;
+    return isEmpty(composed) ? emptyGroupValue : Object.freeze({ ...composed });
   }
 
   /**
@@ -412,30 +398,18 @@ export class Group<
    * contains, while a member missing from the value must take its value from `source`. `source` supplies it per
    * member, so a group reset from the declaration it was bound from matches a new binding of it.
    */
-  protected resetTo(source: FieldBase, value: any): void {
+  protected resetMembers(source: FieldBase, value: any): void {
     const template = source as Group<T>;
-    transactional((tx) => {
-      tx.touch(this);
-      if (this.errors.length) this.errors = [];
-      Object.entries(this._fields).forEach(([name, field]) => {
-        // null clears every member; a key missing from a value takes the template member's baseline, and without
-        // a value every member takes the template member's value; an action takes the template's value
-        const source = template.field(name) ?? field;
-        let memberValue: any;
-        if (this.childSerializesAs(field, 'fullValue') === 'omit') memberValue = undefined;
-        else if (value === null) memberValue = null;
-        else if (value !== undefined) memberValue = Object.hasOwn(value, name) ? value[name] : source.originalValue;
-        this.resetChild(field, source, memberValue);
-      });
-      this.recordBaseline();
-      super.validate(true);
+    Object.entries(this._fields).forEach(([name, field]) => {
+      // null clears every member; a key missing from a value takes the template member's baseline, and without
+      // a value every member takes the template member's value; an action takes the template's value
+      const memberSource = template.field(name) ?? field;
+      let memberValue: any;
+      if (this.childSerializesAs(field, 'fullValue') === 'omit') memberValue = undefined;
+      else if (value === null) memberValue = null;
+      else if (value !== undefined) memberValue = Object.hasOwn(value, name) ? value[name] : memberSource.originalValue;
+      this.resetChild(field, memberSource, memberValue);
     });
-  }
-
-  protected recordBaseline(): void {
-    // a reset group announces nothing itself: the container that reset it announces the change
-    this.recordAnnounced();
-    this.originalValue = Group.baseline(this.value);
   }
 
   /**
@@ -443,19 +417,7 @@ export class Group<
    * sends; `fullValue` is what it holds, and a binding of the group copies it.
    */
   get fullValue(): FieldsToFullValues<T> {
-    // cached and frozen as `value` is; the tracked version read makes a reader depend on every write below this
-    // group and on addField() / removeField()
-    const version = this.valueVersion;
-    if (this.raw.cachedFullValueVersion === version) return this.raw.cachedFullValue;
-
-    const value = Object.create(null) as Record<string, any>;
-    Object.entries(this._fields).forEach(([name, field]) => {
-      if (this.childSerializesAs(field, 'fullValue') !== 'omit') value[name] = field.fullValue;
-    });
-    const built = (isEmpty(value) ? emptyGroupValue : Object.freeze({ ...value })) as FieldsToFullValues<T>;
-    this.raw.cachedFullValue = built;
-    this.raw.cachedFullValueVersion = version;
-    return built;
+    return this.cachedComposed('fullValue', () => this.compose('fullValue'));
   }
 
   /**

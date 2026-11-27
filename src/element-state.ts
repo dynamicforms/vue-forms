@@ -187,6 +187,9 @@ export function listSlots<R extends FieldBase = Group>(): ListSlots<R> {
   return { ...containerSlots<ListValue<R>>(), rows: null, rowsVersion: 0, cachedItems: null, cachedItemsVersion: -1 };
 }
 
+/** What `Container.sent()` returns for a child that sends nothing to the composed value. */
+export const Omitted = Symbol('Container.omitted');
+
 /** Key of the `Action` method that lists its `ExecuteAction` handlers. */
 export const ExecuteHandlers = Symbol('Action.executeHandlers');
 

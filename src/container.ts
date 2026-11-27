@@ -3,7 +3,7 @@ import { computed, type ComputedRef } from 'vue';
 import { Action } from './action';
 import { RejectAction } from './actions/reject-action';
 import { SubmitAction } from './actions/submit-action';
-import { ExecuteHandlers } from './element-state';
+import { type ContainerSlots, ExecuteHandlers, Omitted } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras } from './field.interface';
 import { transactional } from './transaction';
@@ -130,6 +130,69 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
     }
     return read.value;
   }
+
+  /**
+   * The `value` or `fullValue` of this container: the one `build` composed for the current value version, built
+   * again after a write below this container. The version read is tracked and the cache read is not, so a reader
+   * served from the cache still depends on every write below this container and on a change of its members.
+   */
+  protected cachedComposed<V>(purpose: 'value' | 'fullValue', build: () => V): V {
+    const version = this.valueVersion;
+    const raw = this.raw as ContainerSlots;
+    if (purpose === 'value') {
+      if (raw.cachedValueVersion !== version) {
+        raw.cachedValue = build();
+        raw.cachedValueVersion = version;
+      }
+      return raw.cachedValue;
+    }
+    if (raw.cachedFullValueVersion !== version) {
+      raw.cachedFullValue = build();
+      raw.cachedFullValueVersion = version;
+    }
+    return raw.cachedFullValue;
+  }
+
+  /**
+   * What `child` puts into this container's `value` or `fullValue`: its value or full value, `null` for a child that
+   * sends `null`, and `Omitted` for one that sends nothing.
+   */
+  protected sent(child: FieldBase, purpose: 'value' | 'fullValue'): unknown {
+    const sends = this.childSerializesAs(child, purpose);
+    if (sends === 'omit') return Omitted;
+    if (purpose === 'fullValue') return child.fullValue;
+    return sends === 'null' ? null : child.value;
+  }
+
+  /**
+   * Resets the errors and the members, records the baseline and revalidates the whole subtree. The subclass resets
+   * its members in `resetMembers()`.
+   */
+  protected resetTo(source: FieldBase, value: any): void {
+    transactional((tx) => {
+      tx.touch(this);
+      if (this.errors.length) this.errors = [];
+      this.resetMembers(source, value);
+      this.recordBaseline();
+      this.members.forEach((child) => child.validate(true));
+      super.validate(true);
+    });
+  }
+
+  /** Resets the members to a new binding of `source` with `value`, as `resetTo()` does for the container. */
+  protected abstract resetMembers(source: FieldBase, value: any): void;
+
+  protected recordBaseline(): void {
+    // a reset container announces nothing itself: the container that reset it announces the change
+    this.recordAnnounced();
+    this.originalValue = this.copyValue(this.value);
+  }
+
+  /**
+   * A copy of a built value, used as a baseline. The value getter returns one object per version, and a baseline
+   * holding that same object would make every value equal to its original.
+   */
+  protected abstract copyValue(value: T): T;
 
   /** The action `confirm()` or `reject()` executes, or undefined. */
   private command(kind: 'confirm' | 'reject'): Action | undefined {

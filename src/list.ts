@@ -3,7 +3,7 @@ import { isPlainObject } from 'lodash-es';
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
 import { elementFromData } from './element-from-data';
-import { type ListSlots, listSlots, ReorderRows } from './element-state';
+import { type ListSlots, listSlots, Omitted, ReorderRows } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { Group } from './group';
@@ -76,7 +76,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
       this.constructed(params);
 
-      if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
+      if (this.originalValue === undefined) this.originalValue = this.copyValue(this.value);
       // the rows a construction ends with are the list's initial state, not a change, so the commit that closes
       // the construction announces nothing for them
       this.recordAnnounced();
@@ -92,12 +92,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return captured;
   }
 
-  /**
-   * A copy of a built value, used as a baseline. The value getter returns one array per version, and a baseline
-   * holding that same array would make every value equal to its original.
-   */
-  private static baseline<V extends any[] | null>(value: V): V {
-    return (value == null ? value : [...value]) as V;
+  protected copyValue(value: ListValue<R>): ListValue<R> {
+    return value == null ? value : [...value];
   }
 
   private processSetValueItem(item: any): R {
@@ -207,30 +203,21 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   get value(): ListValue<R> {
-    // the version read is tracked and the cache read is not, so a reader served from the cache still depends on
-    // every write below this list, without repeating the walk over its rows
-    const version = this.valueVersion;
-    if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
+    return this.cachedComposed('value', () => this.compose('value'));
+  }
 
-    const value: unknown[] = [];
+  /**
+   * Builds `value` or `fullValue` from what each row sends. The array is shared with later readers, so it is frozen,
+   * as is every row object in it; a write into either would change the list's value without any row holding that
+   * value. A list without rows returns [].
+   */
+  private compose(purpose: 'value' | 'fullValue'): any {
+    const composed: unknown[] = [];
     (this.rows ?? []).forEach((row) => {
-      switch (this.childSerializesAs(row, 'value')) {
-        case 'value':
-          value.push(row.value);
-          break;
-        case 'null':
-          value.push(null);
-          break;
-        case 'omit':
-          break;
-      }
+      const sent = this.sent(row, purpose);
+      if (sent !== Omitted) composed.push(sent);
     });
-    // the array is shared with later readers, so it is frozen, as is every row object in it; a write into either
-    // would change the list's value without any row holding that value. A list without rows returns [].
-    const built = (value.length ? Object.freeze(value) : emptyListValue) as ListValue<R>;
-    this.raw.cachedValue = built;
-    this.raw.cachedValueVersion = version;
-    return built;
+    return composed.length ? Object.freeze(composed) : emptyListValue;
   }
 
   set value(newValue: ListValueInput<R>) {
@@ -245,20 +232,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
    * If no value is supplied, the rows are taken from `source`, so a list nested in a row reused by a whole-list
    * assignment ends up with the item template's rows, not its previous ones.
    */
-  protected resetTo(source: FieldBase, value: any): void {
-    transactional((tx) => {
-      tx.touch(this);
-      if (this.errors.length) this.errors = [];
-      this.setValueInternal(value === undefined ? (source as List<R>).fullValue : value);
-      this.recordBaseline();
-      super.validate(true);
-    });
-  }
-
-  protected recordBaseline(): void {
-    // a reset list announces nothing itself: the container that reset it announces the change
-    this.recordAnnounced();
-    this.originalValue = List.baseline(this.value);
+  protected resetMembers(source: FieldBase, value: any): void {
+    this.setValueInternal(value === undefined ? (source as List<R>).fullValue : value);
   }
 
   bind(data?: ListValueInput<R>, overrides?: IBindParams<ListValueInput<R>, X>): List<R, X> {
@@ -313,17 +288,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
    * whatever its access, and every field of a group row. A binding or a reset copies it.
    */
   get fullValue(): ListFullValue<R> {
-    // cached and frozen as `value` is
-    const version = this.valueVersion;
-    if (this.raw.cachedFullValueVersion === version) return this.raw.cachedFullValue;
-
-    const value = (this.rows ?? [])
-      .filter((row) => this.childSerializesAs(row, 'fullValue') !== 'omit')
-      .map((row) => row.fullValue);
-    const built = (value.length ? Object.freeze(value) : emptyListValue) as ListFullValue<R>;
-    this.raw.cachedFullValue = built;
-    this.raw.cachedFullValueVersion = version;
-    return built;
+    return this.cachedComposed('fullValue', () => this.compose('fullValue'));
   }
 
   /**
