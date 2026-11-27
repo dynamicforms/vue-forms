@@ -136,11 +136,7 @@ export class Group<
         Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
 
         if (params) {
-          const { value: paramValue, validators, actions, ...otherParams } = params;
-          // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied
-          // here also applies to those assignments
-          this.registerInitialActions([...(validators || []), ...(actions || [])]);
-          this.assignParams(otherParams);
+          const paramValue = this.applyParams(params);
           // the value is assigned only if supplied, and undefined counts as not supplied (spreading an optional
           // property yields undefined): assigning it would write null into every member and record that cleared
           // state as the original, so the group would report itself unchanged over values its members never held.
@@ -450,14 +446,12 @@ export class Group<
     const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
     const res = asBinding(
       () =>
-        new Ctor(newFields, {
+        new Ctor(
+          newFields,
           // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
           // the group holds (fullValue), not what it sends, so a member that sends nothing keeps its data
-          value: input !== undefined ? input : (this.fullValue as GroupValueInput<T>),
-          ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-          access: overrides?.access ?? this.access,
-          visibility: overrides?.visibility ?? this.visibility,
-        } as IFieldParams<GroupValueInput<T>, X>),
+          this.bindingParams(input !== undefined ? input : (this.fullValue as GroupValueInput<T>), overrides),
+        ),
     );
     Group.assertTookFields(res, newFields, this.constructor.name);
     res.boundFrom(this, res.contribution, res.originalValue, overrides);

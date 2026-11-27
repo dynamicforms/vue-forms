@@ -61,11 +61,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     // construction is one transaction, so all rows are in place before anything is announced
     transactional(() => {
       if (params) {
-        const { value: paramValue, validators, actions, ...otherParams } = params;
-        // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
-        // also applies to those assignments
-        this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        this.assignParams(otherParams);
+        const paramValue = this.applyParams(params);
 
         // the value is assigned only if supplied, and undefined counts as not supplied (spreading an optional
         // property yields undefined), so a list declared with only an originalValue takes its rows from it. An
@@ -242,14 +238,12 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValueInput<R>, X>) => List<R, X>;
     const res = asBinding(
       () =>
-        new Ctor(template, {
+        new Ctor(
+          template,
           // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
           // the list holds (fullValue), not what it sends, so a row that sends nothing keeps its data
-          value: [...((data !== undefined ? data : this.fullValue) ?? [])],
-          ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-          access: overrides?.access ?? this.access,
-          visibility: overrides?.visibility ?? this.visibility,
-        } as IFieldParams<ListValueInput<R>, X>),
+          this.bindingParams<ListValueInput<R>>([...((data !== undefined ? data : this.fullValue) ?? [])], overrides),
+        ),
     );
     // a subclass whose constructor does not take (itemTemplate, params) ignores both and would return a list built
     // from its own declaration instead of this record. The difference would not be visible, so it throws here.

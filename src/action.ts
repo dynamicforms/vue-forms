@@ -57,13 +57,8 @@ export class Action<
       // undefined members, not undefined
       this._value = { label: undefined, icon: undefined } as T;
       if (params) {
-        const { value: paramValue, originalValue, validators, actions, ...otherParams } = params;
-        // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
-        // also applies to those assignments
-        this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        this.assignParams(otherParams);
-        const val = stated(paramValue);
-        const org = stated(originalValue);
+        const val = stated(this.applyParams(params, ['originalValue']));
+        const org = stated(params.originalValue);
         // a supplied value is kept by identity, so a reactive object passed in stays linked to the action; without
         // one, the action holds a copy of the baseline, not the frozen baseline itself
         if (val) this._value = val;

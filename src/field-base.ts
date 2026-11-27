@@ -22,7 +22,7 @@ import {
   NoErrorsBaseline,
   RemoveErrorsOnSubmit,
 } from './element-state';
-import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
+import { AbortEventHandlingException, type Extras, IBindParams, type IFieldParams } from './field.interface';
 import { elementAdopted, elementCreated, pipeOriginalValue } from './plugins';
 import {
   currentTransaction,
@@ -297,6 +297,32 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * `bind`, `settled`) is stored in `extra` and leaves the member as it is. Assigning a getter-only accessor throws a
    * TypeError, so a parameter object that bypasses the type system and contains `valid` or `parent` throws.
    */
+  /**
+   * Applies a constructor's parameter object except `value` and the keys in `exclude`, and returns its `value`.
+   */
+  protected applyParams<V>(params: IFieldParams<V, X>, exclude: readonly string[] = []): V | undefined {
+    const { value, validators, actions, ...otherParams } = params;
+    // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
+    // also applies to those assignments
+    this.registerInitialActions([...(validators || []), ...(actions || [])]);
+    exclude.forEach((key) => delete (otherParams as Record<string, unknown>)[key]);
+    this.assignParams(otherParams);
+    return value;
+  }
+
+  /**
+   * The parameter object a binding is constructed with: `value`, `originalValue` when `overrides` has the key, and
+   * `access` and `visibility` from `overrides`, else from this element.
+   */
+  protected bindingParams<V>(value: V, overrides?: IBindParams<any, X>): IFieldParams<V, X> {
+    return {
+      value,
+      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
+      access: overrides?.access ?? this.access,
+      visibility: overrides?.visibility ?? this.visibility,
+    } as IFieldParams<V, X>;
+  }
+
   protected assignParams(params: object): void {
     refuseEnabled(params);
     const extended = this.extendedOf(params);
