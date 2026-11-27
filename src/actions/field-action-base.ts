@@ -93,3 +93,20 @@ export default abstract class FieldActionBase {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   resetBinding(binding: FieldBase) {}
 }
+
+/** The `(newValue, oldValue)` parameters of a change event action. */
+export type ChangeArgs<V> = [newValue: V, oldValue: V];
+
+/**
+ * The base of an event action whose handler takes `Args` after `field` and `supr` and returns `R`. It types the
+ * handler and `execute`; a subclass may override `execute` and call `super.execute`.
+ */
+export abstract class TypedFieldAction<Args extends unknown[], R, T = any> extends FieldActionBase {
+  constructor(executorFn: (field: FieldBase<T>, supr: FieldActionExecute<T>, ...args: Args) => R) {
+    super(executorFn);
+  }
+
+  execute(field: FieldBase<T>, supr: FieldActionExecute<T>, ...args: Args): R {
+    return super.execute(field, supr, ...args);
+  }
+}

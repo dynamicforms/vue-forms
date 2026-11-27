@@ -1,7 +1,4 @@
-import FieldActionBase from './field-action-base';
-
-import type { FieldBase } from '@/field-base';
-import { FieldActionExecute } from '@/field.interface';
+import { type ChangeArgs, TypedFieldAction } from './field-action-base';
 
 export const ContributionChangedActionClassIdentifier = Symbol('ContributionChangedAction');
 
@@ -16,18 +13,8 @@ export const ContributionChangedActionClassIdentifier = Symbol('ContributionChan
  * holds its `fullValue` and sends its `value`, so a change of a member's access fires this action on the
  * containers above, and not `ValueChangedAction`.
  */
-export class ContributionChangedAction<T = any> extends FieldActionBase {
-  constructor(
-    executorFn: (field: FieldBase<T>, supr: FieldActionExecute<T>, newValue: unknown, oldValue: unknown) => void,
-  ) {
-    super(executorFn);
-  }
-
+export class ContributionChangedAction<T = any> extends TypedFieldAction<ChangeArgs<unknown>, void, T> {
   static get classIdentifier() {
     return ContributionChangedActionClassIdentifier;
-  }
-
-  execute(field: FieldBase<T>, supr: FieldActionExecute<T>, newValue: unknown, oldValue: unknown): void {
-    return super.execute(field, supr, newValue, oldValue);
   }
 }
