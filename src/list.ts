@@ -323,9 +323,17 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
    * whatever its access, and every field of a group row. A binding or a reset copies it.
    */
   get fullValue(): ListFullValue<R> {
-    return (this.rows ?? [])
+    // cached and frozen as `value` is
+    const version = this.valueVersion;
+    if (this.raw.cachedFullValueVersion === version) return this.raw.cachedFullValue;
+
+    const value = (this.rows ?? [])
       .filter((row) => this.childSerializesAs(row, 'fullValue') !== 'omit')
       .map((row) => row.fullValue);
+    const built = (value.length ? Object.freeze(value) : emptyListValue) as ListFullValue<R>;
+    this.raw.cachedFullValue = built;
+    this.raw.cachedFullValueVersion = version;
+    return built;
   }
 
   /**

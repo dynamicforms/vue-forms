@@ -216,7 +216,8 @@ read-only
 
 Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullvalue): what the group holds (`value` is what it sends):
 every member's `fullValue`, regardless of access. A nested group includes its own full structure. A binding of the group
-copies this value
+copies this value. As with `value`, the object is built once per change and returned to every reader until the next
+change, and it is frozen; an array or object a member `Field` holds is not frozen
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-value"></a>

@@ -135,12 +135,14 @@ export function fieldSlots<T = any>(): FieldSlots<T> {
 }
 
 /**
- * What a container holds beyond the common slots: the object the value getter last built, and the version of the
- * tree it was built from.
+ * What a container holds beyond the common slots: the objects the value and fullValue getters last built, and the
+ * version of the tree each was built from.
  */
 export interface ContainerSlots<T = any> extends ElementSlots<T> {
   cachedValue: T;
   cachedValueVersion: number;
+  cachedFullValue: any;
+  cachedFullValueVersion: number;
 }
 
 export function containerSlots<T = any>(): ContainerSlots<T> {
@@ -149,6 +151,8 @@ export function containerSlots<T = any>(): ContainerSlots<T> {
     announcedValue: null,
     cachedValue: null,
     cachedValueVersion: -1,
+    cachedFullValue: null,
+    cachedFullValueVersion: -1,
   } as ContainerSlots<T>;
 }
 

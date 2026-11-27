@@ -452,11 +452,19 @@ export class Group<
    * sends; `fullValue` is what it holds, and a binding of the group copies it.
    */
   get fullValue(): FieldsToFullValues<T> {
+    // cached and frozen as `value` is; the tracked version read makes a reader depend on every write below this
+    // group and on addField() / removeField()
+    const version = this.valueVersion;
+    if (this.raw.cachedFullValueVersion === version) return this.raw.cachedFullValue;
+
     const value = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
       if (this.childSerializesAs(field, 'fullValue') !== 'omit') value[name] = field.fullValue;
     });
-    return { ...value } as FieldsToFullValues<T>;
+    const built = (isEmpty(value) ? emptyGroupValue : Object.freeze({ ...value })) as FieldsToFullValues<T>;
+    this.raw.cachedFullValue = built;
+    this.raw.cachedFullValueVersion = version;
+    return built;
   }
 
   /**

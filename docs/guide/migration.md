@@ -1226,7 +1226,7 @@ every eager run. A custom action that relied on it declares `get eager() { retur
 same extended properties, `originalValue` read by key presence, and a `null` that clears where an `undefined`
 counts as none supplied.
 
-**The value objects a binding works over are frozen.** `group.value` and `list.value` hand out
+**The value objects a binding works over are frozen.** `value` and `fullValue` of a `Group` or a `List` hand out
 one object per change, reused by every reader until the next one, and it is frozen — rows included. Writing into it
 throws in strict mode and is silently dropped outside it. Assign a new value instead. `originalValue` holds a copy
 of its own and is not frozen.

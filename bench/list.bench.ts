@@ -1,5 +1,6 @@
 import { bench, describe } from 'vitest';
 
+import { ValueChangedAction } from '../src/actions/value-changed-action';
 import { List } from '../src/list';
 
 import {
@@ -15,8 +16,9 @@ import {
 } from './fixtures';
 
 /*
- * Scenario ids: S1a bulk build, S1b push build, S2a single-field write, S3 remove, S4a and S4b
- * whole-list assignment, S6 the validity read. Every scenario runs over both fixture variants.
+ * Scenario ids: S1a bulk build, S1b push build, S2a single-field write, S2b single-field write with a
+ * ValueChangedAction on the list, S3 remove, S4a and S4b whole-list assignment, S6 the validity read. Every scenario
+ * runs over both fixture variants.
  *
  * Sample counts are set per scenario instead of by elapsed time, because one sample of S1b costs seconds. A
  * benchmark function is called once before the timed loop and once before the warmup loop without a sample being
@@ -37,8 +39,11 @@ const READ = { time: 0, iterations: 100, warmupTime: 0, warmupIterations: 20 };
  */
 let current: { key: string; list: List } | null = null;
 
-function fixtureList(key: string, variant: FixtureVariant): List {
-  if (current?.key !== key) current = { key, list: createList(variant, ROW_COUNT) };
+function fixtureList(key: string, variant: FixtureVariant, setup?: (list: List) => void): List {
+  if (current?.key !== key) {
+    current = { key, list: createList(variant, ROW_COUNT) };
+    setup?.(current.list);
+  }
   return current.list;
 }
 
@@ -91,6 +96,22 @@ describe('S2a write one field in row 500 of a 1000-row list, nothing mounted', (
         const row = fixtureList(`S2a-${variant}`, variant).get(TARGET_ROW)!;
         writes += 1;
         row.fields[TARGET_FIELD].value = `w-${writes}`;
+      },
+      WRITE,
+    );
+  });
+});
+
+describe('S2b write one field in row 500 of a 1000-row list with a ValueChangedAction on the list', () => {
+  variants.forEach((variant) => {
+    bench(
+      variant,
+      () => {
+        const list = fixtureList(`S2b-${variant}`, variant, (built) => {
+          built.registerAction(new ValueChangedAction(() => undefined));
+        });
+        writes += 1;
+        list.get(TARGET_ROW)!.fields[TARGET_FIELD].value = `w-${writes}`;
       },
       WRITE,
     );
