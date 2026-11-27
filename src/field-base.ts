@@ -117,6 +117,9 @@ const ruled = (error: ValidationError) => error.origin !== 'validator';
 /** What an element with `access` sends: its value, `null` or nothing. `'editable'` and `'readonly'` send the same. */
 const sendsAs = (access: Access) => (access === 'disabled' ? 'omit' : access === 'disabled-null' ? 'null' : 'value');
 
+/** Whether a container with `access` sends none of its members: true where it does not send its value. */
+const blocksBelow = (access: Access) => sendsAs(access) !== 'value';
+
 /**
  * Throws a TypeError for a parameter object that contains `enabled`. `enabled` is read from `access` and has no
  * setter. Without this check, a parameter object that bypasses the type system (parsed from JSON, typed `any`)
@@ -1055,7 +1058,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   get effectiveAccess(): Access {
     const own = this.access;
     const above = this.parent?.effectiveAccess;
-    if (above === 'disabled' || above === 'disabled-null') return 'disabled';
+    if (above !== undefined && blocksBelow(above)) return 'disabled';
     if (above === 'readonly' && own === 'editable') return 'readonly';
     return own;
   }
@@ -1068,7 +1071,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   [SentNowhere](): boolean {
     if (this.#raw.access === 'disabled') return true;
     for (let above = this.#raw.parent; above; above = above.#raw.parent) {
-      if (above.#raw.access === 'disabled' || above.#raw.access === 'disabled-null') return true;
+      if (blocksBelow(above.#raw.access)) return true;
     }
     return false;
   }
@@ -1129,15 +1132,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * whatever a container holds below it.
    */
   protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
-    if (purpose === 'fullValue') return 'value';
-    switch (this.access) {
-      case 'disabled':
-        return 'omit';
-      case 'disabled-null':
-        return 'null';
-      default:
-        return 'value';
-    }
+    return purpose === 'fullValue' ? 'value' : sendsAs(this.access);
   }
 
   /** What `child` sends to this container; a protected-access bridge like `childComposesValue`. */
