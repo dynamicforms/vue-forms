@@ -1420,13 +1420,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   registerAction(action: FieldActionBase): this {
-    transactional((tx) => {
-      // the baseline of a change the transaction has yet to announce is kept: the element is already enrolled to
-      // announce that change, and moving the baseline to the current value would cancel the announcement
-      if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
-      this.register(tx, action);
-    });
-    return this;
+    return this.registerKeepingBaseline(action);
   }
 
   /**
@@ -1435,7 +1429,14 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * do. `before` must be registered on this element under the same identifier.
    */
   registerActionBefore(action: FieldActionBase, before: FieldActionBase): this {
+    return this.registerKeepingBaseline(action, before);
+  }
+
+  /** Registers `action`, wrapped by `before` if given, in a transaction. */
+  private registerKeepingBaseline(action: FieldActionBase, before?: FieldActionBase): this {
     transactional((tx) => {
+      // the baseline of a change the transaction has yet to announce is kept: the element is already enrolled to
+      // announce that change, and moving the baseline to the current value would cancel the announcement
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
       this.register(tx, action, before);
     });
@@ -1455,18 +1456,29 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (!actions) return;
       const previous = actions.registrations;
       dropped = actions.unregister(action);
-      if (!dropped) return;
-      // the action served the declaration and every binding made from it, so it is released from all of them. The
-      // undo restores the registrations as they were, so the handlers keep their order and a duplicate registration
-      // of the instance is restored too
-      const elements = this.boundElements;
-      tx.whenRolledBack(() => {
-        actions.restore(previous);
-        elements.forEach((element) => action.boundToBinding(element));
-      });
-      elements.forEach((element) => action.unregisterFrom(element));
+      if (dropped) this.releaseFromBindings(tx, actions, [action], previous);
     });
     return dropped;
+  }
+
+  /**
+   * Releases `released`, already unregistered from `actions`, from the declaration and every binding made from it,
+   * and registers an undo that restores `previous`, the registrations before the release. The restore keeps the
+   * handlers' order and a duplicate registration of an instance. Each release names the element, because the same
+   * instance stays registered on elements of other declarations; a validator removes the errors it put on it.
+   */
+  private releaseFromBindings(
+    tx: Transaction,
+    actions: ActionsMap,
+    released: FieldActionBase[],
+    previous: readonly FieldActionBase[],
+  ): void {
+    const elements = this.boundElements;
+    tx.whenRolledBack(() => {
+      actions.restore(previous);
+      released.forEach((action) => elements.forEach((element) => action.boundToBinding(element)));
+    });
+    released.forEach((action) => elements.forEach((element) => action.unregisterFrom(element)));
   }
 
   /**
@@ -1529,15 +1541,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (actions) {
         const previous = actions.registrations;
         const validators = actions.validators;
-        const elements = this.boundElements;
         validators.forEach((validator) => actions.unregister(validator));
-        tx.whenRolledBack(() => {
-          actions.restore(previous);
-          validators.forEach((validator) => elements.forEach((element) => validator.boundToBinding(element)));
-        });
-        // each validator removes the errors it put on every element it validated. Each release names the element,
-        // because the same instance stays registered on elements of other declarations
-        validators.forEach((validator) => elements.forEach((element) => validator.unregisterFrom(element)));
+        this.releaseFromBindings(tx, actions, validators, previous);
       }
       this.errors = [];
       // the errors are cleared before the recomputation, so the commit computes validity over the cleared state and
