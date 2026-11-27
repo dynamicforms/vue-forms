@@ -143,25 +143,17 @@ export class ConditionalStatementAction extends ValueChangedAction {
   }
 
   /**
-   * Re-evaluates the statement over one record and applies the result to its targets; see `applyTo`. Returns whether
-   * the record contains a target for this action; false means the record is not assembled yet.
-   */
-  private applyIn(scope: FieldBase): boolean {
-    return this.applyTo(scope, this.targetsIn(scope));
-  }
-
-  /**
    * Re-evaluates the statement over one record and applies the result to every target whose last applied result
    * differs, so a target registered after the result was applied to another one in the same record receives it.
-   * A target the action is no longer registered on (a row an executor removed) is skipped. The result is recorded
-   * before the executor runs, because an executor that writes a value re-enters through that value's eager pass,
-   * which must see the result being applied. Returns whether any target remains.
+   * The result is recorded before the executor runs, because an executor that writes a value re-enters through that
+   * value's eager pass, which must see the result being applied. Returns whether the record contains a target for
+   * this action; false means the record is not assembled yet.
    */
-  private applyTo(scope: FieldBase, targets: readonly FieldBase[]): boolean {
-    const registered = targets.filter((target) => this.registrations.has(target));
-    if (registered.length === 0) return false;
+  private applyIn(scope: FieldBase): boolean {
+    const targets = this.targetsIn(scope);
+    if (targets.length === 0) return false;
     const currentResult = this.statement.evaluate(scope);
-    registered.forEach((target) => {
+    targets.forEach((target) => {
       const state = this.state(target, (): ConditionalTargetState => ({ lastResult: undefined }));
       if (currentResult === state.lastResult) return;
       const previousResult = state.lastResult;
@@ -175,17 +167,12 @@ export class ConditionalStatementAction extends ValueChangedAction {
    * Re-evaluates the records affected by a change of `source`. A change of an element in the targets' record
    * affects only that record, so one row of a list does not affect another; a change of an element above them (a
    * form field every row reads) affects every record below it, or the record the action was declared in if there
-   * is no record below it. The targets are resolved once and applied record by record.
+   * is no record below it.
    */
   private applyFrom(source: FieldBase): void {
-    const byScope = new Map<FieldBase, FieldBase[]>();
-    this.targetsIn(scopeOf(source)).forEach((target) => {
-      const scope = scopeOf(target);
-      const targets = byScope.get(scope);
-      if (targets) targets.push(target);
-      else byScope.set(scope, [target]);
-    });
-    byScope.forEach((targets, scope) => this.applyTo(scope, targets));
+    const scopes = new Set<FieldBase>();
+    this.targetsIn(scopeOf(source)).forEach((target) => scopes.add(scopeOf(target)));
+    scopes.forEach((scope) => this.applyIn(scope));
   }
 }
 
