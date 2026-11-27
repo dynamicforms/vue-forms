@@ -84,7 +84,8 @@ function special(key: string | symbol): { answered: boolean; value?: unknown } {
 function groupHandler(group: Group<any, any>): ProxyHandler<object> {
   const memberOf = (key: string | symbol) =>
     typeof key === 'string' && key !== '$' ? (group.field(key) ?? undefined) : undefined;
-  const dataKeys = () => Object.keys(group.fields);
+  // `in` on the fields proxy tracks the set of members, and the fields object has no prototype
+  const isDataKey = (key: string | symbol): key is string => typeof key === 'string' && key in group.fields;
   return {
     get(target, key) {
       const answered = special(key);
@@ -102,13 +103,13 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
       return true;
     },
     has(target, key) {
-      return key === '$' || (typeof key === 'string' && dataKeys().includes(key));
+      return key === '$' || isDataKey(key);
     },
     ownKeys() {
-      return dataKeys();
+      return Object.keys(group.fields);
     },
     getOwnPropertyDescriptor(target, key) {
-      if (typeof key !== 'string' || !dataKeys().includes(key)) return undefined;
+      if (!isDataKey(key)) return undefined;
       return { value: slotOf(group.fields[key]), writable: true, enumerable: true, configurable: true };
     },
     deleteProperty(target, key) {
