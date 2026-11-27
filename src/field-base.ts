@@ -1235,6 +1235,21 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return child.composesValue;
   }
 
+  /** Whether the commit compares what the element holds: always for a leaf, for a container only for a listener. */
+  private get announcesHeld(): boolean {
+    return !this.composesValue || !!this.boundActions?.willTrigger(ValueChangedActionClassIdentifier);
+  }
+
+  /** Whether the commit compares what the element sends: only for a `ContributionChangedAction` listener. */
+  private get announcesContribution(): boolean {
+    return !!this.boundActions?.willTrigger(ContributionChangedActionClassIdentifier);
+  }
+
+  /** Whether the commit runs the element's validators over what it sends: only on a container with eager actions. */
+  private get validatesComposed(): boolean {
+    return this.composesValue && !!this.boundActions?.hasEager;
+  }
+
   /**
    * Announces what this element holds and what it sends at the end of the transaction. Each pair is (now, at the
    * last announcement), so a value that went A -> B -> A within the transaction is not announced. Events that
@@ -1252,20 +1267,20 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     const same = (a: unknown, b: unknown) => (composes ? isEqual(a, b) : a === b);
 
     // a container composes what it sends only where its validators read it
-    if (composes && actions?.hasEager) {
+    if (this.validatesComposed) {
       const sent = this.contribution;
       const validated = this.#raw.validatedValue;
       if (force || !isEqual(sent, validated)) {
         tx.touch(this);
         this.#raw.validatedValue = sent;
-        actions.triggerEager(this, sent, validated);
+        actions?.triggerEager(this, sent, validated);
       }
     }
 
     // what a container holds is composed only if something receives it; a leaf's is its value, with no composition.
     // The announced value is recorded before the event: a change a handler makes is a change of its own, compared
     // against this announcement
-    if (!composes || actions?.willTrigger(ValueChangedActionClassIdentifier)) {
+    if (this.announcesHeld) {
       const held = this.holding;
       const announced = this.#raw.announcedValue;
       if (force || !same(held, announced)) {
@@ -1275,13 +1290,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       }
     }
 
-    if (actions?.willTrigger(ContributionChangedActionClassIdentifier)) {
+    if (this.announcesContribution) {
       const contribution = this.contribution;
       const announced = this.#raw.announcedContribution;
       if (!same(contribution, announced)) {
         tx.touch(this);
         this.#raw.announcedContribution = contribution;
-        actions.trigger(ContributionChangedAction, this, contribution, announced);
+        actions?.trigger(ContributionChangedAction, this, contribution, announced);
       }
     }
   }
@@ -1293,13 +1308,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected recordAnnounced(): void {
     // a baseline is composed only if something receives the announcement it is compared for; a registration that
     // adds a listener later re-reads it (refreshPreviousValue), and a leaf's value needs no composition
-    const actions = this.boundActions;
-    if (!this.composesValue || actions?.willTrigger(ValueChangedActionClassIdentifier)) {
-      this.#raw.announcedValue = this.holding;
-    }
-    if (actions?.willTrigger(ContributionChangedActionClassIdentifier))
-      this.#raw.announcedContribution = this.contribution;
-    if (this.composesValue && actions?.hasEager) this.#raw.validatedValue = this.contribution;
+    if (this.announcesHeld) this.#raw.announcedValue = this.holding;
+    if (this.announcesContribution) this.#raw.announcedContribution = this.contribution;
+    if (this.validatesComposed) this.#raw.validatedValue = this.contribution;
     // errors given as a construction parameter are assigned before the value is in place: the value they describe
     // is the one the element ends with, recorded at the next read of its errors
     this.#raw.errorsBaseline = NoErrorsBaseline;
