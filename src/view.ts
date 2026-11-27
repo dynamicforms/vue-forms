@@ -134,25 +134,22 @@ function listView(list: List<any, any>): unknown[] {
       list[ReorderRows](rows);
     });
 
+  /** removes the row at `index` and returns its slot; undefined if there is no such row */
+  const removeAt = (index: number): unknown => {
+    const row = shown()[index];
+    if (!row) return undefined;
+    const slot = slotOf(row);
+    list.remove(index);
+    return slot;
+  };
+
   const mutations: Record<string, (...args: any[]) => unknown> = {
     push: (...items: unknown[]) => {
       transaction(() => items.forEach((item) => list.push(unwrap(item))));
       return shown().length;
     },
-    pop: () => {
-      const rows = shown();
-      if (!rows.length) return undefined;
-      const slot = slotOf(rows[rows.length - 1]);
-      list.remove(list.items.indexOf(rows[rows.length - 1]));
-      return slot;
-    },
-    shift: () => {
-      const rows = shown();
-      if (!rows.length) return undefined;
-      const slot = slotOf(rows[0]);
-      list.remove(list.items.indexOf(rows[0]));
-      return slot;
-    },
+    pop: () => removeAt(shown().length - 1),
+    shift: () => removeAt(0),
     unshift: (...items: unknown[]) => {
       transaction(() => {
         const at = positionOf(0);
@@ -173,7 +170,7 @@ function listView(list: List<any, any>): unknown[] {
         else if (args.length > 1) count = Math.max(0, Math.min(toInteger(deleteCount), rows.length - from));
         rows.slice(from, from + count).forEach((row) => {
           removed.push(slotOf(row));
-          list.remove(list.items.indexOf(row));
+          list.remove(from);
         });
         const at = positionOf(from);
         items.forEach((item, offset) => list.insert(unwrap(item), at + offset));
@@ -230,7 +227,9 @@ function listView(list: List<any, any>): unknown[] {
           throw new RangeError('Invalid array length');
         const rows = shown();
         if (length > rows.length) throw new TypeError('a list view grows by push(), not by its length');
-        transaction(() => rows.slice(length).forEach((row) => list.remove(list.items.indexOf(row))));
+        transaction(() => {
+          for (let count = rows.length - length; count > 0; count--) list.remove(length);
+        });
         return true;
       }
       if (isIndex(key)) {
