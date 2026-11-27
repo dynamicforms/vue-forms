@@ -66,7 +66,17 @@ interface Participant {
   /** the commit announces the net change of this element's access, enabled and visibility */
   flagsDirty: boolean;
   structural?: TxStructuralEvent[];
+  /** the pass whose buckets hold this entry, the depth of its bucket and its index there */
+  queuedPass?: number;
+  queuedDepth?: number;
+  queuedAt?: number;
 }
+
+/** the announcement passes in the order the commit runs them; an enrolment is of the kind of pass that handles it */
+const FLAGS = 0;
+const VALUE = 1;
+const VALIDITY = 2;
+type PassKind = typeof FLAGS | typeof VALUE | typeof VALIDITY;
 
 /** the number of containers above an element; the commit announces the deepest first */
 function depthOf(element: FieldBase): number {
@@ -97,6 +107,19 @@ export class Transaction {
   /** set when, during a pass, an element is enrolled at or below the depth being processed */
   private restartPass = false;
 
+  /** the number of passes that have built buckets; identifies the pass an entry is queued in */
+  private passCount = 0;
+
+  /** the kind of the running pass and the index, in the bucket being processed, of the entry being visited */
+  private passKind: PassKind = FLAGS;
+  private passIndex = -1;
+
+  /** set once the running pass has an enrolment its buckets do not hold; every later restart condition restarts */
+  private passStale = false;
+
+  /** set when an enrolment during the current visit did not restart the pass because the pass already holds it */
+  private visitSkipped = false;
+
   /** true for a transaction that was rolled back */
   get rolledBack(): boolean {
     return this.unwound;
@@ -126,19 +149,21 @@ export class Transaction {
     const entry = this.participant(element);
     entry.valueDirty = true;
     if (force) entry.forceValue = true;
-    this.noteDepth(element);
+    this.noteDepth(entry, VALUE);
   }
 
   /** Enrols an element whose access or visibility changed; the commit announces the net change. */
   markFlagsDirty(element: FieldBase): void {
-    this.participant(element).flagsDirty = true;
-    this.noteDepth(element);
+    const entry = this.participant(element);
+    entry.flagsDirty = true;
+    this.noteDepth(entry, FLAGS);
   }
 
   /** Enrols an element whose validity the commit recomputes. */
   markValidityDirty(element: FieldBase): void {
-    this.participant(element).validityDirty = true;
-    this.noteDepth(element);
+    const entry = this.participant(element);
+    entry.validityDirty = true;
+    this.noteDepth(entry, VALIDITY);
   }
 
   /**
@@ -148,7 +173,7 @@ export class Transaction {
   recordStructural(element: FieldBase, event: TxStructuralEvent): void {
     const entry = this.participant(element);
     (entry.structural ??= []).push(event);
-    this.noteDepth(element);
+    this.noteDepth(entry, VALUE);
   }
 
   /** True if the commit has a pending value announcement for this element. */
@@ -179,10 +204,28 @@ export class Transaction {
    * restarts over the pending entries, so the new element is processed before the containers above it: an element
    * a handler writes is announced before the container whose composed value includes that write. The depth is
    * computed only while a pass runs; outside a pass it has no effect.
+   *
+   * An enrolment the running pass already holds does not restart it, because a restarted pass would visit the same
+   * entries in the same order: work for a later pass, or an entry queued in this pass and not visited yet. Once the
+   * pass has an enrolment its buckets do not hold, a restart would include it, so every restart condition restarts.
    */
-  private noteDepth(element: FieldBase): void {
+  private noteDepth(entry: Participant, kind: PassKind): void {
     if (this.passDepth < 0) return;
-    if (depthOf(element) >= this.passDepth) this.restartPass = true;
+    const depth = depthOf(entry.element);
+    const atOrBelow = depth >= this.passDepth;
+    if (!this.passStale && this.holds(entry, kind, depth)) {
+      if (atOrBelow) this.visitSkipped = true;
+      return;
+    }
+    if (atOrBelow || this.visitSkipped) this.restartPass = true;
+    else this.passStale = true;
+  }
+
+  /** true if the running pass visits the entry for this enrolment without being restarted */
+  private holds(entry: Participant, kind: PassKind, depth: number): boolean {
+    if (kind !== this.passKind) return kind > this.passKind;
+    if (entry.queuedPass !== this.passCount || entry.queuedDepth !== depth) return false;
+    return depth < this.passDepth || entry.queuedAt! > this.passIndex;
   }
 
   /**
@@ -248,10 +291,15 @@ export class Transaction {
    */
   private buckets(pick: (entry: Participant) => boolean): (Participant[] | undefined)[] {
     const buckets: (Participant[] | undefined)[] = [];
+    const pass = ++this.passCount;
     this.participants.forEach((entry) => {
       if (!pick(entry)) return;
       const depth = depthOf(entry.element);
-      (buckets[depth] ??= []).push(entry);
+      const bucket = (buckets[depth] ??= []);
+      entry.queuedPass = pass;
+      entry.queuedDepth = depth;
+      entry.queuedAt = bucket.length;
+      bucket.push(entry);
     });
     return buckets;
   }
@@ -259,12 +307,14 @@ export class Transaction {
   /**
    * Runs one pass over the dirty participants, deepest bucket first; the caller repeats it until it returns false.
    * The buckets are built once, and the pass stops as soon as a handler enrols an element at or below the depth
-   * being processed: that element is not in the current bucket, and continuing would process the containers above
-   * it first. The caller's next pass builds new buckets that include it at its depth.
+   * being processed that the pass does not already hold: continuing would process the containers above it first.
+   * The caller's next pass builds new buckets that include it at its depth.
    */
-  private pass(pick: (entry: Participant) => boolean, visit: (entry: Participant) => void): boolean {
+  private pass(kind: PassKind, pick: (entry: Participant) => boolean, visit: (entry: Participant) => void): boolean {
     const buckets = this.buckets(pick);
     if (!buckets.length) return false;
+    this.passKind = kind;
+    this.passStale = false;
     for (let depth = buckets.length - 1; depth >= 0; depth--) {
       const bucket = buckets[depth];
       if (!bucket) continue;
@@ -273,12 +323,15 @@ export class Transaction {
       try {
         for (let index = 0; index < bucket.length; index++) {
           if (this.restartPass) return true;
+          this.passIndex = index;
+          this.visitSkipped = false;
           const entry = bucket[index];
           // a handler that ran earlier in this pass may have cleared the entry's pending flags
           if (pick(entry)) visit(entry);
         }
       } finally {
         this.passDepth = -1;
+        this.passIndex = -1;
       }
       if (this.restartPass) return true;
     }
@@ -287,6 +340,7 @@ export class Transaction {
 
   private announceValues(): boolean {
     return this.pass(
+      VALUE,
       (entry) => entry.valueDirty || entry.structural !== undefined,
       (entry) => {
         const { structural } = entry;
@@ -302,6 +356,7 @@ export class Transaction {
 
   private announceFlags(): boolean {
     return this.pass(
+      FLAGS,
       (entry) => entry.flagsDirty,
       (entry) => {
         entry.flagsDirty = false;
@@ -312,6 +367,7 @@ export class Transaction {
 
   private settleValidity(): boolean {
     return this.pass(
+      VALIDITY,
       (entry) => entry.validityDirty,
       (entry) => {
         entry.validityDirty = false;
