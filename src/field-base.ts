@@ -47,6 +47,7 @@ import {
 } from './validators/error-policy';
 import { type ErrorOrigin, ValidationError } from './validators/validation-error';
 import { isVisibility, type Visibility, visibilityValues } from './visibility';
+import { liveRefs } from './weak-elements';
 
 /** The references to the bindings made from one declaration, and when the dead ones were last removed. */
 interface BindingsMade {
@@ -74,12 +75,7 @@ const abandonedReleasedAt = new WeakMap<ActionsMap, number>();
 
 /** Removes the references whose binding was collected and returns the live bindings. */
 function sweep(made: BindingsMade): FieldBase[] {
-  const alive: FieldBase[] = [];
-  made.refs.forEach((ref) => {
-    const binding = ref.deref();
-    if (!binding) made.refs.delete(ref);
-    else alive.push(binding);
-  });
+  const alive = liveRefs(made.refs);
   made.sweptAt = Date.now();
   return alive;
 }
