@@ -130,8 +130,7 @@ export function adopt(value: unknown, field: FieldBase, seen = new Map<object, u
       return copy;
     }
     default: {
-      const target: Record<PropertyKey, unknown> =
-        kind === 'array' ? [] : Object.create(Object.getPrototypeOf(node) as object | null);
+      const target = emptyLike(node, kind);
       const proxy = new Proxy(target, handler);
       targets.set(proxy, target);
       proxies.set(target, proxy);
@@ -169,13 +168,19 @@ export function plain(value: unknown, seen = new Map<object, unknown>()): unknow
       return copy;
     }
     default: {
-      const copy: Record<PropertyKey, unknown> =
-        kind === 'array' ? [] : Object.create(Object.getPrototypeOf(node) as object | null);
+      const copy = emptyLike(node, kind);
       seen.set(node, copy);
       copyProperties(node, copy, (item) => plain(item, seen));
       return copy;
     }
   }
+}
+
+/** An empty array for an array, an empty object with the prototype of `node` for a plain object. */
+function emptyLike(node: object, kind: Kind): Record<PropertyKey, unknown> {
+  const empty: Record<PropertyKey, unknown> =
+    kind === 'array' ? [] : Object.create(Object.getPrototypeOf(node) as object | null);
+  return empty;
 }
 
 /** Copies the own properties of `source` to `target`, data properties through `map`, accessors as they are. */
