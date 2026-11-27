@@ -18,6 +18,9 @@ const validReads = new WeakMap<object, ComputedRef<boolean>>();
 /** The computed behind a container's `busy`, held outside the element for the same reason as `validReads`. */
 const busyReads = new WeakMap<object, ComputedRef<boolean>>();
 
+/** The computed behind a container's `touched`, held outside the element for the same reason as `validReads`. */
+const touchedReads = new WeakMap<object, ComputedRef<boolean>>();
+
 /**
  * The computed behind a container's test whether all its members are actions, held outside the element for the same
  * reason as `validReads`. It depends only on the set of members, so it is recomputed when a member is added or
@@ -47,7 +50,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   protected abstract get children(): readonly FieldBase[];
 
   get touched(): boolean {
-    return this.children.some((child) => child.touched);
+    return this.touchedRead;
   }
 
   set touched(touched: boolean) {
@@ -275,6 +278,19 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
     if (!read) {
       read = computed(() => this.children.some((child) => child.busy));
       busyReads.set(this, read);
+    }
+    return read.value;
+  }
+
+  /**
+   * The composed value of `touched`, memoised by Vue: the computed skips the walk while nothing it read has changed,
+   * and a child that is a container reads its own computed.
+   */
+  private get touchedRead(): boolean {
+    let read = touchedReads.get(this);
+    if (!read) {
+      read = computed(() => this.children.some((child) => child.touched));
+      touchedReads.set(this, read);
     }
     return read.value;
   }
