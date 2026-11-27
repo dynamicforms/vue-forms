@@ -17,8 +17,8 @@ import {
 
 /*
  * Scenario ids: S1a bulk build, S1b push build, S2a single-field write, S2b single-field write with a
- * ValueChangedAction on the list, S3 remove, S4a and S4b whole-list assignment, S6 the validity read. Every scenario
- * runs over both fixture variants.
+ * ValueChangedAction on the list, S3 remove, S4a and S4b whole-list assignment, S6 the validity read, S7 the access
+ * toggle between editable and readonly. Every scenario runs over both fixture variants.
  *
  * Sample counts are set per scenario instead of by elapsed time, because one sample of S1b costs seconds. A
  * benchmark function is called once before the timed loop and once before the warmup loop without a sample being
@@ -35,7 +35,7 @@ const READ = { time: 0, iterations: 100, warmupTime: 0, warmupIterations: 20 };
 
 /**
  * Holds the fixture of the scenario currently running and drops the one before it, so a benchmark file that
- * covers seven scenarios over two variants keeps one 1000-row list alive rather than fourteen.
+ * covers eight scenarios over two variants keeps one 1000-row list alive rather than sixteen.
  */
 let current: { key: string; list: List } | null = null;
 
@@ -180,6 +180,20 @@ describe('S6 write one field in row 500, then read list.valid', () => {
         writes += 1;
         list.get(TARGET_ROW)!.fields[TARGET_FIELD].value = `w-${writes}`;
         consume(list.valid);
+      },
+      WRITE,
+    );
+  });
+});
+
+describe('S7 list.access = readonly, then back to editable, on a 1000-row list', () => {
+  variants.forEach((variant) => {
+    bench(
+      variant,
+      () => {
+        const list = fixtureList(`S7-${variant}`, variant);
+        list.access = 'readonly';
+        list.access = 'editable';
       },
       WRITE,
     );

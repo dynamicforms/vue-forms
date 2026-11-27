@@ -818,10 +818,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       }
       tx.touch(child);
       child.#state.fieldName = fieldName;
-      // below an editable container every element keeps its own effective access, so only a container that narrows
-      // access needs the check
-      const narrowing = this.effectiveAccess !== 'editable';
-      const detached = narrowing ? child.effectiveAccessFromHere() : undefined;
+      // only a container that sends none of its members changes what the elements below it send
+      const detached = blocksBelow(this.effectiveAccess) ? child.effectiveAccessFromHere() : undefined;
       // this is a Container: only a container holds children
       child.#state.parent = this as unknown as Container;
       // the containers above now determine what the child sends, so elements whose effective access changed are
@@ -860,9 +858,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       tx.touch(this);
       tx.touch(child);
       if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren--;
-      // released from a container that narrowed its access, the child is validated again where its effective
-      // access changed
-      const attached = this.effectiveAccess !== 'editable' ? child.effectiveAccessFromHere() : undefined;
+      // released from a container that sent none of its members, the child is validated again where what it sends
+      // changed
+      const attached = blocksBelow(this.effectiveAccess) ? child.effectiveAccessFromHere() : undefined;
       // the undo reads the child at rollback time, as in adoptChild: after the rollback this element counts the runs
       // the child has in flight at that time
       if (child.validating) this.childValidatingChanged(false);
@@ -1027,19 +1025,25 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
         if (enabledAnswer === wasEnabled) return;
       }
       tx.touch(this);
-      const oldContribution = this.contribution;
-      const counted = this.countsInContainer;
-      const below = this.effectiveAccessBelow();
+      const sendsDifferently = sendsAs(oldValue) !== sendsAs(written);
+      const oldContribution = sendsDifferently && !this.composesValue ? this.contribution : undefined;
+      const counted = sendsDifferently && this.countsInContainer;
+      // what the elements below send changes only where this element starts or stops blocking them, and only if no
+      // container above already blocks them
+      const below =
+        blocksBelow(oldValue) !== blocksBelow(written) && !(this.parent && blocksBelow(this.parent.effectiveAccess))
+          ? this.effectiveAccessBelow()
+          : undefined;
       this.#state.access = written;
-      this.revalidateWhereChanged(below);
-      // a leaf's validators run here, over what it now sends; a container's run at the commit, where what it sends
-      // is composed
-      if (!this.composesValue && sendsAs(oldValue) !== sendsAs(written)) {
-        this.boundActions?.triggerEager(this, this.contribution, oldContribution);
+      if (below) this.revalidateWhereChanged(below);
+      if (sendsDifferently) {
+        // a leaf's validators run here, over what it now sends; a container's run at the commit, where what it sends
+        // is composed
+        if (!this.composesValue) this.boundActions?.triggerEager(this, this.contribution, oldContribution);
+        // the commit compares the element's contribution and that of every container above it again; what any of
+        // them holds did not change
+        this.contributionChanged(tx, counted);
       }
-      // the commit compares the element's contribution and that of every container above it again; what any of
-      // them holds did not change
-      this.contributionChanged(tx, counted);
       if (this.#raw.announcedAccess === undefined) this.#raw.announcedAccess = oldValue;
       tx.markFlagsDirty(this);
     });
