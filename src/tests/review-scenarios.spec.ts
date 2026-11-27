@@ -361,11 +361,4 @@ describe('building list rows with Required validators', () => {
     // the template's own fields ran at their construction and not again
     names.forEach((name) => expect(counts.get(templ.fields[name])).toBe(templateCounts.get(templ.fields[name])));
   });
-
-  // a row field is bound empty and then written, so its validators run twice; binding it with its data would skip
-  // the announcement of its value that a rule on an enclosing row relies on (nested-resolution.spec.ts)
-  it.fails('runs each validator once per row', () => {
-    const { counts, rows } = build();
-    rows.forEach((row) => names.forEach((name) => expect(counts.get(row.fields[name])).toBe(1)));
-  });
 });

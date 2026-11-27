@@ -28,7 +28,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `in`, spreading and `JSON.stringify` over a group view no longer list every member for each key.
 - Building the `value` or `fullValue` of a `List` no longer walks every row's members to see whether the row holds
   only actions.
-- A conditional action resolves its targets once per change of a field its statement reads.
 
 ### Fixed
 
