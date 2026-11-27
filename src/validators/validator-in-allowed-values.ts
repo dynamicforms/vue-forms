@@ -1,6 +1,7 @@
 import { truncate } from 'lodash-es';
 import { type Ref, unref } from 'vue';
 
+import { namespaced } from './error-namespace';
 import { ValidationErrorOptions } from './validator';
 import { ValueCheck } from './value-check';
 
@@ -21,12 +22,21 @@ export default class InAllowedValues<T = any> extends ValueCheck {
     const asText = (values: T[]): string => {
       const text = values.join(', ');
       if (text.length <= 60) return text;
-      return truncate(text, { length: 40, separator: ', ', omission: `... (${values.length} items total)` });
+      return truncate(text, {
+        length: 40,
+        separator: ', ',
+        omission: `... (${values.length} items total)`,
+      });
     };
 
-    super(options, 'in_allowed_values', 'Must be one of [{allowedAsText}]', (value) => {
+    super((value, given) => {
       const values = resolve();
-      return values.includes(value) ? null : { allowedValues: values, allowedAsText: asText(values) };
+      if (values.includes(value)) return null;
+      return this.errorFor(options, namespaced('in_allowed_values'), 'Must be one of [{allowedAsText}]', {
+        ...given,
+        allowedValues: values,
+        allowedAsText: asText(values),
+      });
     });
   }
 }

@@ -1,31 +1,23 @@
 import { unref } from 'vue';
 
-import { namespaced } from './error-namespace';
-import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
+import { ValidationError } from './validation-error';
+import { ValidationFunction, Validator } from './validator';
 import { isEmptyValue } from './value-checks';
 
-/**
- * The params a failed check adds to its error next to `newValue` and `oldValue`, or `null` where the value passes.
- */
-export type ValueCheckFailure = Record<string, unknown> | null;
+/** The field's `newValue` and `oldValue` as given, which a failed check adds to its error params. */
+export type GivenValues = { newValue: any; oldValue: any };
 
 /**
- * A built-in validator that passes an empty value and checks any other with one predicate. The value is unwrapped
- * with `unref` before the empty test and the predicate; the error carries the field's `newValue` and `oldValue` as
- * given.
+ * A built-in validator that passes an empty value and checks any other with one function. The value is unwrapped
+ * with `unref` before the empty test and the check; `check` returns the error or `null` where the value passes.
  */
 export abstract class ValueCheck extends Validator {
-  constructor(
-    options: ValidationErrorOptions | undefined,
-    code: string,
-    detail: string,
-    failure: (value: any) => ValueCheckFailure,
-  ) {
+  constructor(check: (value: any, given: GivenValues) => ValidationError | null) {
     const validationFn: ValidationFunction = (newValue, oldValue) => {
       const value = unref(newValue);
       if (isEmptyValue(value)) return null;
-      const params = failure(value);
-      return params ? [this.errorFor(options, namespaced(code), detail, { newValue, oldValue, ...params })] : null;
+      const error = check(value, { newValue, oldValue });
+      return error ? [error] : null;
     };
 
     super(validationFn);
