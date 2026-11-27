@@ -2,8 +2,8 @@ import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
+import { elementFromData } from './element-from-data';
 import { type ListSlots, listSlots, ReorderRows } from './element-state';
-import { Field } from './field';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { Group } from './group';
@@ -105,7 +105,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     // an item that is already an element is used as is, and data is bound to the item template
     if (item instanceof FieldBase) res = item as R;
     else if (this._itemTemplate) res = this._itemTemplate.bind(item) as R;
-    else res = List.elementFor(item) as R;
+    else res = elementFromData(item) as R;
 
     // an item that already belongs to a container throws here; one this list released earlier has no parent link
     // and is taken like any other
@@ -115,16 +115,6 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     this.completeRecords(res);
 
     return res;
-  }
-
-  /**
-   * The row a list without an item template builds from `item`: a `Group` of fields from a plain object, a `List`
-   * from an array, and a `Field` holding anything else.
-   */
-  private static elementFor(item: unknown): FieldBase {
-    if (isPlainObject(item)) return Group.createFromFormData(item as Record<string, any>);
-    if (Array.isArray(item)) return new List(undefined, { value: item });
-    return new Field({ value: item });
   }
 
   /**

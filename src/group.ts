@@ -1,13 +1,11 @@
-import { isEmpty, isPlainObject } from 'lodash-es';
+import { isEmpty } from 'lodash-es';
 
 import type { Action } from './action';
 import { Container } from './container';
+import { elementFromData } from './element-from-data';
 import { type GroupSlots, groupSlots } from './element-state';
-import { Field } from './field';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
-// list.ts imports this module as well; List is used only inside a call, after both modules are loaded
-import { List } from './list';
 import { asBinding } from './plugins';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 import { refuseReservedName, viewedGroups } from './view-names';
@@ -46,13 +44,6 @@ export type FieldsToFullValues<T extends GenericFieldsInterface> = {
 export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>>;
 /** what Group.value and the Group constructor accept: missing keys are not assigned, and null clears */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
-
-/** The element plain data is built into: a `Group` for a plain object, a `List` for an array, a `Field` otherwise. */
-function elementFromData(value: unknown): FieldBase {
-  if (isPlainObject(value)) return Group.createFromFormData(value as Record<string, any>);
-  if (Array.isArray(value)) return new List(undefined, { value });
-  return new Field({ value });
-}
 
 /**
  * The groups whose constructor is still adding and writing their members. A member's record is completed after the
