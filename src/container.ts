@@ -19,6 +19,13 @@ const validReads = new WeakMap<object, ComputedRef<boolean>>();
 const busyReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
+ * The computed behind a container's test whether all its members are actions, held outside the element for the same
+ * reason as `validReads`. It depends only on the set of members, so it is recomputed when a member is added or
+ * removed, here or in a container below.
+ */
+const onlyActionsReads = new WeakMap<object, ComputedRef<boolean>>();
+
+/**
  * A form element that holds other elements and composes its state from theirs: `Group`, which holds named
  * members, and `List`, which holds rows. Every element's `parent` is a `Container`.
  *
@@ -107,11 +114,21 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
    * determines.
    */
   protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
-    const children = this.children;
-    if (children.length > 0 && children.every((child) => this.childSerializesAs(child, 'fullValue') === 'omit')) {
-      return 'omit';
-    }
+    if (this.onlyActions) return 'omit';
     return super.serializesAs(purpose);
+  }
+
+  /** True if this container has members and every one of them sends nothing, memoised by Vue. */
+  private get onlyActions(): boolean {
+    let read = onlyActionsReads.get(this);
+    if (!read) {
+      read = computed(() => {
+        const children = this.children;
+        return children.length > 0 && children.every((child) => this.childSerializesAs(child, 'fullValue') === 'omit');
+      });
+      onlyActionsReads.set(this, read);
+    }
+    return read.value;
   }
 
   /** The action `confirm()` or `reject()` executes, or undefined. */
