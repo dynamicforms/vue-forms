@@ -208,6 +208,9 @@ new Field({ value: null, validators: [new Validators.MinValue(18)] });          
 new Field({ value: null, validators: [new Validators.Required(), new Validators.MinValue(18)] });  // invalid while empty
 ```
 
+**Refs.** Every built-in validator checks a value that is a Vue ref by the value the ref holds; the error's
+`newValue` and `oldValue` params are the values as the field holds them.
+
 `InAllowedValues`, `MinValue`, `MaxValue`, `ValueInRange` and `CompareTo` take a type argument, which types a
 constructor argument or a callback. The others take none: `new Validators.Required()`, `new Validators.Pattern(…)`,
 `new Validators.MinLength(…)`, `new Validators.MaxLength(…)` and `new Validators.LengthInRange(…)` measure any value

@@ -1,65 +1,28 @@
-import { namespaced } from './error-namespace';
-import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
-import { isEmptyValue, toLength } from './value-checks';
+import { ValidationErrorOptions } from './validator';
+import { ValueCheck } from './value-check';
+import { toLength } from './value-checks';
 
-export class MinLength extends Validator {
+export class MinLength extends ValueCheck {
   constructor(minLength: number, options?: ValidationErrorOptions) {
-    const validationFn: ValidationFunction = (newValue, oldValue) => {
-      if (isEmptyValue(newValue)) return null;
-      if (toLength(newValue) < minLength) {
-        return [
-          this.errorFor(options, namespaced('min_length'), 'Length must be larger or equal to {minLength}', {
-            newValue,
-            oldValue,
-            minLength,
-          }),
-        ];
-      }
-      return null;
-    };
-
-    super(validationFn);
+    super(options, 'min_length', 'Length must be larger or equal to {minLength}', (value) =>
+      toLength(value) < minLength ? { minLength } : null,
+    );
   }
 }
 
-export class MaxLength extends Validator {
+export class MaxLength extends ValueCheck {
   constructor(maxLength: number, options?: ValidationErrorOptions) {
-    const validationFn: ValidationFunction = (newValue, oldValue) => {
-      if (isEmptyValue(newValue)) return null;
-      if (toLength(newValue) > maxLength) {
-        return [
-          this.errorFor(options, namespaced('max_length'), 'Length must be less than or equal to {maxLength}', {
-            newValue,
-            oldValue,
-            maxLength,
-          }),
-        ];
-      }
-      return null;
-    };
-
-    super(validationFn);
+    super(options, 'max_length', 'Length must be less than or equal to {maxLength}', (value) =>
+      toLength(value) > maxLength ? { maxLength } : null,
+    );
   }
 }
 
-export class LengthInRange extends Validator {
+export class LengthInRange extends ValueCheck {
   constructor(minLength: number, maxLength: number, options?: ValidationErrorOptions) {
-    const validationFn: ValidationFunction = (newValue, oldValue) => {
-      if (isEmptyValue(newValue)) return null;
-      const len = toLength(newValue);
-      if (len < minLength || len > maxLength) {
-        return [
-          this.errorFor(options, namespaced('length_in_range'), 'Length must be between {minLength} and {maxLength}', {
-            newValue,
-            oldValue,
-            minLength,
-            maxLength,
-          }),
-        ];
-      }
-      return null;
-    };
-
-    super(validationFn);
+    super(options, 'length_in_range', 'Length must be between {minLength} and {maxLength}', (value) => {
+      const len = toLength(value);
+      return len < minLength || len > maxLength ? { minLength, maxLength } : null;
+    });
   }
 }
