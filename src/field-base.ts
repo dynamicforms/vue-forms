@@ -958,6 +958,26 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected childValidityChanged(nowValid: boolean): void {}
 
+  /**
+   * Asks the `ActionClass` handlers about a write of `newValue` over `oldValue` and returns the value to write, or
+   * undefined where the write does not happen: a handler aborted the run or returned `oldValue`. A returned value that
+   * `isValid` rejects throws an Error naming it as not `noun` and listing `values`.
+   */
+  private askChanging<V extends string>(
+    ActionClass: (abstract new (...args: any[]) => FieldActionBase) & { classIdentifier: symbol },
+    newValue: V,
+    oldValue: V,
+    isValid: (value: unknown) => value is V,
+    noun: string,
+    values: readonly string[],
+  ): V | undefined {
+    const alteredValue = this.boundActions?.trigger(ActionClass, this, newValue, oldValue);
+    if (alteredValue instanceof AbortEventHandlingException) return undefined;
+    const written = alteredValue ?? newValue;
+    if (!isValid(written)) throw new Error(`${describe(written)} is not ${noun}: ${listOf(values)}`);
+    return written === oldValue ? undefined : written;
+  }
+
   // default property handlers
   /**
    * How a rendering layer shows this element. It affects presentation only: what the element sends and whether it
@@ -973,14 +993,17 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     // transaction, no *Changed* event. The value setter follows the same rule
     if (newValue === oldValue) return;
     transactional((tx) => {
-      const alteredValue = this.boundActions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
-      // a handler that aborted the run cancels the write: nothing is written and nothing is announced
-      if (alteredValue instanceof AbortEventHandlingException) return;
-      const written = alteredValue ?? newValue;
-      if (!isVisibility(written))
-        throw new Error(`${describe(written)} is not a visibility: ${listOf(visibilityValues)}`);
-      // a handler that returned the current value refused the write
-      if (written === oldValue) return;
+      // a handler that aborted the run or returned the current value cancels the write: nothing is written and
+      // nothing is announced
+      const written = this.askChanging(
+        VisibilityChangingAction,
+        newValue,
+        oldValue,
+        isVisibility,
+        'a visibility',
+        visibilityValues,
+      );
+      if (written === undefined) return;
       tx.touch(this);
       // the commit announces the net change: the value before the transaction's first write against the last one
       if (this.#raw.announcedVisibility === undefined) this.#raw.announcedVisibility = oldValue;
@@ -1005,13 +1028,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     // as with visibility: writing the current value is not a change, and nothing runs
     if (newValue === oldValue) return;
     transactional((tx) => {
-      const alteredValue = this.boundActions?.trigger(AccessChangingAction, this, newValue, oldValue);
-      // as with visibility: a handler that aborted the run cancels the write
-      if (alteredValue instanceof AbortEventHandlingException) return;
-      const written = alteredValue ?? newValue;
-      if (!isAccess(written)) throw new Error(`${describe(written)} is not an access: ${listOf(accessValues)}`);
-      // a handler that returned the current access cancels the write
-      if (written === oldValue) return;
+      // as with visibility: a handler that aborted the run or returned the current access cancels the write
+      const written = this.askChanging(AccessChangingAction, newValue, oldValue, isAccess, 'an access', accessValues);
+      if (written === undefined) return;
       const wasEnabled = this.enabled;
       const willBeEnabled = written === 'editable';
       if (willBeEnabled !== wasEnabled) {
