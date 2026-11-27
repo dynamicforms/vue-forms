@@ -291,15 +291,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return extended as Partial<X>;
   }
 
-  /**
-   * Applies a parameter object: a key that names an accessor of the element is assigned to the element, and every
-   * other key becomes an extended property. A key named like a method or another non-accessor member (`validate`,
-   * `bind`, `settled`) is stored in `extra` and leaves the member as it is. Assigning a getter-only accessor throws a
-   * TypeError, so a parameter object that bypasses the type system and contains `valid` or `parent` throws.
-   */
-  /**
-   * Applies a constructor's parameter object except `value` and the keys in `exclude`, and returns its `value`.
-   */
+  /** Applies a constructor's parameter object except `value` and the keys in `exclude`, and returns its `value`. */
   protected applyParams<V>(params: IFieldParams<V, X>, exclude: readonly string[] = []): V | undefined {
     const { value, validators, actions, ...otherParams } = params;
     // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
@@ -323,6 +315,12 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     } as IFieldParams<V, X>;
   }
 
+  /**
+   * Applies a parameter object: a key that names an accessor of the element is assigned to the element, and every
+   * other key becomes an extended property. A key named like a method or another non-accessor member (`validate`,
+   * `bind`, `settled`) is stored in `extra` and leaves the member as it is. Assigning a getter-only accessor throws a
+   * TypeError, so a parameter object that bypasses the type system and contains `valid` or `parent` throws.
+   */
   protected assignParams(params: object): void {
     refuseEnabled(params);
     const extended = this.extendedOf(params);
