@@ -145,3 +145,13 @@ jobs:
           TS
           npm install --no-audit --no-fund typescript@5 vue@${{ steps.floor.outputs.vue }}
           ./node_modules/.bin/tsc -p tsconfig.json
+
+  # the required status check: fails when any other job of this workflow failed or was cancelled
+  all-green:
+    if: always()
+    needs: [build, vue-floor]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
