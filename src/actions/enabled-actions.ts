@@ -1,7 +1,4 @@
-import FieldActionBase from './field-action-base';
-
-import type { FieldBase } from '@/field-base';
-import { FieldActionExecute } from '@/field.interface';
+import { type ChangeArgs, TypedFieldAction } from './field-action-base';
 
 const EnabledChangingActionClassIdentifier = Symbol('EnabledChangingAction');
 
@@ -12,19 +9,9 @@ const EnabledChangingActionClassIdentifier = Symbol('EnabledChangingAction');
  * `AbortEventHandlingException`, cancels the write of `access`; returning the new value, `null` or `undefined`
  * allows it.
  */
-export class EnabledChangingAction extends FieldActionBase {
-  constructor(
-    executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => boolean,
-  ) {
-    super(executorFn);
-  }
-
+export class EnabledChangingAction extends TypedFieldAction<ChangeArgs<boolean>, boolean> {
   static get classIdentifier() {
     return EnabledChangingActionClassIdentifier;
-  }
-
-  execute(field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): boolean {
-    return super.execute(field, supr, newValue, oldValue);
   }
 }
 
@@ -34,16 +21,8 @@ const EnabledChangedActionClassIdentifier = Symbol('EnabledChangedAction');
  * Fires after a write of `access` changed `enabled`: a change into or out of `'editable'`. It fires after
  * `AccessChangedAction`; a change between two accesses that are not `'editable'` does not fire it.
  */
-export class EnabledChangedAction extends FieldActionBase {
-  constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean) => void) {
-    super(executorFn);
-  }
-
+export class EnabledChangedAction extends TypedFieldAction<ChangeArgs<boolean>, void> {
   static get classIdentifier() {
     return EnabledChangedActionClassIdentifier;
-  }
-
-  execute(field: FieldBase, supr: FieldActionExecute, newValue: boolean, oldValue: boolean): void {
-    return super.execute(field, supr, newValue, oldValue);
   }
 }

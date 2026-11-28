@@ -1,20 +1,9 @@
-import FieldActionBase from './field-action-base';
-
-import type { FieldBase } from '@/field-base';
-import { FieldActionExecute } from '@/field.interface';
+import { TypedFieldAction } from './field-action-base';
 
 const ListItemAddedActionClassIdentifier = Symbol('ListItemAddedAction');
 
-export class ListItemAddedAction extends FieldActionBase {
-  constructor(executorFn: (field: FieldBase, supr: FieldActionExecute, item: any, index: number) => void) {
-    super(executorFn);
-  }
-
+export class ListItemAddedAction extends TypedFieldAction<[item: any, index: number], void> {
   static get classIdentifier() {
     return ListItemAddedActionClassIdentifier;
-  }
-
-  execute(field: FieldBase, supr: FieldActionExecute, item: any, index: number): void {
-    return super.execute(field, supr, item, index);
   }
 }

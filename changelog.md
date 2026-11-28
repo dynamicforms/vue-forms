@@ -5,6 +5,36 @@ All notable changes to `@dynamicforms/vue-forms` will be documented in this file
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0-alpha.5] - 2026-11-27
+
+### Changed
+
+- `fullValue` of `Group` and `List` is frozen and reused until the next change, as `value` is: two reads without a
+  change in between return the same object. The content is unchanged. Breaking for code that writes into the returned
+  object, which in 3.0.0-alpha.4 was a new copy on every read: such a write now throws a `TypeError` in strict mode
+  (every ES module) and is ignored otherwise. Copy the object first, or assign a new value to the container.
+- A `ValueChangedAction` on a `Group` or a `List` no longer rebuilds the whole tree and compares it deeply on every
+  commit: the parts that did not change are the same objects before and after, so the comparison skips them.
+- Tracking plugin: a mutating array method (`push`, `shift`, `splice`, `sort`, …) on a field's value runs the field's
+  validators once per call instead of once per written index. A call that leaves the items as they were (an empty
+  `push()`, `sort()` of a sorted array) is no change: nothing runs and nothing is announced.
+- A `List` `value` assignment whose rows have a `ValueChangedAction` that writes another field of the same row takes
+  time proportional to the number of rows instead of its square.
+- Removing rows through a list view (`pop()`, `shift()`, `splice()`, writing `length`) removes them by position
+  instead of searching for each row.
+- Changing a container's `access` between `'editable'` and `'readonly'` no longer revalidates the elements below it
+  or rebuilds the values of the containers above it; neither changes what is sent.
+- `touched` of a `Group` or a `List` is memoised, as `valid` and `busy` are.
+- `in`, spreading and `JSON.stringify` over a group view no longer list every member for each key.
+- Building the `value` or `fullValue` of a `List` no longer walks every row's members to see whether the row holds
+  only actions.
+
+### Fixed
+
+- A `computed` or `watch()` over `Group.fullValue` recomputes after `addField()` and `removeField()`.
+- `MinValue`, `MaxValue`, `ValueInRange`, `MinLength`, `MaxLength` and `LengthInRange` check a field value that is a
+  Vue ref by the value the ref holds, as `Pattern`, `InAllowedValues` and `Required` do.
+
 ## [3.0.0-alpha.4] - 2026-11-13
 
 ### Added

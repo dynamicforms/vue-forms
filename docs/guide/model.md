@@ -279,11 +279,13 @@ A write sets the value the caller requests, which is not necessarily the value t
 holding its original value, nothing a rendering layer reads changes. The case the rendering layer must handle itself
 is described in [Writing the value](/api/field#writing-the-value).
 
-A container composes its value from its members and returns a **frozen** object, reused until the next change:
+A container composes its `value` and its `fullValue` from its members and returns a **frozen** object for each,
+reused until the next change:
 
 ```typescript
-group.value === group.value;     // true until something below changes
-Object.isFrozen(group.value);    // true; assign a new value instead of writing into it
+group.value === group.value;             // true until something below changes
+group.fullValue === group.fullValue;     // likewise
+Object.isFrozen(group.value);            // true; assign a new value instead of writing into it
 ```
 
 The freeze covers the objects the containers build. An array or object that a `Field` holds as its value is not

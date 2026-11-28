@@ -95,7 +95,7 @@ A `Field` stores a copy of the value it is assigned, at every level of the value
 | In the assigned value | Stored as | A change of the field |
 |---|---|---|
 | a plain object | a proxy over a copy | a property write, `delete` |
-| an array | a proxy over a copy | an index write, `length`, every mutating method (`push`, `splice`, `sort`, …): one change per call |
+| an array | a proxy over a copy | an index write, `length`, every mutating method (`push`, `splice`, `sort`, …): one change per call, none when the call leaves the items as they were |
 | `Map` | a `TrackedMap` copy | `set`, `delete`, `clear` |
 | `Set` | a `TrackedSet` copy | `add`, `delete`, `clear` |
 | `Date` | a `TrackedDate` copy | every `set…` method |

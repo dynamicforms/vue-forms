@@ -22,6 +22,8 @@ const warned = new WeakSet<object>();
 let warnings = true;
 /** greater than zero while an undo step writes, so the write is not recorded as a change */
 let restoring = 0;
+/** greater than zero while a mutating array method runs, so its writes are recorded once for the whole call */
+let mutating = 0;
 
 export function markUntracked(value: object): void {
   opaque.add(value);
@@ -78,13 +80,13 @@ function restore(step: () => void): void {
   }
 }
 
-function change(field: FieldBase, write: () => void, undo: () => void): void {
-  context!.changeInPlace(
-    field,
-    write,
-    () => restore(undo),
-    () => plain(field.value),
-  );
+function change(
+  field: FieldBase,
+  write: () => void,
+  undo: () => void,
+  copy: () => unknown = () => plain(field.value),
+): void {
+  context!.changeInPlace(field, write, () => restore(undo), copy);
 }
 
 /**
@@ -128,8 +130,7 @@ export function adopt(value: unknown, field: FieldBase, seen = new Map<object, u
       return copy;
     }
     default: {
-      const target: Record<PropertyKey, unknown> =
-        kind === 'array' ? [] : Object.create(Object.getPrototypeOf(node) as object | null);
+      const target = emptyLike(node, kind);
       const proxy = new Proxy(target, handler);
       targets.set(proxy, target);
       proxies.set(target, proxy);
@@ -167,13 +168,19 @@ export function plain(value: unknown, seen = new Map<object, unknown>()): unknow
       return copy;
     }
     default: {
-      const copy: Record<PropertyKey, unknown> =
-        kind === 'array' ? [] : Object.create(Object.getPrototypeOf(node) as object | null);
+      const copy = emptyLike(node, kind);
       seen.set(node, copy);
       copyProperties(node, copy, (item) => plain(item, seen));
       return copy;
     }
   }
+}
+
+/** An empty array for an array, an empty object with the prototype of `node` for a plain object. */
+function emptyLike(node: object, kind: Kind): Record<PropertyKey, unknown> {
+  const empty: Record<PropertyKey, unknown> =
+    kind === 'array' ? [] : Object.create(Object.getPrototypeOf(node) as object | null);
+  return empty;
 }
 
 /** Copies the own properties of `source` to `target`, data properties through `map`, accessors as they are. */
@@ -196,17 +203,76 @@ function same(a: unknown, b: unknown): boolean {
 const arrayMutators = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse', 'fill', 'copyWithin']);
 const batched = new Map<string, (...args: unknown[]) => unknown>();
 
-/** An array method that runs in one transaction, so its writes are one change of the field. */
+/** Writes `items` into the array `target` without tracking. */
+function replaceItems(target: unknown[], items: unknown[]): void {
+  target.length = items.length;
+  for (let index = 0; index < items.length; index++) {
+    if (index in items) target[index] = items[index];
+    else delete target[index];
+  }
+}
+
+function sameItems(a: unknown[], b: unknown[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let index = 0; index < a.length; index++) if (!Object.is(a[index], b[index])) return false;
+  return true;
+}
+
+/**
+ * An array method that is one change of the field: it runs through the proxies, so Vue's readers of the array run
+ * again, and the change is recorded once for the call, with an undo step that restores the items it had before.
+ */
 function batchedMethod(name: string): (...args: unknown[]) => unknown {
   let method = batched.get(name);
   if (!method) {
     const original = (Array.prototype as unknown as Record<string, (...args: unknown[]) => unknown>)[name];
     method = function batchedArrayMethod(this: unknown, ...args: unknown[]) {
-      return transaction(() => original.apply(this, args));
+      const raw = toRaw(this) as object;
+      const target = (targets.get(raw) ?? raw) as unknown[];
+      const field = owners.get(target);
+      if (restoring || mutating || !field) return transaction(() => original.apply(this, args));
+      return transaction(() => {
+        const before = target.slice();
+        mutating++;
+        try {
+          return original.apply(this, args);
+        } finally {
+          mutating--;
+          // recorded also when the method throws, so the transaction's rollback restores the items
+          const after = target.slice();
+          if (!sameItems(before, after)) record(field, target, before, after);
+        }
+      });
     };
     batched.set(name, method);
   }
   return method;
+}
+
+/** Records an array method's call, which already wrote `after` over `before`, as one change of `field`. */
+function record(field: FieldBase, target: unknown[], before: unknown[], after: unknown[]): void {
+  const proxy = proxies.get(target)!;
+  change(
+    field,
+    () => {},
+    () => {
+      const live = reactive(proxy) as unknown[];
+      live.length = before.length;
+      for (let index = 0; index < before.length; index++) {
+        if (index in before) live[index] = before[index];
+        else delete live[index];
+      }
+    },
+    // the copy is of the value before the call
+    () => {
+      replaceItems(target, before);
+      try {
+        return plain(field.value);
+      } finally {
+        replaceItems(target, after);
+      }
+    },
+  );
 }
 
 const handler: ProxyHandler<Record<PropertyKey, unknown>> = {
@@ -218,6 +284,7 @@ const handler: ProxyHandler<Record<PropertyKey, unknown>> = {
   set(target, key, value) {
     if (restoring) return Reflect.set(target, key, value);
     const field = owners.get(target)!;
+    if (mutating) return Reflect.set(target, key, adopt(value, field));
     const had = Object.hasOwn(target, key);
     const previous = target[key as keyof typeof target];
     if (had && same(previous, value)) return true;
@@ -243,7 +310,7 @@ const handler: ProxyHandler<Record<PropertyKey, unknown>> = {
   },
 
   deleteProperty(target, key) {
-    if (restoring || !Object.hasOwn(target, key)) return Reflect.deleteProperty(target, key);
+    if (restoring || mutating || !Object.hasOwn(target, key)) return Reflect.deleteProperty(target, key);
     const field = owners.get(target)!;
     const previous = target[key as keyof typeof target];
     const proxy = proxies.get(target)!;

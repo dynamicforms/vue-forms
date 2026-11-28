@@ -224,7 +224,8 @@ section, loading a record, submitting.
 
 A container has two values. `value` is what the form sends: the payload a save passes to the server. `fullValue`
 is what the form holds: every child's own `fullValue`, regardless of access. A child's `access` determines what it
-sends to `value` and whether it is validated.
+sends to `value` and whether it is validated. Both are built once per change, returned to every reader until the next
+change, and frozen.
 
 | `access` | Accepts input | Sends to `value` | Validated |
 |---|---|---|---|

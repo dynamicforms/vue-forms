@@ -2,8 +2,8 @@ import { truncate } from 'lodash-es';
 import { type Ref, unref } from 'vue';
 
 import { namespaced } from './error-namespace';
-import { ValidationErrorOptions, ValidationFunction, Validator } from './validator';
-import { isEmptyValue } from './value-checks';
+import { ValidationErrorOptions } from './validator';
+import { ValueCheck } from './value-check';
 
 /**
  * The values a field may hold: a fixed list, or a ref or a callback for a list that is filled or replaced after
@@ -11,7 +11,7 @@ import { isEmptyValue } from './value-checks';
  */
 export type AllowedValues<T> = T[] | Ref<T[]> | (() => T[]);
 
-export default class InAllowedValues<T = any> extends Validator {
+export default class InAllowedValues<T = any> extends ValueCheck {
   constructor(allowedValues: AllowedValues<T>, options?: ValidationErrorOptions) {
     // the list is read at each validation, not at construction, so a list set later is the one the value is
     // checked against and the one the error lists
@@ -22,25 +22,21 @@ export default class InAllowedValues<T = any> extends Validator {
     const asText = (values: T[]): string => {
       const text = values.join(', ');
       if (text.length <= 60) return text;
-      return truncate(text, { length: 40, separator: ', ', omission: `... (${values.length} items total)` });
+      return truncate(text, {
+        length: 40,
+        separator: ', ',
+        omission: `... (${values.length} items total)`,
+      });
     };
 
-    const validationFn: ValidationFunction = (newValue: T, oldValue: T) => {
-      if (isEmptyValue(unref(newValue))) return null;
+    super((value, given) => {
       const values = resolve();
-      if (!values.includes(unref(newValue))) {
-        return [
-          this.errorFor(options, namespaced('in_allowed_values'), 'Must be one of [{allowedAsText}]', {
-            newValue,
-            oldValue,
-            allowedValues: values,
-            allowedAsText: asText(values),
-          }),
-        ];
-      }
-      return null;
-    };
-
-    super(validationFn);
+      if (values.includes(value)) return null;
+      return this.errorFor(options, namespaced('in_allowed_values'), 'Must be one of [{allowedAsText}]', {
+        ...given,
+        allowedValues: values,
+        allowedAsText: asText(values),
+      });
+    });
   }
 }

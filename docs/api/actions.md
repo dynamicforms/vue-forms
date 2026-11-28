@@ -250,7 +250,8 @@ new ValueChangedAction((field, supr, newValue, oldValue) => {
 | `oldValue` | `T` | The previous value |
 
 On a `Group` or a `List` the two values are the container's `fullValue` after and before the change, so on the
-first change of a member `oldValue` is the value the container was constructed with.
+first change of a member `oldValue` is the value the container was constructed with. Both are frozen; a part of the
+tree that did not change is the same object in both.
 
 **With `watch()`:** `watch(() => field.value, cb)`, and `watch(() => container.fullValue, cb)` on a `Group` or a
 `List`. The watcher runs after the transaction. See [Actions and `watch()`](#actions-and-watch).

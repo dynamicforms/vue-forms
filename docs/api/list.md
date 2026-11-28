@@ -185,7 +185,8 @@ read-only
 <tr class="member-desc"><td colspan="3">
 
 Overrides [`FieldBase.fullValue`](/api/field-base#prop-fullvalue): the `fullValue` of every row, regardless of access.
-`value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it
+`value` is what the list sends; `fullValue` is what it holds, and a binding or a reset copies it. As with `value`, the
+array is built once per change and returned to every reader until the next change, and it is frozen, rows included
 
 </td></tr>
 <tr class="member-head"><td><a id="prop-items"></a>
@@ -298,9 +299,9 @@ The rows are held outside Vue's reactivity, so a `splice()` does not route the r
 Every change of the set of rows increments a tracked counter, so `length`, `get()`, `items` and a template that
 reads them re-run on every such change.
 
-The caches are invalidated by the write itself, so no manual refresh is needed. `value` is rebuilt on the first
-read after a change and reused until the next change, so two consecutive reads return the same object. That object
-is frozen, rows included: writing into it throws in strict mode and is ignored otherwise, so assign a new value
+The caches are invalidated by the write itself, so no manual refresh is needed. `value` and `fullValue` are rebuilt on
+the first read after a change and reused until the next change, so two consecutive reads return the same object. That
+object is frozen, rows included: writing into it throws in strict mode and is ignored otherwise, so assign a new value
 instead. `originalValue` is a separate copy and is not frozen. The freeze covers only the objects the containers build.
 An array or object that a `Field` holds as its value is not frozen: writing into it changes the field's value without a
 `ValueChangedAction`, so assign a new array or object instead.

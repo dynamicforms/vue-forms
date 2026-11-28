@@ -3,7 +3,7 @@ import { computed, type ComputedRef } from 'vue';
 import { Action } from './action';
 import { RejectAction } from './actions/reject-action';
 import { SubmitAction } from './actions/submit-action';
-import { ExecuteHandlers } from './element-state';
+import { type ContainerSlots, ExecuteHandlers, Omitted } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras } from './field.interface';
 import { transactional } from './transaction';
@@ -17,6 +17,16 @@ const validReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /** The computed behind a container's `busy`, held outside the element for the same reason as `validReads`. */
 const busyReads = new WeakMap<object, ComputedRef<boolean>>();
+
+/** The computed behind a container's `touched`, held outside the element for the same reason as `validReads`. */
+const touchedReads = new WeakMap<object, ComputedRef<boolean>>();
+
+/**
+ * The computed behind a container's test whether all its members are actions, held outside the element for the same
+ * reason as `validReads`. It depends only on the set of members, so it is recomputed when a member is added or
+ * removed, here or in a container below.
+ */
+const onlyActionsReads = new WeakMap<object, ComputedRef<boolean>>();
 
 /**
  * A form element that holds other elements and composes its state from theirs: `Group`, which holds named
@@ -40,7 +50,7 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
   protected abstract get children(): readonly FieldBase[];
 
   get touched(): boolean {
-    return this.children.some((child) => child.touched);
+    return this.touchedRead;
   }
 
   set touched(touched: boolean) {
@@ -107,12 +117,85 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
    * determines.
    */
   protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
-    const children = this.children;
-    if (children.length > 0 && children.every((child) => this.childSerializesAs(child, 'fullValue') === 'omit')) {
-      return 'omit';
-    }
+    if (this.onlyActions) return 'omit';
     return super.serializesAs(purpose);
   }
+
+  /** True if this container has members and every one of them sends nothing, memoised by Vue. */
+  private get onlyActions(): boolean {
+    let read = onlyActionsReads.get(this);
+    if (!read) {
+      read = computed(() => {
+        const children = this.children;
+        return children.length > 0 && children.every((child) => this.childSerializesAs(child, 'fullValue') === 'omit');
+      });
+      onlyActionsReads.set(this, read);
+    }
+    return read.value;
+  }
+
+  /**
+   * The `value` or `fullValue` of this container: the one `build` composed for the current value version, built
+   * again after a write below this container. The version read is tracked and the cache read is not, so a reader
+   * served from the cache still depends on every write below this container and on a change of its members.
+   */
+  protected cachedComposed<V>(purpose: 'value' | 'fullValue', build: () => V): V {
+    const version = this.valueVersion;
+    const raw = this.raw as ContainerSlots;
+    if (purpose === 'value') {
+      if (raw.cachedValueVersion !== version) {
+        raw.cachedValue = build();
+        raw.cachedValueVersion = version;
+      }
+      return raw.cachedValue;
+    }
+    if (raw.cachedFullValueVersion !== version) {
+      raw.cachedFullValue = build();
+      raw.cachedFullValueVersion = version;
+    }
+    return raw.cachedFullValue;
+  }
+
+  /**
+   * What `child` puts into this container's `value` or `fullValue`: its value or full value, `null` for a child that
+   * sends `null`, and `Omitted` for one that sends nothing.
+   */
+  protected sent(child: FieldBase, purpose: 'value' | 'fullValue'): unknown {
+    const sends = this.childSerializesAs(child, purpose);
+    if (sends === 'omit') return Omitted;
+    if (purpose === 'fullValue') return child.fullValue;
+    return sends === 'null' ? null : child.value;
+  }
+
+  /**
+   * Resets the errors and the members, records the baseline and revalidates the whole subtree. The subclass resets
+   * its members in `resetMembers()`.
+   */
+  protected resetTo(source: FieldBase, value: any): void {
+    transactional((tx) => {
+      tx.touch(this);
+      if (this.errors.length) this.errors = [];
+      this.resetMembers(source, value);
+      this.recordBaseline();
+      this.members.forEach((child) => child.validate(true));
+      super.validate(true);
+    });
+  }
+
+  /** Resets the members to a new binding of `source` with `value`, as `resetTo()` does for the container. */
+  protected abstract resetMembers(source: FieldBase, value: any): void;
+
+  protected recordBaseline(): void {
+    // a reset container announces nothing itself: the container that reset it announces the change
+    this.recordAnnounced();
+    this.originalValue = this.copyValue(this.value);
+  }
+
+  /**
+   * A copy of a built value, used as a baseline. The value getter returns one object per version, and a baseline
+   * holding that same object would make every value equal to its original.
+   */
+  protected abstract copyValue(value: T): T;
 
   /** The action `confirm()` or `reject()` executes, or undefined. */
   private command(kind: 'confirm' | 'reject'): Action | undefined {
@@ -195,6 +278,19 @@ export abstract class Container<T = any, X extends object = Extras> extends Fiel
     if (!read) {
       read = computed(() => this.children.some((child) => child.busy));
       busyReads.set(this, read);
+    }
+    return read.value;
+  }
+
+  /**
+   * The composed value of `touched`, memoised by Vue: the computed skips the walk while nothing it read has changed,
+   * and a child that is a container reads its own computed.
+   */
+  private get touchedRead(): boolean {
+    let read = touchedReads.get(this);
+    if (!read) {
+      read = computed(() => this.children.some((child) => child.touched));
+      touchedReads.set(this, read);
     }
     return read.value;
   }

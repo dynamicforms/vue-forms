@@ -12,39 +12,36 @@ import type { Group } from './group';
  */
 
 /**
- * Returns the record an element belongs to: the `List` row that holds it, or the top of its container chain if no
- * row does. A List holds a row without a name and a `Group` names every member, so a record begins at the first
- * element without a `fieldName`.
+ * Returns the record an element belongs to and the names leading from that record down to the element. A List holds
+ * a row without a name and a `Group` names every member, so a record begins at the first element without a
+ * `fieldName`; an element with no such element above it belongs to the top of its container chain.
  */
-export function scopeOf(element: FieldBase): FieldBase {
+function recordPath(element: FieldBase): { record: FieldBase; path: string[] } {
+  const path: string[] = [];
   let current = element;
-  while (current.fieldName !== undefined && current.parent) current = current.parent;
-  return current;
+  while (current.fieldName !== undefined && current.parent) {
+    path.push(current.fieldName);
+    current = current.parent;
+  }
+  return { record: current, path: path.reverse() };
+}
+
+/** Returns the record an element belongs to: the `List` row that holds it, or the top of its container chain. */
+export function scopeOf(element: FieldBase): FieldBase {
+  return recordPath(element).record;
 }
 
 /**
  * Returns the member of `record` whose declaration is `declaration`, or `undefined` if the record holds none. It is
- * located by path: the record is walked down the names that lead from the declaration's own record to the
- * declaration.
+ * located by `path`, the names that lead from the declaration's own record to the declaration.
  */
-function memberOf(record: FieldBase, declaration: FieldBase): FieldBase | undefined {
+function memberOf(record: FieldBase, declaration: FieldBase, path: readonly string[]): FieldBase | undefined {
   let resolved: FieldBase | undefined = record;
-  for (const name of pathOf(declaration)) {
+  for (const name of path) {
     resolved = (resolved as Group).field?.(name) ?? undefined;
     if (!resolved) return undefined;
   }
   return resolved?.declaration === declaration ? resolved : undefined;
-}
-
-/** The names leading from an element's record down to the element. */
-function pathOf(element: FieldBase): string[] {
-  const path: string[] = [];
-  let current = element;
-  while (current.fieldName !== undefined && current.parent) {
-    path.unshift(current.fieldName);
-    current = current.parent;
-  }
-  return path;
 }
 
 /**
@@ -56,7 +53,8 @@ function pathOf(element: FieldBase): string[] {
  *   is.
  */
 export function resolveInScope(declaration: FieldBase, scope: FieldBase): FieldBase | undefined {
-  const withinRecord = memberOf(scope, declaration);
+  const { record: declarationRecord, path } = recordPath(declaration);
+  const withinRecord = memberOf(scope, declaration, path);
   if (withinRecord) return withinRecord;
 
   // the record holds no member with this declaration, so it belongs to an enclosing record. A list nested in a row
@@ -64,14 +62,14 @@ export function resolveInScope(declaration: FieldBase, scope: FieldBase): FieldB
   // is searched before the element is treated as one that every record reads
   let enclosing = scope.parent;
   while (enclosing) {
-    const bound = memberOf(scopeOf(enclosing), declaration);
+    const bound = memberOf(scopeOf(enclosing), declaration, path);
     if (bound) return bound;
     enclosing = enclosing.parent;
   }
 
   // no enclosing container holds a binding of it either. Either it is the one element every record reads (a form
   // field above a list), or the record has the same declaration and is still being assembled
-  return scopeOf(declaration) === scopeOf(scope.declaration) ? undefined : declaration;
+  return declarationRecord === scopeOf(scope.declaration) ? undefined : declaration;
 }
 
 /**

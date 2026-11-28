@@ -2,8 +2,8 @@ import { isPlainObject } from 'lodash-es';
 
 import { ListItemAddedAction, ListItemRemovedAction } from './actions';
 import { Container } from './container';
-import { type ListSlots, listSlots, ReorderRows } from './element-state';
-import { Field } from './field';
+import { elementFromData } from './element-from-data';
+import { type ListSlots, listSlots, Omitted, ReorderRows } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
 import { Group } from './group';
@@ -61,11 +61,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     // construction is one transaction, so all rows are in place before anything is announced
     transactional(() => {
       if (params) {
-        const { value: paramValue, validators, actions, ...otherParams } = params;
-        // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
-        // also applies to those assignments
-        this.registerInitialActions([...(validators || []), ...(actions || [])]);
-        this.assignParams(otherParams);
+        const paramValue = this.applyParams(params);
 
         // the value is assigned only if supplied, and undefined counts as not supplied (spreading an optional
         // property yields undefined), so a list declared with only an originalValue takes its rows from it. An
@@ -76,7 +72,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
 
       this.constructed(params);
 
-      if (this.originalValue === undefined) this.originalValue = List.baseline(this.value);
+      if (this.originalValue === undefined) this.originalValue = this.copyValue(this.value);
       // the rows a construction ends with are the list's initial state, not a change, so the commit that closes
       // the construction announces nothing for them
       this.recordAnnounced();
@@ -92,12 +88,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     return captured;
   }
 
-  /**
-   * A copy of a built value, used as a baseline. The value getter returns one array per version, and a baseline
-   * holding that same array would make every value equal to its original.
-   */
-  private static baseline<V extends any[] | null>(value: V): V {
-    return (value == null ? value : [...value]) as V;
+  protected copyValue(value: ListValue<R>): ListValue<R> {
+    return value == null ? value : [...value];
   }
 
   private processSetValueItem(item: any): R {
@@ -105,7 +97,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     // an item that is already an element is used as is, and data is bound to the item template
     if (item instanceof FieldBase) res = item as R;
     else if (this._itemTemplate) res = this._itemTemplate.bind(item) as R;
-    else res = List.elementFor(item) as R;
+    else res = elementFromData(item) as R;
 
     // an item that already belongs to a container throws here; one this list released earlier has no parent link
     // and is taken like any other
@@ -115,16 +107,6 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     this.completeRecords(res);
 
     return res;
-  }
-
-  /**
-   * The row a list without an item template builds from `item`: a `Group` of fields from a plain object, a `List`
-   * from an array, and a `Field` holding anything else.
-   */
-  private static elementFor(item: unknown): FieldBase {
-    if (isPlainObject(item)) return Group.createFromFormData(item as Record<string, any>);
-    if (Array.isArray(item)) return new List(undefined, { value: item });
-    return new Field({ value: item });
   }
 
   /**
@@ -217,30 +199,21 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
   }
 
   get value(): ListValue<R> {
-    // the version read is tracked and the cache read is not, so a reader served from the cache still depends on
-    // every write below this list, without repeating the walk over its rows
-    const version = this.valueVersion;
-    if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
+    return this.cachedComposed('value', () => this.compose('value'));
+  }
 
-    const value: unknown[] = [];
+  /**
+   * Builds `value` or `fullValue` from what each row sends. The array is shared with later readers, so it is frozen,
+   * as is every row object in it; a write into either would change the list's value without any row holding that
+   * value. A list without rows returns [].
+   */
+  private compose(purpose: 'value' | 'fullValue'): any {
+    const composed: unknown[] = [];
     (this.rows ?? []).forEach((row) => {
-      switch (this.childSerializesAs(row, 'value')) {
-        case 'value':
-          value.push(row.value);
-          break;
-        case 'null':
-          value.push(null);
-          break;
-        case 'omit':
-          break;
-      }
+      const sent = this.sent(row, purpose);
+      if (sent !== Omitted) composed.push(sent);
     });
-    // the array is shared with later readers, so it is frozen, as is every row object in it; a write into either
-    // would change the list's value without any row holding that value. A list without rows returns [].
-    const built = (value.length ? Object.freeze(value) : emptyListValue) as ListValue<R>;
-    this.raw.cachedValue = built;
-    this.raw.cachedValueVersion = version;
-    return built;
+    return composed.length ? Object.freeze(composed) : emptyListValue;
   }
 
   set value(newValue: ListValueInput<R>) {
@@ -255,20 +228,8 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
    * If no value is supplied, the rows are taken from `source`, so a list nested in a row reused by a whole-list
    * assignment ends up with the item template's rows, not its previous ones.
    */
-  protected resetTo(source: FieldBase, value: any): void {
-    transactional((tx) => {
-      tx.touch(this);
-      if (this.errors.length) this.errors = [];
-      this.setValueInternal(value === undefined ? (source as List<R>).fullValue : value);
-      this.recordBaseline();
-      super.validate(true);
-    });
-  }
-
-  protected recordBaseline(): void {
-    // a reset list announces nothing itself: the container that reset it announces the change
-    this.recordAnnounced();
-    this.originalValue = List.baseline(this.value);
+  protected resetMembers(source: FieldBase, value: any): void {
+    this.setValueInternal(value === undefined ? (source as List<R>).fullValue : value);
   }
 
   bind(data?: ListValueInput<R>, overrides?: IBindParams<ListValueInput<R>, X>): List<R, X> {
@@ -277,14 +238,12 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
     const Ctor = this.constructor as new (itemTemplate?: R, params?: IFieldParams<ListValueInput<R>, X>) => List<R, X>;
     const res = asBinding(
       () =>
-        new Ctor(template, {
+        new Ctor(
+          template,
           // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
           // the list holds (fullValue), not what it sends, so a row that sends nothing keeps its data
-          value: [...((data !== undefined ? data : this.fullValue) ?? [])],
-          ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-          access: overrides?.access ?? this.access,
-          visibility: overrides?.visibility ?? this.visibility,
-        } as IFieldParams<ListValueInput<R>, X>),
+          this.bindingParams<ListValueInput<R>>([...((data !== undefined ? data : this.fullValue) ?? [])], overrides),
+        ),
     );
     // a subclass whose constructor does not take (itemTemplate, params) ignores both and would return a list built
     // from its own declaration instead of this record. The difference would not be visible, so it throws here.
@@ -323,9 +282,7 @@ export class List<R extends FieldBase = Group, X extends object = Extras> extend
    * whatever its access, and every field of a group row. A binding or a reset copies it.
    */
   get fullValue(): ListFullValue<R> {
-    return (this.rows ?? [])
-      .filter((row) => this.childSerializesAs(row, 'fullValue') !== 'omit')
-      .map((row) => row.fullValue);
+    return this.cachedComposed('fullValue', () => this.compose('fullValue'));
   }
 
   /**

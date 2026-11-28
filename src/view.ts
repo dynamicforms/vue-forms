@@ -84,7 +84,8 @@ function special(key: string | symbol): { answered: boolean; value?: unknown } {
 function groupHandler(group: Group<any, any>): ProxyHandler<object> {
   const memberOf = (key: string | symbol) =>
     typeof key === 'string' && key !== '$' ? (group.field(key) ?? undefined) : undefined;
-  const dataKeys = () => Object.keys(group.fields);
+  // `in` on the fields proxy tracks the set of members, and the fields object has no prototype
+  const isDataKey = (key: string | symbol): key is string => typeof key === 'string' && key in group.fields;
   return {
     get(target, key) {
       const answered = special(key);
@@ -102,13 +103,13 @@ function groupHandler(group: Group<any, any>): ProxyHandler<object> {
       return true;
     },
     has(target, key) {
-      return key === '$' || (typeof key === 'string' && dataKeys().includes(key));
+      return key === '$' || isDataKey(key);
     },
     ownKeys() {
-      return dataKeys();
+      return Object.keys(group.fields);
     },
     getOwnPropertyDescriptor(target, key) {
-      if (typeof key !== 'string' || !dataKeys().includes(key)) return undefined;
+      if (!isDataKey(key)) return undefined;
       return { value: slotOf(group.fields[key]), writable: true, enumerable: true, configurable: true };
     },
     deleteProperty(target, key) {
@@ -134,25 +135,22 @@ function listView(list: List<any, any>): unknown[] {
       list[ReorderRows](rows);
     });
 
+  /** removes the row at `index` and returns its slot; undefined if there is no such row */
+  const removeAt = (index: number): unknown => {
+    const row = shown()[index];
+    if (!row) return undefined;
+    const slot = slotOf(row);
+    list.remove(index);
+    return slot;
+  };
+
   const mutations: Record<string, (...args: any[]) => unknown> = {
     push: (...items: unknown[]) => {
       transaction(() => items.forEach((item) => list.push(unwrap(item))));
       return shown().length;
     },
-    pop: () => {
-      const rows = shown();
-      if (!rows.length) return undefined;
-      const slot = slotOf(rows[rows.length - 1]);
-      list.remove(list.items.indexOf(rows[rows.length - 1]));
-      return slot;
-    },
-    shift: () => {
-      const rows = shown();
-      if (!rows.length) return undefined;
-      const slot = slotOf(rows[0]);
-      list.remove(list.items.indexOf(rows[0]));
-      return slot;
-    },
+    pop: () => removeAt(shown().length - 1),
+    shift: () => removeAt(0),
     unshift: (...items: unknown[]) => {
       transaction(() => {
         const at = positionOf(0);
@@ -173,7 +171,7 @@ function listView(list: List<any, any>): unknown[] {
         else if (args.length > 1) count = Math.max(0, Math.min(toInteger(deleteCount), rows.length - from));
         rows.slice(from, from + count).forEach((row) => {
           removed.push(slotOf(row));
-          list.remove(list.items.indexOf(row));
+          list.remove(from);
         });
         const at = positionOf(from);
         items.forEach((item, offset) => list.insert(unwrap(item), at + offset));
@@ -230,7 +228,9 @@ function listView(list: List<any, any>): unknown[] {
           throw new RangeError('Invalid array length');
         const rows = shown();
         if (length > rows.length) throw new TypeError('a list view grows by push(), not by its length');
-        transaction(() => rows.slice(length).forEach((row) => list.remove(list.items.indexOf(row))));
+        transaction(() => {
+          for (let count = rows.length - length; count > 0; count--) list.remove(length);
+        });
         return true;
       }
       if (isIndex(key)) {

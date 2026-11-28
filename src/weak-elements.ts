@@ -1,3 +1,14 @@
+/** The objects `refs` still references, in insertion order; removes the references to the others from `refs`. */
+export function liveRefs<T extends object>(refs: Set<WeakRef<T>>): T[] {
+  const found: T[] = [];
+  refs.forEach((ref) => {
+    const element = ref.deref();
+    if (element) found.push(element);
+    else refs.delete(ref);
+  });
+  return found;
+}
+
 /**
  * A set of objects held weakly that can be iterated: an object is released when nothing else references it, and
  * `alive` returns the ones that remain.
@@ -28,12 +39,6 @@ export class WeakElements<T extends object> {
 
   /** The objects that are still referenced, in the order they were added; removes the references to the others. */
   get alive(): T[] {
-    const found: T[] = [];
-    this.refs.forEach((ref) => {
-      const element = ref.deref();
-      if (element) found.push(element);
-      else this.refs.delete(ref);
-    });
-    return found;
+    return liveRefs(this.refs);
   }
 }

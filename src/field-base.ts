@@ -22,7 +22,7 @@ import {
   NoErrorsBaseline,
   RemoveErrorsOnSubmit,
 } from './element-state';
-import { AbortEventHandlingException, type Extras, IBindParams } from './field.interface';
+import { AbortEventHandlingException, type Extras, IBindParams, type IFieldParams } from './field.interface';
 import { elementAdopted, elementCreated, pipeOriginalValue } from './plugins';
 import {
   currentTransaction,
@@ -47,6 +47,7 @@ import {
 } from './validators/error-policy';
 import { type ErrorOrigin, ValidationError } from './validators/validation-error';
 import { isVisibility, type Visibility, visibilityValues } from './visibility';
+import { liveRefs } from './weak-elements';
 
 /** The references to the bindings made from one declaration, and when the dead ones were last removed. */
 interface BindingsMade {
@@ -74,12 +75,7 @@ const abandonedReleasedAt = new WeakMap<ActionsMap, number>();
 
 /** Removes the references whose binding was collected and returns the live bindings. */
 function sweep(made: BindingsMade): FieldBase[] {
-  const alive: FieldBase[] = [];
-  made.refs.forEach((ref) => {
-    const binding = ref.deref();
-    if (!binding) made.refs.delete(ref);
-    else alive.push(binding);
-  });
+  const alive = liveRefs(made.refs);
   made.sweptAt = Date.now();
   return alive;
 }
@@ -116,6 +112,9 @@ const ruled = (error: ValidationError) => error.origin !== 'validator';
 
 /** What an element with `access` sends: its value, `null` or nothing. `'editable'` and `'readonly'` send the same. */
 const sendsAs = (access: Access) => (access === 'disabled' ? 'omit' : access === 'disabled-null' ? 'null' : 'value');
+
+/** Whether a container with `access` sends none of its members: true where it does not send its value. */
+const blocksBelow = (access: Access) => sendsAs(access) !== 'value';
 
 /**
  * Throws a TypeError for a parameter object that contains `enabled`. `enabled` is read from `access` and has no
@@ -290,6 +289,30 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (!accessorOf(this, key)) extended[key] = value;
     });
     return extended as Partial<X>;
+  }
+
+  /** Applies a constructor's parameter object except `value` and the keys in `exclude`, and returns its `value`. */
+  protected applyParams<V>(params: IFieldParams<V, X>, exclude: readonly string[] = []): V | undefined {
+    const { value, validators, actions, ...otherParams } = params;
+    // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied here
+    // also applies to those assignments
+    this.registerInitialActions([...(validators || []), ...(actions || [])]);
+    exclude.forEach((key) => delete (otherParams as Record<string, unknown>)[key]);
+    this.assignParams(otherParams);
+    return value;
+  }
+
+  /**
+   * The parameter object a binding is constructed with: `value`, `originalValue` when `overrides` has the key, and
+   * `access` and `visibility` from `overrides`, else from this element.
+   */
+  protected bindingParams<V>(value: V, overrides?: IBindParams<any, X>): IFieldParams<V, X> {
+    return {
+      value,
+      ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
+      access: overrides?.access ?? this.access,
+      visibility: overrides?.visibility ?? this.visibility,
+    } as IFieldParams<V, X>;
   }
 
   /**
@@ -815,10 +838,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       }
       tx.touch(child);
       child.#state.fieldName = fieldName;
-      // below an editable container every element keeps its own effective access, so only a container that narrows
-      // access needs the check
-      const narrowing = this.effectiveAccess !== 'editable';
-      const detached = narrowing ? child.effectiveAccessFromHere() : undefined;
+      // only a container that sends none of its members changes what the elements below it send
+      const detached = blocksBelow(this.effectiveAccess) ? child.effectiveAccessFromHere() : undefined;
       // this is a Container: only a container holds children
       child.#state.parent = this as unknown as Container;
       // the containers above now determine what the child sends, so elements whose effective access changed are
@@ -857,9 +878,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       tx.touch(this);
       tx.touch(child);
       if (!child.#raw.valid && child.countsInContainer) this.#raw.invalidChildren--;
-      // released from a container that narrowed its access, the child is validated again where its effective
-      // access changed
-      const attached = this.effectiveAccess !== 'editable' ? child.effectiveAccessFromHere() : undefined;
+      // released from a container that sent none of its members, the child is validated again where what it sends
+      // changed
+      const attached = blocksBelow(this.effectiveAccess) ? child.effectiveAccessFromHere() : undefined;
       // the undo reads the child at rollback time, as in adoptChild: after the rollback this element counts the runs
       // the child has in flight at that time
       if (child.validating) this.childValidatingChanged(false);
@@ -957,6 +978,26 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   protected childValidityChanged(nowValid: boolean): void {}
 
+  /**
+   * Asks the `ActionClass` handlers about a write of `newValue` over `oldValue` and returns the value to write, or
+   * undefined where the write does not happen: a handler aborted the run or returned `oldValue`. A returned value that
+   * `isValid` rejects throws an Error naming it as not `noun` and listing `values`.
+   */
+  private askChanging<V extends string>(
+    ActionClass: (abstract new (...args: any[]) => FieldActionBase) & { classIdentifier: symbol },
+    newValue: V,
+    oldValue: V,
+    isValid: (value: unknown) => value is V,
+    noun: string,
+    values: readonly string[],
+  ): V | undefined {
+    const alteredValue = this.boundActions?.trigger(ActionClass, this, newValue, oldValue);
+    if (alteredValue instanceof AbortEventHandlingException) return undefined;
+    const written = alteredValue ?? newValue;
+    if (!isValid(written)) throw new Error(`${describe(written)} is not ${noun}: ${listOf(values)}`);
+    return written === oldValue ? undefined : written;
+  }
+
   // default property handlers
   /**
    * How a rendering layer shows this element. It affects presentation only: what the element sends and whether it
@@ -972,14 +1013,17 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     // transaction, no *Changed* event. The value setter follows the same rule
     if (newValue === oldValue) return;
     transactional((tx) => {
-      const alteredValue = this.boundActions?.trigger(VisibilityChangingAction, this, newValue, oldValue);
-      // a handler that aborted the run cancels the write: nothing is written and nothing is announced
-      if (alteredValue instanceof AbortEventHandlingException) return;
-      const written = alteredValue ?? newValue;
-      if (!isVisibility(written))
-        throw new Error(`${describe(written)} is not a visibility: ${listOf(visibilityValues)}`);
-      // a handler that returned the current value refused the write
-      if (written === oldValue) return;
+      // a handler that aborted the run or returned the current value cancels the write: nothing is written and
+      // nothing is announced
+      const written = this.askChanging(
+        VisibilityChangingAction,
+        newValue,
+        oldValue,
+        isVisibility,
+        'a visibility',
+        visibilityValues,
+      );
+      if (written === undefined) return;
       tx.touch(this);
       // the commit announces the net change: the value before the transaction's first write against the last one
       if (this.#raw.announcedVisibility === undefined) this.#raw.announcedVisibility = oldValue;
@@ -1004,13 +1048,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     // as with visibility: writing the current value is not a change, and nothing runs
     if (newValue === oldValue) return;
     transactional((tx) => {
-      const alteredValue = this.boundActions?.trigger(AccessChangingAction, this, newValue, oldValue);
-      // as with visibility: a handler that aborted the run cancels the write
-      if (alteredValue instanceof AbortEventHandlingException) return;
-      const written = alteredValue ?? newValue;
-      if (!isAccess(written)) throw new Error(`${describe(written)} is not an access: ${listOf(accessValues)}`);
-      // a handler that returned the current access cancels the write
-      if (written === oldValue) return;
+      // as with visibility: a handler that aborted the run or returned the current access cancels the write
+      const written = this.askChanging(AccessChangingAction, newValue, oldValue, isAccess, 'an access', accessValues);
+      if (written === undefined) return;
       const wasEnabled = this.enabled;
       const willBeEnabled = written === 'editable';
       if (willBeEnabled !== wasEnabled) {
@@ -1024,19 +1064,25 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
         if (enabledAnswer === wasEnabled) return;
       }
       tx.touch(this);
-      const oldContribution = this.contribution;
-      const counted = this.countsInContainer;
-      const below = this.effectiveAccessBelow();
+      const sendsDifferently = sendsAs(oldValue) !== sendsAs(written);
+      const oldContribution = sendsDifferently && !this.composesValue ? this.contribution : undefined;
+      const counted = sendsDifferently && this.countsInContainer;
+      // what the elements below send changes only where this element starts or stops blocking them, and only if no
+      // container above already blocks them
+      const below =
+        blocksBelow(oldValue) !== blocksBelow(written) && !(this.parent && blocksBelow(this.parent.effectiveAccess))
+          ? this.effectiveAccessBelow()
+          : undefined;
       this.#state.access = written;
-      this.revalidateWhereChanged(below);
-      // a leaf's validators run here, over what it now sends; a container's run at the commit, where what it sends
-      // is composed
-      if (!this.composesValue && sendsAs(oldValue) !== sendsAs(written)) {
-        this.boundActions?.triggerEager(this, this.contribution, oldContribution);
+      if (below) this.revalidateWhereChanged(below);
+      if (sendsDifferently) {
+        // a leaf's validators run here, over what it now sends; a container's run at the commit, where what it sends
+        // is composed
+        if (!this.composesValue) this.boundActions?.triggerEager(this, this.contribution, oldContribution);
+        // the commit compares the element's contribution and that of every container above it again; what any of
+        // them holds did not change
+        this.contributionChanged(tx, counted);
       }
-      // the commit compares the element's contribution and that of every container above it again; what any of
-      // them holds did not change
-      this.contributionChanged(tx, counted);
       if (this.#raw.announcedAccess === undefined) this.#raw.announcedAccess = oldValue;
       tx.markFlagsDirty(this);
     });
@@ -1055,7 +1101,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   get effectiveAccess(): Access {
     const own = this.access;
     const above = this.parent?.effectiveAccess;
-    if (above === 'disabled' || above === 'disabled-null') return 'disabled';
+    if (above !== undefined && blocksBelow(above)) return 'disabled';
     if (above === 'readonly' && own === 'editable') return 'readonly';
     return own;
   }
@@ -1068,7 +1114,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   [SentNowhere](): boolean {
     if (this.#raw.access === 'disabled') return true;
     for (let above = this.#raw.parent; above; above = above.#raw.parent) {
-      if (above.#raw.access === 'disabled' || above.#raw.access === 'disabled-null') return true;
+      if (blocksBelow(above.#raw.access)) return true;
     }
     return false;
   }
@@ -1129,15 +1175,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * whatever a container holds below it.
    */
   protected serializesAs(purpose: 'value' | 'fullValue'): 'value' | 'null' | 'omit' {
-    if (purpose === 'fullValue') return 'value';
-    switch (this.access) {
-      case 'disabled':
-        return 'omit';
-      case 'disabled-null':
-        return 'null';
-      default:
-        return 'value';
-    }
+    return purpose === 'fullValue' ? 'value' : sendsAs(this.access);
   }
 
   /** What `child` sends to this container; a protected-access bridge like `childComposesValue`. */
@@ -1217,6 +1255,21 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     return child.composesValue;
   }
 
+  /** Whether the commit compares what the element holds: always for a leaf, for a container only for a listener. */
+  private get announcesHeld(): boolean {
+    return !this.composesValue || !!this.boundActions?.willTrigger(ValueChangedActionClassIdentifier);
+  }
+
+  /** Whether the commit compares what the element sends: only for a `ContributionChangedAction` listener. */
+  private get announcesContribution(): boolean {
+    return !!this.boundActions?.willTrigger(ContributionChangedActionClassIdentifier);
+  }
+
+  /** Whether the commit runs the element's validators over what it sends: only on a container with eager actions. */
+  private get validatesComposed(): boolean {
+    return this.composesValue && !!this.boundActions?.hasEager;
+  }
+
   /**
    * Announces what this element holds and what it sends at the end of the transaction. Each pair is (now, at the
    * last announcement), so a value that went A -> B -> A within the transaction is not announced. Events that
@@ -1234,20 +1287,20 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
     const same = (a: unknown, b: unknown) => (composes ? isEqual(a, b) : a === b);
 
     // a container composes what it sends only where its validators read it
-    if (composes && actions?.hasEager) {
+    if (this.validatesComposed) {
       const sent = this.contribution;
       const validated = this.#raw.validatedValue;
       if (force || !isEqual(sent, validated)) {
         tx.touch(this);
         this.#raw.validatedValue = sent;
-        actions.triggerEager(this, sent, validated);
+        actions?.triggerEager(this, sent, validated);
       }
     }
 
     // what a container holds is composed only if something receives it; a leaf's is its value, with no composition.
     // The announced value is recorded before the event: a change a handler makes is a change of its own, compared
     // against this announcement
-    if (!composes || actions?.willTrigger(ValueChangedActionClassIdentifier)) {
+    if (this.announcesHeld) {
       const held = this.holding;
       const announced = this.#raw.announcedValue;
       if (force || !same(held, announced)) {
@@ -1257,13 +1310,13 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       }
     }
 
-    if (actions?.willTrigger(ContributionChangedActionClassIdentifier)) {
+    if (this.announcesContribution) {
       const contribution = this.contribution;
       const announced = this.#raw.announcedContribution;
       if (!same(contribution, announced)) {
         tx.touch(this);
         this.#raw.announcedContribution = contribution;
-        actions.trigger(ContributionChangedAction, this, contribution, announced);
+        actions?.trigger(ContributionChangedAction, this, contribution, announced);
       }
     }
   }
@@ -1275,13 +1328,9 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   protected recordAnnounced(): void {
     // a baseline is composed only if something receives the announcement it is compared for; a registration that
     // adds a listener later re-reads it (refreshPreviousValue), and a leaf's value needs no composition
-    const actions = this.boundActions;
-    if (!this.composesValue || actions?.willTrigger(ValueChangedActionClassIdentifier)) {
-      this.#raw.announcedValue = this.holding;
-    }
-    if (actions?.willTrigger(ContributionChangedActionClassIdentifier))
-      this.#raw.announcedContribution = this.contribution;
-    if (this.composesValue && actions?.hasEager) this.#raw.validatedValue = this.contribution;
+    if (this.announcesHeld) this.#raw.announcedValue = this.holding;
+    if (this.announcesContribution) this.#raw.announcedContribution = this.contribution;
+    if (this.validatesComposed) this.#raw.validatedValue = this.contribution;
     // errors given as a construction parameter are assigned before the value is in place: the value they describe
     // is the one the element ends with, recorded at the next read of its errors
     this.#raw.errorsBaseline = NoErrorsBaseline;
@@ -1402,13 +1451,7 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
   }
 
   registerAction(action: FieldActionBase): this {
-    transactional((tx) => {
-      // the baseline of a change the transaction has yet to announce is kept: the element is already enrolled to
-      // announce that change, and moving the baseline to the current value would cancel the announcement
-      if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
-      this.register(tx, action);
-    });
-    return this;
+    return this.registerKeepingBaseline(action);
   }
 
   /**
@@ -1417,7 +1460,14 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
    * do. `before` must be registered on this element under the same identifier.
    */
   registerActionBefore(action: FieldActionBase, before: FieldActionBase): this {
+    return this.registerKeepingBaseline(action, before);
+  }
+
+  /** Registers `action`, wrapped by `before` if given, in a transaction. */
+  private registerKeepingBaseline(action: FieldActionBase, before?: FieldActionBase): this {
     transactional((tx) => {
+      // the baseline of a change the transaction has yet to announce is kept: the element is already enrolled to
+      // announce that change, and moving the baseline to the current value would cancel the announcement
       if (!tx.willAnnounceValue(this)) this.refreshPreviousValue();
       this.register(tx, action, before);
     });
@@ -1437,18 +1487,29 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (!actions) return;
       const previous = actions.registrations;
       dropped = actions.unregister(action);
-      if (!dropped) return;
-      // the action served the declaration and every binding made from it, so it is released from all of them. The
-      // undo restores the registrations as they were, so the handlers keep their order and a duplicate registration
-      // of the instance is restored too
-      const elements = this.boundElements;
-      tx.whenRolledBack(() => {
-        actions.restore(previous);
-        elements.forEach((element) => action.boundToBinding(element));
-      });
-      elements.forEach((element) => action.unregisterFrom(element));
+      if (dropped) this.releaseFromBindings(tx, actions, [action], previous);
     });
     return dropped;
+  }
+
+  /**
+   * Releases `released`, already unregistered from `actions`, from the declaration and every binding made from it,
+   * and registers an undo that restores `previous`, the registrations before the release. The restore keeps the
+   * handlers' order and a duplicate registration of an instance. Each release names the element, because the same
+   * instance stays registered on elements of other declarations; a validator removes the errors it put on it.
+   */
+  private releaseFromBindings(
+    tx: Transaction,
+    actions: ActionsMap,
+    released: FieldActionBase[],
+    previous: readonly FieldActionBase[],
+  ): void {
+    const elements = this.boundElements;
+    tx.whenRolledBack(() => {
+      actions.restore(previous);
+      released.forEach((action) => elements.forEach((element) => action.boundToBinding(element)));
+    });
+    released.forEach((action) => elements.forEach((element) => action.unregisterFrom(element)));
   }
 
   /**
@@ -1511,15 +1572,8 @@ export abstract class FieldBase<T = any, X extends object = Extras> {
       if (actions) {
         const previous = actions.registrations;
         const validators = actions.validators;
-        const elements = this.boundElements;
         validators.forEach((validator) => actions.unregister(validator));
-        tx.whenRolledBack(() => {
-          actions.restore(previous);
-          validators.forEach((validator) => elements.forEach((element) => validator.boundToBinding(element)));
-        });
-        // each validator removes the errors it put on every element it validated. Each release names the element,
-        // because the same instance stays registered on elements of other declarations
-        validators.forEach((validator) => elements.forEach((element) => validator.unregisterFrom(element)));
+        this.releaseFromBindings(tx, actions, validators, previous);
       }
       this.errors = [];
       // the errors are cleared before the recomputation, so the commit computes validity over the cleared state and

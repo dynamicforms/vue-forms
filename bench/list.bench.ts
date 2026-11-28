@@ -1,5 +1,7 @@
 import { bench, describe } from 'vitest';
 
+import { ValueChangedAction } from '../src/actions/value-changed-action';
+import type { Group } from '../src/group';
 import { List } from '../src/list';
 
 import {
@@ -15,8 +17,10 @@ import {
 } from './fixtures';
 
 /*
- * Scenario ids: S1a bulk build, S1b push build, S2a single-field write, S3 remove, S4a and S4b
- * whole-list assignment, S6 the validity read. Every scenario runs over both fixture variants.
+ * Scenario ids: S1a bulk build, S1b push build, S2a single-field write, S2b single-field write with a
+ * ValueChangedAction on the list, S3 remove, S4a and S4b whole-list assignment, S4c whole-list assignment with a
+ * ValueChangedAction on f0 that writes f7 of the same row, S6 the validity read, S7 the access toggle between editable
+ * and readonly. Every scenario runs over both fixture variants.
  *
  * Sample counts are set per scenario instead of by elapsed time, because one sample of S1b costs seconds. A
  * benchmark function is called once before the timed loop and once before the warmup loop without a sample being
@@ -33,20 +37,41 @@ const READ = { time: 0, iterations: 100, warmupTime: 0, warmupIterations: 20 };
 
 /**
  * Holds the fixture of the scenario currently running and drops the one before it, so a benchmark file that
- * covers seven scenarios over two variants keeps one 1000-row list alive rather than fourteen.
+ * covers nine scenarios over two variants keeps one 1000-row list alive rather than eighteen.
  */
 let current: { key: string; list: List } | null = null;
 
-function fixtureList(key: string, variant: FixtureVariant): List {
-  if (current?.key !== key) current = { key, list: createList(variant, ROW_COUNT) };
+function fixtureList(
+  key: string,
+  variant: FixtureVariant,
+  setup?: (list: List) => void,
+  build: (variant: FixtureVariant) => List = (v) => createList(v, ROW_COUNT),
+): List {
+  if (current?.key !== key) {
+    current = { key, list: build(variant) };
+    setup?.(current.list);
+  }
   return current.list;
 }
 
 /** the rows every scenario assigns from; built once, because the scenarios measure the list, not the data */
 const rows: Record<string, RowValue[]> = {
   same: createRows(ROW_COUNT),
+  other: createRows(ROW_COUNT, 'b'),
   longer: createRows(ROW_COUNT + 1),
 };
+
+/** the fixture list whose f0 carries a second ValueChangedAction that writes f7 of the same row */
+function createSiblingWritingList(variant: FixtureVariant): List {
+  const template = createItemTemplate(variant);
+  template.fields.f0.registerAction(
+    new ValueChangedAction((field, supr, newValue, oldValue) => {
+      (field.parent as Group).fields.f7.value = `computed-${newValue}`;
+      supr(field, newValue, oldValue);
+    }),
+  );
+  return new List(template, { value: rows.same });
+}
 
 /** counter behind every write, so no assignment is a no-op the value setter can return from */
 let writes = 0;
@@ -97,6 +122,22 @@ describe('S2a write one field in row 500 of a 1000-row list, nothing mounted', (
   });
 });
 
+describe('S2b write one field in row 500 of a 1000-row list with a ValueChangedAction on the list', () => {
+  variants.forEach((variant) => {
+    bench(
+      variant,
+      () => {
+        const list = fixtureList(`S2b-${variant}`, variant, (built) => {
+          built.registerAction(new ValueChangedAction(() => undefined));
+        });
+        writes += 1;
+        list.get(TARGET_ROW)!.fields[TARGET_FIELD].value = `w-${writes}`;
+      },
+      WRITE,
+    );
+  });
+});
+
 describe('S3 list.remove(500) on a 1000-row list', () => {
   variants.forEach((variant) => {
     // the list is one row shorter after every sample, so the scenario reports the average over a list shrinking
@@ -138,6 +179,21 @@ describe('S4b list.value = rows, different length', () => {
   });
 });
 
+describe('S4c list.value = rows, same length, with a ValueChangedAction on f0 that writes f7 of the row', () => {
+  variants.forEach((variant) => {
+    // the two arrays alternate, so f0 changes in every row and its action runs once per row
+    bench(
+      variant,
+      () => {
+        const list = fixtureList(`S4c-${variant}`, variant, undefined, createSiblingWritingList);
+        writes += 1;
+        list.value = writes % 2 === 0 ? rows.same : rows.other;
+      },
+      ASSIGN,
+    );
+  });
+});
+
 describe('S6 read list.valid on a 1000-row list', () => {
   variants.forEach((variant) => {
     bench(
@@ -159,6 +215,20 @@ describe('S6 write one field in row 500, then read list.valid', () => {
         writes += 1;
         list.get(TARGET_ROW)!.fields[TARGET_FIELD].value = `w-${writes}`;
         consume(list.valid);
+      },
+      WRITE,
+    );
+  });
+});
+
+describe('S7 list.access = readonly, then back to editable, on a 1000-row list', () => {
+  variants.forEach((variant) => {
+    bench(
+      variant,
+      () => {
+        const list = fixtureList(`S7-${variant}`, variant);
+        list.access = 'readonly';
+        list.access = 'editable';
       },
       WRITE,
     );

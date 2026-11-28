@@ -1,13 +1,11 @@
-import { isEmpty, isPlainObject } from 'lodash-es';
+import { isEmpty } from 'lodash-es';
 
 import type { Action } from './action';
 import { Container } from './container';
-import { type GroupSlots, groupSlots } from './element-state';
-import { Field } from './field';
+import { elementFromData } from './element-from-data';
+import { type GroupSlots, groupSlots, Omitted } from './element-state';
 import { FieldBase } from './field-base';
 import { type Extras, IBindParams, IFieldParams } from './field.interface';
-// list.ts imports this module as well; List is used only inside a call, after both modules are loaded
-import { List } from './list';
 import { asBinding } from './plugins';
 import { transactional, TxCapture, type TxSnapshot } from './transaction';
 import { refuseReservedName, viewedGroups } from './view-names';
@@ -46,13 +44,6 @@ export type FieldsToFullValues<T extends GenericFieldsInterface> = {
 export type GroupValue<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>>;
 /** what Group.value and the Group constructor accept: missing keys are not assigned, and null clears */
 export type GroupValueInput<T extends GenericFieldsInterface> = Partial<FieldsToValues<T>> | null;
-
-/** The element plain data is built into: a `Group` for a plain object, a `List` for an array, a `Field` otherwise. */
-function elementFromData(value: unknown): FieldBase {
-  if (isPlainObject(value)) return Group.createFromFormData(value as Record<string, any>);
-  if (Array.isArray(value)) return new List(undefined, { value });
-  return new Field({ value });
-}
 
 /**
  * The groups whose constructor is still adding and writing their members. A member's record is completed after the
@@ -144,11 +135,7 @@ export class Group<
         Object.entries(fields).forEach(([name, field]) => this.addField(name, field));
 
         if (params) {
-          const { value: paramValue, validators, actions, ...otherParams } = params;
-          // actions are registered before the remaining parameters are assigned, so a *Changing* action supplied
-          // here also applies to those assignments
-          this.registerInitialActions([...(validators || []), ...(actions || [])]);
-          this.assignParams(otherParams);
+          const paramValue = this.applyParams(params);
           // the value is assigned only if supplied, and undefined counts as not supplied (spreading an optional
           // property yields undefined): assigning it would write null into every member and record that cleared
           // state as the original, so the group would report itself unchanged over values its members never held.
@@ -170,7 +157,7 @@ export class Group<
 
       // reading value walks every member and builds an object, so it is read once here and reused below
       const constructedValue = this.value;
-      if (this.originalValue === undefined) this.originalValue = Group.baseline(constructedValue);
+      if (this.originalValue === undefined) this.originalValue = this.copyValue(constructedValue);
 
       // the state a construction ends with is the group's initial state, not a change: recording it as announced
       // keeps the commit from announcing the members' assignment as a change of the group, and the first later
@@ -212,11 +199,7 @@ export class Group<
     return captured;
   }
 
-  /**
-   * A copy of a built value, used as a baseline. The value getter returns one object per version, and a baseline
-   * holding that same object would make every value equal to its original.
-   */
-  private static baseline<V extends GenericFieldsInterface>(value: GroupValue<V>): GroupValue<V> {
+  protected copyValue(value: GroupValue<T>): GroupValue<T> {
     return value == null ? value : { ...value };
   }
 
@@ -363,33 +346,23 @@ export class Group<
   }
 
   get value(): GroupValue<T> {
-    // the version read is tracked and the cache read is not, so a reader served from the cache still depends on
-    // every write below this group, without repeating the walk
-    const version = this.valueVersion;
-    if (this.raw.cachedValueVersion === version) return this.raw.cachedValue;
+    return this.cachedComposed('value', () => this.compose('value'));
+  }
 
+  /**
+   * Builds `value` or `fullValue` from what each member sends. The object is shared with later readers, so it is
+   * frozen: a write into it would change the group's value without any member holding that value. A group in which
+   * no member sends anything returns {}.
+   */
+  private compose(purpose: 'value' | 'fullValue'): any {
     // accumulate without a prototype so a field named `__proto__` is stored instead of reassigning the
     // accumulator's prototype; the spread on return produces a regular object
-    const val = Object.create(null) as Record<string, any>;
+    const composed = Object.create(null) as Record<string, any>;
     Object.entries(this._fields).forEach(([name, field]) => {
-      switch (this.childSerializesAs(field, 'value')) {
-        case 'value':
-          val[name] = field.value;
-          break;
-        case 'null':
-          val[name] = null;
-          break;
-        case 'omit':
-          break;
-      }
+      const sent = this.sent(field, purpose);
+      if (sent !== Omitted) composed[name] = sent;
     });
-    // the object is shared with later readers, so it is frozen: a write into it would change the group's value
-    // without any member holding that value. A group that sends a value sends an object, so a group in which no
-    // member sends anything returns {}.
-    const built = (isEmpty(val) ? emptyGroupValue : Object.freeze({ ...val })) as GroupValue<T>;
-    this.raw.cachedValue = built;
-    this.raw.cachedValueVersion = version;
-    return built;
+    return isEmpty(composed) ? emptyGroupValue : Object.freeze({ ...composed });
   }
 
   /**
@@ -421,30 +394,18 @@ export class Group<
    * contains, while a member missing from the value must take its value from `source`. `source` supplies it per
    * member, so a group reset from the declaration it was bound from matches a new binding of it.
    */
-  protected resetTo(source: FieldBase, value: any): void {
+  protected resetMembers(source: FieldBase, value: any): void {
     const template = source as Group<T>;
-    transactional((tx) => {
-      tx.touch(this);
-      if (this.errors.length) this.errors = [];
-      Object.entries(this._fields).forEach(([name, field]) => {
-        // null clears every member; a key missing from a value takes the template member's baseline, and without
-        // a value every member takes the template member's value; an action takes the template's value
-        const source = template.field(name) ?? field;
-        let memberValue: any;
-        if (this.childSerializesAs(field, 'fullValue') === 'omit') memberValue = undefined;
-        else if (value === null) memberValue = null;
-        else if (value !== undefined) memberValue = Object.hasOwn(value, name) ? value[name] : source.originalValue;
-        this.resetChild(field, source, memberValue);
-      });
-      this.recordBaseline();
-      super.validate(true);
+    Object.entries(this._fields).forEach(([name, field]) => {
+      // null clears every member; a key missing from a value takes the template member's baseline, and without
+      // a value every member takes the template member's value; an action takes the template's value
+      const memberSource = template.field(name) ?? field;
+      let memberValue: any;
+      if (this.childSerializesAs(field, 'fullValue') === 'omit') memberValue = undefined;
+      else if (value === null) memberValue = null;
+      else if (value !== undefined) memberValue = Object.hasOwn(value, name) ? value[name] : memberSource.originalValue;
+      this.resetChild(field, memberSource, memberValue);
     });
-  }
-
-  protected recordBaseline(): void {
-    // a reset group announces nothing itself: the container that reset it announces the change
-    this.recordAnnounced();
-    this.originalValue = Group.baseline(this.value);
   }
 
   /**
@@ -452,11 +413,7 @@ export class Group<
    * sends; `fullValue` is what it holds, and a binding of the group copies it.
    */
   get fullValue(): FieldsToFullValues<T> {
-    const value = Object.create(null) as Record<string, any>;
-    Object.entries(this._fields).forEach(([name, field]) => {
-      if (this.childSerializesAs(field, 'fullValue') !== 'omit') value[name] = field.fullValue;
-    });
-    return { ...value } as FieldsToFullValues<T>;
+    return this.cachedComposed('fullValue', () => this.compose('fullValue'));
   }
 
   /**
@@ -487,14 +444,15 @@ export class Group<
     const Ctor = this.constructor as new (fields: T, params?: IFieldParams<GroupValueInput<T>, X>) => Group<T, X>;
     const res = asBinding(
       () =>
-        new Ctor(newFields, {
+        new Ctor(
+          newFields,
           // undefined data counts as not supplied; an explicit null is supplied and clears. The copied value is what
           // the group holds (fullValue), not what it sends, so a member that sends nothing keeps its data
-          value: data !== undefined ? this.withBaselines(data) : (this.fullValue as GroupValueInput<T>),
-          ...(overrides && 'originalValue' in overrides ? { originalValue: overrides.originalValue } : {}),
-          access: overrides?.access ?? this.access,
-          visibility: overrides?.visibility ?? this.visibility,
-        } as IFieldParams<GroupValueInput<T>, X>),
+          this.bindingParams(
+            data !== undefined ? this.withBaselines(data) : (this.fullValue as GroupValueInput<T>),
+            overrides,
+          ),
+        ),
     );
     Group.assertTookFields(res, newFields, this.constructor.name);
     res.boundFrom(this, res.contribution, res.originalValue, overrides);
